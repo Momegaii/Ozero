@@ -18,22 +18,26 @@ does not merge. Breaking changes need an ADR and Director approval.
 | IF-003 | Boot image artifact contract (path, format, size, signature) | A4 | 1.0 | A1, A2, A3 | Implemented |
 | IF-004 | Build manifest schema (`build/manifest.json`) | A4 | 1.0 | A1–A3, CI | Implemented |
 | IF-005 | Test result schema (`result.json`) | A4 | 1.0 | CI, dashboard | Implemented |
-| IF-006 | Public kernel header surface (`include/ozero/`) | A1 | 0.2 draft | A2, A3 | Draft; A1 published `03f8883`; headers at `30ee4f0` |
+| IF-006 | Public kernel header surface (`include/ozero/`) | A1 | 0.2 draft | A2, A3 | Draft; A1 published `03f8883`; headers unchanged at `74b1471` |
 | IF-007 | Syscall / user-kernel ABI | A1 + A3 | — | A2 | Not started |
-| IF-008 | DMA and platform interface contract | A3 | 1.1 | A1, A2 | Published by A3 at `b9a69d8` (branch head `15cd9ce`); A1 final approval pending; AHCI probe blocked |
-| IF-009 | PE fixture and static-analysis contract | A2 | 0.1 draft | A1, A3, A4 | Proposed; A2 `07-stage7-milestone.md` says Signed, `12-a1-contract-review.md` says Open; no raw sign-off |
+| IF-008 | DMA and platform interface contract | A3 | 1.1 | A1, A2 | A1 **ACCEPT** at A3 `b9a69d8` (A1 `74b1471`); A3 accepted §6 at `307b919`; D-007/D-021 Proposed; AHCI probe blocked |
+| IF-009 | PE fixture and static-analysis contract | A2 | 1.0 | A1, A3, A4 | A1 **ACCEPT** with conditions at A2 `d02598a` (`a17d126`); A3 **ACCEPT** for hardware boundary (`307b919`); A2 signature record pending at `6d305b8` / `64b3458`; XB-003 Open |
 
 `IF-001` and `IF-002` are deliberately drafts. A4 owns the harness that consumes them, not the
 technical decision. A1 and A2 must confirm or replace them.
 
 `IF-008` carries a mandatory review gate: A1 must approve any A3 change to DMA or platform
-interfaces before a dependent implementation merges. A3 published v1.1 at `b9a69d8`; A1's
-`30ee4f0` sign-off is conditional on that publication and is not the final approval. See the
-integration checklist.
+interfaces before a dependent implementation merges. A1 recorded **ACCEPT** for v1.1 at `b9a69d8`
+in A1 `74b1471`, with eight conditions in §6 of its review. A3 accepted all eight conditions at
+`307b919` in `a3/docs/interfaces/IF-008-v1.1-acceptance.md`. Director D-007 and D-021 remain
+Proposed, so the AHCI probe remains blocked. A1's acceptance is an interface decision, not hardware
+or runtime evidence.
 
-`IF-009` is not Signed. A2's milestone document says it is, but A2's own contract-review document
-says Open, and neither A1 nor A3 records an explicit decision. A4 keeps the registry row at
-Proposed until a named owner records the version and the decision.
+`IF-009` is not yet recorded as Signed. A2 published v1.0 at `d02598a` with evidence at `3f78477`;
+the current A2 head is `6d305b8` with evidence `64b3458`. A1 **ACCEPT**ed the v1.0 contract with
+conditions at `a17d126`; A3 **ACCEPT**ed the hardware boundary at `307b919`. A2 has not yet recorded
+both signatures or the current evidence pair in its response and ledger. A4 keeps the registry row
+at Proposed until A2 records them.
 
 ## Versioning rules
 

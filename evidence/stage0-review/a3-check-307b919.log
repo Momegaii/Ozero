@@ -1,0 +1,20 @@
+cc -std=c11 -Wall -Wextra -Werror -Iinclude -fsyntax-only tests/header_smoke.c
+python3 tools/validate_matrix.py
+PASS: matrix validation
+  rows: 10
+  statuses: deferred, not-started
+  driver families: ahci, ahci-pm, ata-legacy, i915, nvme, nvme-zns, usb-bot, usb-uas, virtio-blk
+  deferred: nvme-zns, sata-port-multiplier
+  every row pins a revision, an emulator, real hardware and an acceptance test
+python3 tools/check_deliverables.py
+PASS: deliverable check
+  files: 24
+  documents checked: 7
+  matrix validator: PASS
+python3 -m unittest discover -s tests -p 'test_*.py'
+...................
+----------------------------------------------------------------------
+Ran 19 tests in 0.004s
+
+OK
+sh -n tools/collect_inventory.sh

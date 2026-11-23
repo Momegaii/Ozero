@@ -32,11 +32,11 @@ the register wins.
 | D-004 | Approve agent trust boundaries and workspace profiles | **Proposed** | A4 | Project Director | 2026-11-23 | Before Stage 1 | ADR-0004 |
 | D-005 | Choose the boot protocol and kernel handoff (Limine is a candidate only) | **Proposed** | A1 | Project Director | 2026-11-23 | Stage 1 design | IF-001 |
 | D-006 | Accept Stage 0 | **Proposed** | A4 | Project Director | 2026-11-23 | Stage 0 exit | `docs/templates/stage-acceptance.md` |
-| D-007 | Approve the A3 DMA/platform interface and the required A1 sign-off gate | **Proposed** | A1 + A3 | Project Director | 2026-11-23 | Before A3 DMA work | IF-008 v1.1 at A3 `b9a69d8`; A1 approval pending |
+| D-007 | Approve the A3 DMA/platform interface and the required A1 sign-off gate | **Proposed** | A1 + A3 | Project Director | 2026-11-23 | Before A3 DMA work | IF-008 v1.1 at A3 `b9a69d8`; A1 **ACCEPT** at A1 `74b1471`; A3 accepted §6 at `307b919`; Director approval pending |
 | D-008 | Approve publishing the A4 Stage 0 branch for independent verification | **Approved** | A4 | Project Director | 2026-11-23 | Stage 0 review | [#3](https://github.com/Momegaii/Ozero/pull/3), `evidence/stage0-review/director-review-2026-11-23.md` |
 | D-009 | Adopt `include/ozero/` as the only public header root; remove `include/o0/`; keep `o0_` symbol prefixes; A2/A3 include `<ozero/...>` | **Approved** | A1 + A4 | Project Director | 2026-11-23 | Before A1 merge | A1 `03f8883`, `docs/architecture/ownership.md` |
 | D-010 | A1 owns `tools/check-headers.sh` and `tests/abi_static_asserts.c`; A4 owns CI integration; A3 owns other `tools/`; file-level `CODEOWNERS` overrides | **Approved** | A1 + A4 | Project Director | 2026-11-23 | Before A1 merge | `CODEOWNERS` |
-| D-011 | Accept A2's process, address-space, handle and syscall requirements as Stage 7 input; no ABI freeze | **Proposed** | A1 + A2 | Project Director | 2026-11-23 | Before Stage 7 | `docs/a2-interface-review.md` (A1 branch) |
+| D-011 | Accept A2's process, address-space, handle and syscall requirements as Stage 7 input; no ABI freeze | **Proposed** | A1 + A2 | Project Director | 2026-11-23 | Before Stage 7 | A1 answered `A1-REV-01…12` at `50b7853` / `807c447`; A2 accepts all 12 at `6d305b8`; A4 recorded XB-002 Signed; Director approval pending |
 | D-012 | Paging: 4-level default, 5-level opt-in | **Proposed** | A1 | Project Director | 2026-11-23 | Stage 1 design | A1 `docs/kernel-architecture.md` |
 | D-013 | Kernel placement and direct map: fixed image base, discovered HHDM | **Proposed** | A1 | Project Director | 2026-11-23 | Stage 1 design | A1 `docs/kernel-architecture.md` |
 | D-014 | Interrupt model: APIC/IOAPIC, legacy PIC masked | **Proposed** | A1 | Project Director | 2026-11-23 | Stage 1 design | A1 `docs/kernel-architecture.md` |
@@ -46,7 +46,7 @@ the register wins.
 | D-018 | Syscall entry: trap gate first, `SYSCALL` fast path second | **Proposed** | A1 | Project Director | 2026-11-23 | Before syscall work | A1 `docs/kernel-architecture.md` |
 | D-019 | Object and handle model: opaque, generation-tagged, per-process | **Proposed** | A1 | Project Director | 2026-11-23 | Before handle work | A1 `docs/kernel-architecture.md` |
 | D-020 | DMA is constraint-driven, never device-class-driven | **Proposed** | A1 | Project Director | 2026-11-23 | Before DMA work | A1 `docs/a3-dma-contract.md` |
-| D-021 | IOMMU policy: trusted ring-0 only in Stage 1; blocker recorded | **Proposed** | A1 | Project Director | 2026-11-23 | Before DMA work | A1 `docs/a3-dma-contract.md`; A3 accepts in IF-008 v1.1 |
+| D-021 | IOMMU policy: trusted ring-0 only in Stage 1; blocker recorded | **Proposed** | A1 | Project Director | 2026-11-23 | Before DMA work | A1 `docs/a3-dma-contract.md`; A3 IF-008 v1.1; A3 accepted §6 condition 8 at `307b919` |
 | D-022 | SDM citations: 2018 numbered sections plus titles | **Proposed** | A1 | Project Director | 2026-11-23 | Stage 0 review | A1 `docs/sources.md` |
 | D-023 | Limine host tool: build from the pinned source tarball | **Proposed** | A1 | Project Director | 2026-11-23 | Stage 1 build | A1 `docs/boot-contract.md` |
 | D-024 | Exception record shape: neutral kernel record, A2 translates to Windows shapes | **Proposed** | A1 | Project Director | 2026-11-23 | Before Stage 7 | A1 `docs/a2-interface-review.md` |
@@ -56,7 +56,7 @@ the register wins.
 | D-028 | Handle inheritance: A1 provides inherit flags and list; A2 chooses policy | **Proposed** | A1 + A2 | Project Director | 2026-11-23 | Before Stage 7 | A1 `docs/a2-interface-review.md` |
 | D-029 | Clock: A1 provides monotonic nanoseconds; resolution measured, not promised | **Proposed** | A1 + A2 | Project Director | 2026-11-23 | Before Stage 7 | A1 `docs/a2-interface-review.md` |
 | D-030 | 32-bit and WOW64 outside A1 Stage 1 scope; deferred to the x86 user-mode milestone | **Proposed** | A1 + A2 | Project Director | 2026-11-23 | Deferred | A1 `docs/a2-interface-review.md` |
-| D-031 | Enable `main` branch protection and required CI checks | **Proposed** | A4 | Project Director | 2026-11-23 | Before Stage 1 | `evidence/stage0-review/github-settings.txt` |
+| D-031 | Enable `main` branch protection and required CI checks | **Proposed** | A4 | Project Director | 2026-11-23 | Before Stage 1 | Rechecked: `protected:false`, rulesets `[]`, `CODEOWNERS` 404 on `main`; `evidence/stage0-review/github-settings.txt` |
 
 ## Decided
 
@@ -77,8 +77,7 @@ the register wins.
   and ownership conflicts. A1's proposals on the same topics were merged into these rows. A1's
   D-011–D-030 proposals are recorded here but remain **Proposed**. A4's branch-protection proposal
   was renumbered to D-031 because A1's D-011 already uses that ID.
-- A3's branch still cites the pre-approval `include/o0/` conflict in its review documents. That is a
-  stale A3 reference (XB-018), not evidence that D-009 is unresolved. D-009 remains Approved as
-  `include/ozero/`.
-- D-031 remains **Proposed**. The 2026-11-23 check records `main` as `protected:false`, no
+- A3 corrected the `include/o0/` citation and now records D-009 as Approved with `include/ozero/`
+  at A3 `307b919`, reviewing against A4 `3ae7aca`. XB-018 is Closed. D-009 remains Approved.
+- D-031 remains **Proposed**. The 2026-11-23 recheck records `main` as `protected:false`, no
   repository rulesets and no `CODEOWNERS` on `main`; required checks are not enabled.

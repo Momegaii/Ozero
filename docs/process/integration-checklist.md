@@ -21,7 +21,9 @@ one domain. Copy it into the PR description and fill in the evidence. An uncheck
       `docs/architecture/interfaces.md`.
 - [ ] **Cross-agent sign-off.** A1 has approved any A3 change to DMA or platform interfaces
       (IF-008) before dependent implementation merges. The approval names the interface and version.
-      The row in [`cross-agent-blockers.md`](cross-agent-blockers.md) moves to Signed in the same PR.
+      A1 accepted IF-008 v1.1 at A3 `b9a69d8`; A3 accepted the §6 conditions at `307b919`.
+      D-007/D-021 remain Proposed. The row in
+      [`cross-agent-blockers.md`](cross-agent-blockers.md) moves to Signed in the same PR.
 - [ ] **Docs.** The document that describes the changed behaviour is updated in the same PR.
 - [ ] **Evidence.** The agent report is attached and includes the commit hash and the test command.
 - [ ] **Rollback.** `git revert <sha>` restores the previous state with no data migration.
@@ -89,9 +91,10 @@ Stage 0 has no persistent state, so rollback is a revert. For later stages:
 
 ## Current branch integration order
 
-At the 2026-11-23 snapshot the open branches are `a4/stage0-review-followup` (PR #3),
-`a1/stage0-review` (PR #1), `agent/a2-stage0` (PR #2) and `a3/stage0-review-response` (no PR). Merge
-in this order:
+At the 2026-11-23 proceed-brief snapshot the open branches are `a4/stage0-review-followup` (PR #3,
+head `3ae7aca` plus this follow-up), `a1/stage0-review` (PR #1, head `74b1471`),
+`agent/a2-stage0` (PR #2, head `64b3458`, code `6d305b8`) and `a3/stage0-review-response` (head
+`307b919`, no PR, integrated on the A4 control plane). Merge in this order:
 
 1. A4 control plane: it defines `CODEOWNERS`, `Makefile`, `tests/targets.tsv`, `scripts/` and the
    process documents. Nothing else can be checked against the gates until this lands.
@@ -100,16 +103,18 @@ in this order:
    the only public root (D-009); `tools/check-headers.sh` and `tests/abi_static_asserts.c` are
    A1-owned, with A4 owning CI integration (D-010). Register the ABI test in `tests/targets.tsv`.
 3. A2: rebase onto the same base. Keep the `a2/` package intact and add a root `test-pe-static`
-   target; do not merge `a2/Makefile` into the root Makefile. Regenerate evidence at the final head
-   (XB-009) and reconcile the response and contract-review sources (XB-013).
-4. A3: rebase onto the same base and keep its package in its own tree; it must not replace the root
-   `README.md` or `AGENTS.md` (XB-017). Correct the stale A4 head and D-009 citation (XB-018). Merge
-   only after A1 signs IF-008 v1.1 at `b9a69d8` or a later version (XB-001).
+   target; do not merge `a2/Makefile` into the root Makefile. Record the current evidence pair
+   (`6d305b8` / `64b3458`) and A1/A3's IF-009 v1.0 signatures in the response and review ledger
+   (XB-013, XB-003).
+4. A3: `307b919` already integrates on the A4 control plane and keeps its package in `a3/`; the root
+   `README.md` / `AGENTS.md` are A4's (XB-017 Closed). The review basis is A4 `3ae7aca` (XB-018
+   Closed). A3 accepted A1's §6 conditions at `307b919` (XB-019 Closed). Merge only after D-007 and
+   D-021 are decided; A1's IF-008 ACCEPT at `b9a69d8` is recorded.
 
-A1's statement that the A3 interface review is "signed with one blocker" is a conditional sign-off
-of A1's generic surface, not IF-008 approval. A3 has published v1.1, but A1 has not signed that
-exact version, so XB-001 stays Open. A3's `make check` and A1-header compile are static evidence, not
-an AHCI probe or DMA test.
+A1's `74b1471` review is a final interface ACCEPT for IF-008 v1.1, not hardware validation, not a
+runtime DMA test and not Stage 0 acceptance. A3's `make check` and A1-header compile are static
+evidence, not an AHCI probe or DMA test. The AHCI probe stays blocked until the Director decides
+D-007/D-021.
 
 ## Stage acceptance handoff
 
