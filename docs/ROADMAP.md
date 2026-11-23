@@ -16,6 +16,13 @@ These are development stages, not delivery-date promises. The order is intention
 | 9 | Modern hardware expansion | Validated support added across selected modern platforms and devices |
 | 10 | Advanced Windows compatibility | Broader API/runtime coverage with explicit compatibility results and known gaps |
 
+## Stage progress (2026-11-23)
+
+- **Stage 0** — Complete: architecture baseline approved, toolchain scaffold in place.
+- **Stage 1** — Boot verified in QEMU (BIOS). Exit evidence: reproducible boot in emulation, documented boot path, serial/debug output. Remaining: UEFI path exercise, serial/debug workflow documentation, physical hardware tests.
+- **Stage 2** — Implemented and boot-verified: physical page allocator, normalised boot memory map, 4-level page-table construction. Remaining: CR3 switch to new page tables, page-fault handler, allocator/fault tests in-kernel.
+- **Stages 3–10** — Not started.
+
 ## Dependency rules
 
 - Stage 0 decisions constrain all implementation stages.
