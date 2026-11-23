@@ -1,58 +1,45 @@
 # ADR 0001: x86-64 boot path and kernel implementation language
 
-- Status: **Proposed — Project Director approval required**
-- Date: 2026-11-23
-- Scope: Stage 0 decisions required before the first bootable kernel implementation.
+- Status: **Accepted**
+- Date proposed: 2026-11-23
+- Decision recorded: 2026-11-23
+- Scope: Stage 0 boot and kernel-language choices.
 
-## Context
+## Decision
 
-Ozero needs a small, repeatable x86-64 bring-up path that works in QEMU and can later be validated on physical systems. The project also needs a kernel language and toolchain that support low-level control, debugging, maintainability, and a growing driver ecosystem.
+The Project Director approved:
 
-These choices affect the boot contract, linker layout, runtime assumptions, debugging, CI, and contributor requirements. They must not be hidden inside an early prototype.
+- **Boot protocol:** Limine.
+- **Kernel executable:** ELF64.
+- **Initial kernel language:** freestanding C, with assembly where architecture entry/interrupt work requires it.
+- **Initial architecture:** x86-64.
+- **First execution environment:** QEMU, followed by physical hardware validation.
+- **Early physical target:** Intel Haswell (Gen7.5), without importing Gen8+ GPU assumptions.
 
-## Boot-path options
+## Implementation pins
 
-1. **Limine boot protocol with an ELF64 kernel**
-   - Advantages: existing bootloader, documented protocol, useful x86-64 support, less early firmware/loader code for Ozero to own.
-   - Costs: external bootloader dependency and a protocol contract Ozero must track.
-2. **UEFI application / custom UEFI loader**
-   - Advantages: direct control of the loader and a smaller external dependency surface.
-   - Costs: Ozero must own more early boot, memory-map, image-loading, and firmware-transition logic sooner.
-3. **GRUB Multiboot2**
-   - Advantages: mature ecosystem and broad emulator support.
-   - Costs: another protocol contract and less alignment with a deliberately minimal modern UEFI-first bring-up unless the project chooses that trade-off.
+- Limine binary release: v11.4.1, repository commit `5be26a73d7b7b4d4477d18be94e1d16e615adf56`.
+- Limine protocol header: official protocol repository commit `877c2d4c50e170575f8b8e7fbf7b8fa89b1dc157`.
+- Kernel compiler interface: host GCC targeting x86-64 ELF with freestanding flags.
+- Linker: GNU ld, ELF64 x86-64 output, high-half kernel link address `0xffffffff80000000`.
+- Build dependencies: GNU Make, GCC, GNU binutils, curl, tar, xorriso.
+- Emulator/test dependency: QEMU system x86-64.
 
-## Kernel-language options
+The compiler and linker are currently selected by the host environment; exact distro package versions are not yet locked. CI provides a repeatable Ubuntu runner, but a fully hermetic toolchain container remains future work.
 
-1. **C (freestanding) plus a small amount of assembly**
-   - Advantages: mature x86 systems ecosystem, straightforward ABI/toolchain integration, broad debugger and compiler support.
-   - Costs: memory-safety burden and need for strict coding rules, review, sanitizers where possible, and defensive APIs.
-2. **Rust (no_std) plus a small amount of assembly**
-   - Advantages: stronger memory-safety guarantees for much kernel code and expressive type systems.
-   - Costs: more complex target/toolchain setup, unsafe boundaries remain, and low-level driver work still requires hardware expertise.
-3. **C/Rust hybrid**
-   - Advantages: permits gradual adoption and lets subsystems use the strongest fit.
-   - Costs: increases ABI, build, debugging, and maintenance complexity before the project has a stable kernel boundary.
+## Rationale
 
-## Engineering recommendation (not an approval)
+Limine avoids making Ozero responsible for a custom firmware loader during the first kernel milestone. ELF64 is the protocol's recommended executable format. Freestanding C gives direct control over the ABI, linker layout, and low-level hardware interfaces while keeping the first bring-up toolchain straightforward.
 
-For the fastest transparent x86-64 bring-up, evaluate **Limine + ELF64** as the leading boot candidate. Evaluate **freestanding C plus assembly** against **Rust no_std** using a small identical proof-of-toolchain experiment before choosing the kernel language. Do not begin broad kernel implementation until both decisions are recorded as approved.
+## First implementation milestone
 
-This recommendation is deliberately provisional. It does not authorize implementing either choice as the final Ozero architecture.
+- Enter the x86-64 kernel through Limine.
+- Validate the requested Limine base revision.
+- Initialise COM1 serial output.
+- Request and print the Limine memory map.
+- Halt safely after reporting successful boot.
+- Build a hybrid BIOS/UEFI ISO and smoke-test it in QEMU.
 
-## Required decision evidence
+## Follow-up decisions still required
 
-- Minimal boot image can be built reproducibly from a clean checkout.
-- Kernel receives and validates the bootloader-provided memory map and framebuffer/firmware data selected for the milestone.
-- QEMU serial output and debugger attachment work.
-- Compiler, linker, assembler, target triple, sysroot strategy, and versions are pinned.
-- The same toolchain can build a minimal freestanding image without host libc leakage.
-- The choice has a documented path to physical UEFI hardware validation.
-
-## Approval
-
-Project Director decision: **Pending**.
-
-Approved boot path: _pending_  
-Approved kernel language: _pending_  
-Toolchain versions: _pending_
+This ADR does not settle the complete kernel architecture. Separate decisions are required for physical memory management, virtual address layout, interrupt controllers, SMP startup, scheduler, syscall ABI, driver model, and userspace ABI.

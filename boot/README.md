@@ -1,5 +1,11 @@
 # Boot and image area
 
-Bootloader integration and disk-image generation are intentionally gated on approval of ADR 0001.
+Ozero uses the approved Limine boot protocol with an ELF64 x86-64 kernel. The pinned Limine binary release is fetched into the ignored `build/` directory during ISO construction; no bootloader binary is committed.
 
-The first accepted boot path must provide a documented handoff contract, reproducible image generation, serial diagnostics, and a QEMU test path. Do not assume BIOS, UEFI, Limine, GRUB, or a specific protocol until the decision is approved.
+- Configuration: `boot/limine.conf`
+- Kernel: `build/kernel.elf`
+- ISO: `build/ozero.iso`
+- QEMU run: `make run`
+- Headless serial smoke test: `bash tools/qemu-smoke.sh`
+
+The ISO contains BIOS and UEFI boot paths. QEMU CI currently exercises the BIOS path. Physical UEFI/BIOS hardware validation remains outstanding.

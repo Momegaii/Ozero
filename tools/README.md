@@ -1,9 +1,11 @@
 # Developer tooling
 
-The initial tooling uses Python's standard library for host-side orchestration only.
+- `make doctor`: check host build dependencies.
+- `make kernel`: compile the freestanding x86-64 ELF64 kernel.
+- `make iso`: assemble and BIOS-install a hybrid BIOS/UEFI Limine ISO.
+- `make run`: boot the ISO in QEMU with serial output on the terminal.
+- `make run-debug`: start QEMU paused with a GDB server on TCP port 1234.
+- `make check`: run readiness checks and build the bootable ISO.
+- `tools/qemu-smoke.sh`: boot the ISO headlessly and assert kernel serial milestones.
 
-- make doctor: checks required host tools and repository structure.
-- make check: syntax-checks tooling and runs the readiness check.
-- make clean: removes generated local build artifacts.
-
-This is not a kernel compiler or image builder yet. The compiler, linker, assembler, target, boot protocol, and sysroot remain gated by ADR 0001.
+Python remains host-side orchestration only; it is not part of kernel execution.

@@ -1,12 +1,14 @@
-# Kernel implementation area
+# Ozero x86-64 kernel
 
-The kernel source is intentionally not started until ADR 0001 is approved.
+The first freestanding C kernel entry point lives in `src/main.c`.
 
-Planned first milestone after approval:
-- freestanding x86-64 entry point;
-- explicit linker layout and boot handoff validation;
-- serial diagnostics;
-- fatal exception reporting;
-- deterministic QEMU launch and debug scripts.
+## Current bring-up milestone
 
-Do not add host-dependent runtime assumptions or claim a bootable image from this placeholder.
+- Limine base revision 6 request.
+- x86-64 ELF64 linked at `0xffffffff80000000`.
+- COM1 serial initialisation and diagnostics.
+- Limine memory-map request and typed region report.
+- Safe halt loop after successful handoff.
+- No libc, hosted runtime, allocator, interrupt handlers, scheduler, or device drivers yet.
+
+Build with `make kernel`; create a bootable ISO with `make iso`; run it with `make run`. The first milestone is a boot/hand-off proof, not yet a usable operating system.

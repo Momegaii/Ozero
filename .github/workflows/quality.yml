@@ -1,4 +1,4 @@
-name: Ozero repository checks
+name: Ozero kernel build and boot checks
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  repository-checks:
+  x86_64-kernel:
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
@@ -18,8 +18,18 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: "3.x"
+      - name: Install build and emulator dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes build-essential binutils curl xorriso qemu-system-x86
       - name: Compile developer tooling
         run: python -m compileall -q tools
-      - name: Check repository readiness
-        run: python tools/doctor.py --ci
+      - name: Check host readiness
+        run: make doctor
+      - name: Build ELF64 kernel and bootable ISO
+        run: make check
+      - name: Verify ELF header
+        run: readelf -h build/kernel.elf
+      - name: Boot kernel in QEMU and verify serial milestones
+        run: bash tools/qemu-smoke.sh
