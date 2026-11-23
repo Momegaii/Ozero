@@ -137,9 +137,11 @@ because Stage 1 has no IOMMU. Details and per-item disposition are in
 
 ## 6. Architectural decisions
 
-Each decision lists the source that constrains it. All are pending director approval.
+Each decision lists the source that constrains it. All are pending director approval. The
+global decision ID is in parentheses; the mapping is in
+`docs/decisions/a1-global-decisions.md`.
 
-### D1. Boot path: UEFI firmware + Limine (base revision 6 requested) + kernel
+### D1 (D-005). Boot path: UEFI firmware + Limine (base revision 6 requested) + kernel
 
 Base revision 6 is requested, but its changes over revision 5 are non-x86 only; the x86-64
 entry-state guarantees used here are revision-5 guarantees. [LIMINE-BASE]
@@ -157,14 +159,14 @@ of working bootloader code with no Stage 0 requirement driving it.
 Comparison and rejection criteria are in `docs/boot-contract.md` §2. Revisit only if
 Limine's contract blocks a hard requirement.
 
-### D2. Paging: 4-level baseline, 5-level opt-in
+### D2 (D-012). Paging: 4-level baseline, 5-level opt-in
 
 Request paging mode `min = 4-level`, `max = 5-level`, `preferred = 4-level` through the
 Limine paging-mode feature, and record the mode actually enabled. [LIMINE-PAGING]
 Generic services use pointer-width-independent types. 5-level support must not require a
 second memory manager; it changes canonical-width checks and page-table depth only.
 
-### D3. Kernel placement and direct map
+### D3 (D-013). Kernel placement and direct map
 
 Kernel image is non-relocatable at `0xffffffff80000000`, built with the kernel code model.
 The HHDM offset is discovered at boot and stored in boot info; it is never hard-coded,
@@ -174,7 +176,7 @@ The kernel never assumes that a physical address is reachable through the HHDM u
 region type is one Limine maps and the checked range predicate in boot contract §5.1
 passes.
 
-### D4. Interrupt model: APIC, no legacy PIC
+### D4 (D-014). Interrupt model: APIC, no legacy PIC
 
 Use the local APIC (x2APIC when the bootloader reports it enabled and the CPU supports it)
 and the IOAPIC. Limine masks the legacy PIC and IOAPIC redirections before handoff, so the
@@ -184,7 +186,7 @@ Programmable Interrupt Controller (APIC)".
 The IDT uses dedicated IST stacks for double fault, NMI and machine check. A double fault
 that cannot use its IST stack is a guaranteed triple fault and loses all diagnostics.
 
-### D5. SMP: Limine MP feature, kernel-controlled AP takeover
+### D5 (D-015). SMP: Limine MP feature, kernel-controlled AP takeover
 
 Request the MP feature so APs are parked deterministically in long mode with paging on.
 Publish each AP's kernel entry with a release store to `goto_address` only after its
@@ -196,7 +198,7 @@ bootloader-reclaimable memory, so that memory cannot be reclaimed until takeover
 complete. This is a hard precondition in the boot contract §9.1–§9.3. Stage 1 has no AP
 hotplug; after reclaim the bootloader trampoline is gone.
 
-### D6. ACPI: RSDP → XSDT → MADT/FADT only
+### D6 (D-016). ACPI: RSDP → XSDT → MADT/FADT only
 
 Use the Limine-provided RSDP (virtual through the HHDM for base revision ≥ 4), validate
 checksums and lengths, then read XSDT, MADT and FADT. MADT supplies CPU and IOAPIC
@@ -204,7 +206,7 @@ topology and interrupt overrides; FADT supplies legacy fallback information. No 
 interpreter and no DSDT namespace evaluation in Stage 1. [ACPI-5.2.5] [ACPI-5.2.8]
 [ACPI-5.2.12] [ACPI-5.2.9]
 
-### D7. EFI runtime services: recorded, not used, in Stage 1
+### D7 (D-017). EFI runtime services: recorded, not used, in Stage 1
 
 Limine exits boot services, so no boot service may be called. Runtime services remain
 callable in physical mode, but their pointers must not be converted until
@@ -215,19 +217,19 @@ Stage 1 records the EFI system table and memory map in boot info and uses neithe
 keeps the physical/virtual transition out of the critical boot path. Supporting runtime
 services is a separate decision (U6).
 
-### D8. Syscall entry: trap gate first, `SYSCALL` fast path second
+### D8 (D-018). Syscall entry: trap gate first, `SYSCALL` fast path second
 
 The first ring-3 test uses `int 0x80`. The fast path uses `IA32_STAR`, `IA32_LSTAR`,
 `IA32_FMASK` and `swapgs` once the trap path, per-CPU state and user-copy rules are
 proven. [SDM-2A] `SYSCALL` [SDM-4]
 
-### D9. Object and handle model: opaque, generation-tagged, per-process
+### D9 (D-019). Object and handle model: opaque, generation-tagged, per-process
 
 Handles are 64-bit opaque values resolved through a per-process table; the value encodes
 an index and generation, never a kernel pointer. Rights are a bitmask. This satisfies
 A2's need for stable handle/object concepts without freezing a Windows ABI.
 
-### D10. DMA is constraint-driven, never device-class-driven
+### D10 (D-020). DMA is constraint-driven, never device-class-driven
 
 Generic memory exposes allocation against a caller-supplied `o0_dma_constraint` (address
 mask, alignment, segment limit, coherency). Device-specific constraints come from the

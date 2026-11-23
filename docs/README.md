@@ -14,6 +14,9 @@ implementation; decisions marked *pending* need director sign-off.
 | `docs/interface-draft.md` | Header conventions, interface rationale, stability rules |
 | `docs/stage1-plan.md` | Ordered milestones, QEMU matrix, expected serial output, risk gates |
 | `docs/stage0-report.md` | Status, evidence, decisions needed, risks, next step |
+| `docs/a2-interface-review.md` | A1 review of A2's process, address-space, handle and syscall requirements |
+| `docs/a3-dma-contract.md` | A1 conditions for A3's `platform.h` and `block.h` (IF-008, D-007) |
+| `docs/decisions/a1-global-decisions.md` | A1 proposals in the global decision ID space, D-009 through D-030 |
 | `docs/sources.md` | Citation keys and exact source URLs |
 
 ## Interface sketch
@@ -29,11 +32,14 @@ a frozen ABI. Signatures may change in review.
 ```
 
 Compiles every header standalone as freestanding C11, checks the umbrella header as C11
-and C++17, runs the ABI static assertions in `tests/abi_static_asserts.c`, and enforces
-that generic headers contain no device-class or GPU-generation assumptions and no hosted
-libc headers.
+and C++17, runs the ABI static assertions in `tests/abi_static_asserts.c`, enforces that
+generic headers contain no device-class or GPU-generation assumptions and no hosted libc
+headers, and rejects `include/o0/` or legacy `o0/` includes. A1 owns the script; A4 owns
+CI integration (D-010).
 
 ## Stage status
 
-Stage 0: draft ready for review. No kernel implementation has started. Build integration
-belongs to A4.
+Stage 0: **not accepted**. The director's second review asked A1 to resolve the header
+namespace and tooling ownership, review A2's kernel-facing requirements and confirm the
+A3 DMA interface. Those responses are in this branch. No kernel implementation has started.
+Build integration belongs to A4.

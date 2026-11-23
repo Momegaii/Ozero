@@ -190,38 +190,46 @@ runtime behaviour; that is Stage 1.
 ## 11. A3 interface review (A1 sign-off)
 
 Scope: the DMA and MMIO surface in `mm.h` and `driver.h`. A1 signs the generic services
-for Stage 1 **subject to the IOMMU blocker below**.
+for Stage 1 **subject to the IOMMU blocker below**. The detailed conditions are in
+`docs/a3-dma-contract.md` (IF-008, D-007). A3's `platform.h` and `block.h` are not
+published yet, so this is a conditional sign-off, not IF-008 approval.
 
 | Item | Disposition | Note |
 |---|---|---|
 | Address width | Signed | `addr_mask` + `max_segment`, validated; CPU physical width is only an upper bound |
-| IOMMU assumptions | **Blocker** | No IOMMU in Stage 1 (Limine disables VT-d/AMD-Vi). Returned addresses are physical and untranslated; the API has no domain handle. Limine's Keep IOMMU feature exists, but using it would require the kernel to own a VT-d/AMD-Vi driver |
+| IOMMU assumptions | **Blocker** | No IOMMU in Stage 1 (Limine disables VT-d/AMD-Vi). Returned addresses are physical and untranslated; the API has no domain handle. Limine's Keep IOMMU feature exists, but using it would require the kernel to own a VT-d/AMD-Vi driver. No DMA-domain type is accepted in A3 headers. |
 | Coherency | Signed | Explicit `coherent` flag plus `o0_dma_sync`; no implicit maintenance |
-| Map/unmap lifetime | Signed | BAR until unmap, DMA buffer until free, both after quiesce; reset invalidates both |
+| Map/unmap lifetime | Signed | BAR until unmap, DMA buffer until free, both after quiesce. A reset invalidates in-flight requests and device state; it does **not** free kernel DMA buffers or unmap BARs. The driver reinitialises after reset. |
 | Reset and in-flight DMA | Signed | `o0_device_dma_quiesce` → `o0_device_reset`; `o0_io_cancel` best-effort with completion still possible |
-| Block I/O shape | Signed | `o0_io_limits` for transfer size, queue depth and alignment; block semantics stay in A3 |
+| Block I/O shape | Signed | `o0_io_limits` for transfer size, queue depth and alignment; one contiguous buffer per `o0_io_request`; block semantics stay in A3 |
 | Interrupt routing | Signed | GSI vs vector split; MSI/MSI-X vector allocation; handler context rules |
+| Driver callbacks | Signed | A3 implements `struct o0_device_ops` (`dma_constraints`, `dma_quiesce`, `reset`, `io_submit`, `io_cancel`); A1 wraps and validates |
 | Device-class neutrality | Signed and automated | `tools/check-headers.sh` neutrality check |
 
 Conditions attached to the sign-off:
 
 1. No untrusted or userspace driver receives DMA before an IOMMU domain exists. The
-   Stage 1 model is trusted ring-0 drivers only.
+   Stage 1 model is trusted ring-0 drivers only (D-021).
 2. A3 must not assume a single `o0_dma_buffer` covers a transfer larger than
-   `max_segment`; it builds a scatter-gather list from multiple buffers.
-3. A3 must not assume BAR mappings come from the HHDM; they are dedicated UC mappings.
-4. Any change to these semantics is a versioned interface change, not a driver-local
+   `max_segment`; it splits the transfer into multiple buffers and requests. There is no
+   scatter-gather pointer in `o0_io_request` in Stage 1.
+3. A3 must not assume BAR mappings come from the HHDM; they are dedicated UC/NX mappings.
+4. A3 must not assume reset preserves queue state, DMA buffers or BAR mappings.
+5. Any change to these semantics is a versioned interface change, not a driver-local
    decision.
 
 If A3 rejects condition 1 or 2, the blocker is escalated before the AHCI probe or any
-real DMA, not worked around in a driver.
+real DMA, not worked around in a driver. A1 records the final IF-008 approval only after
+A3 publishes `platform.h` and `block.h` and passes the checklist in
+`docs/a3-dma-contract.md` §5.
 
 ## 12. Open questions
 
 - Is a single `o0_status` enum sufficient for A2's compatibility layer, or is a mapping
   table to NTSTATUS needed at the boundary? (A2)
 - Should DMA constraints include an explicit IOMMU domain handle once IOMMU support
-  exists? Today Limine disables VT-d/AMD-Vi, so there is no domain. [LIMINE-STATE]
+  exists? Resolved for Stage 1: no domain (D-021). A future IOMMU interface needs a new
+  global decision, not a hidden field. [LIMINE-STATE]
 - Does A3 want a device-class registry in the kernel, or a pure callback model where A3
   owns all classification?
 - Is a blocking `o0_io_submit` variant needed, or is the callback-only form sufficient?

@@ -9,10 +9,13 @@ foundational decisions (see `docs/kernel-architecture.md` §6).
 ## Layout
 
 - `docs/` — architecture note, boot contract, CPU matrix, interface draft, Stage 1 plan,
-  Stage 0 report, source index.
-- `include/ozero/` — public interface sketch (freestanding C11).
-- `tests/abi_static_asserts.c` — compile-time ABI checks.
-- `tools/check-headers.sh` — the only runnable check today.
+  Stage 0 report, source index, A2 review and A3 DMA contract.
+- `docs/decisions/a1-global-decisions.md` — A1 proposals in the global decision ID space.
+- `include/ozero/` — public interface sketch (freestanding C11). This is the only public
+  header root; `include/o0/` is removed (D-009).
+- `tests/abi_static_asserts.c` — compile-time ABI checks, owned by A1.
+- `tools/check-headers.sh` — conformance script, owned by A1; A4 invokes it from CI
+  unmodified (D-010).
 
 ## Commands
 
@@ -21,8 +24,8 @@ foundational decisions (see `docs/kernel-architecture.md` §6).
 ```
 
 Expected result: `RESULT: PASS`. It compiles each header standalone, the umbrella header
-as C11 and C++17, the static assertions, and greps for forbidden device-class terms and
-hosted libc headers.
+as C11 and C++17, the static assertions, greps for forbidden device-class terms and hosted
+libc headers, and rejects `include/o0/` or legacy `o0/` includes.
 
 ## Conventions
 
@@ -32,10 +35,17 @@ hosted libc headers.
 - Generic kernel interfaces must stay device-neutral. No GPU generation, vendor or
   device-class assumptions in `include/ozero/mm.h`, `irq.h`, `driver.h` or `thread.h`.
 - Headers: `o0_` prefix, include guard `O0_<NAME>_H`, `extern "C"`, fixed-width types,
-  `o0_status` returns, no errno/NTSTATUS, no hosted libc.
+  `o0_status` returns, no errno/NTSTATUS, no hosted libc. Include path is `<ozero/...>`;
+  symbols keep the `o0_` prefix.
 - The syscall ABI, handle encoding and user-visible error mapping are deliberately
   unfrozen (A2/A4).
-- A4 owns repository, build and CI. `tools/check-headers.sh` is a developer aid, not CI.
+- A4 owns repository, build and CI. A1 owns `tools/check-headers.sh` and
+  `tests/abi_static_asserts.c`; A4 must invoke the script unmodified. A3 owns other
+  content under `tools/` (D-010). A4's `CODEOWNERS` needs file-level overrides for the two
+  A1 artifacts.
+- Use global decision IDs in reports and cross-agent documents: D-005 and D-007 from A4's
+  register, D-009 through D-030 from `docs/decisions/a1-global-decisions.md`. A4 owns the
+  canonical register; A1's local D1–D14 map to the global IDs in that file.
 
 ## Pinned facts
 
@@ -53,10 +63,10 @@ hosted libc headers.
 ## Repository integration
 
 - Shared source of truth: <https://github.com/Momegaii/Ozero>. A1 works on branch
-  `a1/stage0-review` and integrates through a pull request. Never push to `main`.
+  `a1/stage0-review` and integrates through pull request #1. Never push to `main`.
 - Reports must name commit hashes, changed files, commands actually run, raw results,
-  unresolved risks and cross-agent dependencies. Never claim Stage 0 acceptance; that is
-  the director's decision.
+  tests not run, unresolved risks and cross-agent dependencies. Never claim Stage 0
+  acceptance; that is the director's decision.
 
 ## Reporting
 
