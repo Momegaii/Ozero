@@ -35,14 +35,14 @@ static void serial_init(void) {
 }
 
 static void serial_putc(char c) {
-    if (c == '\\n') {
-        outb(COM1, '\\r');
+    if (c == '\n') {
+        outb(COM1, '\r');
     }
     outb(COM1, (uint8_t)c);
 }
 
 static void serial_puts(const char *text) {
-    while (*text != '\\0') {
+    while (*text != '\0') {
         serial_putc(*text++);
     }
 }
@@ -78,7 +78,7 @@ __attribute__((noreturn))
 static void panic(const char *reason) {
     serial_puts("OZERO: PANIC: ");
     serial_puts(reason);
-    serial_puts("\\n");
+    serial_puts("\n");
     halt_forever();
 }
 
@@ -105,7 +105,7 @@ static void report_memory_map(void) {
 
     serial_puts("OZERO: memory map entries=");
     serial_dec(response->entry_count);
-    serial_puts("\\n");
+    serial_puts("\n");
 
     for (uint64_t i = 0; i < response->entry_count; ++i) {
         const struct limine_memmap_entry *entry = response->entries[i];
@@ -120,23 +120,23 @@ static void report_memory_map(void) {
         serial_hex(entry->length);
         serial_puts(" type=");
         serial_puts(memmap_type(entry->type));
-        serial_puts("\\n");
+        serial_puts("\n");
     }
 }
 
 __attribute__((noreturn))
 void kmain(void) {
     serial_init();
-    serial_puts("\\nOZERO: kernel entry reached\\n");
-    serial_puts("OZERO: architecture=x86_64\\n");
-    serial_puts("OZERO: boot protocol=Limine\\n");
+    serial_puts("\nOZERO: kernel entry reached\n");
+    serial_puts("OZERO: architecture=x86_64\n");
+    serial_puts("OZERO: boot protocol=Limine\n");
 
     if (!LIMINE_BASE_REVISION_SUPPORTED(limine_base_revision)) {
         panic("bootloader does not support requested Limine base revision 6");
     }
 
-    serial_puts("OZERO: Limine base revision accepted\\n");
+    serial_puts("OZERO: Limine base revision accepted\n");
     report_memory_map();
-    serial_puts("OZERO: boot success; entering idle halt loop\\n");
+    serial_puts("OZERO: boot success; entering idle halt loop\n");
     halt_forever();
 }
