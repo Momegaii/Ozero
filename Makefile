@@ -12,7 +12,7 @@ ISO := $(BUILD)/ozero.iso
 CFLAGS := -std=gnu11 -O2 -Wall -Wextra -Werror \
           -ffreestanding -fno-stack-protector -fno-pic -fno-pie \
           -fno-asynchronous-unwind-tables -fno-unwind-tables \
-          -m64 -mcmodel=kernel -mno-red-zone -mgeneral-regs-only
+          -m64 -march=x86-64 -mtune=generic -mcmodel=kernel -mno-red-zone -mgeneral-regs-only
 LDFLAGS := -nostdlib -static -z max-page-size=0x1000 -T kernel/linker.lds
 
 .PHONY: help doctor check kernel iso run run-debug clean

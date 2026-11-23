@@ -2,6 +2,7 @@
 set -euo pipefail
 
 QEMU="${QEMU:-qemu-system-x86_64}"
+CPU_MODEL="${QEMU_CPU:-qemu64}"
 ISO="${1:-build/ozero.iso}"
 LOG="${2:-build/qemu-serial.log}"
 DEBUG_LOG="${QEMU_DEBUG_LOG:-build/qemu-debug.log}"
@@ -21,7 +22,7 @@ rm -f "$LOG" "$DEBUG_LOG"
 
 set +e
 timeout "${TIMEOUT_SECONDS}s" "$QEMU" \
-    -machine q35 -m 512M -cdrom "$ISO" -boot d \
+    -machine q35 -cpu "$CPU_MODEL" -m 512M -cdrom "$ISO" -boot d \
     -display none -serial "file:$LOG" -monitor none \
     -no-reboot -no-shutdown \
     -d int,in_asm,guest_errors,cpu_reset -D "$DEBUG_LOG"

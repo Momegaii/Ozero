@@ -33,16 +33,24 @@ jobs:
         run: |
           readelf -h build/kernel.elf
           objdump -d -Mintel build/kernel.elf > build/kernel.disasm.txt
-      - name: Boot kernel in QEMU and verify serial milestones
-        run: bash tools/qemu-smoke.sh
+      - name: Boot kernel with generic x86-64 CPU
+        env:
+          QEMU_CPU: qemu64
+          QEMU_DEBUG_LOG: build/qemu-debug-qemu64.log
+        run: bash tools/qemu-smoke.sh build/ozero.iso build/qemu-serial-qemu64.log
+      - name: Boot kernel with Intel Haswell CPU model
+        env:
+          QEMU_CPU: Haswell-v1
+          QEMU_DEBUG_LOG: build/qemu-debug-haswell.log
+        run: bash tools/qemu-smoke.sh build/ozero.iso build/qemu-serial-haswell.log
       - name: Upload QEMU diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ozero-qemu-diagnostics
           path: |
-            build/qemu-serial.log
-            build/qemu-debug.log
+            build/qemu-serial-*.log
+            build/qemu-debug-*.log
             build/kernel.disasm.txt
           if-no-files-found: warn
           retention-days: 7
