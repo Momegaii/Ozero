@@ -40,7 +40,7 @@ Limine memory map types are mapped to `enum o0_mem_type` (`include/ozero/boot.h`
 ## 3. Reclaim rules
 
 Bootloader-reclaimable memory (`O0_MEM_RECLAIMABLE`) is loaned to the kernel
-during boot and must be released back or reclaimed before the bootloader
+during boot and must be returned or accounted for before the bootloader
 expects it back.
 
 ### 3.1 Reclaim checklist (must all pass before release)
@@ -72,6 +72,9 @@ prohibited.
 When the kernel activates its own page tables (`o0_paging_load()`), the direct
 map is rebuilt over physical `[0, 4 GiB)` at `hhdm_offset` using 2 MiB pages. If
 the bootloader reports a zero offset the same window is identity-mapped instead.
+Because the map is built from 2 MiB pages, `hhdm_offset` is the 2 MiB-aligned
+bootloader offset; `virt = phys + hhdm_offset` therefore holds for every address
+the kernel maps, including physical 0.
 
 Consequences that callers must respect:
 

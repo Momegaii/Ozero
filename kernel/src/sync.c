@@ -75,12 +75,13 @@ void o0_mutex_lock(o0_mutex_t *mutex) {
 
         struct o0_thread *self = o0_sched_current();
         if (self == NULL) {
-            /* No scheduler: fall back to spinning rather than losing the lock. */
+            /* No scheduler: spin until the lock looks free and then go round the
+             * loop again, so the acquisition itself still happens above. */
             o0_irq_restore(irq);
             while (__atomic_load_n(&mutex->locked, __ATOMIC_ACQUIRE) != 0) {
                 o0_cpu_relax();
             }
-            return;
+            continue;
         }
 
         self->wait_next = (struct o0_thread *)mutex->waiters;

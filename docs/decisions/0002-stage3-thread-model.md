@@ -29,7 +29,7 @@ tables** for `_kernel_start` (`o0_virt_to_phys`). The boot info records the resu
 The kernel then builds its own tables and switches CR3 to them:
 
 - a direct map (HHDM) window `[hhdm_offset, hhdm_offset + 4 GiB)` → physical `[0, 4 GiB)`,
-  using 2 MiB pages, so every physical page the allocator hand out is reachable;
+  using 2 MiB pages, so every physical page the allocator hands out is reachable;
 - the kernel image at its linked high-half address, 2 MiB pages;
 - per-address-space 4 KiB mappings for everything else.
 

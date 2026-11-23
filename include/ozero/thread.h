@@ -47,7 +47,7 @@ void o0_thread_yield(void);
 void o0_thread_sleep_ns(uint64_t ns);
 
 /* Per-thread user pointer and segment bases. A2 owns the TEB layout and allocation; the
- * kernel stores only the pointer and programs GS/FS on context switch. See D-025. */
+ * kernel stores only the pointer and will program GS/FS when user mode lands. */
 O0_NODISCARD o0_status o0_thread_set_user_pointer(o0_thread_t *thread, void *ptr);
 void *o0_thread_user_pointer(const o0_thread_t *thread);
 O0_NODISCARD o0_status o0_thread_set_gs_base(o0_thread_t *thread, uint64_t base);

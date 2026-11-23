@@ -78,8 +78,8 @@ void x86_irq_dispatch(struct x86_64_interrupt_frame *frame) {
     ++irq_counts[line];
 
     /* Acknowledge the controller before the handler runs so a slow handler
-     * cannot lose the next edge; spurious IRQ7/IRQ15 behaviour is checked
-     * after the fact instead of guessed at. */
+     * cannot lose the next interrupt. Spurious IRQ7/IRQ15 are not detected
+     * yet; they are counted like any other line. */
     o0_pic_eoi(line);
 
     struct o0_irq_slot *slot = &irq_table[line];

@@ -1,7 +1,8 @@
 /* Ozero kernel - physical memory, virtual memory and DMA.
  *
  * Generic interfaces only. Device-class constraints are supplied by the caller; no
- * device generation, bus topology or GPU assumption belongs here. See docs/interface-draft.md.
+ * device generation, bus topology or GPU assumption belongs here. See
+ * docs/ARCHITECTURE_BASELINE.md.
  */
 #ifndef O0_MM_H
 #define O0_MM_H
@@ -37,7 +38,7 @@ uint64_t o0_pmm_release_bootloader_memory(void);
 /* Checked HHDM conversion. Every byte of [phys, phys+len) must lie in an HHDM-mapped
  * region and all address arithmetic must be overflow-free. Returns O0_ERANGE for an
  * unmapped or non-canonical range, O0_EOVERFLOW for arithmetic overflow, O0_EINVAL for a
- * null out pointer. len == 0 means one byte. See docs/boot-contract.md §5.1. */
+ * null out pointer. len == 0 means one byte. See docs/boot-contract.md §4.1. */
 O0_NODISCARD o0_status o0_hhdm_to_virt(o0_paddr_t phys, size_t len, void **out);
 O0_NODISCARD bool o0_hhdm_range_ok(o0_paddr_t phys, size_t len);
 
@@ -57,7 +58,7 @@ enum o0_map_flags {
     O0_MAP_GLOBAL = 1u << 4,
     O0_MAP_UC = 1u << 5, /* uncached device memory */
     O0_MAP_WC = 1u << 6, /* write-combining; requires PAT */
-    O0_MAP_NX = 1u << 7  /* force no-execute; mappings without O0_MAP_EXEC are NX */
+    O0_MAP_NX = 1u << 7  /* request no-execute; not encoded until EFER.NXE is on */
 };
 
 o0_as_t *o0_as_kernel(void);
@@ -83,8 +84,8 @@ void o0_kfree(void *ptr, size_t size);
  * alignment: power of two, or 0 for natural page alignment.
  * max_segment: bytes per physically contiguous segment; 0 means no limit.
  * coherent: false means the caller must use o0_dma_sync around transfers.
- * Stage 1 has no IOMMU: returned addresses are untranslated physical addresses and are
- * only safe for trusted in-kernel drivers. */
+ * There is no IOMMU at this stage: returned addresses are untranslated physical
+ * addresses and are only safe for trusted in-kernel drivers. */
 struct o0_dma_constraint {
     uint64_t addr_mask;
     uint32_t alignment;

@@ -306,8 +306,15 @@ o0_status o0_thread_join(o0_thread_t *thread, int *status) {
         return O0_EINVAL;
     }
 
-    while (!thread->exited) {
+    for (;;) {
         o0_irq_state_t irq = o0_irq_save();
+        if (thread->exited) {
+            o0_irq_restore(irq);
+            break;
+        }
+        /* Register and block in the same interrupt-disabled section: the target
+         * sets `exited` and wakes its waiter under the same lock, so an exit
+         * between the test and the block cannot be missed. */
         thread->join_waiter = self;
         o0_sched_block(O0_BLOCK_JOIN);
         o0_irq_restore(irq);

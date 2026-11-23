@@ -105,7 +105,8 @@ struct o0_io_request {
 /* The driver supplies these device-specific operations. The kernel wrappers above
  * validate arguments and enforce lifetimes before dispatching. The table must remain
  * valid for the device lifetime. A NULL callback means the operation is unsupported and
- * the wrapper returns O0_ENOTSUP. See docs/a3-dma-contract.md (IF-008, D-007). */
+ * the wrapper returns O0_ENOTSUP. The DMA contract is the IF-008 platform interface in
+ * include/ozero/platform.h. */
 struct o0_device_ops {
     o0_status (*dma_constraints)(o0_device_t *dev, struct o0_dma_constraint *out);
     o0_status (*dma_quiesce)(o0_device_t *dev);

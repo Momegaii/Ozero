@@ -1,3 +1,9 @@
+/* Ozero kernel - x86-64 interrupt descriptor table.
+ *
+ * Exception gates (vectors 0-31) are installed at boot; the 16 legacy IRQ gates
+ * (vectors 32-47) are installed separately, after the PIC has been remapped.
+ */
+
 #include <stddef.h>
 #include <stdint.h>
 

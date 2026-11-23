@@ -1,7 +1,8 @@
 /* Ozero kernel - boot information contract.
  *
- * Populated by arch/x86_64/entry from the Limine responses and copied into kernel-owned
- * memory before bootloader-reclaimable memory is released. See docs/boot-contract.md.
+ * Populated by o0_boot_populate() (kernel/src/boot_info.c) from the Limine responses and
+ * copied into kernel-owned memory before bootloader-reclaimable memory is released. See
+ * docs/boot-contract.md.
  */
 #ifndef O0_BOOT_H
 #define O0_BOOT_H
@@ -22,7 +23,7 @@ enum o0_firmware_type {
     O0_FW_EFI64 = 3
 };
 
-/* Normalised memory types. The mapping from Limine types is in docs/boot-contract.md §5. */
+/* Normalised memory types. The mapping from Limine types is in docs/boot-contract.md §2. */
 enum o0_mem_type {
     O0_MEM_FREE = 0,          /* usable RAM, owned by the kernel */
     O0_MEM_RECLAIMABLE = 1,   /* bootloader-reclaimable, on loan until reclaim completes */

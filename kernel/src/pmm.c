@@ -155,17 +155,16 @@ o0_status o0_pmm_init(const struct o0_boot_info *bi) {
         bitmap[i] = 0;
     }
 
-    /* Reserve the kernel's own frames from the first usable region.
-     * The kernel's physical load address is not yet known (boot_info.kernel_phys
-     * is 0 until the CR3 switch offset is determined), so we conservatively
-     * reserve pages based on the kernel's linked size instead. This prevents
-     * the allocator from handing out frames that back the kernel image. */
+    /* Reserve the frames that back the kernel image. The physical load address is
+     * resolved before the allocator starts, so the exact range is known; only pages
+     * the allocator actually tracks can be reserved, and an image loaded into an
+     * executable/modules region needs no reservation at all. */
     if (bi->kernel_phys_size > UINT64_MAX - (O0_PAGE_SIZE - 1u)) {
         return O0_EOVERFLOW;
     }
     uint64_t kernel_pages = (bi->kernel_phys_size + O0_PAGE_SIZE - 1u) >> O0_PAGE_SHIFT;
     if (kernel_pages == 0) {
-        kernel_pages = 16u; /* fallback if size not yet known */
+        kernel_pages = 16u; /* defensive fallback for an unknown image size */
     }
     /* Address zero is the failure sentinel; never allocate physical page zero. */
     uint64_t zero_bit = paddr_to_bit(0);
@@ -174,16 +173,34 @@ o0_status o0_pmm_init(const struct o0_boot_info *bi) {
         --free_pages;
     }
 
-    for (uint64_t r = 0; r < region_count; ++r) {
-        if (regions[r].page_count >= kernel_pages) {
-            for (uint64_t b = 0; b < kernel_pages; ++b) {
-                uint64_t bit = regions[r].bitmap_start + b;
-                if (!test_bit(bit)) {
-                    set_bit(bit);
-                    --free_pages;
-                }
+    if (bi->kernel_phys != 0) {
+        uint64_t first = bi->kernel_phys >> O0_PAGE_SHIFT;
+        uint64_t end = (bi->kernel_phys + bi->kernel_phys_size + O0_PAGE_SIZE - 1u) >>
+                       O0_PAGE_SHIFT;
+        if (end <= first) {
+            end = first + kernel_pages;
+        }
+        for (uint64_t page = first; page < end; ++page) {
+            uint64_t bit = paddr_to_bit(page << O0_PAGE_SHIFT);
+            if (bit != (uint64_t)-1 && !test_bit(bit)) {
+                set_bit(bit);
+                --free_pages;
             }
-            break;
+        }
+    } else {
+        /* No resolved load address: reserve from the first usable region so the
+         * allocator cannot hand out frames that may back the image. */
+        for (uint64_t r = 0; r < region_count; ++r) {
+            if (regions[r].page_count >= kernel_pages) {
+                for (uint64_t b = 0; b < kernel_pages; ++b) {
+                    uint64_t bit = regions[r].bitmap_start + b;
+                    if (!test_bit(bit)) {
+                        set_bit(bit);
+                        --free_pages;
+                    }
+                }
+                break;
+            }
         }
     }
 
@@ -298,7 +315,7 @@ uint64_t o0_pmm_total_bytes(void) {
 
 uint64_t o0_pmm_release_bootloader_memory(void) {
     /* Reclaimable regions remain reserved until the boot contract's reclaim
-     * checklist is documented and passed. Stage 2 does not release them yet.
-     * See docs/boot-contract.md §5. */
+     * checklist is documented and passed. Stage 3 does not release them yet.
+     * See docs/boot-contract.md §3. */
     return 0;
 }

@@ -65,7 +65,7 @@ Truthful split by evidence type:
 
 - **Build:** the kernel links cleanly with `-Werror` on the documented flags
   (`make kernel`, ELF64 x86-64). Performed in the current work environment.
-- **Host unit tests:** `make test` — PMM 6/6, slab 5/5, scheduler 5/5, CPU pass.
+- **Host unit tests:** `make test` — PMM 7/7, slab 5/5, scheduler 5/5, CPU pass.
 - **QEMU / ISO boot (BIOS):** **performed and passing for this revision** with
   `make iso` + `tools/qemu-smoke.sh` on QEMU 10 (both `q35` and `pc` machines).
   The smoke test asserts the Stage 1/2 boot milestones plus the Stage 3 execution
@@ -103,6 +103,34 @@ The `tests/pmm_test.c` failure recorded in review (free-page accounting) was a
 defect in the test — `struct o0_boot_info` was used uninitialised — and is fixed;
 the test now zeroes the structure. The documented build command for that test was
 wrong (it linked `pmm.c` twice) and is fixed as well.
+
+## Follow-up review corrections (2026-11-23)
+
+A second review pass over the Stage 3 branch fixed further defects. None of them changes the
+stage scope, the QEMU BIOS verification above, or the decisions recorded in ADR 0002.
+
+- `kernel/src/pmm.c`: the allocator reserved its "kernel" frames from the first usable
+  region instead of the kernel's own physical range, so frames backing the image could be
+  handed out. It now reserves the pages of
+  `[kernel_phys, kernel_phys + kernel_phys_size)` that it actually tracks, and keeps the
+  first-region heuristic only when `kernel_phys` is unknown. `tests/pmm_test.c` covers the
+  case with a new kernel-image reservation test.
+- `kernel/src/thread.c`: `o0_thread_join` could miss an exit that happened between the
+  `exited` test and the block, leaving the joiner blocked forever. The test, the waiter
+  registration and the block now happen in one interrupt-disabled section.
+- `kernel/src/sync.c`: the no-scheduler fallback in `o0_mutex_lock` spun until the mutex
+  looked free and then returned without acquiring it. It now retries the acquisition.
+- `kernel/arch/x86_64/paging.c`: the direct map is built from 2 MiB pages, so the HHDM
+  base in force is now the 2 MiB-aligned offset and `virt = phys + hhdm_offset` holds for
+  the kernel's own map. `o0_as_map` bounded the mapping *length* against the user-space
+  split instead of the end address; it now bounds the end address.
+- Documentation and comments: broken cross-references (`docs/boot-contract.md` section
+  numbers, missing `docs/cpu-baseline.md`, `docs/interface-draft.md` and
+  `docs/a3-dma-contract.md`), stale stage references, a misleading spurious-IRQ comment,
+  a leftover authoring note in a test comment, and grammar errors were corrected.
+  `tools/README.md` now states that `make check` also runs the host tests.
+
+`make test` therefore reports PMM 7/7, slab 5/5, scheduler 5/5 and CPU pass.
 
 ## Stage 3 exit criteria
 

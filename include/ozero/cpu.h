@@ -1,6 +1,7 @@
 /* Ozero kernel - CPU features and per-CPU state.
  *
- * Detection order and fallbacks are specified in docs/cpu-baseline.md.
+ * Feature bits are decoded from the CPUID leaves in kernel/arch/x86_64/cpu.c; the boot
+ * path refuses to continue without long mode and PAE.
  */
 #ifndef O0_CPU_H
 #define O0_CPU_H
@@ -13,7 +14,7 @@ extern "C" {
 #endif
 
 struct o0_cpu_features {
-    /* Required baseline (the kernel refuses to boot without these). */
+    /* Required baseline. The boot path refuses to continue without long_mode and pae. */
     bool long_mode;
     bool pae;
     bool nx;

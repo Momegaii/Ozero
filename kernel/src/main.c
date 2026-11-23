@@ -220,9 +220,8 @@ static void stage3_self_test(void) {
     o0_spinlock_t spin = O0_SPINLOCK_INIT;
     o0_spin_init(&spin);
     o0_spin_lock(&spin);
-    if (!o0_spin_trylock(&spin)) {
-        /* Already held by this thread: trylock must fail. */
-    } else {
+    /* The lock is held by this thread, so a trylock must fail. */
+    if (o0_spin_trylock(&spin)) {
         panic("spinlock trylock succeeded on a held lock");
     }
     o0_spin_unlock(&spin);

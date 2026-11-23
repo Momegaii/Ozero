@@ -147,9 +147,9 @@ static void test_allocation_exhaustion(void) {
     o0_status st = o0_pmm_init(&bi);
     ASSERT(st == O0_OK, "pmm_init returned error");
 
-    /* 4 pages total, 16 reserved... wait, reserved is 16 pages but region
-     * only has 4 pages. So reserved_pages won't be allocated (region too
-     * small). free_pages should be 4. */
+    /* 4 pages total, with an unknown image size asking for a 16-page fallback
+     * reservation that no region can satisfy, so nothing is reserved and all 4
+     * pages stay free. */
     ASSERT(total_pages == 4, "total pages wrong");
 
     /* Allocate all 4 pages. */
@@ -172,6 +172,49 @@ static void test_allocation_exhaustion(void) {
     /* Free the rest. */
     for (int i = 0; i < 4; ++i)
         o0_pmm_free_pages(pages[i], 0);
+
+    PASS();
+}
+
+static void test_kernel_reservation(void) {
+    TEST("kernel image reservation");
+
+    struct o0_mem_region regions[2];
+    regions[0].base = 0x100000;
+    regions[0].length = 0x100000;   /* 1 MiB = 256 pages */
+    regions[0].type = O0_MEM_FREE;
+    regions[0].flags = 0;
+    regions[1].base = 0x200000;
+    regions[1].length = 0x100000;   /* 1 MiB = 256 pages */
+    regions[1].type = O0_MEM_FREE;
+    regions[1].flags = 0;
+
+    struct o0_boot_info bi;
+    memset(&bi, 0, sizeof(bi));
+    bi.magic = O0_BOOT_INFO_MAGIC;
+    bi.version = O0_BOOT_INFO_VERSION;
+    bi.memmap = regions;
+    bi.memmap_count = 2;
+    /* The image starts at the base of the second region and spans 3 pages. */
+    bi.kernel_phys = 0x200000;
+    bi.kernel_phys_size = 0x3000;
+
+    region_count = 0;
+    total_pages = 0;
+    free_pages = 0;
+    initialised = false;
+    for (size_t i = 0; i < O0_PMM_BITMAP_MAX_BYTES; ++i)
+        bitmap_storage[i] = 0;
+
+    o0_status st = o0_pmm_init(&bi);
+    ASSERT(st == O0_OK, "pmm_init returned error");
+    ASSERT(total_pages == 512, "total pages wrong");
+    ASSERT(free_pages == 509, "kernel frames were not reserved at kernel_phys");
+
+    /* Allocation must start in the first region, never on a kernel frame. */
+    o0_paddr_t p = o0_pmm_alloc_pages(0);
+    ASSERT(p == 0x100000, "allocation did not start at the first free frame");
+    o0_pmm_free_pages(p, 0);
 
     PASS();
 }
@@ -271,6 +314,7 @@ int main(void) {
 
     test_basic_alloc_free();
     test_allocation_exhaustion();
+    test_kernel_reservation();
     test_invalid_inputs();
     test_no_usable_regions();
     test_order_validation_and_region_boundaries();

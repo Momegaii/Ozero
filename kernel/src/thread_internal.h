@@ -1,8 +1,8 @@
 /* Ozero kernel - thread and process control blocks (internal).
  *
  * Kernel threads only in Stage 3: every thread runs in ring 0 on its own kernel
- * stack. User-mode entry, syscall and TLS programming belong to Stage 3+ work
- * and are tracked in docs/decisions/0002-stage3-thread-model.md.
+ * stack. User-mode entry, syscall and TLS programming belong to later stages and
+ * are tracked in docs/decisions/0002-stage3-thread-model.md.
  */
 #ifndef O0_THREAD_INTERNAL_H
 #define O0_THREAD_INTERNAL_H

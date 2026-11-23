@@ -102,9 +102,13 @@ static inline void invlpg(uint64_t vaddr) {
 }
 
 void o0_arch_set_hhdm(uint64_t offset) {
-    hhdm_offset = offset;
+    /* The direct map is built with 2 MiB pages, so the offset in force is the
+     * 2 MiB-aligned one and virt = phys + hhdm_offset stays true for every
+     * address the kernel maps. Limine's offset is page-aligned; any rounding is
+     * downwards and cannot move the base above physical 0. */
+    hhdm_offset = O0_ALIGN_DOWN(offset, 1ull << 21);
     /* With no HHDM (not expected under Limine) the direct map is identity. */
-    direct_base = offset;
+    direct_base = hhdm_offset;
 }
 
 uint64_t o0_arch_hhdm_offset(void) {
@@ -659,10 +663,11 @@ o0_status o0_as_map(o0_as_t *as, o0_vaddr_t vaddr, o0_paddr_t paddr, size_t len,
     if (!O0_IS_ALIGNED(vaddr, O0_PAGE_SIZE) || !O0_IS_ALIGNED(paddr, O0_PAGE_SIZE)) {
         return O0_EINVAL;
     }
-    if (!as->kernel && vaddr >= O0_USER_SPACE_END) {
+    if (!as->kernel &&
+        (vaddr >= O0_USER_SPACE_END || (uint64_t)len > O0_USER_SPACE_END - vaddr)) {
         return O0_EPERM;
     }
-    if (len > O0_USER_SPACE_END || !o0_hhdm_range_ok(paddr, len)) {
+    if (!o0_hhdm_range_ok(paddr, len)) {
         return O0_ERANGE;
     }
 

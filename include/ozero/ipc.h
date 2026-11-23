@@ -50,7 +50,7 @@ O0_NODISCARD o0_status o0_handle_dup(o0_process_t *proc, o0_handle_t handle,
                                      uint32_t rights, o0_handle_t *out);
 o0_status o0_handle_wait(o0_handle_t handle, uint64_t timeout_ns);
 
-/* ---- Channels: a minimal message transport for Stage 2 IPC tests ---- */
+/* ---- Channels: a minimal message transport for early IPC tests ---- */
 
 O0_NODISCARD o0_status o0_channel_create(o0_process_t *owner, o0_handle_t *endpoint_a,
                                          o0_handle_t *endpoint_b);
