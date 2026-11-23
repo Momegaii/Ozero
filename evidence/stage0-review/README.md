@@ -6,7 +6,7 @@
 | Repository | `Momegaii/Ozero` |
 | Branch | `a4/stage0-review-followup` (published) |
 | Commit under test | `43961551442009aac8189e5edca3f5c7af43a2cd` (harness baseline) |
-| Current head | `3ae7aca` plus this proceed-brief commit |
+| Current head | `b4232a0` plus this R2 audit commit |
 | A1 / A2 / A3 refs | `74b1471` / `64b3458` (`6d305b8` code) / `307b919` (`b9a69d8` IF-008 v1.1) |
 | Import commit | `5a50c0d28f323372cad5126baf6645df07407975` |
 | Base commit | `147cc86c027cef7cec42525024d26dcccf66d7db` (`origin/main`) |
@@ -53,9 +53,11 @@ manifest records `commit: unknown` inside both reproducibility copies.
 | `cross-agent-verification-2026-11-23.md` | A1/A2 branch verification, A3 absence, merge order |
 | `cross-agent-verification-2026-11-23-r2.md` | Post-Director-review ancestry, evidence and settings check |
 | `cross-agent-verification-2026-11-23-r3.md` | A3 publication, A2 provenance, governance and round-3 blocker state |
-| `cross-agent-verification-2026-11-23-r4.md` | Proceed-brief refs, A1/A3 IF-008 and IF-009 decisions, A3 integration, blocker snapshot |
+| `cross-agent-verification-2026-11-23-r4.md` | Round-4 record; corrected by r5 because it wrongly called A3 integrated on A4 |
+| `cross-agent-verification-2026-11-23-r5.md` | R2 audit: A3/A4 path and ancestry proof, corrected XB-003, blocker snapshot, ownership and governance |
 | `cross-agent-commands-2026-11-23-r3.log` | Raw commands for round-3 heads, stale references and GitHub settings |
 | `cross-agent-commands-2026-11-23-r4.log` | Raw commands for round-4 heads, ancestry, checks and governance |
+| `cross-agent-commands-2026-11-23-r5.log` | Raw commands for the R2 audit: A4 tree, A3 tree, PR #3 file list, checks and API state |
 | `a1-check-headers-74b1471.log`, `a1-abi-check.log` | A1 header check at `74b1471`; ABI check at `30ee4f0` |
 | `a2-static-check-64b3458.log` | A2 static checks at `64b3458` / code `6d305b8` |
 | `a3-check-307b919.log`, `a3-a1-header-check-307b919.log` | A3 package checks at `307b919`; A1 headers at `74b1471` |
@@ -90,5 +92,7 @@ make verify-clean
 - The image is the A4 MBR harness fixture, not the Ozero kernel.
 - A1, A2 and A3 have review branches, but none is integrated. A3's package is static-only; no
   AHCI probe, DMA transfer or device test ran. No cross-agent interface or driver test has run.
+- A3 `307b919` is based on A4 `3ae7aca`, but A4 `b4232a0` and PR #3 contain no `a3/` or root
+  `include/ozero/` paths. A3 is not in the A4 candidate (XB-020).
 - The branch is published and Stage 0 PR [#3](https://github.com/Momegaii/Ozero/pull/3) is open.
   Stage 0 is still not accepted. A3 has no PR.

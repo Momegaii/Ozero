@@ -4,8 +4,12 @@ This PR was created by an AI agent (OpenHands) on behalf of A4.
 
 Stage 0 review follow-up for A4, against `main` (`147cc86`). This PR publishes the A4 control plane,
 the review evidence, the cross-agent verification and the Director's 23 Nov A4 actions. It records
-A1's IF-008 ACCEPT at `b9a69d8`, A3's acceptance of the §6 conditions at `307b919`, A3's integration
-on the A4 control plane, and the A1/A3 IF-009 v1.0 reviews at `d02598a`. Publication is not approval.
+A1's IF-008 ACCEPT at `b9a69d8`, A3's acceptance of the §6 conditions at `307b919`, and the A1/A3
+IF-009 v1.0 reviews at `d02598a`. Publication is not approval.
+
+The R2 audit corrects a material claim: A3 `307b919` is based on A4 `3ae7aca`, but A3 is **not**
+integrated into this candidate. A4 `b4232a0` and this PR contain no `a3/` or root `include/ozero/`
+paths. XB-020 remains Open.
 
 **Stage 0 is not accepted.** This PR does not request a stage promotion. D-006 remains Proposed.
 
@@ -14,11 +18,22 @@ on the A4 control plane, and the A1/A3 IF-009 v1.0 reviews at `d02598a`. Publica
 | # | Action | Result |
 | --- | --- | --- |
 | 1 | Open the A4 Stage 0 review PR | This PR |
-| 2 | Refresh the audit after A3 is published | Done: A3 `307b919` integrated on the A4 control plane; XB-011 Closed |
-| 3 | Verify A1/A2/A3 evidence and ancestry | A1 `74b1471`, A2 `64b3458` / `6d305b8`, A3 `307b919`; all descend from `main`; XB-001/014/017/018/019 Closed |
+| 2 | Refresh the audit after A3 is published | Done: A3 `307b919` audited; it is based on A4 `3ae7aca` but is not in A4; XB-011 Closed; XB-020 Open |
+| 3 | Verify A1/A2/A3 evidence and ancestry | A1 `74b1471`, A2 `64b3458` / `6d305b8`, A3 `307b919`, A4 `b4232a0`; all descend from `main`; A3 is not an ancestor of A4; XB-001/014/017/018/019 Closed for their branches |
 | 4 | Resolve namespace and ownership | D-009: `include/ozero/` only, A1 `03f8883`; D-010: A1 owns `tools/check-headers.sh` and `tests/abi_static_asserts.c`, A4 owns CI integration, A3 owns other `tools/` |
 | 5 | Keep MBR harness separate from kernel boot | Only `mbr-harness-smoke` ran; Limine/kernel target not implemented |
 | 6 | Confirm branch protection and checks | Not enabled: `protected:false`, `protection.enabled:false`, rulesets `[]`, `CODEOWNERS` 404 on `main` |
+
+## R2 audit
+
+| # | Action | Result |
+| --- | --- | --- |
+| 1 | Verify A3/A4 ancestry and paths | `3ae7aca` is an ancestor of A3 `307b919`; `307b919` is not an ancestor of A4 `b4232a0` |
+| 2 | Check the A4 tree | No `a3/` and no root `include/ozero/` |
+| 3 | Check the PR diff at `b4232a0` | 95 changed files; no `a3/` or root `include/ozero/`; this audit commit adds docs/evidence only |
+| 4 | Correct XB-003 | A1 accepts IF-009 at `74b1471` (`a17d126`); A3 accepts the hardware boundary at `307b919`; A2 contract/ledger stale, so XB-003 stays Open |
+| 5 | Recompute the blocker snapshot | 7 Open, 12 Closed, 1 Signed; XB-020 added |
+| 6 | Refresh A4 references | Dashboard, blocker register, evidence and PR body use A4 `b4232a0` |
 
 ## Commits
 
@@ -40,7 +55,8 @@ on the A4 control plane, and the A1/A3 IF-009 v1.0 reviews at `d02598a`. Publica
 | `56bcff0` | Apply A1's exact `CODEOWNERS` overrides from `30ee4f0` |
 | `245007d` | Refresh the audit after A1's second-round commits |
 | `3ae7aca` | Round-3 verification and A3 publication audit |
-| this proceed-brief commit | A1 IF-008 ACCEPT, A3 integration and §6 acceptance, A1/A3 IF-009 reviews, round-4 verification |
+| `b4232a0` | A1 IF-008 ACCEPT, A3 §6 acceptance, A1/A3 IF-009 reviews, round-4 verification |
+| this R2 audit commit | Correct the A3 integration claim; add XB-020; refresh refs, blockers, evidence and PR body |
 
 ## Tests run at the published head
 
@@ -55,6 +71,8 @@ exit=0
 - QEMU 10.0.13, TCG, no network, no display, no default devices.
 - 512-byte MBR fixture; 5 serial markers in order. This is not UEFI, Limine or kernel boot.
 - Reproducibility, clean checkout and negative tests were recorded at `4396155` and are unchanged.
+- GitHub Actions `build-and-boot` passed on `b4232a0` in 4m55s (run 45180803273). The local `make ci`
+  above was rerun on the R2 audit tree.
 
 Cross-agent static checks, raw logs in `evidence/stage0-review/`:
 
@@ -62,8 +80,8 @@ Cross-agent static checks, raw logs in `evidence/stage0-review/`:
 | --- | --- | --- |
 | A1 | `tools/check-headers.sh`; ABI static asserts | PASS at `74b1471`; ABI log at `30ee4f0` |
 | A2 | `make check-static` | exit 0; 61 checks, 0 failed at `64b3458` / code `6d305b8` |
-| A3 | `make -C a3 check` | exit 0; 19 tests at `307b919` |
-| A3 | `make -C a3 check-a1-headers A1_INCLUDE=...` | exit 0 against A1 `74b1471` |
+| A3 | `make -C a3 check` | exit 0; 19 tests at `307b919` (A3 branch) |
+| A3 | `make -C a3 check-a1-headers A1_INCLUDE=...` | exit 0 against A1 `74b1471` (A3 branch) |
 
 ## Tests not run
 
@@ -81,7 +99,7 @@ Cross-agent static checks, raw logs in `evidence/stage0-review/`:
 | --- | --- | --- |
 | XB-001 | A1 reviews A3 DMA/platform/block interface before AHCI probe | Closed; A1 ACCEPT at `b9a69d8` (`74b1471`); A3 accepts §6 |
 | XB-002 | A2 contracts match A1 process/address-space/handle/syscall | Signed; A1 answered all 12; A2 accepts all 12 at `6d305b8`; no ABI freeze |
-| XB-003 | A2 PE fixture contract (IF-009) before any PE test | Open; A1 ACCEPT at `d02598a`; A3 ACCEPT at `307b919`; A2 signature record pending |
+| XB-003 | A2 PE fixture contract (IF-009) before any PE test | Open; A1 ACCEPT at `74b1471` (`a17d126`); A3 ACCEPT at `307b919`; A2 contract/ledger stale |
 | XB-004 | A1 pins Limine and kernel handoff | Open; D-005 pending |
 | XB-005 | A3 names device tests and hardware requirements with evidence | Open; static checks pass at `307b919`, but no QEMU/hardware driver test |
 | XB-006 | A4 publishes the review branch | Closed at `84fe81a` |
@@ -95,13 +113,14 @@ Cross-agent static checks, raw logs in `evidence/stage0-review/`:
 | XB-014 | A1 review of A2 is at `f324b28`; A2 moved | Closed; A1 re-reviewed `50b7853` / `807c447`; A2 accepts all 12 |
 | XB-015 | A1 decision block collided with A4 IDs | Closed: D-009/D-010 merged; A1 D-011 kept; A4 protection renumbered D-031 |
 | XB-016 | A1 command output is inline, not a raw log | Open; copy to `evidence/a1-stage0/` before merge |
-| XB-017 | A3 rewrites root files and adds `platform.h` / `block.h` under A1-owned `include/ozero/` | Closed; A3 `307b919` integrates on A4, package in `a3/`, root docs preserved |
+| XB-017 | A3 rewrites root files and adds `platform.h` / `block.h` under A1-owned `include/ozero/` | Closed for the A3 branch; package in `a3/`, root docs preserved; A3 is not in A4 |
 | XB-018 | A3 cites a stale A4 head | Closed; A3 `307b919` reviews against A4 `3ae7aca` |
 | XB-019 | A3 has not accepted A1's IF-008 §6 conditions | Closed; A3 accepted all eight at `307b919` |
+| XB-020 | A3's `a3/` package and root `include/ozero/` headers are not in A4 `b4232a0`; at `b4232a0`, this PR had 95 files and none of those paths | Open; A3 remains separate; integration is not demonstrated |
 
-Snapshot: **6 Open, 12 Closed, 1 Signed.** A3 is integrated on the A4 control plane but has no PR;
-the AHCI probe remains blocked by D-007/D-021. A3's package checks pass, but no driver or hardware
-test ran.
+Snapshot: **7 Open, 12 Closed, 1 Signed.** A3 is not integrated into the A4 candidate and has no PR;
+the AHCI probe remains blocked by D-007/D-021. A3's package checks pass on its own branch, but no
+driver or hardware test ran.
 
 ## Decisions
 
@@ -113,8 +132,10 @@ D-011–D-030 are recorded as Proposed; A4's branch-protection row is D-031.
 ## Evidence
 
 - `evidence/stage0-review/REPORT.md` — required report and post-review addendum.
-- `evidence/stage0-review/cross-agent-verification-2026-11-23-r4.md` — current refs, A1/A3 decisions, A3 integration, blocker snapshot.
-- `evidence/stage0-review/cross-agent-commands-2026-11-23-r4.log` — raw commands for heads, ancestry, checks and GitHub settings.
+- `evidence/stage0-review/cross-agent-verification-2026-11-23-r5.md` — R2 audit: A3/A4 ancestry and path proof, corrected XB-003, blocker snapshot.
+- `evidence/stage0-review/cross-agent-commands-2026-11-23-r5.log` — raw commands for the A4 tree, A3 tree, PR #3 file list, checks and GitHub settings.
+- `evidence/stage0-review/cross-agent-verification-2026-11-23-r4.md` — round-4 record, corrected by r5 on the A3 integration claim.
+- `evidence/stage0-review/cross-agent-commands-2026-11-23-r4.log` — round-4 raw commands.
 - `evidence/stage0-review/a1-check-headers-74b1471.log`, `a1-abi-check.log`, `a2-static-check-64b3458.log`, `a3-check-307b919.log`, `a3-a1-header-check-307b919.log` — cross-agent static checks.
 - `evidence/stage0-review/director-review-2026-11-23.md` — Director review and A4 disposition.
 - `evidence/stage0-review/github-settings.txt` — protection, rulesets and CODEOWNERS state.

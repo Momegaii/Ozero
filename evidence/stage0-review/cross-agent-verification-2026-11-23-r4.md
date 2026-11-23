@@ -1,5 +1,11 @@
 # Cross-agent verification — proceed-brief refresh (r4)
 
+> **Correction — R2 audit, A4 `b4232a0`.** This report incorrectly said A3 was integrated on the A4
+> control plane. A3 `307b919` is based on A4 `3ae7aca` and adds `a3/` plus root `include/ozero/` on
+> the A3 branch only. A4 `b4232a0` and PR #3 contain no `a3/` or root `include/ozero/` paths.
+> See [`cross-agent-verification-2026-11-23-r5.md`](cross-agent-verification-2026-11-23-r5.md) and
+> XB-020. The rest of this file is the round-4 record.
+
 | Field | Value |
 | --- | --- |
 | Date | 2026-11-23 |
@@ -15,12 +21,12 @@
 | --- | --- | --- | --- |
 | A1 | `origin/a1/stage0-review` | `74b1471` | PR #1, draft; IF-008 ACCEPT; IF-009 ACCEPT with conditions |
 | A2 | `origin/agent/a2-stage0` | `64b3458` | PR #2, draft; code/docs `6d305b8`; evidence-only child |
-| A3 | `origin/a3/stage0-review-response` | `307b919` | published; integrated on A4 `3ae7aca`; no PR |
+| A3 | `origin/a3/stage0-review-response` | `307b919` | published; based on A4 `3ae7aca`; not in A4; no PR |
 | A4 | `origin/a4/stage0-review-followup` | `3ae7aca` | PR #3, open, non-draft |
 | `main` | `origin/main` | `147cc86` | unchanged |
 
 The proceed brief named A2 `3f78477` / code `d02598a` and A3 `2dcc0fc`. Both advanced during
-verification. A3's `307b919` merges A4 `3ae7aca`, moves the A3 package into `a3/`, and accepts A1's
+verification. A3's `307b919` is based on A4 `3ae7aca`, moves the A3 package into `a3/`, and accepts A1's
 IF-008 §6 conditions.
 
 Ancestry checks: `origin/main` is an ancestor of all four branches. `30ee4f0` is an ancestor of A1
@@ -78,7 +84,7 @@ empty, and the evidence headers name `6d305b8`.
 
 A3 `307b919`:
 
-- Merges A4 `3ae7aca`; root `README.md`, `AGENTS.md`, `CODEOWNERS`, `docs/`, `evidence/`, `scripts/`
+- Is based on A4 `3ae7aca`; root `README.md`, `AGENTS.md`, `CODEOWNERS`, `docs/`, `evidence/`, `scripts/`
   and `Makefile` are A4's.
 - Moves the A3 package into `a3/`; `a3/README.md` and `a3/AGENTS.md` are package-scoped.
 - Adds root `include/ozero/` with A1's ten headers byte-identical to A1 `30ee4f0`, plus A3's

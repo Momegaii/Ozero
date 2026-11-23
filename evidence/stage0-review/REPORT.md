@@ -214,8 +214,8 @@ from the existing branch; it did not restart Stage 0 and did not merge into `mai
 | `origin/main` | `147cc86` | unchanged |
 | `origin/a1/stage0-review` | `74b1471` | PR #1, open, draft; IF-008 ACCEPT and IF-009 review |
 | `origin/agent/a2-stage0` | `64b3458` | PR #2, open, draft; code `6d305b8` |
-| `origin/a3/stage0-review-response` | `307b919` | published; no PR; integrated on A4; IF-008 §6 accepted |
-| `origin/a4/stage0-review-followup` | `3ae7aca` plus this commit | published; PR #3 open |
+| `origin/a3/stage0-review-response` | `307b919` | published; no PR; based on A4 `3ae7aca`, not in A4; IF-008 §6 accepted |
+| `origin/a4/stage0-review-followup` | `b4232a0` plus this audit commit | published; PR #3 open |
 
 ### Director A4 actions
 
@@ -225,11 +225,12 @@ from the existing branch; it did not restart Stage 0 and did not merge into `mai
 3. **Verify A1/A2/A3 evidence and ancestry** — A1 at `74b1471`, A2 at `64b3458` / code `6d305b8`,
    A3 at `307b919` with IF-008 v1.1 at `b9a69d8`. A1 recorded ACCEPT for IF-008 (XB-001 Closed),
    answered `A1-REV-01…12` (XB-002 Signed), and accepted IF-009 v1.0 with conditions (XB-003 Open
-   until A2 records both signatures). A3 integrated on the A4 control plane, moved its package into
-   `a3/`, and accepted A1's §6 conditions (XB-017/XB-018/XB-019 Closed). A1 still keeps command
-   output inline rather than in `evidence/` (XB-016). A2's response and ledger still lag the
-   evidence pair and both IF-009 signatures (XB-013). See
-   [`cross-agent-verification-2026-11-23-r4.md`](cross-agent-verification-2026-11-23-r4.md).
+   until A2 records both signatures). A3 `307b919` is based on A4 `3ae7aca`, keeps its package in
+   `a3/` on its own branch, and accepted A1's §6 conditions (XB-017/XB-018/XB-019 Closed for the A3
+   branch). A4 `b4232a0` and PR #3 contain no `a3/` or root `include/ozero/` paths, so A3 is not
+   integrated (XB-020). A1 still keeps command output inline rather than in `evidence/` (XB-016).
+   A2's response and ledger still lag the evidence pair and both IF-009 signatures (XB-013). See
+   [`cross-agent-verification-2026-11-23-r5.md`](cross-agent-verification-2026-11-23-r5.md).
 4. **Resolve namespace and ownership** — D-009 adopts `include/ozero/`; A1's `03f8883` refactor
    makes it the only public root. D-010 assigns `tools/check-headers.sh` and
    `tests/abi_static_asserts.c` to A1, with A4 owning CI integration and A3 owning other `tools/`
@@ -248,9 +249,10 @@ D-011–D-031 remain **Proposed**. D-006 (accept Stage 0) is explicitly **not** 
 
 ### Tests at the published head
 
-`make ci` passes at the published head: 5 serial markers in order, QEMU 10.0.13, no network, no
-display, no default devices. The later A4 commits are documentation and evidence only. A3's
-`307b919` adds its package under `a3/` and is not merged to `main`.
+`make ci` passes on the R2 audit tree: 5 serial markers in order, QEMU 10.0.13, no network, no
+display, no default devices. GitHub Actions `build-and-boot` passed on A4 `b4232a0` in 4m55s. The
+audit commit is documentation and evidence only. A3's `307b919` adds its package under `a3/` on the
+A3 branch; it is not in A4 `b4232a0` and not merged to `main`.
 
 ### Still not tested
 

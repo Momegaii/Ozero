@@ -39,10 +39,11 @@ public root, and `tools/check-headers.sh` rejects `include/o0/`. `tools/check-he
 
 A3 owns `include/ozero/platform.h` and `include/ozero/block.h` for IF-008, with A1 as the required
 reviewer. A1 recorded **ACCEPT** for IF-008 v1.1 at A3 `b9a69d8` in A1 `74b1471`; A3 accepted all
-eight §6 conditions at `307b919` (XB-019 Closed). A3 `307b919` integrates on the A4 control plane
-and keeps its package under `a3/`. It also vendors an identical snapshot of A1's other
-`include/ozero/` headers at the root and under `a3/include/ozero/`; those snapshots are not
-authoritative and must not replace A1's files when the branches merge (XB-017 Closed). The
+eight §6 conditions at `307b919` (XB-019 Closed). A3 `307b919` is based on A4 `3ae7aca` and keeps
+its package under `a3/` on the A3 branch. It also vendors an identical snapshot of A1's other
+`include/ozero/` headers at the root and under `a3/include/ozero/` on that branch. A4 `b4232a0` and
+PR #3 contain no `a3/` or root `include/ozero/` paths, so A3 is not integrated (XB-020). On merge,
+those snapshots are not authoritative and must not replace A1's files (XB-017 Closed). The
 file-level `CODEOWNERS` entries for the two A3-owned interface files override the directory rule.
 
 `CODEOWNERS` is the enforced copy of this table. If the two disagree, `CODEOWNERS` wins at review

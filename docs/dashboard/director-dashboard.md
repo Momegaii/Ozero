@@ -5,21 +5,21 @@
 | Updated | 2026-11-23 |
 | Prepared by | A4 |
 | Base commit | `5a50c0d` (A4 control plane imported into `Momegaii/Ozero`) |
-| Current head | `3ae7aca` plus this proceed-brief commit |
+| Current head | `b4232a0` plus this R2 audit commit |
 | Review branch | `a4/stage0-review-followup` (published) |
-| Review round | Proceed-brief refresh, 2026-11-23 |
+| Review round | R2 audit refresh, 2026-11-23 |
 | Stage | 0 — architecture, integration and QA control plane |
 | Stage state | **Submitted for review. Not accepted.** |
 
 ## At a glance
 
 - The A4 control plane is published on `a4/stage0-review-followup`. The Stage 0 review actions, the
-  Director's 23 Nov A4 actions and the proceed-brief refresh are implemented; evidence is in
+  Director's 23 Nov A4 actions and the R2 audit refresh are implemented; evidence is in
   `evidence/stage0-review/`.
 - Current refs: A1 `74b1471` (PR #1, draft), A2 `64b3458` with code `6d305b8` (PR #2, draft), A3
-  `307b919` (no PR, integrated on the A4 control plane), A4 `3ae7aca` (PR #3, open, non-draft),
-  `main` `147cc86`. The proceed brief named A2 `3f78477` / `d02598a`; A2 and A3 advanced during
-  verification.
+  `307b919` (no PR; based on A4 `3ae7aca`, **not in A4**), A4 `b4232a0` (PR #3, open, non-draft),
+  `main` `147cc86`. The earlier proceed brief named A2 `3f78477` / `d02598a`; A2 advanced to
+  `64b3458` / `6d305b8`, and A3 to `307b919`. The R2 brief uses those advanced refs.
 - A1 recorded **ACCEPT** for IF-008 v1.1 at A3 `b9a69d8` (A1 `74b1471`). A3 accepted all eight §6
   conditions at `307b919` in `a3/docs/interfaces/IF-008-v1.1-acceptance.md`. D-007 and D-021 remain
   Proposed; the AHCI probe stays blocked.
@@ -29,8 +29,9 @@
   hardware boundary at `307b919`. A2 has not yet recorded both signatures or the current evidence
   pair (`6d305b8` / `64b3458`) in its response and ledger. XB-003 remains Open; no PE test may run.
 - A3's `make check` (19 tests) and A1-header compile pass at `307b919`, but the package is static:
-  no QEMU driver run, no AHCI probe, no DMA transfer. A3 integrated on the A4 control plane, moved
-  its package into `a3/`, and preserved the root docs (XB-017/XB-018/XB-019 Closed).
+  no QEMU driver run, no AHCI probe, no DMA transfer. A3 is based on A4 `3ae7aca` and keeps its
+  package in `a3/` with root headers on its own branch; those paths are **not** in A4 `b4232a0` or
+  PR #3 (XB-020 Open). XB-017/XB-018/XB-019 are Closed for the A3 branch only.
 - The GitHub job named `build-and-boot` runs `make test-mbr-harness`: an MBR fixture/harness smoke,
   not kernel boot. The 512-byte MBR fixture is not the Ozero kernel.
 - D-008, D-009 and D-010 are **Approved**. The remaining decisions are **Proposed**. Stage 0 is
@@ -43,31 +44,32 @@
 
 | # | Action | Status | Where |
 | --- | --- | --- | --- |
-| 1 | Verify A1/A2/A3/A4 commits; record graph and clean-tree state | Done. A1 `74b1471`, A2 `64b3458` / `6d305b8`, A3 `307b919`, A4 `3ae7aca`; ancestry to `main` verified. | `evidence/stage0-review/cross-agent-verification-2026-11-23-r4.md` |
+| 1 | Verify A1/A2/A3/A4 commits; record graph and clean-tree state | Done. A1 `74b1471`, A2 `64b3458` / `6d305b8`, A3 `307b919`, A4 `b4232a0`; ancestry to `main` verified; A3 not in A4. | `evidence/stage0-review/cross-agent-verification-2026-11-23-r5.md` |
 | 2 | Rerun checks in a clean environment; keep logs, versions, exit codes | Done at the review commit | `evidence/stage0-review/` |
 | 3 | Separate target labels | Done | `tests/targets.tsv`, `docs/process/test-targets.md`, `make targets` |
 | 4 | Decision register with Proposed/Approved/Rejected/Deferred and approver | Done; D-008/D-009/D-010 Approved; rest Proposed | `docs/decisions/decision-log.md` |
 | 5 | A1 review of A3 DMA/platform interfaces as a merge gate | A1 **ACCEPT** at `b9a69d8`; A3 accepted §6 at `307b919`; D-007/D-021 Proposed; AHCI blocked | IF-008, `CODEOWNERS`, `docs/process/integration-checklist.md` |
 | 6 | Safe CI: no privileges, raw disks or Windows binaries | Done and enforced | `docs/process/ci-safety.md`, `scripts/check-ci-safety.sh` |
 
-## Proceed brief — A4 actions
+## R2 proceed brief — A4 actions
 
 | # | Action | Status | Evidence |
 | --- | --- | --- | --- |
-| 1 | Refresh branch/PR refs; record A1 `74b1471`, A2 `64b3458` (brief `3f78477`), A3 `307b919`, A4 `3ae7aca`, `main` `147cc86` | Done | `cross-agent-verification-2026-11-23-r4.md`, `cross-agent-commands-2026-11-23-r4.log` |
-| 2 | Record A1 **ACCEPT** of IF-008 v1.1 at `b9a69d8`; keep A3 condition acceptance and D-007/D-021 separate | Done | A1 `docs/if008-v1.1-review.md`; A3 `IF-008-v1.1-acceptance.md`; XB-001/XB-019 Closed |
-| 3 | Re-evaluate XB-001/002/003/005/012/013/014/016/017/018; update blockers and dashboard | Done | `docs/process/cross-agent-blockers.md`; snapshot 6 Open, 12 Closed, 1 Signed |
-| 4 | Keep A2/A3 file modes; verify A2 checks, A3 status, A3 make check | Done | A2 `make check-static` exit 0, 61 checks; A3 `make check` exit 0, 19 tests; A3 A1-header compile exit 0 |
-| 5 | Request Director enforcement of `main` protection and required checks | Requested; not enabled | `protected:false`, rulesets `[]`, `CODEOWNERS` 404; XB-012 / D-031 |
-| 6 | Preserve labels: CI `build-and-boot` runs `make test-mbr-harness`; static checks are not CI-verified tests | Done | This dashboard; `tests/targets.tsv`; `stage0.yml` |
+| 1 | Refresh branch/PR refs; record A1 `74b1471`, A2 `64b3458` (brief `3f78477`), A3 `307b919`, A4 `b4232a0`, `main` `147cc86` | Done | `cross-agent-verification-2026-11-23-r5.md`, `cross-agent-commands-2026-11-23-r5.log` |
+| 2 | Correct the A3 integration claim: A3 is based on A4 `3ae7aca`, not in A4 `b4232a0` or PR #3 | Done; XB-020 Open | A4 tree and PR #3 file list have no `a3/` or root `include/ozero/` |
+| 3 | Re-evaluate XB-001/002/003/005/012/013/014/016/017/018 and add XB-020 | Done | `docs/process/cross-agent-blockers.md`; snapshot 7 Open, 12 Closed, 1 Signed |
+| 4 | Correct XB-003: A1 accepts IF-009 at `74b1471`; A3 accepts hardware boundary at `307b919`; A2 stale | Done; XB-003 stays Open | A1 `docs/if009-review.md`; A3 `IF-009-a3-review.md`; A2 `14-review-ledger.md` |
+| 5 | Recompute A4 CI and PR state at `b4232a0` | Done: `build-and-boot` pass, 4m55s | run 45180803273 |
+| 6 | Request Director enforcement of `main` protection and required checks | Requested; not enabled | `protected:false`, rulesets `[]`, `CODEOWNERS` 404; XB-012 / D-031 |
+| 7 | Preserve labels: CI `build-and-boot` runs `make test-mbr-harness`; static checks are not CI-verified tests | Done | This dashboard; `tests/targets.tsv`; `stage0.yml` |
 
 ## Director integration review — A4 actions
 
 | # | Action | Status | Evidence |
 | --- | --- | --- | --- |
 | 1 | Open the A4 Stage 0 review PR | Done: [#3](https://github.com/Momegaii/Ozero/pull/3) | A4 PR against `main` |
-| 2 | Refresh the repository audit after A3 is published | Done: A3 `307b919` included; XB-011 Closed | `cross-agent-verification-2026-11-23-r4.md`, `repo-audit.txt` |
-| 3 | Verify A1/A2/A3 evidence and commit ancestry | Done: A1 `74b1471`, A2 `64b3458` / `6d305b8`, A3 `307b919`; all descend from `main` | `cross-agent-verification-2026-11-23-r4.md` |
+| 2 | Refresh the repository audit after A3 is published | Done: A3 `307b919` audited; it is not in A4; XB-011 Closed | `cross-agent-verification-2026-11-23-r5.md`, `repo-audit.txt` |
+| 3 | Verify A1/A2/A3 evidence and commit ancestry | Done: A1 `74b1471`, A2 `64b3458` / `6d305b8`, A3 `307b919`, A4 `b4232a0`; all descend from `main`; A3 not in A4 | `cross-agent-verification-2026-11-23-r5.md` |
 | 4 | Resolve the shared namespace and ownership conflicts | Done | D-009, D-010, file-level `CODEOWNERS`, `ownership.md` |
 | 5 | Keep MBR harness results separate from kernel boot | Done: CI `build-and-boot` runs `make test-mbr-harness`; this is not kernel boot | `tests/targets.tsv`, this dashboard, PR body |
 | 6 | Confirm branch protection and required CI checks | Confirmed **not enabled** | `github-settings.txt`, D-031 |
@@ -136,21 +138,22 @@
 | 3 | Boot protocol is proposed as Limine v12.11.1, base revision 6; Director D-005 is open | A1 → Director | A1 cannot finalise the boot path; the MBR harness is protocol-neutral | Stage 1 design |
 | 4 | Branch protection and required CI checks are not enabled | Project Director (XB-012 / D-031) | The merge gate is advisory until enabled | Before Stage 1 |
 | 5 | A4 Stage 0 PR [#3](https://github.com/Momegaii/Ozero/pull/3) is open; Director review pending | Project Director (XB-010) | Review is in progress; no acceptance is implied | Stage 0 review |
-| 6 | A1 and A2 are not integrated; A3 is integrated on A4 but has no PR | A1, A2, A3, A4 | Cross-agent gates are defined but untested; merge conflicts are known | Stage 1 |
-| 7 | Six cross-agent dependencies are Open; one is Signed | A1, A2, A3, A4 | Dependent work cannot merge without owner sign-off | Stage 1 |
+| 6 | A1, A2 and A3 are not integrated; A3 has no PR | A1, A2, A3, A4 | Cross-agent gates are defined but untested; merge conflicts are known | Stage 1 |
+| 7 | Seven cross-agent dependencies are Open; one is Signed | A1, A2, A3, A4 | Dependent work cannot merge without owner sign-off | Stage 1 |
 | 8 | D-007 and D-021 are Proposed | Project Director | The AHCI probe stays blocked even though A1 and A3 accepted the interface and its conditions | Before A3 DMA work |
 | 9 | A2's response table and review ledger name `d02598a` / `3f78477`, mark the A1/A3 IF-009 reviews pending, and the evidence headers name `6d305b8` / `64b3458` | A2 → A4 (XB-013, XB-003) | Provenance and the two IF-009 signatures are unrecorded until A2 updates its documents | Before A2 merge |
+| 10 | A3's `a3/` package and root `include/ozero/` headers are not in A4 `b4232a0`; at `b4232a0`, PR #3 had 95 files and none of those paths | A3 → A4 (XB-020) | A3 is separate; no integration evidence exists | Before A3 merge |
 
 ## Cross-agent dependencies
 
 The live register is [`docs/process/cross-agent-blockers.md`](../process/cross-agent-blockers.md).
-Six rows are **Open**, twelve are **Closed**, and XB-002 is **Signed**.
+Seven rows are **Open**, twelve are **Closed**, and XB-002 is **Signed**.
 
 | ID | Dependency | Owner | State |
 | --- | --- | --- | --- |
 | XB-001 | A1 reviews the A3 DMA/platform/block interface before AHCI probe | A1 → A3 | Closed; A1 ACCEPT for IF-008 v1.1 at `b9a69d8` in `74b1471`; A3 accepted §6 |
 | XB-002 | A2 contracts match A1 process/address-space/handle/syscall | A1 → A2 | Signed; A1 answered all 12; A2 accepts all 12 at `6d305b8`; no ABI freeze |
-| XB-003 | A2 PE fixture contract (IF-009) before any PE test | A2 → A1/A3 | Open; A1 ACCEPT at `d02598a` (`a17d126`); A3 ACCEPT at `307b919`; A2 signature record pending |
+| XB-003 | A2 PE fixture contract (IF-009) before any PE test | A2 → A1/A3 | Open; A1 ACCEPT with conditions at `74b1471` (`a17d126`); A3 ACCEPT at `307b919`; A2 contract/ledger stale |
 | XB-004 | A1 pins Limine and the kernel handoff | A1 → Director | Open; v12.11.1 / base 6 pinned, D-005 pending |
 | XB-005 | A3 names device tests and hardware requirements with evidence | A3 → A4 | Open; `make check` passes 19 tests at `307b919`, but no QEMU/hardware driver test |
 | XB-006 | A4 publishes the review branch | A4 → Director | Closed at `84fe81a` |
@@ -164,9 +167,10 @@ Six rows are **Open**, twelve are **Closed**, and XB-002 is **Signed**.
 | XB-014 | A1 review of A2 is at `f324b28` | A1 → A2 | Closed; A1 re-reviewed `50b7853` / `807c447`; A2 accepts all 12 |
 | XB-015 | A1 decision block collided with A4 IDs | A4 → Director | Closed: D-009/D-010 merged; A1 D-011 kept; A4 D-031 |
 | XB-016 | A1 command output is inline, not a raw log | A1 → A4 | Open; copy to `evidence/a1-stage0/` before merge |
-| XB-017 | A3 rewrites shared root files and adds interface headers under `include/ozero/` | A3 → A4 | Closed; A3 `307b919` integrates on A4, package in `a3/`, root docs preserved, A1-approved IF-008 files at root |
+| XB-017 | A3 rewrites shared root files and adds interface headers under `include/ozero/` | A3 → A4 | Closed for the A3 branch; A3 `307b919` preserves A4 root docs and puts its package in `a3/`; A3 is not in A4 |
 | XB-018 | A3 cites A4 `245007d` rather than the current A4 head | A3 → A4 | Closed; A3 `307b919` reviews against A4 `3ae7aca` |
 | XB-019 | A3 has not accepted A1's IF-008 §6 conditions or updated its status lines | A3 → A1/A4 | Closed; A3 accepted all eight conditions at `307b919` and updated its status lines |
+| XB-020 | A3's `a3/` package and root `include/ozero/` headers are not in A4 `b4232a0`; at `b4232a0`, PR #3 had 95 files and none of those paths | A3 → A4 | Open; A3 remains separate; integration is not demonstrated |
 
 ## Decisions needed
 
@@ -191,7 +195,7 @@ Six rows are **Open**, twelve are **Closed**, and XB-002 is **Signed**.
 | Risk | Likelihood | Impact | Mitigation | Owner |
 | --- | --- | --- | --- | --- |
 | `main` is unprotected and has no required checks | High | Any merge can bypass review and CI | D-031 / XB-012; enable protection and require the Stage 0 check | Director |
-| A1 and A2 are not integrated; A3 has no PR | High | Cross-agent gates are untested; merge conflicts are known | A4 merge order; A3 is integrated; A2 records the current evidence pair and signatures | Director, A1, A2, A3 |
+| A1, A2 and A3 are not integrated; A3 has no PR | High | Cross-agent gates are untested; merge conflicts are known | A4/A3 integration blocker XB-020; A2 records the current evidence pair and signatures | Director, A1, A2, A3 |
 | A1's IF-008 ACCEPT is read as hardware or Stage 0 approval | Medium | False validation claim | A4 record: ACCEPT is an interface decision; A3 accepted the conditions; D-007/D-021 remain; Stage 0 not accepted | A4 |
 | A1 evidence is inline, not raw logs | Medium | Claims are harder to audit | Copy A1 output to `evidence/a1-stage0/` before merge | A1, A4 |
 | A2 response and evidence revisions differ | Medium | Provenance mismatch | Response/ledger name `d02598a` / `3f78477`; evidence headers name `6d305b8` / `64b3458`; XB-013 | A2 |
@@ -218,8 +222,8 @@ Six rows are **Open**, twelve are **Closed**, and XB-002 is **Signed**.
 | Review build, boot and repro logs | `evidence/stage0-review/` | Recorded |
 | Review negative tests | `evidence/stage0-review/negative-*.log` | Recorded |
 | CI safety log | `evidence/stage0-review/ci-safety.log` | Recorded |
-| Cross-agent verification | `evidence/stage0-review/cross-agent-verification-2026-11-23.md`, `...-r2.md`, `...-r3.md`, `...-r4.md` | Recorded at `84fe81a`, rounds 2, 3 and 4 |
-| Cross-agent raw commands | `evidence/stage0-review/cross-agent-commands-2026-11-23-r3.log`, `...-r4.log` | Recorded; current heads and governance endpoints |
+| Cross-agent verification | `evidence/stage0-review/cross-agent-verification-2026-11-23.md`, `...-r2.md`, `...-r3.md`, `...-r4.md`, `...-r5.md` | Recorded at `84fe81a`, rounds 2–5; r5 corrects the A3 integration claim |
+| Cross-agent raw commands | `evidence/stage0-review/cross-agent-commands-2026-11-23-r3.log`, `...-r4.log`, `...-r5.log` | Recorded; current heads, A3/A4 path check, PR file list and governance |
 | A1 header and ABI checks | `evidence/stage0-review/a1-check-headers-74b1471.log`, `a1-abi-check.log` | PASS at `74b1471`; ABI log at `30ee4f0` |
 | A2 static checks | `evidence/stage0-review/a2-static-check-64b3458.log` | PASS at `64b3458` / code `6d305b8`; 61 checks, 0 failed |
 | A3 package checks | `evidence/stage0-review/a3-check-307b919.log`, `a3-a1-header-check-307b919.log` | PASS at `307b919`; 19 tests; A1 headers at `74b1471` |
@@ -234,8 +238,8 @@ Six rows are **Open**, twelve are **Closed**, and XB-002 is **Signed**.
 | --- | --- | --- | --- |
 | A1 | Third-round response; PR #1 draft at `74b1471` | Submitted; not integrated | Raw logs (XB-016), D-005; IF-008 accepted, IF-009 accepted with conditions, XB-002 signed |
 | A2 | Static-only PE package; PR #2 draft at `64b3458` / code `6d305b8` | Submitted; not integrated | A2 records current evidence pair and A1/A3 IF-009 signatures (XB-013, XB-003) |
-| A3 | Static hardware package; branch `307b919`, integrated on A4; IF-008 v1.1 at `b9a69d8`; no PR | Submitted; not integrated | Hardware evidence (XB-005); D-007/D-021; root header snapshot merge order |
-| A4 | Stage 0 proceed-brief follow-up; PR [#3](https://github.com/Momegaii/Ozero/pull/3); head `3ae7aca` plus this commit | Submitted; awaiting review | Director review; D-031 protection |
+| A3 | Static hardware package; branch `307b919`, based on A4 `3ae7aca` but not in A4; IF-008 v1.1 at `b9a69d8`; no PR | Submitted; not integrated | Hardware evidence (XB-005); D-007/D-021; XB-020 integration |
+| A4 | Stage 0 R2 audit follow-up; PR [#3](https://github.com/Momegaii/Ozero/pull/3); head `b4232a0` plus this audit commit | Submitted; awaiting review | Director review; D-031 protection |
 
 ## Change log
 
@@ -257,6 +261,6 @@ Six rows are **Open**, twelve are **Closed**, and XB-002 is **Signed**.
 | 2026-11-23 | A2 provenance rechecked: `8bac650` in response, `50b7853` evidence, A1 `90b004f` / `include/o0/` in contract review; IF-009 contradiction recorded | this review commit |
 | 2026-11-23 | Governance rechecked: `main` `protected:false`, rulesets `[]`, `CODEOWNERS` 404; D-031 not enabled | this review commit |
 | 2026-11-23 | Round-3 cross-agent verification and raw command log; XB-017/XB-018 opened | this review commit |
-| 2026-11-23 | A3 integrated on the A4 control plane at `307b919`, accepted IF-008 §6, confirmed IF-009 v1.0; XB-017/XB-018/XB-019 closed | A3 `307b919` |
-| 2026-11-23 | A1 accepted IF-009 v1.0 at `d02598a` and confirmed A3's IF-008 packet at `74b1471` | A1 `74b1471` |
-| 2026-11-23 | Proceed-brief refresh: A1 IF-008 ACCEPT recorded; A2 advanced to `64b3458`; A3 to `307b919`; XB-001/014/017/018/019 closed; XB-002 Signed; A1/A2/A3 checks rerun | this proceed-brief commit |
+| 2026-11-23 | A3 published `307b919`, based on A4 `3ae7aca`; accepted IF-008 §6; XB-017/XB-018/XB-019 closed for the A3 branch | A3 `307b919` |
+| 2026-11-23 | A1 accepted IF-009 v1.0 with conditions at `74b1471` and confirmed A3's IF-008 packet | A1 `74b1471` |
+| 2026-11-23 | R2 audit: corrected the A3 integration claim; A4 `b4232a0` and PR #3 have no `a3/` or root `include/ozero/`; XB-020 opened; A2/A3/A4 refs refreshed | this R2 audit commit |

@@ -1,0 +1,339 @@
+# Cross-agent command log — R2 audit refresh, 2026-11-23 r5
+# Token values are redacted. Run from /workspace/Ozero.
+
+$ git fetch origin --prune --tags
+
+$ git log -1 --format="%H %ci %s" <ref>
+147cc86c027cef7cec42525024d26dcccf66d7db 2026-11-23 13:32:34 +0300 Initial commit
+74b1471b217fb1c5e9bd72a75deef71a2d066c7b 2026-11-23 12:56:28 +0000 docs: confirm A3's IF-008 review-packet invariants
+64b345840b32a3b992dfea23fe9b2a9e55da31e8 2026-11-23 12:52:07 +0000 chore(a2): regenerate evidence at 6d305b8
+307b919b41f6e65f1a40482588b84f92f715d67a 2026-11-23 12:56:51 +0000 Accept A1 IF-008 decision and integrate on A4 control plane
+b4232a07ab88b6558b3020ae2463af16f0c325dd 2026-11-23 13:07:19 +0000 docs: record A1/A3 interface decisions and A3 integration
+
+$ git merge-base --is-ancestor origin/main <branch>
+YES origin/main -> origin/a1/stage0-review
+YES origin/main -> origin/agent/a2-stage0
+YES origin/main -> origin/a3/stage0-review-response
+YES origin/main -> origin/a4/stage0-review-followup
+
+$ git merge-base --is-ancestor <prior> <new>
+YES 3ae7aca -> origin/a3/stage0-review-response
+NO 307b919 -> origin/a4/stage0-review-followup
+NO 307b919 -> HEAD
+YES 3ae7aca -> HEAD
+
+$ git ls-tree -r --name-only origin/a4/stage0-review-followup | grep -E "^(a3/|include/ozero/)"
+(none)
+
+$ git ls-tree -r --name-only origin/a3/stage0-review-response | grep -c "^a3/"
+42
+$ git ls-tree -r --name-only origin/a3/stage0-review-response | grep -c "^include/ozero/"
+12
+
+$ git diff --name-status 3ae7aca..307b919 -- README.md AGENTS.md CODEOWNERS docs evidence scripts Makefile
+
+$ git diff --stat 3ae7aca..307b919 -- ":!a3"
+ include/ozero/block.h    | 179 +++++++++++++++++++++++++++++++++++++++++++++++
+ include/ozero/boot.h     | 110 +++++++++++++++++++++++++++++
+ include/ozero/cpu.h      |  99 ++++++++++++++++++++++++++
+ include/ozero/driver.h   | 134 +++++++++++++++++++++++++++++++++++
+ include/ozero/ipc.h      |  65 +++++++++++++++++
+ include/ozero/irq.h      |  56 +++++++++++++++
+ include/ozero/mm.h       | 129 ++++++++++++++++++++++++++++++++++
+ include/ozero/o0.h       |  15 ++++
+ include/ozero/platform.h |  25 +++++++
+ include/ozero/status.h   |  38 ++++++++++
+ include/ozero/thread.h   |  60 ++++++++++++++++
+ include/ozero/types.h    |  56 +++++++++++++++
+ 12 files changed, 966 insertions(+)
+
+$ gh pr diff 3 --name-only | wc -l
+95
+$ gh pr diff 3 --name-only | grep -E "^(a3/|include/ozero/)"
+(none)
+
+$ git show origin/a1/stage0-review:docs/if008-v1.1-review.md | sed -n "1,32p"
+# IF-008 v1.1 — A1 final review decision
+
+| Field | Value |
+|---|---|
+| Interface | IF-008, DMA and platform contract |
+| Version reviewed | 1.1 |
+| Owner | A3 |
+| Reviewer | A1 (kernel engineering) |
+| Decision | **ACCEPT** |
+| Date | 23 November 2026 |
+| A3 interface commit | `b9a69d855360df28ad7503f3ba748dcde0910471` |
+| A3 branch head at review | `15cd9ce990c98af385d056016312dc27f5fc0856` (documentation-only delta from `b9a69d8`) |
+| A3 latest head | `2dcc0fcc6371aa6167ca773321e76ca9d5a587c0` (post-review action-brief response; no IF-008 header change) |
+| A1 header commit | `30ee4f0da3c3d4263033680d39e7937fcb59f42f` |
+| A4 registry reviewed | `245007d2b96bbc12de1e831c5275587ef56ee81f`; latest audit `3ae7acaf4d81d103063a33ca49c1739bdee316f8` |
+| A1 acceptance record | `a17d126664ba9c54792612590268f97d7f439b7d` |
+| Related | D-007, D-009, D-010, D-020, D-021, D-032 |
+
+## 1. Decision
+
+A1 **accepts IF-008 v1.1** as the Stage 1 DMA/platform interface at A3
+`b9a69d8`. The reviewed `include/ozero/platform.h` and `include/ozero/block.h`
+match A1's conditions, and A3's copies of A1's ten public headers are
+byte-identical to A1 `30ee4f0`.
+
+This is A1's final interface sign-off. It is **not** hardware validation, not a
+runtime DMA test, and not Stage 0 acceptance. The AHCI probe remains blocked
+until:
+
+1. the director approves D-007, and
+2. A3 accepts the conditions in §6 and corrects the non-blocking deltas in §5.
+
+
+$ git show origin/a1/stage0-review:docs/if009-review.md | sed -n "1,35p"
+# IF-009 v1.0 — A1 review decision
+
+| Field | Value |
+|---|---|
+| Interface | IF-009, PE fixture and static-analysis contract |
+| Version reviewed | 1.0 |
+| Owner | A2 |
+| Reviewers | A1, A3, A4 |
+| Decision | **ACCEPT (A1 side) with conditions** |
+| Date | 23 November 2026 |
+| A2 code revision | `d02598afe42ea0036a130a69801b3041f4b4cf9f` |
+| A2 evidence head | `3f7847756f256761a4da0ed393d2762111af22db` |
+| IF-009 contract blob | `9be6c8b02d20ac1cbdd5c27e62d0ae94a264fc2f` |
+| Fixture manifest blob | `f505cb4d9403b65d860c92d574bd736270db446a` |
+| A1 header commit | `30ee4f0da3c3d4263033680d39e7937fcb59f42f` |
+| A1 review commit | `a17d126664ba9c54792612590268f97d7f439b7d` |
+| A3 review commit | `2dcc0fcc6371aa6167ca773321e76ca9d5a587c0` (reviewed `807c447`; v1.0 confirmation pending) |
+| A4 registry reviewed | `3ae7acaf4d81d103063a33ca49c1739bdee316f8` (IF-009 row still 0.1 draft; update required) |
+| Related | XB-003, D-011, D-024, D-025, D-026, D-033 |
+
+## 1. Finding
+
+A2 published IF-009 v1.0 at code revision `d02598a`, with evidence at
+`3f78477`. The contract is now a real artifact, not a registry row:
+
+- `a2/docs/13-if-009-pe-fixture-contract.md` (blob `9be6c8b0…`)
+- `a2/fixtures/build-manifest.json` (blob `f505cb4d…`)
+
+A1's earlier review of IF-009 (`docs/if009-review.md` before this version) was
+**CHANGE REQUIRED** because no contract existed. That finding is superseded. A1
+now **accepts IF-009 v1.0 as the fixture and static-analysis contract**, subject
+to the conditions in §5.
+
+A1 does not accept a runtime claim. The contract itself says a pass is evidence
+level **L0** and does not mean the image loads, imports resolve, TLS callbacks
+
+$ git show origin/a3/stage0-review-response:a3/docs/interfaces/IF-008-v1.1-acceptance.md | sed -n "1,35p"
+# IF-008 v1.1 — A3 acceptance of A1's decision
+
+| Field | Value |
+|---|---|
+| Interface | IF-008, DMA and platform contract |
+| Version | 1.1 |
+| A3 interface commit | `b9a69d855360df28ad7503f3ba748dcde0910471` |
+| A1 decision | **ACCEPT** |
+| A1 decision commit | `4716e09` on `a1/stage0-review` |
+| A1 decision file | `docs/if008-v1.1-review.md` |
+| A1 header commit | `30ee4f0da3c3d4263033680d39e7937fcb59f42f` |
+| A4 register reviewed by A1 | `245007d2b96bbc12de1e831c5275587ef56ee81f` |
+| A4 register at A3 acceptance | `3ae7aca` |
+| A3 decision | **ACCEPT A1's conditions in full** |
+| Director D-007 | **Pending** |
+| AHCI probe | **Blocked** |
+
+A1 accepted IF-008 v1.1 at A3 `b9a69d8`. This document records A3's acceptance
+of A1's §6 conditions. It does not imply Director approval, merge approval,
+Stage 0 acceptance or runtime validation.
+
+## 1. A3 acceptance of A1 §6 conditions
+
+| # | A1 condition | A3 acceptance |
+|---|---|---|
+| 1 | `dma_constraints` fills `addr_mask` as a contiguous low-bit mask, `max_segment` as bytes per physically contiguous segment, and `coherent` truthfully; A1 never infers them from a device class | **Accepted.** A3 supplies device-derived values; no class-based inference. |
+| 2 | `dma_quiesce` stops new DMA, waits for in-flight requests, is idempotent, and does not free A1 buffers | **Accepted.** A3 implements this callback and does not free buffers in quiesce. |
+| 3 | `reset` runs only after quiesce and after requests complete or are cancelled; it does not free A1 DMA buffers or unmap BARs; A3 reinitialises | **Accepted.** A1 owns the full device reset; A3 reinitialises and re-arms its queue. |
+| 4 | `io_submit` does not complete before `o0_io_submit` returns; synchronous completion is deferred | **Accepted.** Completion is deferred to IRQ, poll or process context after return. |
+| 5 | `io_cancel` is best-effort; `O0_EBUSY` means completion will still run | **Accepted.** A3 will not treat `O0_EBUSY` as a guarantee that the callback will not run. |
+| 6 | BARs are accessed only through `o0_device_map_bar`, as UC/NX mappings, never through the HHDM | **Accepted.** A3 will not derive BAR addresses from the HHDM. |
+| 7 | A transfer larger than `max_segment` splits into multiple `o0_dma_buffer` objects and multiple `o0_io_request` objects; no SG pointer is added | **Accepted.** `o0_bio` embeds one request; large transfers are split. |
+| 8 | Stage 1 DMA is trusted ring-0 only; no userspace or untrusted driver DMA before an IOMMU domain exists | **Accepted for Stage 1.** A3 claims no IOMMU isolation. |
+
+A3 also accepts A1's non-blocking §5 deltas as actions:
+
+$ git show origin/a3/stage0-review-response:a3/docs/interfaces/IF-009-a3-review.md | sed -n "1,18p"
+# IF-009 — A3 review of the PE fixture contract
+
+| Field | Value |
+|---|---|
+| Interface | IF-009, PE fixture and static-analysis contract |
+| Version | 1.0 |
+| Owner | A2 |
+| A3 role | Hardware-boundary reviewer; not owner and not approver |
+| A2 code revision reviewed | `d02598a` |
+| A2 evidence head | `3f78477` |
+| A2 contract | `a2/docs/13-if-009-pe-fixture-contract.md` |
+| A4 registry reviewed | `3ae7aca` |
+| A3 decision | **ACCEPT IF-009 v1.0 for the A3 hardware boundary** |
+| A1 decision | Pending; A1 owns the kernel-interface side |
+| XB-003 | Open until A2 records both signatures |
+
+A3 does not own PE parsing, mapping or loader policy. This review answers the
+two A3 questions in IF-009 v1.0 and checks that hardware/platform types do not
+
+$ git show origin/agent/a2-stage0:a2/docs/14-review-ledger.md | sed -n "1,25p"
+# A2 review ledger (23 November 2026)
+
+- Status: current ledger; no row is closed by implication
+- Evidence: reviewer documents on the named branches at the named commits
+- Decisions needed: A4 records XB-002/XB-003 outcomes; Director decides D-006 and D-011…D-030
+- Risks: a reader treats a hardware-boundary review as loader approval, or a pre-publication review as v1.0 acceptance
+- Next step: A1 and A3 review IF-009 v1.0 at `d02598a`; A4 updates the blocker register with the exact commits
+
+## Ledger
+
+| Item | Reviewer | Revision reviewed | Verdict | A2 action | State |
+| --- | --- | --- | --- | --- | --- |
+| XB-002, A1-REV-01…12 | A1 | A2 `50b7853` + evidence `807c447`; A1 answers `30ee4f0` (`d9cdec1`) | 4 Accept, 6 Change required, 2 Defer | A2 accepts all 12 and answers A1's seven open items in [12](12-a1-contract-review.md) | A2 accepted; A4 recording pending |
+| XB-003, IF-009 v1.0 | A1 | `807c447` (pre-publication manifest) | **Change required**: no IF-009 document; required contents in `docs/if009-review.md` §4 | v1.0 published at `d02598a` with identity, scope, inventory, ownership, references, delivery path, negatives, drift policy and deferrals | Open; A1 v1.0 review pending |
+| XB-003, IF-009 v1.0 | A3 | `807c447` | **Accept with comments** (hardware boundary only): no hardware leakage; relative paths; neutrality sentence | Both comments applied; v1.0 confirmation pending | Open; not loader approval |
+| XB-009, evidence | A4 | code `d02598a`, evidence `3f78477` | Verification pending | Pure-evidence commit; diff rule documented | Pending A4 |
+| D-006, Stage 0 acceptance | Director | — | Proposed | — | Not approved |
+| D-011…D-030 | Director | A1 proposals from `30ee4f0` | Proposed | A2 accepts D-024…D-030 conditions where they touch A2 | Not approved |
+
+## A1 decisions accepted by A2
+
+| A1-REV | Decision | Canonical ID |
+| --- | --- | --- |
+| 01 Process from image section | Change required (Stage 7 primitive) | D-011 |
+| 02 User APCs | Change required (queue and alert hooks) | D-027 |
+
+$ git show origin/a4/stage0-review-followup:CODEOWNERS | grep -n "a3\\|include/ozero"
+20:/include/ozero/                     @ozero/a1-kernel @ozero/a4-integration
+22:/include/ozero/platform.h           @ozero/a3-userland @ozero/a1-kernel
+23:/include/ozero/block.h              @ozero/a3-userland @ozero/a1-kernel
+30:/userland/                          @ozero/a3-userland
+31:/userland/platform/dma/             @ozero/a3-userland @ozero/a1-kernel
+32:/tools/                             @ozero/a3-userland
+
+$ bash tools/check-headers.sh   # A1 worktree at 74b1471
+== standalone header compilation ==
+PASS  boot.h
+PASS  cpu.h
+PASS  driver.h
+PASS  ipc.h
+PASS  irq.h
+PASS  mm.h
+PASS  o0.h
+PASS  status.h
+PASS  thread.h
+PASS  types.h
+== umbrella header, C and C++ ==
+PASS  ozero/o0.h (C11)
+PASS  ozero/o0.h (C++17)
+== ABI static assertions ==
+PASS  tests/abi_static_asserts.c
+== generic-interface device neutrality ==
+PASS  no device-class or GPU-generation terms in include/ozero
+== freestanding headers only ==
+PASS  no hosted libc headers in include/ozero
+== public namespace ==
+PASS  no include/o0
+PASS  no legacy o0/ includes
+RESULT: PASS
+exit=0
+
+$ make check-static   # a2/ worktree at 64b3458 / 6d305b8
+PASS inventory                    WIN_CERTIFICATE.fields_contiguous spans 0..8
+PASS inventory                    WIN_CERTIFICATE.declared_size    declared=8 expected=8 fields_end=8
+PASS inventory                    WIN_CERTIFICATE.citation         source=ms-pe
+
+61 checks, 0 failed
+exit=0
+
+$ make -C a3 check   # A3 worktree at 307b919
+cc -std=c11 -Wall -Wextra -Werror -Iinclude -fsyntax-only tests/header_smoke.c
+python3 tools/validate_matrix.py
+PASS: matrix validation
+  rows: 10
+  statuses: deferred, not-started
+  driver families: ahci, ahci-pm, ata-legacy, i915, nvme, nvme-zns, usb-bot, usb-uas, virtio-blk
+  deferred: nvme-zns, sata-port-multiplier
+  every row pins a revision, an emulator, real hardware and an acceptance test
+python3 tools/check_deliverables.py
+PASS: deliverable check
+  files: 24
+  documents checked: 7
+  matrix validator: PASS
+python3 -m unittest discover -s tests -p 'test_*.py'
+...................
+----------------------------------------------------------------------
+Ran 19 tests in 0.004s
+
+OK
+sh -n tools/collect_inventory.sh
+exit=0
+
+$ make -C a3 check-a1-headers A1_INCLUDE=/tmp/ozero-a1/include
+cc -std=c11 -Wall -Wextra -Werror -I/tmp/ozero-a1/include -Iinclude -fsyntax-only tests/header_smoke.c tests/a1_header_smoke.c
+exit=0
+
+$ make ci   # A4 working tree at b4232a0 plus audit edits
+toolchain lock: /workspace/Ozero/toolchain/toolchain.lock
+mode: minimum
+
+ok    as       2.44 (>= 2.42)
+ok    ld       2.44 (>= 2.42)
+ok    objcopy  2.44 (>= 2.42)
+ok    make     4.4.1 (>= 4.3)
+ok    bash     5.2.37 (>= 5.1)
+ok    qemu     10.0.13 (>= 8.0)
+
+check-toolchain: ok
+check-ci-safety: ok (8 files scanned)
+build: assembling harness/fixture/boot.S
+build: linking at 0x7C00
+build: ok
+  image  build/ozero-stage0.img  (512 bytes)
+  sha256 37ad8227720cd7f40b1393a8ad554a78f76d08b09ff97be68b1d2579f5e15319
+  elf    build/ozero-stage0.elf  (debug symbols retained)
+  map    build/ozero-stage0.map
+  commit 3ae7acaf4d81d103063a33ca49c1739bdee316f8
+qemu boot smoke test
+status:   pass
+image:    build/ozero-stage0.img
+sha256:   37ad8227720cd7f40b1393a8ad554a78f76d08b09ff97be68b1d2579f5e15319
+qemu:     QEMU emulator version 10.0.13 (Debian 1:10.0.13+ds-0+deb13u1)
+timeout:  20s
+duration: 223ms
+serial:   build/qemu/serial.log
+test: ok (5 markers in order)
+ci: ok
+exit=0
+
+$ curl -sS -H "Authorization: Bearer <redacted>" .../branches/main
+{
+  "name": "main",
+  "protected": false,
+  "protection": {
+    "enabled": false,
+    "required_status_checks": {
+      "enforcement_level": "off",
+      "contexts": [],
+      "checks": []
+    }
+  }
+}
+
+$ curl -sS -H "Authorization: Bearer <redacted>" .../rulesets
+[
+
+]
+
+$ curl -sS -o /dev/null -w "%{http_code}" .../contents/CODEOWNERS?ref=main
+404
+
+$ GH_TOKEN=<redacted> gh pr view 3 --json ...
+{"baseRefName":"main","checks":[{"conclusion":"SUCCESS","name":"build-and-boot","status":"COMPLETED"}],"headRefOid":"b4232a07ab88b6558b3020ae2463af16f0c325dd","isDraft":false,"mergeable":"MERGEABLE","number":3,"state":"OPEN"}
+
+$ GH_TOKEN=<redacted> gh run view 45180803273 --json ...
+{"conclusion":"success","createdAt":"2026-11-23T13:07:34Z","headSha":"b4232a07ab88b6558b3020ae2463af16f0c325dd","status":"completed","updatedAt":"2026-11-23T13:12:32Z"}

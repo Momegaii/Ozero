@@ -47,8 +47,8 @@ promotion is implied by this instruction.
 | Action | Disposition | Evidence |
 | --- | --- | --- |
 | 1. Open the A4 Stage 0 review PR | Done | [#3](https://github.com/Momegaii/Ozero/pull/3) |
-| 2. Refresh audit after A3 is published | Done | A3 `307b919` is included and integrated on A4; XB-011 Closed; no A3 PR exists |
-| 3. Verify A1/A2/A3 evidence and ancestry | Done | `cross-agent-verification-2026-11-23-r4.md`; A1 `74b1471`, A2 `64b3458` / `6d305b8`, A3 `307b919`; A1 ACCEPTed IF-008 and IF-009; A3 accepted §6 and integrated; A2 still lags the evidence pair and both signatures (XB-003, XB-013) |
+| 2. Refresh audit after A3 is published | Done | A3 `307b919` is included; it is based on A4 `3ae7aca` but is not in A4; XB-011 Closed; XB-020 Open; no A3 PR exists |
+| 3. Verify A1/A2/A3 evidence and ancestry | Done | `cross-agent-verification-2026-11-23-r5.md`; A1 `74b1471`, A2 `64b3458` / `6d305b8`, A3 `307b919`, A4 `b4232a0`; A1 ACCEPTed IF-008 and IF-009; A3 accepted §6 on its own branch; A2 still lags the evidence pair and both signatures (XB-003, XB-013) |
 | 4. Resolve namespace and ownership | Done | D-009 (`include/ozero/` only, A1 `03f8883`), D-010 (tools), `CODEOWNERS`, `ownership.md` |
 | 5. Keep MBR and kernel boot separate | Done | `tests/targets.tsv`, dashboard, PR body |
 | 6. Confirm branch protection and checks | Done: not enabled | `github-settings.txt`; `protected:false`, rulesets `[]`, `CODEOWNERS` 404 on `main`; D-031 |

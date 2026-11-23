@@ -79,5 +79,7 @@ the register wins.
   was renumbered to D-031 because A1's D-011 already uses that ID.
 - A3 corrected the `include/o0/` citation and now records D-009 as Approved with `include/ozero/`
   at A3 `307b919`, reviewing against A4 `3ae7aca`. XB-018 is Closed. D-009 remains Approved.
+  A3 `307b919` is based on A4 `3ae7aca`; A4 `b4232a0` and PR #3 do not contain A3's `a3/` package
+  or root `include/ozero/` headers (XB-020). This does not change any decision status.
 - D-031 remains **Proposed**. The 2026-11-23 recheck records `main` as `protected:false`, no
   repository rulesets and no `CODEOWNERS` on `main`; required checks are not enabled.
