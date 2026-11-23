@@ -12,7 +12,7 @@ A4 owns the canonical register. This document records A1's proposals in the glob
 so that reports and cross-agent documents can cite one ID. A4 must merge the accepted rows
 into `docs/decisions/decision-log.md`; A1 does not edit A4's register directly.
 
-A1 proposes the block `D-009` through `D-030`. `D-005` and `D-007` already exist in A4's
+A1 proposes the block `D-009` through `D-033`. `D-005` and `D-007` already exist in A4's
 register and are reused here. If another agent has claimed an ID in this block, A4 renumbers
 the A1 rows before merging and keeps the mapping below.
 

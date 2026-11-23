@@ -58,7 +58,7 @@ libc headers, and rejects `include/o0/` or legacy `o0/` includes.
   content under `tools/` (D-010). A4's `CODEOWNERS` needs file-level overrides for the two
   A1 artifacts.
 - Use global decision IDs in reports and cross-agent documents: D-005 and D-007 from A4's
-  register, D-009 through D-030 from `docs/decisions/a1-global-decisions.md`. A4 owns the
+  register, D-009 through D-033 from `docs/decisions/a1-global-decisions.md`. A4 owns the
   canonical register; A1's local D1–D14 map to the global IDs in that file.
 
 ## Pinned facts
