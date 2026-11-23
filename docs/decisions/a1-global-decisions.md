@@ -20,9 +20,9 @@ the A1 rows before merging and keeps the mapping below.
 
 | ID | Decision | Status | Owner | Approver | Link |
 |---|---|---|---|---|---|
-| D-009 | `include/ozero/` is the only public header root. `include/o0/` is removed, with no compatibility shim before 1.0. Symbols keep the `o0_` prefix. A2/A3 include `<ozero/...>`. | Proposed | A1 | Director | this document; `tools/check-headers.sh` |
-| D-010 | A1 owns `tools/check-headers.sh` and `tests/abi_static_asserts.c`. A4 owns CI integration and invokes the script unmodified. A3 owns other content under `tools/`. Changes to header rules need A1 review; changes to CI invocation need A4 review. | Proposed | A1 + A4 | Director | this document; `AGENTS.md` |
-| D-011 | A2's process, address-space, handle and syscall requirements are accepted as input to the Stage 7 contract. A1 provides kernel primitives; A2 owns Windows semantics. No ABI is frozen. Conditions are in `docs/a2-interface-review.md`. | Proposed | A1 + A2 | Director | `docs/a2-interface-review.md` |
+| D-009 | `include/ozero/` is the only public header root. `include/o0/` is removed, with no compatibility shim before 1.0. Symbols keep the `o0_` prefix. A2/A3 include `<ozero/...>`. | **Approved** (A4 `245007d`) | A1 | Director | this document; `tools/check-headers.sh` |
+| D-010 | A1 owns `tools/check-headers.sh` and `tests/abi_static_asserts.c`. A4 owns CI integration and invokes the script unmodified. A3 owns other content under `tools/`. Changes to header rules need A1 review; changes to CI invocation need A4 review. | **Approved** (A4 `245007d`) | A1 + A4 | Director | this document; `AGENTS.md` |
+| D-011 | A2's process, address-space, handle and syscall requirements are accepted as input to the Stage 7 contract. A1 provides kernel primitives; A2 owns Windows semantics. No ABI is frozen. Conditions are in `docs/a2-interface-review.md`; A1-REV-01…12 are answered in `docs/a2-contract-review-response.md`. | Proposed | A1 + A2 | Director | both review documents |
 
 ## Required A4 control-plane edits for D-010
 
@@ -72,6 +72,16 @@ These refine D-011. Each one is independently reviewable.
 | D-028 | Handle inheritance: A1 provides inherit flags and an explicit inherit list at process creation; A2 chooses the policy. | Proposed | A1 + A2 | Director |
 | D-029 | Clock: A1 provides a monotonic nanosecond clock; resolution is measured, not promised; A2 maps it to Windows counters. | Proposed | A1 + A2 | Director |
 | D-030 | 32-bit and WOW64 are outside A1 Stage 1 scope; the decision is deferred until the x86 user-mode milestone. | Proposed | A1 + A2 | Director |
+
+## Interface review decisions
+
+These are A1's interface-gate decisions, recorded so the register can cite exact
+hashes. They are not director approvals of the underlying global decisions.
+
+| ID | Decision | Status | Owner | Approver | Link |
+|---|---|---|---|---|---|
+| D-032 | IF-008 v1.1 is **accepted by A1** at A3 `b9a69d8` (branch head `15cd9ce` is documentation-only). A3's `platform.h`/`block.h` conform; A1's ten headers are byte-identical. AHCI remains blocked on D-007 director approval and A3's acceptance of the conditions. | Recorded by A1; A4 to register | A1 + A3 | A1 for IF-008; Director for D-007 | `docs/if008-v1.1-review.md` |
+| D-033 | IF-009 v0.1 is **not published**; A2's fixture manifest at `807c447` is evidence, not a contract. A2 must publish IF-009 v0.1 with exact hashes, static-only scope and the A1/A2/A3 split. | Change required | A2 | A1 + A3 + A4 review | `docs/if009-review.md` |
 
 ## Approval rule
 

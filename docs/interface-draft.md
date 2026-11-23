@@ -191,8 +191,9 @@ runtime behaviour; that is Stage 1.
 
 Scope: the DMA and MMIO surface in `mm.h` and `driver.h`. A1 signs the generic services
 for Stage 1 **subject to the IOMMU blocker below**. The detailed conditions are in
-`docs/a3-dma-contract.md` (IF-008, D-007). A3's `platform.h` and `block.h` are not
-published yet, so this is a conditional sign-off, not IF-008 approval.
+`docs/a3-dma-contract.md` (IF-008, D-007). A3 published IF-008 v1.1 at `b9a69d8`; A1
+reviewed it and recorded **ACCEPT** in `docs/if008-v1.1-review.md` (D-032). The AHCI probe
+remains blocked until the director approves D-007 and A3 accepts the conditions.
 
 | Item | Disposition | Note |
 |---|---|---|
@@ -219,9 +220,9 @@ Conditions attached to the sign-off:
    decision.
 
 If A3 rejects condition 1 or 2, the blocker is escalated before the AHCI probe or any
-real DMA, not worked around in a driver. A1 records the final IF-008 approval only after
-A3 publishes `platform.h` and `block.h` and passes the checklist in
-`docs/a3-dma-contract.md` §5.
+real DMA, not worked around in a driver. A1 recorded the final IF-008 v1.1 approval at A3
+`b9a69d8` in `docs/if008-v1.1-review.md`; A4 must update the registry from 0.1 draft to
+1.1 and A3 must correct the stale D-009/XB-007 note.
 
 ## 12. Open questions
 

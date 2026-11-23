@@ -17,6 +17,20 @@ foundational decisions (see `docs/kernel-architecture.md` §6).
 - `tools/check-headers.sh` — conformance script, owned by A1; A4 invokes it from CI
   unmodified (D-010).
 
+## Interface review state (23 November 2026, action brief v2)
+
+- **IF-008 v1.1: ACCEPT.** A3 published at `b9a69d8`; A1 headers at `30ee4f0`.
+  A3's `include/ozero/platform.h` and `block.h` conform; A3's copies of the ten
+  A1 headers are byte-identical. Record: `docs/if008-v1.1-review.md` (D-032).
+  AHCI remains blocked on director D-007 and A3's acceptance of the conditions.
+- **A2 A1-REV-01…12: answered.** A2 code `50b7853`, evidence `807c447`; A1
+  headers `30ee4f0`. Four Accept, six Change, two Defer. Record:
+  `docs/a2-contract-review-response.md`. A2 must update its stale
+  `include/o0/`/`90b004f` references and its colliding local D-011/D-012/D-020.
+- **IF-009: CHANGE REQUIRED.** No IF-009 document exists; A2's fixture manifest
+  at `807c447` is evidence, not a contract. Record: `docs/if009-review.md`
+  (D-033).
+
 ## Commands
 
 ```
