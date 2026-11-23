@@ -1,49 +1,79 @@
 ==================================================================
 repository: /workspace/Ozero
-head:       c5608721e1bba1515909f0999f3e3ef17ad7b3a6
+head:       8e9efbfe1bc545b929b47af369fbaeb0621a9367
 branch:     a4/stage0-review-followup
 remotes:
   origin	https://github.com/Momegaii/Ozero.git (fetch)
   origin	https://github.com/Momegaii/Ozero.git (push)
 branches:
-  a4/stage0-review-followup c560872 origin/a4/stage0-review-followup
+  a4/stage0-review-followup 8e9efbf origin/a4/stage0-review-followup
   main 147cc86 origin/main
   origin 147cc86 
-  origin/a1/stage0-review 30ee4f0 
-  origin/a3/stage0-review-response 15cd9ce 
-  origin/a4/stage0-review-followup 245007d 
-  origin/agent/a2-stage0 807c447 
+  origin/a1/stage0-review 2693a34 
+  origin/a3/stage0-review-response 48d434f 
+  origin/a4/stage0-review-followup eaca921 
+  origin/agent/a2-stage0 d83cfbe 
   origin/main 147cc86 
+  origin/pr-1 2693a34 
+  origin/pr-2 d83cfbe 
+  origin/pr-4 48d434f 
 tags:
 commit graph (all refs):
-  * c560872 (HEAD -> a4/stage0-review-followup) docs: record A3 publication and round-3 verification
-  * 245007d (origin/a4/stage0-review-followup) docs: refresh audit after A1 30ee4f0
-  * 56bcff0 docs: apply A1's exact CODEOWNERS overrides from 30ee4f0
-  * 313138c docs: refresh audit for the PR body update
-  * dd47d4e docs: add XB-016 to the submitted PR body
-  * 4465f7d docs: refresh repository audit after A1's second-round commits
-  * d138cb2 docs: describe the A4 head as 210653c plus docs and audit commits
-  * bd7b0c9 docs: record A4 head 210653c before the audit refresh
-  * 210653c docs: align A4 with A1 second-round response
-  * 9ef13bd docs: record Stage 0 PR #3 and close XB-010
-  * 076ed82 docs: verify updated A2 evidence and ancestry
-  * 19dac9d docs: address Director Stage 0 integration review
-  * 5642c16 docs: refresh repository audit with published A4 branch
-  * 8e73e09 docs: record A4 branch publication
-  * 84fe81a docs: verify A1/A2 branches and track cross-agent blockers
-  * 596fc6f docs: add cross-agent blocker register
-  * 907093d docs: refresh repository audit at evidence head
-  * f990bf7 docs: record Stage 0 review evidence
-  * 4396155 docs: implement Stage 0 review actions
-  * 5a50c0d docs: import A4 Stage 0 control plane
-  | * 15cd9ce (origin/a3/stage0-review-response) Record successful A3 branch push
+  * 8e9efbf (HEAD -> a4/stage0-review-followup) docs: review A3 PR #4 and reconcile R3 audit evidence
+  * eaca921 (origin/a4/stage0-review-followup) docs: correct A3 integration claim and refresh R2 audit
+  | * 48d434f (origin/pr-4, origin/a3/stage0-review-response) Respond to R2 proceed brief and open A4 integration PR
+  | *   fcce71e Merge remote-tracking branch 'origin/a4/stage0-review-followup' into a3/stage0-review-response
+  | |\  
+  | |/  
+  |/|   
+  * | b4232a0 docs: record A1/A3 interface decisions and A3 integration
+  | * 307b919 Accept A1 IF-008 decision and integrate on A4 control plane
+  | *   f0be3c5 Merge remote-tracking branch 'origin/a4/stage0-review-followup' into a3/stage0-review-response
+  | |\  
+  | |/  
+  |/|   
+  * | 3ae7aca docs: refresh audit after round-3 verification
+  * | c560872 docs: record A3 publication and round-3 verification
+  * | 245007d docs: refresh audit after A1 30ee4f0
+  * | 56bcff0 docs: apply A1's exact CODEOWNERS overrides from 30ee4f0
+  * | 313138c docs: refresh audit for the PR body update
+  * | dd47d4e docs: add XB-016 to the submitted PR body
+  * | 4465f7d docs: refresh repository audit after A1's second-round commits
+  * | d138cb2 docs: describe the A4 head as 210653c plus docs and audit commits
+  * | bd7b0c9 docs: record A4 head 210653c before the audit refresh
+  * | 210653c docs: align A4 with A1 second-round response
+  * | 9ef13bd docs: record Stage 0 PR #3 and close XB-010
+  * | 076ed82 docs: verify updated A2 evidence and ancestry
+  * | 19dac9d docs: address Director Stage 0 integration review
+  * | 5642c16 docs: refresh repository audit with published A4 branch
+  * | 8e73e09 docs: record A4 branch publication
+  * | 84fe81a docs: verify A1/A2 branches and track cross-agent blockers
+  * | 596fc6f docs: add cross-agent blocker register
+  * | 907093d docs: refresh repository audit at evidence head
+  * | f990bf7 docs: record Stage 0 review evidence
+  * | 4396155 docs: implement Stage 0 review actions
+  * | 5a50c0d docs: import A4 Stage 0 control plane
+  | * a16a99b Move A3 package into a3/ subtree
+  | * 2dcc0fc Respond to A3 action brief v2
+  | * 15cd9ce Record successful A3 branch push
   | * b9a69d8 Align A3 IF-008 v1.1 to A1 ozero headers
   | * 0a023a4 a3: record remote push blocker and final A1 review status
   | * 897e5ce a3: record A1 signed interface review and reconciliation blockers
   | * bd3034b a3: record Stage 0 package commit and final evidence
   | * a2890b5 a3: add Stage 0 hardware engineering package and review response
   |/  
-  | * 30ee4f0 (origin/a1/stage0-review) docs: give A4 the exact CODEOWNERS overrides for A1 artifacts (D-010)
+  | * 2693a34 (origin/pr-1, origin/a1/stage0-review) docs: record the R2 review commit hash
+  | * 9cda79c docs: record proceed brief R2 evidence and A2/A3 state
+  | * 74b1471 docs: confirm A3's IF-008 review-packet invariants
+  | * 3b68369 docs: record the IF-009 review commit hash
+  | * a17d126 docs: review IF-009 v1.0 at A2 d02598a (D-033)
+  | * 4716e09 docs: list A3 status-line deltas in the IF-008 review
+  | * cec3521 docs: use the brief's change-required wording
+  | * 1ca12c7 docs: align decision range with D-033
+  | * 2645e72 docs: record action brief v2 evidence in the Stage 0 report
+  | * d9cdec1 docs: answer A2 A1-REV-01..12 and review IF-009 (D-033)
+  | * 85df005 docs: accept IF-008 v1.1 at A3 b9a69d8 (D-032)
+  | * 30ee4f0 docs: give A4 the exact CODEOWNERS overrides for A1 artifacts (D-010)
   | * 115a7f4 docs: record second-round Stage 0 review evidence and hashes
   | * c50e385 docs: answer the director's second Stage 0 review
   | * 164360e feat: expose driver DMA callbacks and A2 thread primitives
@@ -61,14 +91,22 @@ commit graph (all refs):
   | * 3f68e5e Stage 0: add status report with evidence and decisions needed
   | * 357202f Stage 0: tighten boot contract and CPU baseline after review
   | * ff439e3 Stage 0: kernel architecture, boot contract, CPU matrix, interface sketch
-  | * 807c447 (origin/agent/a2-stage0) chore(a2): regenerate evidence at 50b7853
+  | * d83cfbe (origin/pr-2, origin/agent/a2-stage0) chore(a2): regenerate evidence at f6ed1d8
+  | * f6ed1d8 docs(a2): record A1/A3 IF-009 v1.0 signatures and refresh ledger
+  | * 64b3458 chore(a2): regenerate evidence at 6d305b8
+  | * 6d305b8 docs(a2): record A1 answers, IF-009 review state and review ledger
+  | * 3f78477 chore(a2): regenerate evidence at d02598a
+  | * d02598a docs(a2): record A3 IF-009 review and apply its comments
+  | * b227327 chore(a2): regenerate evidence at 0522f11
+  | * 0522f11 docs(a2): publish IF-009 fixture contract and reconcile provenance
+  | * 807c447 chore(a2): regenerate evidence at 50b7853
   | * 50b7853 docs(a2): answer director review with global IDs and A1 review request
   | * f324b28 chore(a2): record shared-repo revision and regenerate evidence
   | * 8bac650 docs(a2): import Stage 0 package under a2/
   |/  
   * 147cc86 (origin/main, origin/HEAD, main) Initial commit
-commit count (all refs): 46
-tracked files: 89
+commit count (all refs): 75
+tracked files: 99
 top-level tracked entries:
   .editorconfig
   .github
@@ -84,13 +122,30 @@ top-level tracked entries:
   scripts
   tests
   toolchain
-working tree: clean
+working tree: DIRTY
+   M evidence/stage0-review/repo-audit.txt
 A1/A2/A3 refs:
   refs/remotes/origin/a1/stage0-review
   refs/remotes/origin/a3/stage0-review-response
   refs/remotes/origin/agent/a2-stage0
 A1/A2/A3 commit subjects:
+  8e9efbf docs: review A3 PR #4 and reconcile R3 audit evidence
+  eaca921 docs: correct A3 integration claim and refresh R2 audit
+  9cda79c docs: record proceed brief R2 evidence and A2/A3 state
+  f6ed1d8 docs(a2): record A1/A3 IF-009 v1.0 signatures and refresh ledger
+  fcce71e Merge remote-tracking branch 'origin/a4/stage0-review-followup' into a3/stage0-review-response
+  b4232a0 docs: record A1/A3 interface decisions and A3 integration
+  307b919 Accept A1 IF-008 decision and integrate on A4 control plane
+  a17d126 docs: review IF-009 v1.0 at A2 d02598a (D-033)
+  6d305b8 docs(a2): record A1 answers, IF-009 review state and review ledger
+  f0be3c5 Merge remote-tracking branch 'origin/a4/stage0-review-followup' into a3/stage0-review-response
+  a16a99b Move A3 package into a3/ subtree
+  4716e09 docs: list A3 status-line deltas in the IF-008 review
   c560872 docs: record A3 publication and round-3 verification
+  d9cdec1 docs: answer A2 A1-REV-01..12 and review IF-009 (D-033)
+  85df005 docs: accept IF-008 v1.1 at A3 b9a69d8 (D-032)
+  d02598a docs(a2): record A3 IF-009 review and apply its comments
+  2dcc0fc Respond to A3 action brief v2
   15cd9ce Record successful A3 branch push
   b9a69d8 Align A3 IF-008 v1.1 to A1 ozero headers
   245007d docs: refresh audit after A1 30ee4f0
