@@ -1,0 +1,1226 @@
+{
+  "schema_version": 1,
+  "purpose": "Machine-checkable inventory of the PE32/PE32+ structures a user-mode loader must consume. Field offsets are relative to the start of each structure. Every entry cites the document it came from; where the Microsoft PE specification is silent or ambiguous the entry says so.",
+  "sources": {
+    "ms-pe": {
+      "title": "Microsoft PE and COFF Specification",
+      "url": "https://learn.microsoft.com/en-us/windows/win32/debug/pe-format",
+      "retrieved": "2026-11-23",
+      "caveat": "The document states it 'is not guaranteed to be a complete specification in all respects'."
+    },
+    "ms-x64-unwind": {
+      "title": "Unwind data structures for x64 exception handling",
+      "url": "https://learn.microsoft.com/en-us/cpp/build/exception-handling-x64",
+      "retrieved": "2026-11-23"
+    },
+    "ecma-335": {
+      "title": "ECMA-335 Common Language Infrastructure, partition II section 25 (CLR header)",
+      "url": "https://ecma-international.org/publications-and-standards/standards/ecma-335/",
+      "retrieved": "2026-11-23",
+      "caveat": "The PE specification only defines the object-file .cormeta section and points the CLR Runtime Header data directory at it; the image-level COR20 layout is specified by ECMA-335."
+    },
+    "winnt-h": {
+      "title": "Windows SDK winnt.h (IMAGE_LOAD_CONFIG_DIRECTORY64 and related definitions)",
+      "url": "https://learn.microsoft.com/en-us/windows/win32/api/winnt/",
+      "retrieved": "2026-11-23",
+      "caveat": "Header values are treated as the implementation reference where the prose specification is incomplete; discrepancies are listed in docs/01-pe-loader-requirements.md."
+    }
+  },
+  "structures": [
+    {
+      "name": "IMAGE_DOS_HEADER",
+      "kind": "fixed",
+      "size": 64,
+      "source": "ms-pe",
+      "anchor": "MS-DOS stub",
+      "loader_role": "Locate the PE signature; e_magic must be 0x5A4D and e_lfanew must be a file offset that holds 'PE\\0\\0'.",
+      "fields": [
+        {
+          "offset": 0,
+          "size": 2,
+          "name": "e_magic",
+          "note": "0x5A4D ('MZ')"
+        },
+        {
+          "offset": 2,
+          "size": 58,
+          "name": "e_cblp..e_res2",
+          "note": "Not used by the loader; kept as one span to keep the table short."
+        },
+        {
+          "offset": 60,
+          "size": 4,
+          "name": "e_lfanew",
+          "note": "File offset of the PE signature."
+        }
+      ]
+    },
+    {
+      "name": "IMAGE_FILE_HEADER",
+      "kind": "fixed",
+      "size": 20,
+      "source": "ms-pe",
+      "anchor": "COFF File Header (Object and Image)",
+      "loader_role": "Machine, section count and the size of the optional header, which is needed to find the section table.",
+      "fields": [
+        {
+          "offset": 0,
+          "size": 2,
+          "name": "Machine",
+          "note": "0x014C i386, 0x8664 AMD64, 0xAA64 ARM64"
+        },
+        {
+          "offset": 2,
+          "size": 2,
+          "name": "NumberOfSections"
+        },
+        {
+          "offset": 4,
+          "size": 4,
+          "name": "TimeDateStamp"
+        },
+        {
+          "offset": 8,
+          "size": 4,
+          "name": "PointerToSymbolTable",
+          "note": "Deprecated for images."
+        },
+        {
+          "offset": 12,
+          "size": 4,
+          "name": "NumberOfSymbols"
+        },
+        {
+          "offset": 16,
+          "size": 2,
+          "name": "SizeOfOptionalHeader"
+        },
+        {
+          "offset": 18,
+          "size": 2,
+          "name": "Characteristics",
+          "note": "IMAGE_FILE_DLL 0x2000, IMAGE_FILE_RELOCS_STRIPPED 0x0001"
+        }
+      ]
+    },
+    {
+      "name": "IMAGE_OPTIONAL_HEADER64",
+      "kind": "fixed",
+      "size": 112,
+      "size_expression": "112 + 8 * NumberOfRvaAndSizes (240 for the usual 16 directories)",
+      "source": "ms-pe",
+      "anchor": "Optional Header Windows-Specific Fields (Image Only)",
+      "loader_role": "Image base, alignment, entry point, stack/heap sizes, subsystem, DLL characteristics and the data directory table.",
+      "fields": [
+        {
+          "offset": 0,
+          "size": 2,
+          "name": "Magic",
+          "note": "0x20B for PE32+"
+        },
+        {
+          "offset": 2,
+          "size": 1,
+          "name": "MajorLinkerVersion"
+        },
+        {
+          "offset": 3,
+          "size": 1,
+          "name": "MinorLinkerVersion"
+        },
+        {
+          "offset": 4,
+          "size": 4,
+          "name": "SizeOfCode"
+        },
+        {
+          "offset": 8,
+          "size": 4,
+          "name": "SizeOfInitializedData"
+        },
+        {
+          "offset": 12,
+          "size": 4,
+          "name": "SizeOfUninitializedData"
+        },
+        {
+          "offset": 16,
+          "size": 4,
+          "name": "AddressOfEntryPoint",
+          "note": "RVA"
+        },
+        {
+          "offset": 20,
+          "size": 4,
+          "name": "BaseOfCode"
+        },
+        {
+          "offset": 24,
+          "size": 8,
+          "name": "ImageBase",
+          "note": "Multiple of 64 KiB"
+        },
+        {
+          "offset": 32,
+          "size": 4,
+          "name": "SectionAlignment"
+        },
+        {
+          "offset": 36,
+          "size": 4,
+          "name": "FileAlignment"
+        },
+        {
+          "offset": 40,
+          "size": 2,
+          "name": "MajorOperatingSystemVersion"
+        },
+        {
+          "offset": 42,
+          "size": 2,
+          "name": "MinorOperatingSystemVersion"
+        },
+        {
+          "offset": 44,
+          "size": 2,
+          "name": "MajorImageVersion"
+        },
+        {
+          "offset": 46,
+          "size": 2,
+          "name": "MinorImageVersion"
+        },
+        {
+          "offset": 48,
+          "size": 2,
+          "name": "MajorSubsystemVersion"
+        },
+        {
+          "offset": 50,
+          "size": 2,
+          "name": "MinorSubsystemVersion"
+        },
+        {
+          "offset": 52,
+          "size": 4,
+          "name": "Win32VersionValue",
+          "note": "Reserved, must be zero"
+        },
+        {
+          "offset": 56,
+          "size": 4,
+          "name": "SizeOfImage",
+          "note": "Multiple of SectionAlignment"
+        },
+        {
+          "offset": 60,
+          "size": 4,
+          "name": "SizeOfHeaders",
+          "note": "Multiple of FileAlignment"
+        },
+        {
+          "offset": 64,
+          "size": 4,
+          "name": "CheckSum"
+        },
+        {
+          "offset": 68,
+          "size": 2,
+          "name": "Subsystem",
+          "note": "2 GUI, 3 CUI, 1 native"
+        },
+        {
+          "offset": 70,
+          "size": 2,
+          "name": "DllCharacteristics",
+          "note": "DYNAMIC_BASE 0x40, NX_COMPAT 0x100, GUARD_CF 0x4000"
+        },
+        {
+          "offset": 72,
+          "size": 8,
+          "name": "SizeOfStackReserve"
+        },
+        {
+          "offset": 80,
+          "size": 8,
+          "name": "SizeOfStackCommit"
+        },
+        {
+          "offset": 88,
+          "size": 8,
+          "name": "SizeOfHeapReserve"
+        },
+        {
+          "offset": 96,
+          "size": 8,
+          "name": "SizeOfHeapCommit"
+        },
+        {
+          "offset": 104,
+          "size": 4,
+          "name": "LoaderFlags",
+          "note": "Reserved, must be zero"
+        },
+        {
+          "offset": 108,
+          "size": 4,
+          "name": "NumberOfRvaAndSizes"
+        },
+        {
+          "offset": 112,
+          "size": 8,
+          "name": "DataDirectory[0..N-1]",
+          "note": "Each entry is 8 bytes; N is NumberOfRvaAndSizes, 16 in practice.",
+          "tail": true
+        }
+      ]
+    },
+    {
+      "name": "IMAGE_DATA_DIRECTORY",
+      "kind": "fixed",
+      "size": 8,
+      "source": "ms-pe",
+      "anchor": "Optional Header Data Directories (Image Only)",
+      "loader_role": "Locate each table by RVA. Entry 4 (certificate) is a file offset, not an RVA.",
+      "fields": [
+        {
+          "offset": 0,
+          "size": 4,
+          "name": "VirtualAddress"
+        },
+        {
+          "offset": 4,
+          "size": 4,
+          "name": "Size"
+        }
+      ],
+      "directory_index": {
+        "0": "export",
+        "1": "import",
+        "2": "resource",
+        "3": "exception",
+        "4": "certificate",
+        "5": "base_relocation",
+        "6": "debug",
+        "7": "architecture",
+        "8": "global_ptr",
+        "9": "tls",
+        "10": "load_config",
+        "11": "bound_import",
+        "12": "import_address_table",
+        "13": "delay_import",
+        "14": "clr_runtime",
+        "15": "reserved"
+      }
+    },
+    {
+      "name": "IMAGE_SECTION_HEADER",
+      "kind": "fixed",
+      "size": 40,
+      "source": "ms-pe",
+      "anchor": "Section Table (Section Headers)",
+      "loader_role": "Map file ranges to RVAs. Sections must be ascending and adjacent, aligned to SectionAlignment.",
+      "fields": [
+        {
+          "offset": 0,
+          "size": 8,
+          "name": "Name"
+        },
+        {
+          "offset": 8,
+          "size": 4,
+          "name": "VirtualSize"
+        },
+        {
+          "offset": 12,
+          "size": 4,
+          "name": "VirtualAddress",
+          "note": "RVA"
+        },
+        {
+          "offset": 16,
+          "size": 4,
+          "name": "SizeOfRawData",
+          "note": "Multiple of FileAlignment"
+        },
+        {
+          "offset": 20,
+          "size": 4,
+          "name": "PointerToRawData",
+          "note": "File offset, multiple of FileAlignment"
+        },
+        {
+          "offset": 24,
+          "size": 4,
+          "name": "PointerToRelocations",
+          "note": "Object files only"
+        },
+        {
+          "offset": 28,
+          "size": 4,
+          "name": "PointerToLinenumbers"
+        },
+        {
+          "offset": 32,
+          "size": 2,
+          "name": "NumberOfRelocations"
+        },
+        {
+          "offset": 34,
+          "size": 2,
+          "name": "NumberOfLinenumbers"
+        },
+        {
+          "offset": 36,
+          "size": 4,
+          "name": "Characteristics",
+          "note": "CODE 0x20, INITIALIZED_DATA 0x40, MEM_EXECUTE 0x20000000, MEM_WRITE 0x80000000"
+        }
+      ]
+    },
+    {
+      "name": "IMAGE_IMPORT_DESCRIPTOR",
+      "kind": "fixed",
+      "size": 20,
+      "source": "ms-pe",
+      "anchor": "Import Directory Table",
+      "loader_role": "For each imported DLL, resolve names through the lookup table and write addresses into the IAT. A zero-filled descriptor terminates the table.",
+      "fields": [
+        {
+          "offset": 0,
+          "size": 4,
+          "name": "OriginalFirstThunk",
+          "note": "RVA of the import lookup table"
+        },
+        {
+          "offset": 4,
+          "size": 4,
+          "name": "TimeDateStamp",
+          "note": "Zero when not bound"
+        },
+        {
+          "offset": 8,
+          "size": 4,
+          "name": "ForwarderChain"
+        },
+        {
+          "offset": 12,
+          "size": 4,
+          "name": "Name",
+          "note": "RVA of the DLL name"
+        },
+        {
+          "offset": 16,
+          "size": 4,
+          "name": "FirstThunk",
+          "note": "RVA of the IAT slot array"
+        }
+      ]
+    },
+    {
+      "name": "IMAGE_THUNK_DATA64",
+      "kind": "fixed",
+      "size": 8,
+      "source": "ms-pe",
+      "anchor": "Import Lookup Table",
+      "loader_role": "Bit 63 set means import by ordinal; otherwise the value is an RVA of IMAGE_IMPORT_BY_NAME (hint + name).",
+      "fields": [
+        {
+          "offset": 0,
+          "size": 8,
+          "name": "AddressOfData / Ordinal",
+          "note": "Bit 63 = ordinal flag"
+        }
+      ]
+    },
+    {
+      "name": "IMAGE_EXPORT_DIRECTORY",
+      "kind": "fixed",
+      "size": 40,
+      "source": "ms-pe",
+      "anchor": "Export Directory Table",
+      "loader_role": "Build the export name table and detect forwarders (export RVA inside the export directory range).",
+      "fields": [
+        {
+          "offset": 0,
+          "size": 4,
+          "name": "Characteristics"
+        },
+        {
+          "offset": 4,
+          "size": 4,
+          "name": "TimeDateStamp"
+        },
+        {
+          "offset": 8,
+          "size": 2,
+          "name": "MajorVersion"
+        },
+        {
+          "offset": 10,
+          "size": 2,
+          "name": "MinorVersion"
+        },
+        {
+          "offset": 12,
+          "size": 4,
+          "name": "Name",
+          "note": "RVA of the module name"
+        },
+        {
+          "offset": 16,
+          "size": 4,
+          "name": "Base",
+          "note": "Ordinal bias"
+        },
+        {
+          "offset": 20,
+          "size": 4,
+          "name": "NumberOfFunctions"
+        },
+        {
+          "offset": 24,
+          "size": 4,
+          "name": "NumberOfNames"
+        },
+        {
+          "offset": 28,
+          "size": 4,
+          "name": "AddressOfFunctions"
+        },
+        {
+          "offset": 32,
+          "size": 4,
+          "name": "AddressOfNames"
+        },
+        {
+          "offset": 36,
+          "size": 4,
+          "name": "AddressOfNameOrdinals"
+        }
+      ]
+    },
+    {
+      "name": "IMAGE_BASE_RELOCATION",
+      "kind": "fixed",
+      "size": 8,
+      "source": "ms-pe",
+      "anchor": "The .reloc Section (Image Only)",
+      "loader_role": "Per 4 KiB page, apply the delta between the preferred and actual load address. AMD64 uses DIR64 (type 10); ABSOLUTE (0) entries are padding.",
+      "fields": [
+        {
+          "offset": 0,
+          "size": 4,
+          "name": "PageRVA"
+        },
+        {
+          "offset": 4,
+          "size": 4,
+          "name": "BlockSize",
+          "note": "Includes this header"
+        },
+        {
+          "offset": 8,
+          "size": 2,
+          "name": "Type/Offset entries",
+          "note": "Repeating: high 4 bits type, low 12 bits offset",
+          "tail": true
+        }
+      ],
+      "relocation_types": {
+        "0": "ABSOLUTE (skip/padding)",
+        "1": "HIGH",
+        "2": "LOW",
+        "3": "HIGHLOW (32-bit images)",
+        "4": "HIGHADJ",
+        "10": "DIR64 (AMD64/ARM64 images)"
+      }
+    },
+    {
+      "name": "IMAGE_TLS_DIRECTORY64",
+      "kind": "fixed",
+      "size": 40,
+      "source": "ms-pe",
+      "anchor": "The TLS Directory",
+      "loader_role": "Copy the TLS template for each thread, store the TLS index and call the callback array. Addresses are VAs, not RVAs, so they must be relocated.",
+      "fields": [
+        {
+          "offset": 0,
+          "size": 8,
+          "name": "StartAddressOfRawData",
+          "note": "VA"
+        },
+        {
+          "offset": 8,
+          "size": 8,
+          "name": "EndAddressOfRawData",
+          "note": "VA"
+        },
+        {
+          "offset": 16,
+          "size": 8,
+          "name": "AddressOfIndex",
+          "note": "VA"
+        },
+        {
+          "offset": 24,
+          "size": 8,
+          "name": "AddressOfCallBacks",
+          "note": "VA of a null-terminated array"
+        },
+        {
+          "offset": 32,
+          "size": 4,
+          "name": "SizeOfZeroFill"
+        },
+        {
+          "offset": 36,
+          "size": 4,
+          "name": "Characteristics"
+        }
+      ]
+    },
+    {
+      "name": "RUNTIME_FUNCTION",
+      "kind": "fixed",
+      "size": 12,
+      "source": "ms-x64-unwind",
+      "anchor": "struct RUNTIME_FUNCTION",
+      "loader_role": "Sorted .pdata entries that let the runtime unwind a stack. Required for x64 exception dispatch and for debuggers.",
+      "fields": [
+        {
+          "offset": 0,
+          "size": 4,
+          "name": "BeginAddress",
+          "note": "RVA"
+        },
+        {
+          "offset": 4,
+          "size": 4,
+          "name": "EndAddress",
+          "note": "RVA"
+        },
+        {
+          "offset": 8,
+          "size": 4,
+          "name": "UnwindInfoAddress",
+          "note": "RVA of UNWIND_INFO"
+        }
+      ]
+    },
+    {
+      "name": "UNWIND_INFO",
+      "kind": "variable",
+      "size": 4,
+      "source": "ms-x64-unwind",
+      "anchor": "struct UNWIND_INFO",
+      "loader_role": "Prolog description plus optional handler or chained entry. Version is currently 1.",
+      "fields": [
+        {
+          "offset": 0,
+          "size": 1,
+          "name": "Version:3 | Flags:5",
+          "note": "Flags: EHANDLER 1, UHANDLER 2, CHAININFO 4"
+        },
+        {
+          "offset": 1,
+          "size": 1,
+          "name": "SizeOfProlog"
+        },
+        {
+          "offset": 2,
+          "size": 1,
+          "name": "CountOfCodes"
+        },
+        {
+          "offset": 3,
+          "size": 1,
+          "name": "FrameRegister:4 | FrameOffset:4"
+        },
+        {
+          "offset": 4,
+          "size": 2,
+          "name": "UnwindCodes[CountOfCodes]",
+          "note": "May be followed by handler RVA/data or a chained RUNTIME_FUNCTION"
+        }
+      ]
+    },
+    {
+      "name": "IMAGE_LOAD_CONFIG_DIRECTORY64",
+      "kind": "variable",
+      "size": 320,
+      "source": "winnt-h",
+      "anchor": "IMAGE_LOAD_CONFIG_DIRECTORY64",
+      "loader_role": "Version-tagged (Size is the first field) structure carrying the security cookie, SEH handler table (x86) and Control Flow Guard metadata.",
+      "caveat": "The Microsoft PE specification's layout table for this structure does not match winnt.h: it starts at Characteristics instead of Size and omits several fields. This inventory follows winnt.h, which matches observed binaries.",
+      "fields": [
+        {
+          "offset": 0,
+          "size": 4,
+          "name": "Size",
+          "note": "Structure version discriminator"
+        },
+        {
+          "offset": 4,
+          "size": 4,
+          "name": "TimeDateStamp"
+        },
+        {
+          "offset": 8,
+          "size": 2,
+          "name": "MajorVersion"
+        },
+        {
+          "offset": 10,
+          "size": 2,
+          "name": "MinorVersion"
+        },
+        {
+          "offset": 12,
+          "size": 4,
+          "name": "GlobalFlagsClear"
+        },
+        {
+          "offset": 16,
+          "size": 4,
+          "name": "GlobalFlagsSet"
+        },
+        {
+          "offset": 20,
+          "size": 4,
+          "name": "CriticalSectionDefaultTimeout"
+        },
+        {
+          "offset": 24,
+          "size": 8,
+          "name": "DeCommitFreeBlockThreshold"
+        },
+        {
+          "offset": 32,
+          "size": 8,
+          "name": "DeCommitTotalFreeThreshold"
+        },
+        {
+          "offset": 40,
+          "size": 8,
+          "name": "LockPrefixTable"
+        },
+        {
+          "offset": 48,
+          "size": 8,
+          "name": "MaximumAllocationSize"
+        },
+        {
+          "offset": 56,
+          "size": 8,
+          "name": "VirtualMemoryThreshold"
+        },
+        {
+          "offset": 64,
+          "size": 8,
+          "name": "ProcessAffinityMask"
+        },
+        {
+          "offset": 72,
+          "size": 4,
+          "name": "ProcessHeapFlags"
+        },
+        {
+          "offset": 76,
+          "size": 2,
+          "name": "CSDVersion"
+        },
+        {
+          "offset": 78,
+          "size": 2,
+          "name": "DependentLoadFlags"
+        },
+        {
+          "offset": 80,
+          "size": 8,
+          "name": "EditList"
+        },
+        {
+          "offset": 88,
+          "size": 8,
+          "name": "SecurityCookie",
+          "note": "VA"
+        },
+        {
+          "offset": 96,
+          "size": 8,
+          "name": "SEHandlerTable",
+          "note": "x86 only"
+        },
+        {
+          "offset": 104,
+          "size": 8,
+          "name": "SEHandlerCount",
+          "note": "x86 only"
+        },
+        {
+          "offset": 112,
+          "size": 8,
+          "name": "GuardCFCheckFunctionPointer",
+          "note": "VA"
+        },
+        {
+          "offset": 120,
+          "size": 8,
+          "name": "GuardCFDispatchFunctionPointer",
+          "note": "VA"
+        },
+        {
+          "offset": 128,
+          "size": 8,
+          "name": "GuardCFFunctionTable",
+          "note": "VA"
+        },
+        {
+          "offset": 136,
+          "size": 8,
+          "name": "GuardCFFunctionCount"
+        },
+        {
+          "offset": 144,
+          "size": 4,
+          "name": "GuardFlags",
+          "note": "CF_INSTRUMENTED 0x100, CF_FUNCTION_TABLE_PRESENT 0x400"
+        },
+        {
+          "offset": 148,
+          "size": 12,
+          "name": "CodeIntegrity"
+        },
+        {
+          "offset": 160,
+          "size": 8,
+          "name": "GuardAddressTakenIatEntryTable"
+        },
+        {
+          "offset": 168,
+          "size": 8,
+          "name": "GuardAddressTakenIatEntryCount"
+        },
+        {
+          "offset": 176,
+          "size": 8,
+          "name": "GuardLongJumpTargetTable"
+        },
+        {
+          "offset": 184,
+          "size": 8,
+          "name": "GuardLongJumpTargetCount"
+        },
+        {
+          "offset": 192,
+          "size": 8,
+          "name": "DynamicValueRelocTable"
+        },
+        {
+          "offset": 200,
+          "size": 8,
+          "name": "CHPEMetadataPointer"
+        },
+        {
+          "offset": 208,
+          "size": 8,
+          "name": "GuardRFFailureRoutine"
+        },
+        {
+          "offset": 216,
+          "size": 8,
+          "name": "GuardRFFailureRoutineFunctionPointer"
+        },
+        {
+          "offset": 224,
+          "size": 4,
+          "name": "DynamicValueRelocTableOffset"
+        },
+        {
+          "offset": 228,
+          "size": 2,
+          "name": "DynamicValueRelocTableSection"
+        },
+        {
+          "offset": 230,
+          "size": 2,
+          "name": "Reserved2"
+        },
+        {
+          "offset": 232,
+          "size": 8,
+          "name": "GuardRFVerifyStackPointerFunctionPointer"
+        },
+        {
+          "offset": 240,
+          "size": 4,
+          "name": "HotPatchTableOffset"
+        },
+        {
+          "offset": 244,
+          "size": 4,
+          "name": "Reserved3"
+        },
+        {
+          "offset": 248,
+          "size": 8,
+          "name": "EnclaveConfigurationPointer"
+        },
+        {
+          "offset": 256,
+          "size": 8,
+          "name": "VolatileMetadataPointer"
+        },
+        {
+          "offset": 264,
+          "size": 8,
+          "name": "GuardEHContinuationTable"
+        },
+        {
+          "offset": 272,
+          "size": 8,
+          "name": "GuardEHContinuationCount"
+        },
+        {
+          "offset": 280,
+          "size": 8,
+          "name": "GuardXFGCheckFunctionPointer"
+        },
+        {
+          "offset": 288,
+          "size": 8,
+          "name": "GuardXFGDispatchFunctionPointer"
+        },
+        {
+          "offset": 296,
+          "size": 8,
+          "name": "GuardXFGTableDispatchFunctionPointer"
+        },
+        {
+          "offset": 304,
+          "size": 8,
+          "name": "CastGuardOsDeterminedFailureMode"
+        },
+        {
+          "offset": 312,
+          "size": 8,
+          "name": "GuardMemcpyFunctionPointer"
+        }
+      ]
+    },
+    {
+      "name": "IMAGE_DELAYLOAD_DESCRIPTOR",
+      "kind": "fixed",
+      "size": 32,
+      "source": "ms-pe",
+      "anchor": "Delay-Load Import Tables (Image Only)",
+      "loader_role": "Describes DLLs loaded on first call rather than at process start. Attributes bit 0 selects RVAs (1) versus VAs (0).",
+      "fields": [
+        {
+          "offset": 0,
+          "size": 4,
+          "name": "Attributes"
+        },
+        {
+          "offset": 4,
+          "size": 4,
+          "name": "DllNameRVA"
+        },
+        {
+          "offset": 8,
+          "size": 4,
+          "name": "ModuleHandleRVA"
+        },
+        {
+          "offset": 12,
+          "size": 4,
+          "name": "ImportAddressTableRVA"
+        },
+        {
+          "offset": 16,
+          "size": 4,
+          "name": "ImportNameTableRVA"
+        },
+        {
+          "offset": 20,
+          "size": 4,
+          "name": "BoundImportAddressTableRVA"
+        },
+        {
+          "offset": 24,
+          "size": 4,
+          "name": "UnloadInformationTableRVA"
+        },
+        {
+          "offset": 28,
+          "size": 4,
+          "name": "TimeDateStamp"
+        }
+      ]
+    },
+    {
+      "name": "IMAGE_BOUND_IMPORT_DESCRIPTOR",
+      "kind": "fixed",
+      "size": 8,
+      "source": "ms-pe",
+      "anchor": "Bound Import",
+      "loader_role": "Records the timestamp a module was bound against. A mismatch forces normal import resolution.",
+      "fields": [
+        {
+          "offset": 0,
+          "size": 4,
+          "name": "TimeDateStamp"
+        },
+        {
+          "offset": 4,
+          "size": 2,
+          "name": "OffsetModuleName"
+        },
+        {
+          "offset": 6,
+          "size": 2,
+          "name": "NumberOfModuleForwarderRefs"
+        }
+      ]
+    },
+    {
+      "name": "IMAGE_DEBUG_DIRECTORY",
+      "kind": "fixed",
+      "size": 28,
+      "source": "ms-pe",
+      "anchor": "Debug Directory (Image Only)",
+      "loader_role": "Not required to run an image; needed for symbol resolution and for identifying reproducible builds.",
+      "fields": [
+        {
+          "offset": 0,
+          "size": 4,
+          "name": "Characteristics"
+        },
+        {
+          "offset": 4,
+          "size": 4,
+          "name": "TimeDateStamp"
+        },
+        {
+          "offset": 8,
+          "size": 2,
+          "name": "MajorVersion"
+        },
+        {
+          "offset": 10,
+          "size": 2,
+          "name": "MinorVersion"
+        },
+        {
+          "offset": 12,
+          "size": 4,
+          "name": "Type",
+          "note": "2 = CodeView (RSDS)"
+        },
+        {
+          "offset": 16,
+          "size": 4,
+          "name": "SizeOfData"
+        },
+        {
+          "offset": 20,
+          "size": 4,
+          "name": "AddressOfRawData"
+        },
+        {
+          "offset": 24,
+          "size": 4,
+          "name": "PointerToRawData"
+        }
+      ]
+    },
+    {
+      "name": "IMAGE_RESOURCE_DIRECTORY",
+      "kind": "fixed",
+      "size": 16,
+      "source": "ms-pe",
+      "anchor": "Resource Directory Table",
+      "loader_role": "Three-level tree (type, name/id, language) resolved through RVAs to IMAGE_RESOURCE_DATA_ENTRY.",
+      "fields": [
+        {
+          "offset": 0,
+          "size": 4,
+          "name": "Characteristics"
+        },
+        {
+          "offset": 4,
+          "size": 4,
+          "name": "TimeDateStamp"
+        },
+        {
+          "offset": 8,
+          "size": 2,
+          "name": "MajorVersion"
+        },
+        {
+          "offset": 10,
+          "size": 2,
+          "name": "MinorVersion"
+        },
+        {
+          "offset": 12,
+          "size": 2,
+          "name": "NumberOfNamedEntries"
+        },
+        {
+          "offset": 14,
+          "size": 2,
+          "name": "NumberOfIdEntries"
+        }
+      ]
+    },
+    {
+      "name": "IMAGE_RESOURCE_DIRECTORY_ENTRY",
+      "kind": "fixed",
+      "size": 8,
+      "source": "ms-pe",
+      "anchor": "Resource Directory Entries",
+      "loader_role": "Bit 31 of Name marks a string offset; bit 31 of OffsetToData marks a subdirectory.",
+      "fields": [
+        {
+          "offset": 0,
+          "size": 4,
+          "name": "Name"
+        },
+        {
+          "offset": 4,
+          "size": 4,
+          "name": "OffsetToData"
+        }
+      ]
+    },
+    {
+      "name": "IMAGE_RESOURCE_DATA_ENTRY",
+      "kind": "fixed",
+      "size": 16,
+      "source": "ms-pe",
+      "anchor": "Resource Data Entry",
+      "loader_role": "RVA and size of the resource bytes.",
+      "fields": [
+        {
+          "offset": 0,
+          "size": 4,
+          "name": "OffsetToData"
+        },
+        {
+          "offset": 4,
+          "size": 4,
+          "name": "Size"
+        },
+        {
+          "offset": 8,
+          "size": 4,
+          "name": "CodePage"
+        },
+        {
+          "offset": 12,
+          "size": 4,
+          "name": "Reserved"
+        }
+      ]
+    },
+    {
+      "name": "IMAGE_COR20_HEADER",
+      "kind": "fixed",
+      "size": 72,
+      "source": "ecma-335",
+      "anchor": "CLI header",
+      "loader_role": "Present at data directory 14 for managed images. The Windows loader hands the image to mscoree.dll, which rewrites the entry point; a compatibility layer must do the equivalent or host the runtime directly.",
+      "fields": [
+        {
+          "offset": 0,
+          "size": 4,
+          "name": "cb",
+          "note": "72"
+        },
+        {
+          "offset": 4,
+          "size": 2,
+          "name": "MajorRuntimeVersion"
+        },
+        {
+          "offset": 6,
+          "size": 2,
+          "name": "MinorRuntimeVersion"
+        },
+        {
+          "offset": 8,
+          "size": 8,
+          "name": "MetaData (RVA, Size)"
+        },
+        {
+          "offset": 16,
+          "size": 4,
+          "name": "Flags",
+          "note": "IL_ONLY 0x1, 32BITREQUIRED 0x2, STRONGNAMESIGNED 0x8, NATIVE_ENTRYPOINT 0x10"
+        },
+        {
+          "offset": 20,
+          "size": 4,
+          "name": "EntryPointToken"
+        },
+        {
+          "offset": 24,
+          "size": 8,
+          "name": "Resources"
+        },
+        {
+          "offset": 32,
+          "size": 8,
+          "name": "StrongNameSignature"
+        },
+        {
+          "offset": 40,
+          "size": 8,
+          "name": "CodeManagerTable"
+        },
+        {
+          "offset": 48,
+          "size": 8,
+          "name": "VTableFixups"
+        },
+        {
+          "offset": 56,
+          "size": 8,
+          "name": "ExportAddressTableJumps"
+        },
+        {
+          "offset": 64,
+          "size": 8,
+          "name": "ManagedNativeHeader"
+        }
+      ]
+    },
+    {
+      "name": "WIN_CERTIFICATE",
+      "kind": "fixed",
+      "size": 8,
+      "source": "ms-pe",
+      "anchor": "The Attribute Certificate Table (Image Only)",
+      "loader_role": "Authenticode signature. The table is not mapped into memory and must be at the end of the file.",
+      "fields": [
+        {
+          "offset": 0,
+          "size": 4,
+          "name": "dwLength"
+        },
+        {
+          "offset": 4,
+          "size": 2,
+          "name": "wRevision"
+        },
+        {
+          "offset": 6,
+          "size": 2,
+          "name": "wCertificateType"
+        }
+      ]
+    }
+  ]
+}
