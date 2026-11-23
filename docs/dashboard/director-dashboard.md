@@ -5,40 +5,53 @@
 | Updated | 2026-11-23 |
 | Prepared by | A4 |
 | Base commit | `5a50c0d` (A4 control plane imported into `Momegaii/Ozero`) |
-| Review branch | `a4/stage0-review-followup` (not pushed) |
+| Review branch | `a4/stage0-review-followup` (published) |
+| Review round | Director integration review, 2026-11-23 |
 | Stage | 0 — architecture, integration and QA control plane |
-| Stage state | **Submitted for review. Not approved.** |
+| Stage state | **Submitted for review. Not accepted.** |
 
 ## At a glance
 
-- The A4 control plane is on the local review branch. The Stage 0 review actions are implemented;
-  raw evidence is in `evidence/stage0-review/`.
+- The A4 control plane is published on `a4/stage0-review-followup`. The Stage 0 review actions and
+  the Director's 23 Nov A4 actions are implemented; evidence is in `evidence/stage0-review/`.
 - A1 published `a1/stage0-review` at `90b004f` (PR #1, draft). A2 published `agent/a2-stage0` at
   `f324b28` (PR #2, draft). A3 has no branch.
 - A1's evidence is an inline report, not raw logs. A2's evidence is static-only and tied to
   `8bac650`, not the branch head. Neither branch is integrated.
 - The build and QEMU MBR harness are **Tested**. The 512-byte MBR fixture is not the Ozero kernel
   and is never described as kernel boot.
-- All Director decisions are **Proposed**. None is approved.
-- The A4 branch is published at `84fe81a` and tracks `origin/a4/stage0-review-followup`. No Stage 0
-  pull request is open yet (XB-010).
+- D-008, D-009 and D-010 are **Approved** by the 23 Nov Director instruction. The remaining
+  decisions are **Proposed**. Stage 0 is **not accepted** (D-006).
+- The A4 Stage 0 PR is open. `main` is **not protected** and has **no required status checks**
+  (XB-012 / D-011).
 
 ## Stage 0 review actions
 
 | # | Action | Status | Where |
 | --- | --- | --- | --- |
-| 1 | Verify A1/A2/A3/A4 commits; record graph and clean-tree state | Done. A1–A3 absent; A4 imported. | `evidence/stage0-review/repo-audit.txt` |
+| 1 | Verify A1/A2/A3/A4 commits; record graph and clean-tree state | Done. A1/A2 verified; A3 absent; A4 published. | `evidence/stage0-review/cross-agent-verification-2026-11-23-r2.md` |
 | 2 | Rerun checks in a clean environment; keep logs, versions, exit codes | Done at the review commit | `evidence/stage0-review/` |
 | 3 | Separate target labels | Done | `tests/targets.tsv`, `docs/process/test-targets.md`, `make targets` |
-| 4 | Decision register with Proposed/Approved/Rejected/Deferred and approver | Done; all Proposed | `docs/decisions/decision-log.md` |
+| 4 | Decision register with Proposed/Approved/Rejected/Deferred and approver | Done; D-008/D-009/D-010 Approved; rest Proposed | `docs/decisions/decision-log.md` |
 | 5 | A1 review of A3 DMA/platform interfaces as a merge gate | Done | IF-008, `CODEOWNERS`, `docs/process/integration-checklist.md` |
 | 6 | Safe CI: no privileges, raw disks or Windows binaries | Done and enforced | `docs/process/ci-safety.md`, `scripts/check-ci-safety.sh` |
+
+## Director integration review — A4 actions
+
+| # | Action | Status | Evidence |
+| --- | --- | --- | --- |
+| 1 | Open the A4 Stage 0 review PR | Done | A4 PR against `main` |
+| 2 | Refresh the repository audit after A3 is published | Pending A3 | XB-011; audit refreshed for A1/A2/A4 |
+| 3 | Verify A1/A2/A3 evidence and commit ancestry | Done for A1/A2; A3 absent | `cross-agent-verification-2026-11-23-r2.md` |
+| 4 | Resolve the shared namespace and ownership conflicts | Done | D-009, D-010, `CODEOWNERS`, `ownership.md` |
+| 5 | Keep MBR harness results separate from kernel boot | Done | `tests/targets.tsv`, this dashboard, PR body |
+| 6 | Confirm branch protection and required CI checks | Confirmed **not enabled** | `github-settings.txt`, D-011 |
 
 ## Required outputs
 
 | Output | Document | Status | Evidence |
 | --- | --- | --- | --- |
-| Repository and ownership proposal | [repository-layout.md](../architecture/repository-layout.md), [ownership.md](../architecture/ownership.md), `CODEOWNERS` | **Proposed** | ADR-0001 |
+| Repository and ownership proposal | [repository-layout.md](../architecture/repository-layout.md), [ownership.md](../architecture/ownership.md), `CODEOWNERS` | **Proposed**; namespace and tools ownership resolved (D-009/D-010) | ADR-0001 |
 | Build and test plan | [build-and-test.md](../process/build-and-test.md) | **Tested** | `evidence/stage0/`, `evidence/stage0-review/` |
 | ADR and interface templates | [adr/template.md](../adr/template.md), [interface.md](../templates/interface.md), [interfaces.md](../architecture/interfaces.md) | **Implemented** | — |
 | Integration checklist | [integration-checklist.md](../process/integration-checklist.md) | **Proposed** | ADR-0002 |
@@ -74,7 +87,7 @@
 | Clean clone reproduces A4 results | Met on this branch | `evidence/stage0-review/clean-checkout.log` |
 | Evidence links exact commits and raw outputs | Met | `evidence/stage0-review/README.md` |
 | MBR harness never described as kernel boot | Met by naming rule and wording audit | `docs/process/test-targets.md` |
-| Director decisions pending until approved | Met: all Proposed | `docs/decisions/decision-log.md` |
+| Director decisions pending until approved | Met: D-008/D-009/D-010 Approved; D-001–D-007 and D-011 Proposed | `docs/decisions/decision-log.md` |
 | Cross-agent API sign-off precedes dependent implementation | Met by merge gate | `docs/process/integration-checklist.md` |
 
 ## Not tested
@@ -96,17 +109,17 @@
 | 1 | ADR-0001 to ADR-0004 are unapproved | Project Director | Stage 1 cannot start with agreed ownership or review rules | Before Stage 1 |
 | 2 | GitHub team slugs in `CODEOWNERS` are placeholders | Project Director | Review enforcement is not active | Before Stage 1 |
 | 3 | Boot protocol is proposed as Limine v12.11.1, base revision 6; Director D-005 is open | A1 → Director | A1 cannot finalise the boot path; the MBR harness is protocol-neutral | Stage 1 design |
-| 4 | Branch protection and required CI check are repository settings, not code | Project Director | The merge gate is advisory until enabled | Before Stage 1 |
-| 5 | A4 branch is published; the Stage 0 PR is not open | A4 → Director (XB-010) | The Director can fetch the branch, but there is no review thread | Stage 0 review |
+| 4 | Branch protection and required CI checks are not enabled | Project Director (XB-012 / D-011) | The merge gate is advisory until enabled | Before Stage 1 |
+| 5 | A4 Stage 0 PR is open; Director review pending | Project Director (XB-010) | Review is in progress; no acceptance is implied | Stage 0 review |
 | 6 | A1 and A2 branches are not integrated; A3 has no branch | A1, A2, A3, A4 | Cross-agent gates are defined but untested; merge conflicts are known | Stage 1 |
-| 7 | Nine cross-agent dependencies are Open | A1, A2, A3, A4 | Dependent work cannot merge without owner sign-off | Stage 1 |
-| 8 | A1 uses `include/o0/`; the map and `CODEOWNERS` say `include/ozero/` | A1, A4 → Director | A1 cannot merge without a namespace decision | Before A1 merge |
-| 9 | A1 adds `tools/check-headers.sh` under A3-owned `tools/` | A1, A3 | Ownership gate would block the A1 merge | Before A1 merge |
+| 7 | Eight cross-agent dependencies are Open | A1, A2, A3, A4 | Dependent work cannot merge without owner sign-off | Stage 1 |
+| 8 | A3 has not published; audit refresh is pending | A3 → A4 (XB-011) | The audit covers A1/A2/A4 only | After A3 publication |
+| 9 | A2 evidence cites `8bac650`, head is `f324b28` | A2 → A4 (XB-009) | Provenance mismatch until A2 regenerates | Before A2 merge |
 
 ## Cross-agent dependencies
 
 The live register is [`docs/process/cross-agent-blockers.md`](../process/cross-agent-blockers.md).
-All rows are **Open**; none is signed.
+Eight rows are **Open**; XB-006, XB-007, XB-008 and XB-010 are **Closed**. None is **Signed**.
 
 | ID | Dependency | Owner | State |
 | --- | --- | --- | --- |
@@ -116,10 +129,12 @@ All rows are **Open**; none is signed.
 | XB-004 | A1 pins Limine and the kernel handoff | A1 → Director | Open; v12.11.1 / base 6 pinned, D-005 pending |
 | XB-005 | A3 names device tests and hardware requirements with evidence | A3 → A4 | Open; no A3 branch |
 | XB-006 | A4 publishes the review branch | A4 → Director | Closed at `84fe81a` |
-| XB-007 | Header namespace `include/o0/` vs `include/ozero/` | A1 → A4 → Director | Open |
-| XB-008 | A1's `tools/check-headers.sh` is in A3-owned `tools/` | A1 → A3 | Open |
+| XB-007 | Public header namespace conflict | A1 → A4 | Closed by D-009: canonical `include/o0/` |
+| XB-008 | A1's `tools/check-headers.sh` is in A3-owned `tools/` | A1 → A3 | Closed by D-010: A1 owns, A3 reviews |
 | XB-009 | A2 evidence cites `8bac650`, head is `f324b28` | A2 → A4 | Open |
-| XB-010 | A4 opens the Stage 0 review PR | A4 → Director | Open; branch published, no PR |
+| XB-010 | A4 opens the Stage 0 review PR | A4 → Director | Closed: PR open |
+| XB-011 | A3 publishes so A4 can refresh the audit | A3 → A4 | Open; A3 has no branch |
+| XB-012 | Enable `main` protection and required checks | A4 → Director | Open; `protected:false`, rulesets 0 |
 
 ## Decisions needed
 
@@ -132,17 +147,21 @@ All rows are **Open**; none is signed.
 | D-005 | Choose the boot protocol | **Proposed** | Project Director | A1 to propose; Limine is a candidate only |
 | D-006 | Accept Stage 0 | **Proposed** | Project Director | Decide after D-001 to D-004 and D-008 |
 | D-007 | Approve the A3 DMA/platform interface and A1 sign-off gate | **Proposed** | Project Director | Approve IF-008 and the merge gate |
-| D-008 | Approve publishing the A4 review branch | **Proposed** | Project Director | Push the branch so the Director can fetch it |
+| D-008 | Approve publishing the A4 review branch | **Approved** | Project Director | Published; PR open |
+| D-009 | Adopt `include/o0/` as the canonical header namespace | **Approved** | Project Director | Implemented; A1 keeps its headers |
+| D-010 | Assign `tools/check-headers.sh` to A1 with A3 review | **Approved** | Project Director | Implemented in `CODEOWNERS` |
+| D-011 | Enable `main` branch protection and required CI checks | **Proposed** | Project Director | Enable protection and require the Stage 0 CI check |
 
 ## Risks
 
 | Risk | Likelihood | Impact | Mitigation | Owner |
 | --- | --- | --- | --- | --- |
-| A4 branch is published but has no review PR | Medium | Review lacks a discussion thread | XB-010; open a draft PR when the Director requests it | A4 |
-| A1 and A2 branches are not integrated; A3 is absent | High | Cross-agent gates are untested; merge conflicts are known | A4 merge order; A1 namespace and `tools/` fixes; A3 publishes IF-008 | Director, A1, A3 |
+| `main` is unprotected and has no required checks | High | Any merge can bypass review and CI | D-011 / XB-012; enable protection and require the Stage 0 check | Director |
+| A1 and A2 branches are not integrated; A3 is absent | High | Cross-agent gates are untested; merge conflicts are known | A4 merge order; A1 reviews A2 and confirms DMA; A3 publishes IF-008 | Director, A1, A3 |
 | A1's "A3 review signed" is read as A3 acceptance | Medium | False cross-agent sign-off | A4 record: A3 has no branch; XB-001 stays Open | A4 |
 | A1 evidence is inline, not raw logs | Medium | Claims are harder to audit | Copy A1 output to `evidence/a1-stage0/` before merge | A1, A4 |
 | A2 evidence and branch head differ | Medium | Provenance mismatch | Regenerate at final head; XB-009 | A2 |
+| A3 has not published; audit refresh is pending | Medium | The audit is incomplete | XB-011; refresh immediately after A3 publishes | A3, A4 |
 | MBR fixture is mistaken for kernel boot | Medium | False boot claim | Naming rule; explicit not-tested list | A4 |
 | Domain split does not match real work | Medium | Overlapping trees, merge conflicts | Director confirms before Stage 1 | Director |
 | Two agents share a workspace | Medium | Lost work, bad evidence | One branch/workspace per task; clean-checkout test | A4 |
@@ -164,16 +183,19 @@ All rows are **Open**; none is signed.
 | Review build, boot and repro logs | `evidence/stage0-review/` | Recorded |
 | Review negative tests | `evidence/stage0-review/negative-*.log` | Recorded |
 | CI safety log | `evidence/stage0-review/ci-safety.log` | Recorded |
-| Cross-agent verification | `evidence/stage0-review/cross-agent-verification-2026-11-23.md` | Recorded at `596fc6f` + this commit |
+| Cross-agent verification | `evidence/stage0-review/cross-agent-verification-2026-11-23.md`, `...-r2.md` | Recorded at `84fe81a` and round 2 |
+| Director review and A4 disposition | `evidence/stage0-review/director-review-2026-11-23.md` | Recorded |
+| GitHub branch protection and checks | `evidence/stage0-review/github-settings.txt` | Recorded; protection not enabled |
+| PR body | `evidence/stage0-review/PR_BODY.md` | Recorded |
 
 ## Agent status
 
 | Agent | Current task | Status | Blocked by |
 | --- | --- | --- | --- |
-| A1 | Stage 0 review response; PR #1 draft at `90b004f` | Submitted; not integrated | D-005, XB-007, XB-008 |
+| A1 | Stage 0 review response; PR #1 draft at `90b004f` | Submitted; not integrated | D-005, XB-001, XB-002 |
 | A2 | Static-only PE package; PR #2 draft at `f324b28` | Submitted; not integrated | A1 review (XB-002), XB-009 |
-| A3 | — | No branch, commit or interface | D-001; must publish IF-008 |
-| A4 | Stage 0 review follow-up; branch published at `84fe81a` | Submitted; no PR | XB-010 (PR not requested) |
+| A3 | — | No branch, commit or interface | D-001; must publish IF-008; XB-005, XB-011 |
+| A4 | Stage 0 review follow-up; PR open; head `5642c16` + round-2 commits | Submitted; awaiting review | Director review (XB-010 closed) |
 
 ## Change log
 
@@ -185,3 +207,5 @@ All rows are **Open**; none is signed.
 | 2026-11-23 | Cross-agent blocker register; refreshed audit | `596fc6f` |
 | 2026-11-23 | A1/A2 branch verification; A3 absence; namespace and ownership findings | `84fe81a` |
 | 2026-11-23 | A4 branch published to `origin`; upstream set | `84fe81a` |
+| 2026-11-23 | Director round 2: namespace D-009, ownership D-010, settings D-011, cross-agent r2 | this commit |
+| 2026-11-23 | A4 Stage 0 review PR opened against `main` | this commit |

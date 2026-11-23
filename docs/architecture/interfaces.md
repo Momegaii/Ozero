@@ -18,7 +18,7 @@ does not merge. Breaking changes need an ADR and Director approval.
 | IF-003 | Boot image artifact contract (path, format, size, signature) | A4 | 1.0 | A1, A2, A3 | Implemented |
 | IF-004 | Build manifest schema (`build/manifest.json`) | A4 | 1.0 | A1–A3, CI | Implemented |
 | IF-005 | Test result schema (`result.json`) | A4 | 1.0 | CI, dashboard | Implemented |
-| IF-006 | Public kernel header surface (`include/ozero/`) | A1 | 0.0 | A2, A3 | Not started |
+| IF-006 | Public kernel header surface (`include/o0/`) | A1 | 0.0 | A2, A3 | Not started |
 | IF-007 | Syscall / user-kernel ABI | A1 + A3 | — | A2 | Not started |
 | IF-008 | DMA and platform interface contract | A3 | 0.1 draft | A1, A2 | Proposed |
 | IF-009 | PE fixture and static-analysis contract | A2 | 0.1 draft | A4 | Proposed |

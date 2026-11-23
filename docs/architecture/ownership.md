@@ -14,7 +14,7 @@ integration authority. The Director approves architecture and stage acceptance.
 
 | Path | Owner | Required reviewers | Notes |
 | --- | --- | --- | --- |
-| `include/ozero/` | A1 | A1, A4 | Shared interface surface. Versioned. |
+| `include/o0/` | A1 | A1, A4 | Shared interface surface. Versioned. |
 | `kernel/` | A1 | A1 | Kernel core. |
 | `arch/` | A1 | A1 | Architecture-specific code and boot path. |
 | `drivers/` | A2 | A2 | Device drivers. |
@@ -22,10 +22,15 @@ integration authority. The Director approves architecture and stage acceptance.
 | `userland/` | A3 | A3 | User-space programs and runtime. |
 | `userland/platform/dma/` | A3 | A3, A1 | DMA and platform interfaces. A1 sign-off is a required merge gate (IF-008). |
 | `tools/` | A3 | A3 | Host-side tooling. |
+| `tools/check-headers.sh` | A1 | A1, A3 | Header/ABI check. Specific ownership overrides the `tools/` default; A3 reviews host-tool placement (D-010). |
 | `docs/` | A4 | A4 | Director co-reviews `docs/adr/` and `docs/dashboard/`. |
 | `scripts/`, `tests/`, `harness/`, `toolchain/`, `.github/` | A4 | A4 | Build and test control plane. |
 | `third_party/` | A4 intake | A4, consuming owner | Pinned version and hash required. |
 | `CODEOWNERS`, `AGENTS.md` | A4 | A4, Director | Process changes. |
+
+The public header namespace is `include/o0/` (D-009). A1's Stage 0 headers already use this path, so
+the map follows the implementation instead of forcing a rename. `tools/check-headers.sh` is A1-owned
+with A3 review (D-010); the specific `CODEOWNERS` entry overrides the `tools/` default.
 
 `CODEOWNERS` is the enforced copy of this table. If the two disagree, `CODEOWNERS` wins at review
 time and this document is a bug.
@@ -35,7 +40,7 @@ time and this document is a bug.
 | Decision | Decides | Must consult | Approves |
 | --- | --- | --- | --- |
 | Internal design of a domain subsystem | A1 / A2 / A3 owner | A4 for interface impact | — |
-| Shared interface shape and version | A1 (owner of `include/ozero/`) | Consumers A2/A3, A4 | Director for breaking changes |
+| Shared interface shape and version | A1 (owner of `include/o0/`) | Consumers A2/A3, A4 | Director for breaking changes |
 | Boot protocol and kernel entry contract | A1 | A2, A3, A4 | Director |
 | Build system, CI, test harness | A4 | A1–A3 | — |
 | Merge gate and regression policy | A4 | A1–A3 | — |

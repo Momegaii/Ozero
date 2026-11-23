@@ -198,3 +198,48 @@ All are **Proposed**. None is approved.
 3. A1 records the Limine handoff in IF-001 and answers D-005.
 4. A2 records the PE fixture contract in IF-009 before any PE test.
 5. A3 records the DMA/platform contract in IF-008 and requests A1 sign-off.
+
+## 9. Post-review addendum — 2026-11-23
+
+The Director completed a Stage 0 integration review and kept Stage 0 **NOT ACCEPTED**. A4 continued
+from the existing branch; it did not restart Stage 0 and did not merge into `main`.
+
+### Current refs
+
+| Ref | Commit | State |
+| --- | --- | --- |
+| `origin/main` | `147cc86` | unchanged |
+| `origin/a1/stage0-review` | `90b004f` | PR #1, open, draft |
+| `origin/agent/a2-stage0` | `f324b28` | PR #2, open, draft |
+| A3 | none | no branch, commit or interface |
+| `origin/a4/stage0-review-followup` | `5642c16` plus round-2 commits | published; Stage 0 PR open |
+
+### Director A4 actions
+
+1. **Open the A4 Stage 0 review PR** — done.
+2. **Refresh the audit after A3 is published** — pending A3; the audit covers A1/A2/A4 and is
+   tracked as XB-011.
+3. **Verify A1/A2/A3 evidence and ancestry** — A1 and A2 verified; A3 absent. See
+   [`cross-agent-verification-2026-11-23-r2.md`](cross-agent-verification-2026-11-23-r2.md).
+4. **Resolve namespace and ownership** — D-009 adopts `include/o0/`; D-010 assigns
+   `tools/check-headers.sh` to A1 with A3 review. `CODEOWNERS` and the ownership map are updated.
+5. **Keep MBR harness and kernel boot separate** — the only executed boot test is
+   `mbr-harness-smoke`; the Limine/kernel target remains not implemented.
+6. **Confirm branch protection and required checks** — `main` reports `"protected": false` and the
+   rulesets list is empty. Required checks are not enabled (D-011 / XB-012). See
+   [`github-settings.txt`](github-settings.txt).
+
+### Decision status
+
+D-008, D-009 and D-010 are **Approved** by the Director's 2026-11-23 instruction. D-001–D-007 and
+D-011 remain **Proposed**. D-006 (accept Stage 0) is explicitly **not** approved.
+
+### Tests at the published head
+
+`make ci` passes at the published head: 5 serial markers in order, QEMU 10.0.13, no network, no
+display, no default devices. The later round-2 commits are documentation and evidence only.
+
+### Still not tested
+
+UEFI, Limine loading an Ozero kernel, Ozero kernel entry, real hardware, PE loading, Windows
+compatibility, A3 code and branch-protection enforcement.

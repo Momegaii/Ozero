@@ -46,7 +46,7 @@ Override the build directory with `BUILD_DIR=/path`. The QEMU test accepts
 
 ## Ownership boundaries
 
-- `include/ozero/` is the shared header surface. A1 owns it; A4 reviews every change; consumers
+- `include/o0/` is the shared header surface. A1 owns it; A4 reviews every change; consumers
   must not fork it.
 - A1–A3 must not edit `docs/`, `scripts/`, `tests/`, `harness/`, `toolchain/` or `.github/` without
   an A4 review on the PR.

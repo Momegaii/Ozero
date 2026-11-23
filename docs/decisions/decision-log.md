@@ -33,13 +33,18 @@ the register wins.
 | D-005 | Choose the boot protocol and kernel handoff (Limine is a candidate only) | **Proposed** | A1 | Project Director | 2026-11-23 | Stage 1 design | IF-001 |
 | D-006 | Accept Stage 0 | **Proposed** | A4 | Project Director | 2026-11-23 | Stage 0 exit | `docs/templates/stage-acceptance.md` |
 | D-007 | Approve the A3 DMA/platform interface and the required A1 sign-off gate | **Proposed** | A1 + A3 | Project Director | 2026-11-23 | Before A3 DMA work | IF-008 |
-| D-008 | Approve publishing the A4 Stage 0 branch for independent verification | **Proposed** | A4 | Project Director | 2026-11-23 | Stage 0 review | `evidence/stage0-review/README.md` |
+| D-008 | Approve publishing the A4 Stage 0 branch for independent verification | **Approved** | A4 | Project Director | 2026-11-23 | Stage 0 review | `evidence/stage0-review/director-review-2026-11-23.md` |
+| D-009 | Adopt `include/o0/` as the canonical public header namespace | **Approved** | A4 | Project Director | 2026-11-23 | Before A1 merge | `docs/architecture/ownership.md` |
+| D-010 | Assign `tools/check-headers.sh` to A1 with A3 review | **Approved** | A4 | Project Director | 2026-11-23 | Before A1 merge | `CODEOWNERS` |
+| D-011 | Enable `main` branch protection and required CI checks | **Proposed** | A4 | Project Director | 2026-11-23 | Before Stage 1 | `evidence/stage0-review/github-settings.txt` |
 
 ## Decided
 
 | ID | Decision | Outcome | Date | Approver | Link |
 | --- | --- | --- | --- | --- | --- |
-| — | — | — | — | — | — |
+| D-008 | Publish the A4 Stage 0 branch | Approved; branch published and PR opened | 2026-11-23 | Project Director | `evidence/stage0-review/director-review-2026-11-23.md` |
+| D-009 | Canonical public header namespace | Approved: `include/o0/` | 2026-11-23 | Project Director | `docs/architecture/ownership.md` |
+| D-010 | Ownership of `tools/check-headers.sh` | Approved: A1 owns, A3 reviews | 2026-11-23 | Project Director | `CODEOWNERS` |
 
 ## Rules
 
@@ -48,3 +53,6 @@ the register wins.
 - A **Rejected** entry states the reason, so it is not proposed again unchanged.
 - A4 records decisions; A4 does not approve its own architecture or process proposals.
 - D-005 belongs to A1. A4 records it because the harness must not pre-empt the boot protocol.
+- D-009 and D-010 were resolved under the Director's 2026-11-23 instruction to resolve the namespace
+  and ownership conflicts. The linked instruction delegates the choice; the Director can reject the
+  specific choice in PR review.

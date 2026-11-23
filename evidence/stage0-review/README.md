@@ -4,8 +4,9 @@
 | --- | --- |
 | Stage | 0 review follow-up |
 | Repository | `Momegaii/Ozero` |
-| Branch | `a4/stage0-review-followup` (local, unpushed) |
+| Branch | `a4/stage0-review-followup` (published) |
 | Commit under test | `43961551442009aac8189e5edca3f5c7af43a2cd` |
+| Current head | `5642c16` plus round-2 documentation commits |
 | Import commit | `5a50c0d28f323372cad5126baf6645df07407975` |
 | Base commit | `147cc86c027cef7cec42525024d26dcccf66d7db` (`origin/main`) |
 | Date | 2026-11-23 |
@@ -49,6 +50,10 @@ manifest records `commit: unknown` inside both reproducibility copies.
 | --- | --- |
 | `REPORT.md` | Required report: commits, files, commands, decisions, risks, not-tested |
 | `cross-agent-verification-2026-11-23.md` | A1/A2 branch verification, A3 absence, merge order |
+| `cross-agent-verification-2026-11-23-r2.md` | Post-Director-review ancestry, evidence and settings check |
+| `director-review-2026-11-23.md` | Director integration review and A4 disposition |
+| `github-settings.txt` | Branch protection, rulesets and required-check state |
+| `PR_BODY.md` | Submitted pull request body |
 | `repo-audit.txt` | Fetch plus commit graph, branches, tags and clean-tree state |
 | `toolchain.txt` | Strict toolchain check |
 | `targets.txt` | Test-target registry |
@@ -75,5 +80,6 @@ make verify-clean
 
 - QEMU TCG is not real hardware.
 - The image is the A4 MBR harness fixture, not the Ozero kernel.
-- A1, A2 and A3 have no commits, so no cross-agent interface or driver test has run.
-- The branch is unpushed; an independent reviewer cannot fetch it until D-008 is approved.
+- A1 and A2 have review branches, but neither is integrated; A3 has no branch. No cross-agent
+  interface or driver test has run.
+- The branch is published and the Stage 0 PR is open. Stage 0 is still not accepted.

@@ -26,7 +26,7 @@ until A1–A3 confirm their scope with the Director.
 ├── harness/                       A4: boot fixture that proves the harness
 ├── tests/                         A4: expected markers, shared test data
 ├── evidence/                      A4: recorded runs tied to commit hashes
-├── include/ozero/                 A1: shared public headers (interface surface)
+├── include/o0/                 A1: shared public headers (interface surface)
 ├── kernel/                        A1: kernel core
 ├── arch/                          A1: architecture-specific code
 ├── drivers/                       A2: device drivers
@@ -36,17 +36,17 @@ until A1–A3 confirm their scope with the Director.
 └── third_party/                   A4 intake, consuming owner approves content
 ```
 
-Only the A4 directories exist today. `include/`, `kernel/`, `arch/`, `drivers/`, `platform/`,
-`userland/` and `tools/` are created by their owners in Stage 1. Creating a directory does not
-grant ownership of another agent's tree.
+Only the A4 directories exist on `main`. A1 and A2 add their trees on their review branches;
+`include/`, `kernel/`, `arch/`, `drivers/`, `platform/`, `userland/` and `tools/` are created by
+their owners before merge. Creating a directory does not grant ownership of another agent's tree.
 
 ## Layout rules
 
 1. **One top-level directory, one owner.** A pull request that changes two owners' directories
    needs both owners as reviewers. `CODEOWNERS` enforces this.
-2. **Public surface is narrow.** Cross-domain includes go through `include/ozero/` only. Reaching
+2. **Public surface is narrow.** Cross-domain includes go through `include/o0/` only. Reaching
    into another domain's private headers is a review blocker.
-3. **Shared headers are versioned.** A change to `include/ozero/` is an interface change: update
+3. **Shared headers are versioned.** A change to `include/o0/` is an interface change: update
    `docs/architecture/interfaces.md`, state compatibility, and get A1 plus A4 review.
 4. **Build outputs never enter git.** `build/` is ignored. Anything needed to reproduce a result
    is either source or a pinned dependency.

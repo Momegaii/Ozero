@@ -23,12 +23,12 @@ it.
 
 We will use one top-level directory per domain, with A4 owning the control plane:
 
-- A1: `kernel/`, `arch/`, `include/ozero/`
+- A1: `kernel/`, `arch/`, `include/o0/`
 - A2: `drivers/`, `platform/`
 - A3: `userland/`, `tools/`
 - A4: `docs/`, `scripts/`, `tests/`, `harness/`, `toolchain/`, `.github/`, `third_party/` intake
 
-Cross-domain includes go only through `include/ozero/`. `CODEOWNERS` is the enforced copy of the
+Cross-domain includes go only through `include/o0/`. `CODEOWNERS` is the enforced copy of the
 ownership map. The full table and rules are in `docs/architecture/repository-layout.md` and
 `docs/architecture/ownership.md`.
 

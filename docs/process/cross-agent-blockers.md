@@ -12,10 +12,12 @@ signs the interface and the evidence is linked here. Status words are **Open**, 
 | XB-004 | A1 → A4 | Limine pin, boot protocol and kernel handoff (IF-001, D-005) | **Open** | A1 pinned v12.11.1, base revision 6, with hashes; Director D-005 is still pending. The MBR harness is not evidence |
 | XB-005 | A3 → A4 | Device-specific tests and hardware requirements are named with evidence | **Open** | A3 has no branch, commit or test evidence |
 | XB-006 | A4 → Director | Publish the A4 branch (D-008) | **Closed** | Published at `84fe81a`; upstream set to `origin/a4/stage0-review-followup` |
-| XB-007 | A1 → A4 | Header namespace is `include/o0/` in A1 and `include/ozero/` in the ownership map | **Open** | Director decides the namespace; then update `CODEOWNERS`, the ownership map and A1's includes together |
-| XB-008 | A1 → A3 | A1's `tools/check-headers.sh` sits in the A3-owned `tools/` tree | **Open** | Move it to `scripts/check-headers.sh` or obtain A3 review |
+| XB-007 | A1 → A4 | Public header namespace conflict | **Closed** | D-009: canonical namespace is `include/o0/`; A1 keeps its headers; map, `CODEOWNERS`, ADR and interfaces updated |
+| XB-008 | A1 → A3 | A1's `tools/check-headers.sh` sits in the A3-owned `tools/` tree | **Closed** | D-010: A1 owns `tools/check-headers.sh` with A3 review; specific `CODEOWNERS` entry added |
 | XB-009 | A2 → A4 | A2 evidence headers cite `8bac650`, but the branch head is `f324b28` | **Open** | A2 regenerates evidence at the final head before merge |
-| XB-010 | A4 → Director | Open the A4 Stage 0 review pull request | **Open** | Branch is on the remote; no PR is open. A4 waits for an explicit request or the Director's direction |
+| XB-010 | A4 → Director | Open the A4 Stage 0 review pull request | **Open** | Branch is on the remote; PR creation is in progress in this round |
+| XB-011 | A3 → A4 | Publish A3 so A4 can refresh the repository audit | **Open** | A3 has no branch; the audit is refreshed for A1/A2/A4 and must be refreshed again after A3 publishes |
+| XB-012 | A4 → Director | Enable `main` branch protection and required CI checks | **Open** | `protected:false`; rulesets count 0; required checks are not enabled (D-011) |
 
 ## Rules
 
@@ -28,5 +30,5 @@ signs the interface and the evidence is linked here. Status words are **Open**, 
   merge; a report alone does not satisfy the evidence rule.
 - A2's `a2/` package is the isolation model: one agent tree, no control-plane edits.
 - A status change needs a commit, a command and raw output. A link to a branch alone is not evidence.
-- The Director decides XB-007 and owns the review under XB-010. A4 cannot rename a shared
-  namespace without a decision, and it does not mark its own Stage 0 accepted.
+- The Director owns D-011 and the review under XB-010. A4 implemented D-009 and D-010 under the
+  Director's 2026-11-23 instruction to resolve the namespace and ownership conflicts.
