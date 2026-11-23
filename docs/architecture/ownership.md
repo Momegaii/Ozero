@@ -23,6 +23,7 @@ integration authority. The Director approves architecture and stage acceptance.
 | `platform/` | A2 | A2 | Platform and board support. |
 | `userland/` | A3 | A3 | User-space programs and runtime. |
 | `userland/platform/dma/` | A3 | A3, A1 | DMA and platform interfaces. A1 sign-off is a required merge gate (IF-008). |
+| `a3/` | A3 | A3, A4 | A3 Stage 0 package on the A4 integration branch. `a3/tools/` is A3-owned; root `tools/check-headers.sh` remains A1-owned (D-010). |
 | `tools/` | A3 | A3 | Host-side tooling. |
 | `tools/check-headers.sh` | A1 | A1, A4 | Header/ABI check. A1 owns the script; A4 owns CI integration (D-010). |
 | `tests/abi_static_asserts.c` | A1 | A1, A4 | ABI static asserts. A1 owns the file; A4 invokes it in CI (D-010). |
@@ -39,12 +40,13 @@ public root, and `tools/check-headers.sh` rejects `include/o0/`. `tools/check-he
 
 A3 owns `include/ozero/platform.h` and `include/ozero/block.h` for IF-008, with A1 as the required
 reviewer. A1 recorded **ACCEPT** for IF-008 v1.1 at A3 `b9a69d8` in A1 `74b1471`; A3 accepted all
-eight §6 conditions at `307b919` (XB-019 Closed). A3 `307b919` is based on A4 `3ae7aca` and keeps
-its package under `a3/` on the A3 branch. It also vendors an identical snapshot of A1's other
-`include/ozero/` headers at the root and under `a3/include/ozero/` on that branch. A4 `b4232a0` and
-PR #3 contain no `a3/` or root `include/ozero/` paths, so A3 is not integrated (XB-020). On merge,
-those snapshots are not authoritative and must not replace A1's files (XB-017 Closed). The
-file-level `CODEOWNERS` entries for the two A3-owned interface files override the directory rule.
+eight §6 conditions at `307b919` (XB-019 Closed). A3 PR [#4](https://github.com/Momegaii/Ozero/pull/4)
+adds the package under `a3/` and the root headers on top of A4 `b4232a0`; the final diff is 56 files,
+44 under `a3/` and 12 under `include/ozero/`, with no A4 control-plane file changed. `CODEOWNERS`
+now lists `/a3/` as A3-owned with A4 co-review. A4 `eaca921` and PR #3 still contain no `a3/` or
+root `include/ozero/` paths, so A3 is not integrated (XB-020). On merge, the vendored header
+snapshots are not authoritative and must not replace A1's files (XB-017 Closed). The file-level
+`CODEOWNERS` entries for the two A3-owned interface files override the directory rule.
 
 `CODEOWNERS` is the enforced copy of this table. If the two disagree, `CODEOWNERS` wins at review
 time and this document is a bug.

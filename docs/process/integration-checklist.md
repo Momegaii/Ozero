@@ -91,26 +91,30 @@ Stage 0 has no persistent state, so rollback is a revert. For later stages:
 
 ## Current branch integration order
 
-At the 2026-11-23 R2 audit snapshot the open branches are `a4/stage0-review-followup` (PR #3,
-head `b4232a0` plus this audit), `a1/stage0-review` (PR #1, head `74b1471`),
-`agent/a2-stage0` (PR #2, head `64b3458`, code `6d305b8`) and `a3/stage0-review-response` (head
-`307b919`, no PR; based on A4 `3ae7aca`, **not in A4**). Merge in this order:
+At the 2026-11-23 R3 audit snapshot the open branches are `a4/stage0-review-followup` (PR #3,
+head `eaca921` plus this audit), `a1/stage0-review` (PR #1, head `2693a34`),
+`agent/a2-stage0` (PR #2, head `d83cfbe`, code `f6ed1d8`, evidence `d83cfbe`) and
+`a3/stage0-review-response` (PR #4, head `48d434f`, base `a4/stage0-review-followup`). Merge in
+this order:
 
 1. A4 control plane: it defines `CODEOWNERS`, `Makefile`, `tests/targets.tsv`, `scripts/` and the
-   process documents. Nothing else can be checked against the gates until this lands.
+   process documents. Nothing else can be checked against the gates until this lands. `CODEOWNERS`
+   now lists `/a3/` as A3-owned with A4 co-review.
 2. A1: rebase onto the A4 base. Resolve `AGENTS.md`, `README.md` and `docs/README.md` in favour of
    the A4 control-plane text, then add A1's content. A1's `03f8883` refactor makes `include/ozero/`
    the only public root (D-009); `tools/check-headers.sh` and `tests/abi_static_asserts.c` are
    A1-owned, with A4 owning CI integration (D-010). Register the ABI test in `tests/targets.tsv`.
+   A1's raw log is committed at `docs/evidence/a1-raw-checks-2026-11-23-r2.txt` (XB-016 Closed).
 3. A2: rebase onto the same base. Keep the `a2/` package intact and add a root `test-pe-static`
-   target; do not merge `a2/Makefile` into the root Makefile. Record the current evidence pair
-   (`6d305b8` / `64b3458`) and A1/A3's IF-009 v1.0 signatures in the response and review ledger
-   (XB-013, XB-003).
-4. A3: `307b919` is based on A4 `3ae7aca` and keeps its package in `a3/`; the root `README.md` /
-   `AGENTS.md` are A4's on the A3 branch (XB-017 Closed). The review basis is A4 `3ae7aca` (XB-018
-   Closed). A3 accepted A1's §6 conditions at `307b919` (XB-019 Closed). A4 `b4232a0` and PR #3 do
-   not contain `a3/` or root `include/ozero/`; integrate A3 without overwriting shared files or keep
-   it separate (XB-020). Merge only after D-007, D-021 and Director authorization; A1's IF-008
+   target; do not merge `a2/Makefile` into the root Makefile. IF-009 v1.0 is Signed by A1, A3 and
+   A2 (XB-003 Closed). The current code/evidence pair is `f6ed1d8` / `d83cfbe`; the ledger still
+   names `6d305b8` / `64b3458`, so A2 updates the pair before merge (XB-013 Open).
+4. A3: PR #4 adds 56 files on top of A4 `b4232a0`: 44 under `a3/` and 12 under `include/ozero/`.
+   A1's ten headers are byte-identical to `74b1471`; A3's `platform.h`/`block.h` match its package;
+   no A4 control-plane file changes; a merge test from A4 `eaca921` is clean; PR #4 CI passed.
+   A4 has **not** merged PR #4 because D-007 and D-021 remain Proposed and the Director has not
+   authorized integration. A4 `eaca921` and PR #3 still contain no `a3/` or root `include/ozero/`
+   paths (XB-020 Open). Merge only after D-007, D-021 and Director authorization; A1's IF-008
    ACCEPT at `b9a69d8` is recorded.
 
 A1's `74b1471` review is a final interface ACCEPT for IF-008 v1.1, not hardware validation, not a

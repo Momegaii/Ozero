@@ -199,8 +199,10 @@ All are **Proposed**. None is approved.
 1. Director decides D-001 to D-008.
 2. On D-008 approval, push `a4/stage0-review-followup` and open a PR against `main`.
 3. A1 records the Limine handoff in IF-001 and answers D-005.
-4. A2 records A1's and A3's IF-009 v1.0 signatures and the current evidence pair before any PE test.
+4. A2 records the current `f6ed1d8` / `d83cfbe` pair in its ledger and response; IF-009 v1.0 is
+   already signed and XB-003 is Closed, but XB-013 remains Open.
 5. A3's IF-008 sign-off is complete; the Director decides D-007 and D-021 before the AHCI probe.
+   A3 PR #4 is reviewed and merge-clean but not merged until the Director authorizes integration.
 
 ## 9. Post-review addendum — 2026-11-23
 
@@ -212,25 +214,26 @@ from the existing branch; it did not restart Stage 0 and did not merge into `mai
 | Ref | Commit | State |
 | --- | --- | --- |
 | `origin/main` | `147cc86` | unchanged |
-| `origin/a1/stage0-review` | `74b1471` | PR #1, open, draft; IF-008 ACCEPT and IF-009 review |
-| `origin/agent/a2-stage0` | `64b3458` | PR #2, open, draft; code `6d305b8` |
-| `origin/a3/stage0-review-response` | `307b919` | published; no PR; based on A4 `3ae7aca`, not in A4; IF-008 §6 accepted |
-| `origin/a4/stage0-review-followup` | `b4232a0` plus this audit commit | published; PR #3 open |
+| `origin/a1/stage0-review` | `2693a34` | PR #1, open, draft; IF-008 ACCEPT and IF-009 signature; raw log committed |
+| `origin/agent/a2-stage0` | `d83cfbe` | PR #2, open, draft; code `f6ed1d8`, evidence `d83cfbe` |
+| `origin/a3/stage0-review-response` | `48d434f` | PR #4 against the A4 branch; based on A4 `b4232a0`; IF-008 §6 accepted; not merged |
+| `origin/a4/stage0-review-followup` | `eaca921` plus this audit commit | published; PR #3 open |
 
 ### Director A4 actions
 
 1. **Open the A4 Stage 0 review PR** — done: [#3](https://github.com/Momegaii/Ozero/pull/3).
-2. **Refresh the audit after A3 is published** — done: A3 `a3/stage0-review-response` at `307b919`
-   is included; XB-011 is Closed. A3 has no PR, and none is implied.
-3. **Verify A1/A2/A3 evidence and ancestry** — A1 at `74b1471`, A2 at `64b3458` / code `6d305b8`,
-   A3 at `307b919` with IF-008 v1.1 at `b9a69d8`. A1 recorded ACCEPT for IF-008 (XB-001 Closed),
-   answered `A1-REV-01…12` (XB-002 Signed), and accepted IF-009 v1.0 with conditions (XB-003 Open
-   until A2 records both signatures). A3 `307b919` is based on A4 `3ae7aca`, keeps its package in
-   `a3/` on its own branch, and accepted A1's §6 conditions (XB-017/XB-018/XB-019 Closed for the A3
-   branch). A4 `b4232a0` and PR #3 contain no `a3/` or root `include/ozero/` paths, so A3 is not
-   integrated (XB-020). A1 still keeps command output inline rather than in `evidence/` (XB-016).
-   A2's response and ledger still lag the evidence pair and both IF-009 signatures (XB-013). See
-   [`cross-agent-verification-2026-11-23-r5.md`](cross-agent-verification-2026-11-23-r5.md).
+2. **Refresh the audit after A3 is published** — done: A3 PR #4 `48d434f` is reviewed; XB-011 is
+   Closed. PR #4 is not merged, so A3 is still not in the A4 tree (XB-020).
+3. **Verify A1/A2/A3 evidence and ancestry** — A1 at `2693a34`, A2 at `d83cfbe` / code `f6ed1d8`,
+   A3 PR #4 at `48d434f` with IF-008 v1.1 at `b9a69d8`. A1 recorded ACCEPT for IF-008 (XB-001
+   Closed), answered `A1-REV-01…12` (XB-002 Signed), and signed IF-009 v1.0 with conditions; A3
+   accepted the hardware boundary and A2 recorded its signature, so IF-009 v1.0 is Signed and
+   XB-003 is Closed. A2's ledger still names the old pair `6d305b8` / `64b3458` while the current
+   pair is `f6ed1d8` / `d83cfbe` (XB-013). A3 PR #4 adds 56 files, changes no A4 control-plane file,
+   and merges cleanly from A4 `eaca921`; A4 did not merge it because D-007/D-021 are Proposed and
+   the Director has not authorized integration (XB-020). A1 committed its raw log at
+   `docs/evidence/a1-raw-checks-2026-11-23-r2.txt`, closing XB-016. See
+   [`cross-agent-verification-2026-11-23-r6.md`](cross-agent-verification-2026-11-23-r6.md).
 4. **Resolve namespace and ownership** — D-009 adopts `include/ozero/`; A1's `03f8883` refactor
    makes it the only public root. D-010 assigns `tools/check-headers.sh` and
    `tests/abi_static_asserts.c` to A1, with A4 owning CI integration and A3 owning other `tools/`
@@ -245,17 +248,36 @@ from the existing branch; it did not restart Stage 0 and did not merge into `mai
 ### Decision status
 
 D-008, D-009 and D-010 are **Approved** by the Director's 2026-11-23 instruction. D-001–D-007 and
-D-011–D-031 remain **Proposed**. D-006 (accept Stage 0) is explicitly **not** approved.
+D-011–D-031 remain **Proposed**. D-006 (accept Stage 0) is explicitly **not** approved. D-007 and
+D-021 remain Proposed; IF-009 v1.0 is Signed but that is not a Stage 0 decision.
 
 ### Tests at the published head
 
-`make ci` passes on the R2 audit tree: 5 serial markers in order, QEMU 10.0.13, no network, no
-display, no default devices. GitHub Actions `build-and-boot` passed on A4 `b4232a0` in 4m55s. The
-audit commit is documentation and evidence only. A3's `307b919` adds its package under `a3/` on the
-A3 branch; it is not in A4 `b4232a0` and not merged to `main`.
+`make ci` passes on the R3 audit tree: 5 serial markers in order, QEMU 10.0.13, no network, no
+display, no default devices. GitHub Actions `build-and-boot` passed on A4 `eaca921` in 4m54s and on
+A3 PR #4 `48d434f` in 1m25s. The audit commit is documentation and evidence only. A3 PR #4 is not
+merged into A4 or `main`.
 
 ### Still not tested
 
 UEFI, Limine loading an Ozero kernel, Ozero kernel entry, real hardware, PE loading, Windows
-compatibility, A3 driver code or DMA, and branch-protection enforcement. A3's `make check` and
-A1-header compile pass, but they are static checks; no AHCI probe or device test ran.
+compatibility, A3 driver code or DMA, any merge of PR #4, and branch-protection enforcement. A3's
+`make check` and A1-header compile pass, but they are static checks; no AHCI probe or device test
+ran.
+
+## 10. R3 audit addendum — 2026-11-23
+
+The R3 proceed brief asked A4 to review A3 PR #4 and integrate it only if safe and authorized. A4
+reviewed the PR at `48d434f` and did **not** merge it. The final diff is 56 files: 44 under `a3/`,
+12 under `include/ozero/`; no A4 control-plane file changes. A1's ten headers are byte-identical to
+`74b1471`; A3's `platform.h`/`block.h` match its package. A merge test from A4 `eaca921` is clean;
+PR #4 CI passed. D-007 and D-021 remain Proposed and the Director has not authorized integration,
+so XB-020 stays Open.
+
+The same audit reconciles A2 and A1. IF-009 v1.0 is Signed: A1 accepted with conditions at
+`74b1471` (`a17d126`), A3 accepted the hardware boundary at `307b919`, and A2 signed at `6d305b8`.
+XB-003 is Closed. A2's current code/evidence pair is `f6ed1d8` / `d83cfbe`, but its ledger still
+names `6d305b8` / `64b3458`; XB-013 remains Open. A1's raw log is committed at
+`docs/evidence/a1-raw-checks-2026-11-23-r2.txt` (A1 `2693a34`), so XB-016 is Closed. The blocker
+snapshot is **5 Open, 14 Closed, 1 Signed**. Stage 0 remains **NOT ACCEPTED** and D-006 remains
+**Proposed**.

@@ -21,7 +21,7 @@ does not merge. Breaking changes need an ADR and Director approval.
 | IF-006 | Public kernel header surface (`include/ozero/`) | A1 | 0.2 draft | A2, A3 | Draft; A1 published `03f8883`; headers unchanged at `74b1471` |
 | IF-007 | Syscall / user-kernel ABI | A1 + A3 | — | A2 | Not started |
 | IF-008 | DMA and platform interface contract | A3 | 1.1 | A1, A2 | A1 **ACCEPT** at A3 `b9a69d8` (A1 `74b1471`); A3 accepted §6 at `307b919`; D-007/D-021 Proposed; AHCI probe blocked |
-| IF-009 | PE fixture and static-analysis contract | A2 | 1.0 | A1, A3, A4 | A1 **ACCEPT** with conditions at A1 `74b1471` (`a17d126`); A3 **ACCEPT** for hardware boundary (`307b919`); A2 contract/ledger stale at `6d305b8` / `64b3458`; XB-003 Open |
+| IF-009 | PE fixture and static-analysis contract | A2 | 1.0 | A1, A3, A4 | **Signed** v1.0: A1 **ACCEPT** with conditions at `74b1471` (`a17d126`); A3 **ACCEPT** for hardware boundary at `307b919`; A2 signature recorded at `6d305b8` (contract `d02598a`); XB-003 Closed; A2 ledger pair lag under XB-013 |
 
 `IF-001` and `IF-002` are deliberately drafts. A4 owns the harness that consumes them, not the
 technical decision. A1 and A2 must confirm or replace them.
@@ -33,11 +33,12 @@ in A1 `74b1471`, with eight conditions in §6 of its review. A3 accepted all eig
 Proposed, so the AHCI probe remains blocked. A1's acceptance is an interface decision, not hardware
 or runtime evidence.
 
-`IF-009` is not yet recorded as Signed. A2 published v1.0 at `d02598a` with evidence at `3f78477`;
-the current A2 head is `6d305b8` with evidence `64b3458`. A1 **ACCEPT**ed the v1.0 contract with
-conditions at A1 `74b1471` (decision commit `a17d126`); A3 **ACCEPT**ed the hardware boundary at
-`307b919`. A2's contract and ledger still name `d02598a` / `3f78477` and mark the reviews pending.
-A4 keeps the registry row at Proposed until A2 records both signatures and the current pair.
+`IF-009` is **Signed** at v1.0. A2 published v1.0 at `d02598a`; A1 **ACCEPT**ed it with conditions
+at A1 `74b1471` (decision commit `a17d126`), A3 **ACCEPT**ed the hardware boundary at `307b919`, and
+A2 recorded its signature at `6d305b8`. The fixture manifest is unchanged from `d02598a` through A2
+`f6ed1d8`; the current A2 code/evidence pair is `f6ed1d8` / `d83cfbe`. A2's ledger still names the
+older `6d305b8` / `64b3458` pair, so XB-013 remains Open. The signature is not loader approval and
+does not authorize a PE run; no loader exists.
 
 ## Versioning rules
 
