@@ -20,6 +20,11 @@
 extern uint8_t _kernel_start[];
 extern uint8_t _kernel_end[];
 
+/* Provided by the paging subsystem: translates through the active page tables
+ * and reports the direct-map offset selected at boot. */
+extern o0_paddr_t o0_virt_to_phys(const void *virt);
+extern uint64_t o0_arch_hhdm_offset(void);
+
 static struct o0_mem_region boot_memmap[O0_BOOT_MAX_MEM_REGIONS];
 static uint64_t boot_memmap_count;
 
@@ -83,8 +88,10 @@ o0_status o0_boot_populate(const struct limine_memmap_response *memmap_resp) {
     boot_info.limine_base_requested = 6;
     boot_info.firmware_type = O0_FW_UNKNOWN;
     boot_info.cpu_count = 1;
-    boot_info.hhdm_offset = 0;
-    boot_info.kernel_phys = 0;       /* physical load offset not yet determined */
+    boot_info.hhdm_offset = o0_arch_hhdm_offset();
+    /* Resolve the kernel's physical load address through the bootloader's own
+     * page tables; the ELF link address alone does not reveal it. */
+    boot_info.kernel_phys = o0_virt_to_phys((const void *)_kernel_start);
     boot_info.kernel_virt = (o0_vaddr_t)(uintptr_t)_kernel_start;
     boot_info.kernel_phys_size = (uint64_t)((uintptr_t)_kernel_end - (uintptr_t)_kernel_start);
     boot_info.memmap = boot_memmap;

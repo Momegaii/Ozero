@@ -19,9 +19,10 @@ These are development stages, not delivery-date promises. The order is intention
 ## Stage progress (2026-11-23)
 
 - **Stage 0** — Complete: architecture baseline approved, toolchain scaffold in place.
-- **Stage 1** — Boot verified in QEMU (BIOS). Exit evidence: reproducible boot in emulation, documented boot path, serial/debug output. Remaining: UEFI path exercise, serial/debug workflow documentation, physical hardware tests.
-- **Stage 2** — Implemented and boot-verified (BIOS + UEFI): physical page allocator, normalised boot memory map, 4-level page-table construction, kernel heap (`o0_kalloc`/`o0_kfree`), page-fault error-code decoding, CPU feature discovery (CPUID), kernel self-tests (heap + PMM). Remaining: CR3 switch to new page tables, memory reclaim.
-- **Stages 3–10** — Not started.
+- **Stage 1** — Boot verified in QEMU (BIOS) at the time of the Stage 2 wave; serial/debug workflow documented. Remaining: UEFI path exercise re-run, physical hardware tests. Re-verification is required for the current revision because the Stage 3 change set was produced without a local emulator.
+- **Stage 2** — Implemented: physical page allocator, normalised boot memory map, 4-level page-table construction, page-fault error-code decoding, CPU feature discovery (CPUID). The CR3 switch, the HHDM direct map, `virt_to_phys`/`phys_to_virt` and the address-space API landed with Stage 3. Remaining: memory reclaim.
+- **Stage 3** — Implemented, awaiting boot verification: kernel runs on its own page tables; slab kernel heap; processes, kernel threads and per-thread stacks; assembly context switch; PIT-driven preemptive priority round-robin scheduler; spinlocks and blocking mutexes; host unit tests for the allocator and scheduler. Remaining: QEMU/UEFI boot verification and physical hardware validation.
+- **Stages 4–10** — Not started.
 
 ## Dependency rules
 

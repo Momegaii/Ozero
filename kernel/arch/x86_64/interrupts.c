@@ -22,6 +22,10 @@ struct __attribute__((packed)) idtr {
 
 extern void *x86_64_isr_stub_table[IDT_EXCEPTION_ENTRIES];
 
+#define IDT_IRQ_ENTRIES 16u
+#define IDT_IRQ_BASE 32u
+extern void *x86_64_irq_stub_table[IDT_IRQ_ENTRIES];
+
 static struct idt_gate idt[IDT_ENTRIES];
 
 static uint16_t read_code_selector(void) {
@@ -50,4 +54,13 @@ void x86_64_idt_init(void) {
         .base = (uintptr_t)idt
     };
     __asm__ volatile ("lidt %0" : : "m"(descriptor) : "memory");
+}
+
+/* Installs the 16 legacy IRQ gates (vectors 32..47). Stays separate from
+ * x86_64_idt_init so exception handling works before the PIC is remapped. */
+void x86_64_idt_install_irq_gates(void) {
+    const uint16_t selector = read_code_selector();
+    for (size_t i = 0; i < IDT_IRQ_ENTRIES; ++i) {
+        idt_set_gate(IDT_IRQ_BASE + i, (uintptr_t)x86_64_irq_stub_table[i], selector);
+    }
 }

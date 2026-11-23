@@ -15,6 +15,7 @@
 #include <stdint.h>
 
 #include "ozero/boot.h"
+#include "ozero/irq.h"
 #include "ozero/mm.h"
 #include "ozero/status.h"
 #include "ozero/types.h"
@@ -173,8 +174,13 @@ O0_NODISCARD o0_paddr_t o0_pmm_alloc_pages(uint32_t order) {
         return 0;
     }
 
+    /* The bitmap is shared with interrupt context (slab growth from a woken
+     * thread), so the scan and the update must be atomic. */
+    o0_irq_state_t irq = o0_irq_save();
+
     uint64_t need = 1u << order;
     if (need > free_pages) {
+        o0_irq_restore(irq);
         return 0;
     }
 
@@ -192,7 +198,9 @@ O0_NODISCARD o0_paddr_t o0_pmm_alloc_pages(uint32_t order) {
                         set_bit(m);
                     }
                     free_pages -= need;
-                    return bit_to_paddr(first);
+                    o0_paddr_t result = bit_to_paddr(first);
+                    o0_irq_restore(irq);
+                    return result;
                 }
             } else {
                 consecutive = 0;
@@ -200,6 +208,7 @@ O0_NODISCARD o0_paddr_t o0_pmm_alloc_pages(uint32_t order) {
         }
     }
 
+    o0_irq_restore(irq);
     return 0;
 }
 
@@ -211,16 +220,20 @@ void o0_pmm_free_pages(o0_paddr_t base, uint32_t order) {
         return;
     }
 
+    o0_irq_state_t irq = o0_irq_save();
+
     uint64_t need = 1u << order;
     uint64_t first = paddr_to_bit(base);
 
     if (first == (uint64_t)-1) {
+        o0_irq_restore(irq);
         return;
     }
 
     for (uint64_t m = first; m < first + need; ++m) {
         if (!test_bit(m)) {
             /* Not allocated; abort to avoid corrupting free bits. */
+            o0_irq_restore(irq);
             return;
         }
     }
@@ -229,6 +242,7 @@ void o0_pmm_free_pages(o0_paddr_t base, uint32_t order) {
         clear_bit(m);
     }
     free_pages += need;
+    o0_irq_restore(irq);
 }
 
 uint64_t o0_pmm_free_bytes(void) {
@@ -239,41 +253,7 @@ uint64_t o0_pmm_total_bytes(void) {
     return total_pages << O0_PAGE_SHIFT;
 }
 
-/* Simple early kernel bump-heap in BSS. Backed by PMM pages once paging is
- * active; for Stage 2 it hands out virtual addresses within this static region.
- */
-#define O0_KHEAP_SIZE (O0_PAGE_SIZE * 64) /* 256 KiB early kernel heap */
-static uint8_t kheap[O0_KHEAP_SIZE];
-static size_t kheap_used;
-
-/* ---- Kernel heap ---- */
-
-O0_NODISCARD void *o0_kalloc(size_t size, size_t align) {
-    if (!initialised) {
-        return NULL;
-    }
-    if (size == 0) {
-        size = 1;
-    }
-    if (align == 0) {
-        align = 1;
-    }
-    /* Align the allocation pointer up. */
-    size_t aligned = (kheap_used + (align - 1u)) & ~(align - 1u);
-    if (aligned + size > O0_KHEAP_SIZE) {
-        return NULL;
-    }
-    void *ptr = (void *)&kheap[aligned];
-    kheap_used = aligned + size;
-    return ptr;
-}
-
-void o0_kfree(void *ptr, size_t size) {
-    /* Bump allocator: no per-allocation free. Memory is reclaimed when the
-     * kernel heap is reset or the system reboots. */
-    (void)ptr;
-    (void)size;
-}
+/* The kernel heap lives in kernel/src/slab.c from Stage 3 onwards. */
 
 uint64_t o0_pmm_release_bootloader_memory(void) {
     /* Reclaimable regions remain reserved until the boot contract's reclaim

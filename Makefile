@@ -15,14 +15,24 @@ CFLAGS := -std=gnu11 -O2 -Wall -Wextra -Werror \
           -m64 -march=x86-64 -mtune=generic -mcmodel=kernel -mno-red-zone -mgeneral-regs-only
 LDFLAGS := -nostdlib -static -z max-page-size=0x1000 -T kernel/linker.lds
 
-.PHONY: help doctor check kernel iso run run-debug clean
+KERNEL_OBJS := $(BUILD)/main.o $(BUILD)/serial.o $(BUILD)/string.o $(BUILD)/status.o \
+               $(BUILD)/pmm.o $(BUILD)/boot_info.o $(BUILD)/slab.o \
+               $(BUILD)/sched.o $(BUILD)/thread.o $(BUILD)/sync.o \
+               $(BUILD)/irq.o $(BUILD)/paging.o $(BUILD)/cpu.o $(BUILD)/pic.o \
+               $(BUILD)/interrupts_c.o $(BUILD)/interrupts.o $(BUILD)/irq_stubs.o \
+               $(BUILD)/context.o
+
+HOST_CFLAGS := -std=gnu11 -O1 -Wall -Wextra -Iinclude
+
+.PHONY: help doctor check kernel iso run run-debug test clean
 
 help:
-	@printf '%s\\n' 'Ozero targets:' \
+	@printf '%s\n' 'Ozero targets:' \
 	  '  make doctor     Check host dependencies' \
-	  '  make check      Build kernel and bootable ISO' \
+	  '  make check      Check tools, build kernel/ISO and run host tests' \
 	  '  make kernel     Build freestanding ELF64 kernel' \
 	  '  make iso        Build BIOS/UEFI bootable ISO' \
+	  '  make test       Run host-side unit tests' \
 	  '  make run        Boot ISO in QEMU with serial console' \
 	  '  make run-debug  Start QEMU paused with GDB on :1234' \
 	  '  make clean      Remove generated artifacts'
@@ -30,36 +40,39 @@ help:
 doctor:
 	$(PYTHON) tools/doctor.py
 
-check: doctor iso
+check: doctor iso test
 
 kernel: $(KERNEL)
 
 $(BUILD):
 	mkdir -p $(BUILD)
 
-$(BUILD)/main.o: kernel/src/main.c third_party/limine/limine.h include/ozero/boot.h include/ozero/mm.h include/ozero/status.h | $(BUILD)
+$(BUILD)/%.o: kernel/src/%.c | $(BUILD)
+	$(CC) $(CFLAGS) -Ithird_party/limine -Iinclude -Ikernel -Ikernel/src -c $< -o $@
+
+$(BUILD)/paging.o: kernel/arch/x86_64/paging.c | $(BUILD)
+	$(CC) $(CFLAGS) -Ithird_party/limine -Iinclude -c $< -o $@
+
+$(BUILD)/cpu.o: kernel/arch/x86_64/cpu.c | $(BUILD)
+	$(CC) $(CFLAGS) -Ithird_party/limine -Iinclude -c $< -o $@
+
+$(BUILD)/pic.o: kernel/arch/x86_64/pic.c | $(BUILD)
+	$(CC) $(CFLAGS) -Ithird_party/limine -Iinclude -c $< -o $@
+
+$(BUILD)/interrupts_c.o: kernel/arch/x86_64/interrupts.c | $(BUILD)
 	$(CC) $(CFLAGS) -Ithird_party/limine -Iinclude -c $< -o $@
 
 $(BUILD)/interrupts.o: kernel/arch/x86_64/interrupts.S | $(BUILD)
 	$(CC) -m64 -ffreestanding -fno-pic -fno-pie -c $< -o $@
 
-$(BUILD)/interrupts_c.o: kernel/arch/x86_64/interrupts.c | $(BUILD)
-	$(CC) $(CFLAGS) -c $< -o $@
+$(BUILD)/irq_stubs.o: kernel/arch/x86_64/irq.S | $(BUILD)
+	$(CC) -m64 -ffreestanding -fno-pic -fno-pie -c $< -o $@
 
-$(BUILD)/pmm.o: kernel/src/pmm.c third_party/limine/limine.h include/ozero/boot.h include/ozero/mm.h include/ozero/status.h include/ozero/types.h | $(BUILD)
-	$(CC) $(CFLAGS) -Ithird_party/limine -Iinclude -c $< -o $@
+$(BUILD)/context.o: kernel/arch/x86_64/context.S | $(BUILD)
+	$(CC) -m64 -ffreestanding -fno-pic -fno-pie -c $< -o $@
 
-$(BUILD)/boot_info.o: kernel/src/boot_info.c third_party/limine/limine.h include/ozero/boot.h include/ozero/status.h include/ozero/types.h | $(BUILD)
-	$(CC) $(CFLAGS) -Ithird_party/limine -Iinclude -c $< -o $@
-
-$(BUILD)/paging.o: kernel/arch/x86_64/paging.c include/ozero/boot.h include/ozero/mm.h include/ozero/status.h include/ozero/types.h | $(BUILD)
-	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
-
-$(BUILD)/cpu.o: kernel/arch/x86_64/cpu.c include/ozero/cpu.h include/ozero/status.h include/ozero/types.h | $(BUILD)
-	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
-
-$(KERNEL): $(BUILD)/main.o $(BUILD)/interrupts.o $(BUILD)/interrupts_c.o $(BUILD)/pmm.o $(BUILD)/boot_info.o $(BUILD)/paging.o $(BUILD)/cpu.o kernel/linker.lds
-	$(LD) $(LDFLAGS) -o $@ $(BUILD)/main.o $(BUILD)/interrupts.o $(BUILD)/interrupts_c.o $(BUILD)/pmm.o $(BUILD)/boot_info.o $(BUILD)/paging.o $(BUILD)/cpu.o
+$(KERNEL): $(KERNEL_OBJS) kernel/linker.lds
+	$(LD) $(LDFLAGS) -o $@ $(KERNEL_OBJS)
 	@file $@
 
 $(LIMINE_ARCHIVE): | $(BUILD)
@@ -92,6 +105,16 @@ $(ISO): $(KERNEL) $(LIMINE_DIR)/limine
 	  -efi-boot-part --efi-boot-image --protective-msdos-label \
 	  $(BUILD)/iso_root -o $@
 	$(LIMINE_DIR)/limine bios-install $@
+
+# Host-side unit tests: the allocator and the scheduler queue are pure C and
+# run on the build host; the kernel image itself is never executed here.
+test: $(BUILD)
+	$(CC) $(HOST_CFLAGS) -o $(BUILD)/pmm_test tests/pmm_test.c
+	./$(BUILD)/pmm_test
+	$(CC) $(HOST_CFLAGS) -o $(BUILD)/slab_test tests/slab_test.c
+	./$(BUILD)/slab_test
+	$(CC) $(HOST_CFLAGS) -o $(BUILD)/sched_test tests/sched_test.c
+	./$(BUILD)/sched_test
 
 run: $(ISO)
 	$(QEMU) -machine q35 -m 512M -cdrom $(ISO) -boot d \

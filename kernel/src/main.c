@@ -1,3 +1,14 @@
+/* Ozero kernel - entry point and boot sequence.
+ *
+ * Stage 3 boot order:
+ *   1. serial console, Limine base revision check, exception IDT
+ *   2. direct-map offset, boot info, physical page allocator
+ *   3. CPU feature detection
+ *   4. page tables + CR3 switch (kernel now runs on its own tables)
+ *   5. kernel heap (slab), IRQ dispatch, PIC/PIT
+ *   6. scheduler, kernel threads, preemption on
+ */
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -5,10 +16,14 @@
 
 #include "ozero/boot.h"
 #include "ozero/cpu.h"
+#include "ozero/irq.h"
 #include "ozero/mm.h"
 #include "ozero/status.h"
+#include "ozero/sync.h"
+#include "ozero/thread.h"
 
-#define COM1 0x3f8
+#include "serial.h"
+#include "thread_internal.h"
 
 __attribute__((used, section(".limine_requests")))
 static volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);
@@ -19,58 +34,17 @@ static volatile struct limine_memmap_request memmap_request = {
     .revision = 0
 };
 
+__attribute__((used, section(".limine_requests")))
+static volatile struct limine_hhdm_request hhdm_request = {
+    .id = LIMINE_HHDM_REQUEST_ID,
+    .revision = 0
+};
+
 __attribute__((used, section(".limine_requests_start"), aligned(8)))
 static volatile uint64_t limine_requests_start[] = LIMINE_REQUESTS_START_MARKER;
 
 __attribute__((used, section(".limine_requests_end"), aligned(8)))
 static volatile uint64_t limine_requests_end[] = LIMINE_REQUESTS_END_MARKER;
-
-static inline void outb(uint16_t port, uint8_t value) {
-    __asm__ volatile ("outb %0, %1" : : "a"(value), "Nd"(port));
-}
-
-static void serial_init(void) {
-    outb(COM1 + 1, 0x00);
-    outb(COM1 + 3, 0x80);
-    outb(COM1 + 0, 0x01);
-    outb(COM1 + 1, 0x00);
-    outb(COM1 + 3, 0x03);
-    outb(COM1 + 2, 0xc7);
-    outb(COM1 + 4, 0x0b);
-}
-
-static void serial_putc(char c) {
-    if (c == '\n') {
-        outb(COM1, '\r');
-    }
-    outb(COM1, (uint8_t)c);
-}
-
-static void serial_puts(const char *text) {
-    while (*text != '\0') {
-        serial_putc(*text++);
-    }
-}
-
-static void serial_hex(uint64_t value) {
-    static const char digits[] = "0123456789abcdef";
-    serial_puts("0x");
-    for (int shift = 60; shift >= 0; shift -= 4) {
-        serial_putc(digits[(value >> (unsigned)shift) & 0xfU]);
-    }
-}
-
-static void serial_dec(uint64_t value) {
-    char buffer[21];
-    size_t count = 0;
-    do {
-        buffer[count++] = (char)('0' + (value % 10U));
-        value /= 10U;
-    } while (value != 0 && count < sizeof(buffer));
-    while (count > 0) {
-        serial_putc(buffer[--count]);
-    }
-}
 
 __attribute__((noreturn))
 static void halt_forever(void) {
@@ -81,9 +55,9 @@ static void halt_forever(void) {
 
 __attribute__((noreturn))
 static void panic(const char *reason) {
-    serial_puts("OZERO: PANIC: ");
-    serial_puts(reason);
-    serial_puts("\n");
+    o0_serial_puts("OZERO: PANIC: ");
+    o0_serial_puts(reason);
+    o0_serial_puts("\n");
     halt_forever();
 }
 
@@ -109,26 +83,27 @@ struct x86_64_exception_frame {
 };
 
 extern void x86_64_idt_init(void);
+extern void x86_64_idt_install_irq_gates(void);
 
 void x86_exception_dispatch(struct x86_64_exception_frame *frame) {
-    serial_puts("\nOZERO: EXCEPTION vector=");
-    serial_dec(frame->vector);
-    serial_puts(" error=");
-    serial_hex(frame->error_code);
-    serial_puts(" rip=");
-    serial_hex(frame->rip);
+    o0_serial_puts("\nOZERO: EXCEPTION vector=");
+    o0_serial_dec(frame->vector);
+    o0_serial_puts(" error=");
+    o0_serial_hex(frame->error_code);
+    o0_serial_puts(" rip=");
+    o0_serial_hex(frame->rip);
     if (frame->vector == 14) {
         uint64_t cr2;
         __asm__ volatile ("mov %%cr2, %0" : "=r"(cr2));
-        serial_puts(" cr2=");
-        serial_hex(cr2);
-        serial_puts(" pf=");
-        serial_puts(frame->error_code & 1u ? "protection-violation" : "page-not-present");
-        serial_puts(frame->error_code & 2u ? "-write" : "-read");
-        serial_puts(frame->error_code & 4u ? "-user" : "-supervisor");
-        serial_puts(frame->error_code & 16u ? "-reserved-bit" : "");
+        o0_serial_puts(" cr2=");
+        o0_serial_hex(cr2);
+        o0_serial_puts(" pf=");
+        o0_serial_puts(frame->error_code & 1u ? "protection-violation" : "page-not-present");
+        o0_serial_puts(frame->error_code & 2u ? "-write" : "-read");
+        o0_serial_puts(frame->error_code & 4u ? "-user" : "-supervisor");
+        o0_serial_puts(frame->error_code & 16u ? "-reserved-bit" : "");
     }
-    serial_puts("\n");
+    o0_serial_puts("\n");
     halt_forever();
 }
 
@@ -138,89 +113,216 @@ static void report_memory_map(void) {
         panic("Limine did not provide a memory map");
     }
 
-    serial_puts("OZERO: memory map entries=");
-    serial_dec(response->entry_count);
-    serial_puts("\n");
+    o0_serial_puts("OZERO: memory map entries=");
+    o0_serial_dec(response->entry_count);
+    o0_serial_puts("\n");
 
     for (uint64_t i = 0; i < response->entry_count; ++i) {
         const struct limine_memmap_entry *entry = response->entries[i];
         if (entry == NULL) {
             panic("memory map contains a null entry");
         }
-        serial_puts("  [");
-        serial_dec(i);
-        serial_puts("] base=");
-        serial_hex(entry->base);
-        serial_puts(" length=");
-        serial_hex(entry->length);
-        serial_puts(" type=");
-        serial_puts(memmap_type(entry->type));
-        serial_puts("\n");
+        o0_serial_puts("  [");
+        o0_serial_dec(i);
+        o0_serial_puts("] base=");
+        o0_serial_hex(entry->base);
+        o0_serial_puts(" length=");
+        o0_serial_hex(entry->length);
+        o0_serial_puts(" type=");
+        o0_serial_puts(memmap_type(entry->type));
+        o0_serial_puts("\n");
     }
 }
 
 extern o0_status o0_boot_populate(const struct limine_memmap_response *);
-extern o0_status o0_pmm_init(const struct o0_boot_info *);
+extern void o0_arch_set_hhdm(uint64_t offset);
 extern o0_status o0_paging_init(const struct o0_boot_info *);
+extern o0_status o0_paging_load(void);
 extern o0_status o0_cpu_detect(void);
 extern const struct o0_cpu_features *o0_cpu_features(void);
-extern void *o0_kalloc(size_t size, size_t align);
-extern void o0_kfree(void *ptr, size_t size);
+extern void o0_slab_init(void);
+extern uint64_t o0_kheap_total_bytes(void);
+extern uint64_t o0_kheap_live_objects(void);
+extern o0_status o0_pic_init(void);
+extern o0_status o0_pit_start(uint32_t hz);
+extern void o0_irq_dispatch_init(void);
+extern uint64_t o0_irq_count(o0_gsi_t gsi);
 
-/* Kernel self-test: exercises the kernel heap and PMM allocator. */
-static void kernel_self_test(void) {
-    serial_puts("OZERO: kernel self-test\n");
+static void stage3_self_test(void) {
+    o0_serial_puts("OZERO: stage3 self-test\n");
 
-    /* Test kernel heap allocations. */
-    void *a = o0_kalloc(16, 4);
-    void *b = o0_kalloc(32, 8);
-    void *c = o0_kalloc(0, 1); /* zero size → 1 byte */
+    /* Kernel heap: distinct allocations, reuse after free, alignment. */
+    void *a = o0_kalloc(16, 1);
+    void *b = o0_kalloc(200, 8);
+    void *c = o0_kalloc(4000, 16);
     if (a == NULL || b == NULL || c == NULL) {
-        panic("kernel heap allocation failed");
+        panic("slab allocation failed");
     }
-    ((char *)a)[0] = 'A';
-    ((char *)b)[0] = 'B';
-    ((char *)c)[0] = 'C';
-    if (((char *)a)[0] != 'A' || ((char *)b)[0] != 'B' || ((char *)c)[0] != 'C') {
-        panic("kernel heap write/read failed");
+    if (((uintptr_t)b & 7u) != 0 || ((uintptr_t)c & 15u) != 0) {
+        panic("slab alignment violated");
+    }
+    *(uint32_t *)a = 0xa5a5a5a5u;
+    *(uint64_t *)b = 0x1122334455667788ull;
+    if (*(uint32_t *)a != 0xa5a5a5a5u || *(uint64_t *)b != 0x1122334455667788ull) {
+        panic("slab write/read failed");
+    }
+    o0_kfree(b, 200);
+    void *d = o0_kalloc(200, 8);
+    if (d != b) {
+        panic("slab did not reuse freed object");
     }
     o0_kfree(a, 16);
-    o0_kfree(b, 32);
-    o0_kfree(c, 1);
-    serial_puts("OZERO: kernel heap alloc/free OK\n");
+    o0_kfree(c, 4000);
+    o0_kfree(d, 200);
+    o0_serial_puts("OZERO: heap OK total=");
+    o0_serial_dec(o0_kheap_total_bytes());
+    o0_serial_puts(" live=");
+    o0_serial_dec(o0_kheap_live_objects());
+    o0_serial_puts("\n");
 
-    /* Test PMM page allocator directly. */
-    o0_paddr_t p1 = o0_pmm_alloc_pages(0);
-    o0_paddr_t p2 = o0_pmm_alloc_pages(1); /* 4 contiguous pages */
-    if (p1 == 0 || p2 == 0) {
-        panic("PMM allocation failed");
+    /* Address spaces: map, translate, protect, unmap. */
+    o0_as_t *as = NULL;
+    if (o0_as_create(&as) != O0_OK || as == NULL) {
+        panic("address space creation failed");
     }
-    if ((p1 & 0xfffU) != 0 || (p2 & 0xfffU) != 0) {
-        panic("PMM returned unaligned address");
+    o0_paddr_t page = o0_pmm_alloc_pages(0);
+    if (page == 0) {
+        panic("address space test page allocation failed");
     }
-    o0_pmm_free_pages(p1, 0);
-    o0_pmm_free_pages(p2, 1);
-    serial_puts("OZERO: PMM alloc/free OK\n");
+    void *page_virt = o0_phys_to_virt(page);
+    if (page_virt == NULL) {
+        panic("direct map does not cover allocation");
+    }
+    *(uint64_t *)page_virt = 0x0f0f0f0f0f0f0f0full;
 
-    serial_puts("OZERO: kernel self-test complete\n");
+    const o0_vaddr_t test_addr = 0x40000000ull;
+    if (o0_as_map(as, test_addr, page, O0_PAGE_SIZE,
+                  O0_MAP_READ | O0_MAP_WRITE) != O0_OK) {
+        panic("address space map failed");
+    }
+    if (o0_virt_to_phys(page_virt) != page) {
+        panic("virt_to_phys mismatch for direct map");
+    }
+    if (o0_as_protect(as, test_addr, O0_PAGE_SIZE, O0_MAP_READ) != O0_OK) {
+        panic("address space protect failed");
+    }
+    if (o0_as_unmap(as, test_addr, O0_PAGE_SIZE) != O0_OK) {
+        panic("address space unmap failed");
+    }
+    if (o0_as_unmap(as, test_addr, O0_PAGE_SIZE) != O0_ENOENT) {
+        panic("unmap of an unmapped page did not report ENOENT");
+    }
+    o0_as_destroy(as);
+    o0_pmm_free_pages(page, 0);
+    o0_serial_puts("OZERO: address spaces OK\n");
+
+    /* Synchronization primitives. */
+    o0_spinlock_t spin = O0_SPINLOCK_INIT;
+    o0_spin_init(&spin);
+    o0_spin_lock(&spin);
+    if (!o0_spin_trylock(&spin)) {
+        /* Already held by this thread: trylock must fail. */
+    } else {
+        panic("spinlock trylock succeeded on a held lock");
+    }
+    o0_spin_unlock(&spin);
+    if (!o0_spin_trylock(&spin)) {
+        panic("spinlock trylock failed on a free lock");
+    }
+    o0_spin_unlock(&spin);
+
+    o0_mutex_t mutex = O0_MUTEX_INIT;
+    o0_mutex_init(&mutex);
+    o0_mutex_lock(&mutex);
+    if (o0_mutex_trylock(&mutex)) {
+        panic("mutex trylock succeeded on a held mutex");
+    }
+    o0_mutex_unlock(&mutex);
+    if (!o0_mutex_trylock(&mutex)) {
+        panic("mutex trylock failed on a free mutex");
+    }
+    o0_mutex_unlock(&mutex);
+    o0_serial_puts("OZERO: synchronization OK\n");
+    o0_serial_puts("OZERO: stage3 self-test complete\n");
+}
+
+static o0_mutex_t demo_mutex = O0_MUTEX_INIT;
+static volatile uint32_t demo_counter;
+
+static void worker_thread(void *arg) {
+    const char *name = (const char *)arg;
+    for (uint32_t i = 0; i < 3; ++i) {
+        o0_mutex_lock(&demo_mutex);
+        ++demo_counter;
+        uint32_t snapshot = demo_counter;
+        o0_mutex_unlock(&demo_mutex);
+        o0_serial_puts("OZERO: ");
+        o0_serial_puts(name);
+        o0_serial_puts(" iteration=");
+        o0_serial_dec(i);
+        o0_serial_puts(" counter=");
+        o0_serial_dec(snapshot);
+        o0_serial_puts("\n");
+        o0_thread_sleep_ns(10000000ull); /* 10 ms */
+    }
+    o0_serial_puts("OZERO: ");
+    o0_serial_puts(name);
+    o0_serial_puts(" exiting\n");
+}
+
+static void stage3_demo(void) {
+    o0_process_t *proc = NULL;
+    if (o0_process_create("init", o0_as_kernel(), &proc) != O0_OK) {
+        panic("process creation failed");
+    }
+
+    o0_mutex_init(&demo_mutex);
+    demo_counter = 0;
+
+    static const char *names[2] = { "worker-a", "worker-b" };
+    for (size_t i = 0; i < 2; ++i) {
+        struct o0_thread_attr attr = {
+            .name = names[i],
+            .entry = worker_thread,
+            .arg = (void *)names[i],
+            .stack_size = 0,
+            .priority = 0,
+            .flags = 0
+        };
+        o0_thread_t *thread = NULL;
+        if (o0_thread_create(proc, &attr, &thread) != O0_OK) {
+            panic("kernel thread creation failed");
+        }
+    }
+    o0_serial_puts("OZERO: kernel threads created=");
+    o0_serial_dec(o0_thread_count());
+    o0_serial_puts("\n");
 }
 
 __attribute__((noreturn))
 void kmain(void) {
-    serial_init();
-    serial_puts("\nOZERO: kernel entry reached\n");
-    serial_puts("OZERO: architecture=x86_64\n");
-    serial_puts("OZERO: boot protocol=Limine\n");
+    o0_serial_init();
+    o0_serial_puts("\nOZERO: kernel entry reached\n");
+    o0_serial_puts("OZERO: architecture=x86_64\n");
+    o0_serial_puts("OZERO: boot protocol=Limine\n");
 
     if (!LIMINE_BASE_REVISION_SUPPORTED(limine_base_revision)) {
         panic("bootloader does not support requested Limine base revision 6");
     }
 
-    serial_puts("OZERO: Limine base revision accepted\n");
+    o0_serial_puts("OZERO: Limine base revision accepted\n");
     x86_64_idt_init();
-    serial_puts("OZERO: IDT installed (CPU exceptions 0-31)\n");
+    o0_serial_puts("OZERO: IDT installed (CPU exceptions 0-31)\n");
 
-    /* Normalise the Limine memory map into the o0_boot_info contract. */
+    /* Direct-map offset is needed before any page-table walk. */
+    if (hhdm_request.response == NULL) {
+        panic("Limine did not provide the higher-half direct map offset");
+    }
+    o0_arch_set_hhdm(hhdm_request.response->offset);
+    o0_serial_puts("OZERO: hhdm_offset=");
+    o0_serial_hex(hhdm_request.response->offset);
+    o0_serial_puts("\n");
+
     const struct limine_memmap_response *memmap_resp = memmap_request.response;
     if (memmap_resp == NULL || memmap_resp->entries == NULL) {
         panic("Limine did not provide a memory map");
@@ -228,25 +330,34 @@ void kmain(void) {
     if (o0_boot_populate(memmap_resp) != O0_OK) {
         panic("failed to populate boot info");
     }
-    serial_puts("OZERO: boot info populated\n");
+    o0_serial_puts("OZERO: boot info populated\n");
 
-    /* Initialise the physical page-frame allocator. */
     const struct o0_boot_info *bi = o0_boot_info();
     if (bi == NULL || !o0_boot_contract_ok(bi)) {
         panic("boot info contract check failed");
     }
+    if (bi->kernel_phys == 0) {
+        panic("kernel physical load address is unknown");
+    }
+    o0_serial_puts("OZERO: kernel_phys=");
+    o0_serial_hex(bi->kernel_phys);
+    o0_serial_puts(" kernel_virt=");
+    o0_serial_hex(bi->kernel_virt);
+    o0_serial_puts(" size=");
+    o0_serial_dec(bi->kernel_phys_size);
+    o0_serial_puts("\n");
+
     if (o0_pmm_init(bi) != O0_OK) {
         panic("PMM initialisation failed");
     }
-    serial_puts("OZERO: PMM initialised\n");
-    serial_puts("OZERO: total memory=");
-    serial_dec(o0_pmm_total_bytes());
-    serial_puts("\n");
-    serial_puts("OZERO: free memory=");
-    serial_dec(o0_pmm_free_bytes());
-    serial_puts("\n");
+    o0_serial_puts("OZERO: PMM initialised\n");
+    o0_serial_puts("OZERO: total memory=");
+    o0_serial_dec(o0_pmm_total_bytes());
+    o0_serial_puts("\n");
+    o0_serial_puts("OZERO: free memory=");
+    o0_serial_dec(o0_pmm_free_bytes());
+    o0_serial_puts("\n");
 
-    /* Detect CPU features. */
     if (o0_cpu_detect() != O0_OK) {
         panic("CPU feature detection failed");
     }
@@ -254,34 +365,68 @@ void kmain(void) {
     if (cf == NULL) {
         panic("CPU features not available");
     }
-    serial_puts("OZERO: CPU long_mode=");
-    serial_puts(cf->long_mode ? "yes" : "no");
-    serial_puts(" pae=");
-    serial_puts(cf->pae ? "yes" : "no");
-    serial_puts(" nx=");
-    serial_puts(cf->nx ? "yes" : "no");
-    serial_puts(" sse2=");
-    serial_puts(cf->sse2 ? "yes" : "no");
-    serial_puts(" apic=");
-    serial_puts(cf->apic ? "yes" : "no");
-    serial_puts(" page_1gb=");
-    serial_puts(cf->page_1gb ? "yes" : "no");
-    serial_puts("\n");
+    if (!cf->long_mode || !cf->pae) {
+        panic("CPU lacks the long-mode baseline (long_mode, pae)");
+    }
+    o0_serial_puts("OZERO: CPU long_mode=");
+    o0_serial_puts(cf->long_mode ? "yes" : "no");
+    o0_serial_puts(" pae=");
+    o0_serial_puts(cf->pae ? "yes" : "no");
+    o0_serial_puts(" nx=");
+    o0_serial_puts(cf->nx ? "yes" : "no");
+    o0_serial_puts(" sse2=");
+    o0_serial_puts(cf->sse2 ? "yes" : "no");
+    o0_serial_puts(" apic=");
+    o0_serial_puts(cf->apic ? "yes" : "no");
+    o0_serial_puts(" page_1gb=");
+    o0_serial_puts(cf->page_1gb ? "yes" : "no");
+    o0_serial_puts(" invariant_tsc=");
+    o0_serial_puts(cf->invariant_tsc ? "yes" : "no");
+    o0_serial_puts("\n");
 
-    /* Build page tables (identity map low memory + kernel high-half).
-     * CR3 switch deferred to a follow-up once the kernel's physical load
-     * address is known; BSS-resident page tables cannot be referenced by
-     * physical address without that offset.
-     */
     if (o0_paging_init(bi) != O0_OK) {
         panic("paging initialisation failed");
     }
-    serial_puts("OZERO: page tables built\n");
+    o0_serial_puts("OZERO: page tables built\n");
 
-    /* Run kernel self-tests (heap + PMM). */
-    kernel_self_test();
+    if (o0_paging_load() != O0_OK) {
+        panic("CR3 switch to kernel page tables failed");
+    }
+    o0_serial_puts("OZERO: page tables active\n");
 
+    o0_slab_init();
+    o0_serial_puts("OZERO: kernel heap ready\n");
+
+    o0_irq_dispatch_init();
+    x86_64_idt_install_irq_gates();
+    if (o0_pic_init() != O0_OK) {
+        panic("PIC initialisation failed");
+    }
+    o0_serial_puts("OZERO: PIC remapped to vectors 32-47\n");
+
+    if (!o0_thread_init_system()) {
+        panic("thread subsystem already initialised");
+    }
+    o0_sched_init();
+    o0_sched_set_hz(100);
+    o0_serial_puts("OZERO: scheduler initialised\n");
+
+    if (o0_pit_start(o0_sched_hz()) != O0_OK) {
+        panic("PIT initialisation failed");
+    }
+    /* The scheduler consumes line 0 inside the IRQ layer, so only the PIC mask
+     * needs clearing here. */
+    if (o0_irq_unmask(0) != O0_OK) {
+        panic("failed to unmask the timer IRQ");
+    }
+    o0_serial_puts("OZERO: timer IRQ enabled at ");
+    o0_serial_dec(o0_sched_hz());
+    o0_serial_puts(" Hz\n");
+
+    stage3_self_test();
     report_memory_map();
-    serial_puts("OZERO: boot success; entering idle halt loop\n");
-    halt_forever();
+    stage3_demo();
+
+    o0_serial_puts("OZERO: boot success; starting scheduler\n");
+    o0_sched_start();
 }

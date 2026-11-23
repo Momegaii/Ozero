@@ -17,7 +17,7 @@ Key fields:
 | `limine_base_requested` / `limine_base_loaded` | Requested vs loaded Limine base revision |
 | `firmware_type` | BIOS / EFI32 / EFI64 / unknown |
 | `hhdm_offset` | Higher-half direct map offset (virt = phys + offset) |
-| `kernel_phys` / `kernel_virt` / `kernel_phys_size` | Kernel load location (phys TBD until CR3 switch) |
+| `kernel_phys` / `kernel_virt` / `kernel_phys_size` | Kernel load location; `kernel_phys` is resolved by walking the bootloader's page tables for `_kernel_start` |
 | `memmap` / `memmap_count` | Kernel-owned copy of normalised memory regions |
 | `rsdp` / `efi_system_table` | HHDM virtual addresses of ACPI/EFI tables |
 
@@ -58,8 +58,7 @@ expects it back.
 
 `o0_pmm_release_bootloader_memory()` releases reclaimable regions back to the
 allocator once the checklist passes. Currently returns 0 (not implemented) —
-Stage 2 keeps reclaimable regions reserved until the checklist is documented
-and verified.
+Stage 3 keeps reclaimable regions reserved until the checklist is verified.
 
 ## 4. Higher-half direct map (HHDM)
 
@@ -67,6 +66,23 @@ and verified.
 Use `o0_hhdm_to_virt()` for a checked conversion that validates range and
 overflow. Direct pointer casts from physical addresses are unsafe and
 prohibited.
+
+### 4.1 Direct-map coverage
+
+When the kernel activates its own page tables (`o0_paging_load()`), the direct
+map is rebuilt over physical `[0, 4 GiB)` at `hhdm_offset` using 2 MiB pages. If
+the bootloader reports a zero offset the same window is identity-mapped instead.
+
+Consequences that callers must respect:
+
+- A physical address at or above 4 GiB has no direct-map virtual address;
+  `o0_phys_to_virt()` returns NULL and `o0_hhdm_to_virt()` returns `O0_ERANGE`.
+  The allocator can still hand out such frames on large machines, so every
+  conversion must be checked rather than assumed.
+- The kernel image is mapped separately at its linked high-half address, so
+  kernel code, data and BSS never depend on the direct-map window.
+- Extending the window is a deliberate change to `O0_DIRECT_MAP_LIMIT` in
+  `kernel/arch/x86_64/paging.c` plus a larger page-table pool budget.
 
 ## 5. Page 0
 

@@ -4,9 +4,14 @@ Ozero (o0) is an independent operating-system project: a native OS first, with a
 
 ## Current milestone
 
-**Stage 1 bring-up: first x86-64 kernel boot path.**
+**Stage 3: processes, threads and scheduler (kernel threads only).**
 
-The approved implementation uses Limine + ELF64 and a freestanding C kernel. The first kernel milestone initialises COM1 serial output, validates the Limine base revision, reports the bootloader memory map, and halts safely. It is intentionally not yet a general-purpose or daily-use OS.
+The approved implementation uses Limine + ELF64 and a freestanding C kernel. The kernel now
+resolves its physical load address, builds and activates its own page tables (HHDM direct
+map + 2 MiB kernel mapping), runs a slab kernel heap, routes interrupts through a remapped
+PIC with a 100 Hz PIT tick, and preemptively schedules kernel threads with priorities,
+sleep, join, spinlocks and a blocking mutex. There is still no user mode, no syscall
+interface, no storage and no graphics, and the project is not a general-purpose OS.
 
 ## Build and run on Linux
 
@@ -23,6 +28,7 @@ Then:
 git clone https://github.com/Momegaii/Ozero.git
 cd Ozero
 make doctor
+make test      # host unit tests: PMM, slab allocator, scheduler
 make check
 make run
 ```
@@ -51,17 +57,26 @@ Boot log markers (in order):
 | `OZERO: boot protocol=Limine` | Bootloader identified |
 | `OZERO: Limine base revision accepted` | Bootloader supports revision 6 |
 | `OZERO: IDT installed (CPU exceptions 0-31)` | Exception dispatch table active |
+| `OZERO: hhdm_offset=<addr>` | Bootloader direct-map offset |
 | `OZERO: boot info populated` | Memory map normalised into `o0_boot_info` |
+| `OZERO: kernel_phys=<addr> kernel_virt=<addr> size=<bytes>` | Physical load address resolved by page walk |
 | `OZERO: PMM initialised` | Physical page-frame allocator ready |
 | `OZERO: total memory=<bytes>` | Total usable RAM tracked by PMM |
 | `OZERO: free memory=<bytes>` | Currently free pages |
 | `OZERO: CPU long_mode=yes pae=yes ...` | CPUID feature detection results |
 | `OZERO: page tables built` | 4-level paging tables constructed |
-| `OZERO: kernel heap alloc/free OK` | Kernel heap self-test passed |
-| `OZERO: PMM alloc/free OK` | Page allocator self-test passed |
-| `OZERO: kernel self-test complete` | All self-tests passed |
+| `OZERO: page tables active` | CR3 switched to the kernel's own tables |
+| `OZERO: kernel heap ready` | Slab allocator initialised |
+| `OZERO: PIC remapped to vectors 32-47` | Legacy IRQ routing enabled |
+| `OZERO: scheduler initialised` | Scheduler ready (no threads yet) |
+| `OZERO: timer IRQ enabled at 100 Hz` | PIT tick feeding the scheduler |
+| `OZERO: heap OK total=<bytes> live=<n>` | Slab self-test passed |
+| `OZERO: address spaces OK` | Map/protect/unmap self-test passed |
+| `OZERO: synchronization OK` | Spinlock and mutex self-test passed |
 | `OZERO: memory map entries=N` | N normalised memory regions reported |
-| `OZERO: boot success; entering idle halt loop` | Stage 2 bring-up complete |
+| `OZERO: kernel threads created=<n>` | Demo kernel threads queued |
+| `OZERO: boot success; starting scheduler` | Boot complete, scheduler takes over |
+| `OZERO: worker-a iteration=...` | Scheduler is running kernel threads |
 
 On exception, `OZERO: EXCEPTION vector=<n> error=<e> rip=<r>` is printed.
 For page faults (vector 14), `cr2=<a>` and the fault type
@@ -90,4 +105,9 @@ Press Ctrl+C to stop QEMU.
 
 ## Honest status
 
-A successful QEMU smoke test proves only that this minimal kernel entered and received the Limine memory map under that emulated configuration. It does not prove physical hardware support, a working memory manager, interrupts, storage, graphics, userspace, or Windows compatibility.
+A successful QEMU smoke test proves only that this kernel boots, initialises its memory
+manager, timer and scheduler, and runs its own self-tests under that emulated
+configuration. It does not prove physical hardware support, user-mode isolation, storage,
+graphics, or Windows compatibility. The Stage 3 change set was produced in an environment
+without QEMU, so its boot path is unverified until CI or a machine with an emulator runs
+it; see `docs/PROJECT_STATUS.md`.

@@ -1,21 +1,30 @@
 /* Ozero kernel - PMM unit test (host build).
  *
  * Exercises the bitmap page-frame allocator in kernel/src/pmm.c against a
- * mocked o0_boot_info. Compiles with gcc on the host:
+ * mocked o0_boot_info. The source is included (not linked) so the file-static
+ * allocator state is visible to the test:
  *
- *   gcc -Iinclude -o tests/pmm_test tests/pmm_test.c kernel/src/pmm.c
- *   ./tests/pmm_test
+ *   gcc -Iinclude -o build/pmm_test tests/pmm_test.c
+ *   ./build/pmm_test
+ *
+ * Run it with `make test`.
  */
 
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "ozero/boot.h"
+#include "ozero/irq.h"
 #include "ozero/mm.h"
 #include "ozero/status.h"
 #include "ozero/types.h"
+
+/* Host stubs: the kernel uses interrupt masking for allocator atomicity. */
+o0_irq_state_t o0_irq_save(void) { return 0; }
+void o0_irq_restore(o0_irq_state_t state) { (void)state; }
 
 #include "../kernel/src/pmm.c"  /* include source so statics are in scope */
 
@@ -62,10 +71,14 @@ static void test_basic_alloc_free(void) {
     regions[1].flags = 0;
 
     struct o0_boot_info bi;
+    memset(&bi, 0, sizeof(bi));
     bi.magic = O0_BOOT_INFO_MAGIC;
     bi.version = O0_BOOT_INFO_VERSION;
     bi.memmap = regions;
     bi.memmap_count = 2;
+    /* The allocator reserves kernel frames from usable memory; without a size
+     * it falls back to 16 pages. */
+    bi.kernel_phys_size = 0;
 
     region_count = 0;
     total_pages = 0;
@@ -117,10 +130,12 @@ static void test_allocation_exhaustion(void) {
     regions[0].flags = 0;
 
     struct o0_boot_info bi;
+    memset(&bi, 0, sizeof(bi));
     bi.magic = O0_BOOT_INFO_MAGIC;
     bi.version = O0_BOOT_INFO_VERSION;
     bi.memmap = regions;
     bi.memmap_count = 1;
+    bi.kernel_phys_size = 0;
 
     region_count = 0;
     total_pages = 0;
@@ -192,6 +207,7 @@ static void test_no_usable_regions(void) {
     regions[0].flags = 0;
 
     struct o0_boot_info bi;
+    memset(&bi, 0, sizeof(bi));
     bi.magic = O0_BOOT_INFO_MAGIC;
     bi.version = O0_BOOT_INFO_VERSION;
     bi.memmap = regions;
