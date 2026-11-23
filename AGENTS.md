@@ -46,10 +46,12 @@ Override the build directory with `BUILD_DIR=/path`. The QEMU test accepts
 
 ## Ownership boundaries
 
-- `include/o0/` is the shared header surface. A1 owns it; A4 reviews every change; consumers
-  must not fork it.
+- `include/ozero/` is the shared header surface. A1 owns it; A4 reviews every change; consumers
+  must not fork it. `include/o0/` is removed.
+- A1 owns `tools/check-headers.sh` and `tests/abi_static_asserts.c`; A4 owns CI integration; A3
+  owns other `tools/` content (D-010).
 - A1–A3 must not edit `docs/`, `scripts/`, `tests/`, `harness/`, `toolchain/` or `.github/` without
-  an A4 review on the PR.
+  an A4 review on the PR. The exception is `tests/abi_static_asserts.c`, which A1 owns.
 - A4 must not edit A1–A3 domain source. If a fix is needed there, open an issue and request the
   owner.
 - `CODEOWNERS` is the machine-readable copy of the ownership map. Keep both in sync.

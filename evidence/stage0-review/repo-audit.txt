@@ -1,32 +1,36 @@
-$ git fetch origin --prune
-exit=0
-
-$ scripts/audit-repos.sh /workspace/project
 ==================================================================
 repository: /workspace/Ozero
-head:       8e73e097deb4f2ae5b09bd47a2f2c96a224a118c
+head:       9ef13bd9b5c4d6ef04cb815672cd668ec121ea53
 branch:     a4/stage0-review-followup
 remotes:
   origin	https://github.com/Momegaii/Ozero.git (fetch)
   origin	https://github.com/Momegaii/Ozero.git (push)
 branches:
-  a4/stage0-review-followup 8e73e09 origin/a4/stage0-review-followup
+  a4/stage0-review-followup 9ef13bd origin/a4/stage0-review-followup
   main 147cc86 origin/main
   origin 147cc86 
-  origin/a1/stage0-review 90b004f 
-  origin/a4/stage0-review-followup 84fe81a 
-  origin/agent/a2-stage0 f324b28 
+  origin/a1/stage0-review 115a7f4 
+  origin/a4/stage0-review-followup 076ed82 
+  origin/agent/a2-stage0 807c447 
   origin/main 147cc86 
 tags:
 commit graph (all refs):
-  * 8e73e09 (HEAD -> a4/stage0-review-followup) docs: record A4 branch publication
-  * 84fe81a (origin/a4/stage0-review-followup) docs: verify A1/A2 branches and track cross-agent blockers
+  * 9ef13bd (HEAD -> a4/stage0-review-followup) docs: record Stage 0 PR #3 and close XB-010
+  * 076ed82 (origin/a4/stage0-review-followup) docs: verify updated A2 evidence and ancestry
+  * 19dac9d docs: address Director Stage 0 integration review
+  * 5642c16 docs: refresh repository audit with published A4 branch
+  * 8e73e09 docs: record A4 branch publication
+  * 84fe81a docs: verify A1/A2 branches and track cross-agent blockers
   * 596fc6f docs: add cross-agent blocker register
   * 907093d docs: refresh repository audit at evidence head
   * f990bf7 docs: record Stage 0 review evidence
   * 4396155 docs: implement Stage 0 review actions
   * 5a50c0d docs: import A4 Stage 0 control plane
-  | * 90b004f (origin/a1/stage0-review) docs: record A1 pull request in Stage 0 report
+  | * 115a7f4 (origin/a1/stage0-review) docs: record second-round Stage 0 review evidence and hashes
+  | * c50e385 docs: answer the director's second Stage 0 review
+  | * 164360e feat: expose driver DMA callbacks and A2 thread primitives
+  | * 03f8883 refactor: make include/ozero the single public header root (D-009)
+  | * 90b004f docs: record A1 pull request in Stage 0 report
   | * e2d7c0d docs: add A1 document index
   | *   9ddaf4a Merge shared Ozero main into A1 Stage 0 branch
   | |\  
@@ -39,12 +43,14 @@ commit graph (all refs):
   | * 3f68e5e Stage 0: add status report with evidence and decisions needed
   | * 357202f Stage 0: tighten boot contract and CPU baseline after review
   | * ff439e3 Stage 0: kernel architecture, boot contract, CPU matrix, interface sketch
-  | * f324b28 (origin/agent/a2-stage0) chore(a2): record shared-repo revision and regenerate evidence
+  | * 807c447 (origin/agent/a2-stage0) chore(a2): regenerate evidence at 50b7853
+  | * 50b7853 docs(a2): answer director review with global IDs and A1 review request
+  | * f324b28 chore(a2): record shared-repo revision and regenerate evidence
   | * 8bac650 docs(a2): import Stage 0 package under a2/
   |/  
   * 147cc86 (origin/main, origin/HEAD, main) Initial commit
-commit count (all refs): 20
-tracked files: 78
+commit count (all refs): 30
+tracked files: 82
 top-level tracked entries:
   .editorconfig
   .github
@@ -60,11 +66,15 @@ top-level tracked entries:
   scripts
   tests
   toolchain
-working tree: clean
+working tree: DIRTY
+   M evidence/stage0-review/repo-audit.txt
 A1/A2/A3 refs:
   refs/remotes/origin/a1/stage0-review
   refs/remotes/origin/agent/a2-stage0
 A1/A2/A3 commit subjects:
+  076ed82 docs: verify updated A2 evidence and ancestry
+  164360e feat: expose driver DMA callbacks and A2 thread primitives
+  50b7853 docs(a2): answer director review with global IDs and A1 review request
   84fe81a docs: verify A1/A2 branches and track cross-agent blockers
   90b004f docs: record A1 pull request in Stage 0 report
   8bac650 docs(a2): import Stage 0 package under a2/
@@ -103,4 +113,3 @@ A1/A2/A3 refs:
   none
 A1/A2/A3 commit subjects:
   none
-exit=0

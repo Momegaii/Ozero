@@ -14,16 +14,17 @@
 
 - The A4 control plane is published on `a4/stage0-review-followup`. The Stage 0 review actions and
   the Director's 23 Nov A4 actions are implemented; evidence is in `evidence/stage0-review/`.
-- A1 published `a1/stage0-review` at `90b004f` (PR #1, draft). A2 published `agent/a2-stage0` at
+- A1 published `a1/stage0-review` at `115a7f4` (PR #1, draft). A2 published `agent/a2-stage0` at
   `807c447` (PR #2, draft); its evidence was regenerated at code revision `50b7853`. A3 has no branch.
-- A1's evidence is an inline report, not raw logs. A2's evidence is static-only and now current, but
-  its review-response document still cites `8bac650` (XB-013). Neither branch is integrated.
+- A1's evidence is an inline report, not raw logs (XB-016). A2's evidence is static-only and now
+  current, but its review-response document still cites `8bac650` (XB-013). A1 reviewed A2 at the
+  older `f324b28` (XB-014). Neither branch is integrated.
 - The build and QEMU MBR harness are **Tested**. The 512-byte MBR fixture is not the Ozero kernel
   and is never described as kernel boot.
 - D-008, D-009 and D-010 are **Approved** by the 23 Nov Director instruction. The remaining
   decisions are **Proposed**. Stage 0 is **not accepted** (D-006).
 - The A4 Stage 0 PR is open: [#3](https://github.com/Momegaii/Ozero/pull/3). `main` is **not
-  protected** and has **no required status checks** (XB-012 / D-011).
+  protected** and has **no required status checks** (XB-012 / D-031).
 
 ## Stage 0 review actions
 
@@ -45,7 +46,7 @@
 | 3 | Verify A1/A2/A3 evidence and commit ancestry | Done for A1/A2; A3 absent | `cross-agent-verification-2026-11-23-r2.md` |
 | 4 | Resolve the shared namespace and ownership conflicts | Done | D-009, D-010, `CODEOWNERS`, `ownership.md` |
 | 5 | Keep MBR harness results separate from kernel boot | Done | `tests/targets.tsv`, this dashboard, PR body |
-| 6 | Confirm branch protection and required CI checks | Confirmed **not enabled** | `github-settings.txt`, D-011 |
+| 6 | Confirm branch protection and required CI checks | Confirmed **not enabled** | `github-settings.txt`, D-031 |
 
 ## Required outputs
 
@@ -87,7 +88,7 @@
 | Clean clone reproduces A4 results | Met on this branch | `evidence/stage0-review/clean-checkout.log` |
 | Evidence links exact commits and raw outputs | Met | `evidence/stage0-review/README.md` |
 | MBR harness never described as kernel boot | Met by naming rule and wording audit | `docs/process/test-targets.md` |
-| Director decisions pending until approved | Met: D-008/D-009/D-010 Approved; D-001–D-007 and D-011 Proposed | `docs/decisions/decision-log.md` |
+| Director decisions pending until approved | Met: D-008/D-009/D-010 Approved; D-001–D-007 and D-011–D-031 Proposed | `docs/decisions/decision-log.md` |
 | Cross-agent API sign-off precedes dependent implementation | Met by merge gate | `docs/process/integration-checklist.md` |
 
 ## Not tested
@@ -109,7 +110,7 @@
 | 1 | ADR-0001 to ADR-0004 are unapproved | Project Director | Stage 1 cannot start with agreed ownership or review rules | Before Stage 1 |
 | 2 | GitHub team slugs in `CODEOWNERS` are placeholders | Project Director | Review enforcement is not active | Before Stage 1 |
 | 3 | Boot protocol is proposed as Limine v12.11.1, base revision 6; Director D-005 is open | A1 → Director | A1 cannot finalise the boot path; the MBR harness is protocol-neutral | Stage 1 design |
-| 4 | Branch protection and required CI checks are not enabled | Project Director (XB-012 / D-011) | The merge gate is advisory until enabled | Before Stage 1 |
+| 4 | Branch protection and required CI checks are not enabled | Project Director (XB-012 / D-031) | The merge gate is advisory until enabled | Before Stage 1 |
 | 5 | A4 Stage 0 PR [#3](https://github.com/Momegaii/Ozero/pull/3) is open; Director review pending | Project Director (XB-010) | Review is in progress; no acceptance is implied | Stage 0 review |
 | 6 | A1 and A2 branches are not integrated; A3 has no branch | A1, A2, A3, A4 | Cross-agent gates are defined but untested; merge conflicts are known | Stage 1 |
 | 7 | Eight cross-agent dependencies are Open | A1, A2, A3, A4 | Dependent work cannot merge without owner sign-off | Stage 1 |
@@ -119,23 +120,27 @@
 ## Cross-agent dependencies
 
 The live register is [`docs/process/cross-agent-blockers.md`](../process/cross-agent-blockers.md).
-Eight rows are **Open**; XB-006, XB-007, XB-008, XB-009 and XB-010 are **Closed**. None is **Signed**.
+Ten rows are **Open**; XB-006, XB-007, XB-008, XB-009, XB-010 and XB-015 are **Closed**. None is
+**Signed**.
 
 | ID | Dependency | Owner | State |
 | --- | --- | --- | --- |
-| XB-001 | A1 reviews the A3 DMA/platform/block interface before AHCI probe | A1 → A3 | Open; A3 has no branch, A1 reviewed its own draft |
-| XB-002 | A2 contracts match A1 process/address-space/handle/syscall | A1 → A2 | Open; A2 published requirements, A1 review pending |
+| XB-001 | A1 reviews the A3 DMA/platform/block interface before AHCI probe | A1 → A3 | Open; A1 conditions in `docs/a3-dma-contract.md`; A3 has no branch |
+| XB-002 | A2 contracts match A1 process/address-space/handle/syscall | A1 → A2 | Open; A1 reviewed `f324b28`; A2 moved to `807c447`; XB-014 re-review |
 | XB-003 | A2 PE fixture contract before any PE test | A2 → A1/A3 | Open; A2 static-only package published |
 | XB-004 | A1 pins Limine and the kernel handoff | A1 → Director | Open; v12.11.1 / base 6 pinned, D-005 pending |
 | XB-005 | A3 names device tests and hardware requirements with evidence | A3 → A4 | Open; no A3 branch |
 | XB-006 | A4 publishes the review branch | A4 → Director | Closed at `84fe81a` |
-| XB-007 | Public header namespace conflict | A1 → A4 | Closed by D-009: canonical `include/o0/` |
-| XB-008 | A1's `tools/check-headers.sh` is in A3-owned `tools/` | A1 → A3 | Closed by D-010: A1 owns, A3 reviews |
+| XB-007 | Public header namespace conflict | A1 → A4 | Closed by D-009: canonical `include/ozero/` |
+| XB-008 | A1's `tools/check-headers.sh` is in A3-owned `tools/` | A1 → A3 | Closed by D-010: A1 owns script and ABI asserts; A4 CI; A3 other tools |
 | XB-009 | A2 evidence revision mismatch | A2 → A4 | Closed: evidence regenerated at `50b7853`; `807c447` is evidence-only |
 | XB-010 | A4 opens the Stage 0 review PR | A4 → Director | Closed: [#3](https://github.com/Momegaii/Ozero/pull/3) |
 | XB-011 | A3 publishes so A4 can refresh the audit | A3 → A4 | Open; A3 has no branch |
 | XB-012 | Enable `main` protection and required checks | A4 → Director | Open; `protected:false`, rulesets 0 |
 | XB-013 | A2 response still cites `8bac650` | A2 → A4 | Open; update response header to `50b7853` / `807c447` |
+| XB-014 | A1 review of A2 is at `f324b28` | A1 → A2 | Open; A2 moved to `50b7853` / `807c447`; A1 re-review |
+| XB-015 | A1 decision block collided with A4 IDs | A4 → Director | Closed: D-009/D-010 merged; A1 D-011 kept; A4 D-031 |
+| XB-016 | A1 command output is inline, not a raw log | A1 → A4 | Open; copy to `evidence/a1-stage0/` before merge |
 
 ## Decisions needed
 
@@ -148,20 +153,23 @@ Eight rows are **Open**; XB-006, XB-007, XB-008, XB-009 and XB-010 are **Closed*
 | D-005 | Choose the boot protocol | **Proposed** | Project Director | A1 to propose; Limine is a candidate only |
 | D-006 | Accept Stage 0 | **Proposed** | Project Director | Decide after D-001 to D-004 and D-008 |
 | D-007 | Approve the A3 DMA/platform interface and A1 sign-off gate | **Proposed** | Project Director | Approve IF-008 and the merge gate |
-| D-008 | Approve publishing the A4 review branch | **Approved** | Project Director | Published; PR open |
-| D-009 | Adopt `include/o0/` as the canonical header namespace | **Approved** | Project Director | Implemented; A1 keeps its headers |
-| D-010 | Assign `tools/check-headers.sh` to A1 with A3 review | **Approved** | Project Director | Implemented in `CODEOWNERS` |
-| D-011 | Enable `main` branch protection and required CI checks | **Proposed** | Project Director | Enable protection and require the Stage 0 CI check |
+| D-008 | Approve publishing the A4 review branch | **Approved** | Project Director | Published; PR [#3](https://github.com/Momegaii/Ozero/pull/3) open |
+| D-009 | Adopt `include/ozero/` as the canonical header namespace | **Approved** | Project Director | Implemented by A1 `03f8883`; `include/o0/` rejected by the check |
+| D-010 | Assign `tools/check-headers.sh` and `tests/abi_static_asserts.c` to A1; A4 owns CI integration; A3 owns other `tools/` | **Approved** | Project Director | Implemented in `CODEOWNERS` |
+| D-011 | Accept A2's process, address-space, handle and syscall requirements as Stage 7 input | **Proposed** | Project Director | A1 reviewed at `f324b28`; A2 has since moved; re-review pending |
+| D-031 | Enable `main` branch protection and required CI checks | **Proposed** | Project Director | Enable protection and require the Stage 0 CI check |
+| D-012–D-030 | A1 architecture and A2 contract proposals | **Proposed** | Project Director | Recorded in the decision log; no approval implied |
 
 ## Risks
 
 | Risk | Likelihood | Impact | Mitigation | Owner |
 | --- | --- | --- | --- | --- |
-| `main` is unprotected and has no required checks | High | Any merge can bypass review and CI | D-011 / XB-012; enable protection and require the Stage 0 check | Director |
+| `main` is unprotected and has no required checks | High | Any merge can bypass review and CI | D-031 / XB-012; enable protection and require the Stage 0 check | Director |
 | A1 and A2 branches are not integrated; A3 is absent | High | Cross-agent gates are untested; merge conflicts are known | A4 merge order; A1 reviews A2 and confirms DMA; A3 publishes IF-008 | Director, A1, A3 |
 | A1's "A3 review signed" is read as A3 acceptance | Medium | False cross-agent sign-off | A4 record: A3 has no branch; XB-001 stays Open | A4 |
 | A1 evidence is inline, not raw logs | Medium | Claims are harder to audit | Copy A1 output to `evidence/a1-stage0/` before merge | A1, A4 |
 | A2 response and evidence revisions differ | Medium | Provenance mismatch | Evidence is at `50b7853`; update the response header; XB-013 | A2 |
+| A1's A2 review is at `f324b28`; A2 moved | Medium | A stale review is read as a sign-off | XB-014 re-review or no-change confirmation before XB-002 closes | A1, A2 |
 | A3 has not published; audit refresh is pending | Medium | The audit is incomplete | XB-011; refresh immediately after A3 publishes | A3, A4 |
 | MBR fixture is mistaken for kernel boot | Medium | False boot claim | Naming rule; explicit not-tested list | A4 |
 | Domain split does not match real work | Medium | Overlapping trees, merge conflicts | Director confirms before Stage 1 | Director |
@@ -194,10 +202,10 @@ Eight rows are **Open**; XB-006, XB-007, XB-008, XB-009 and XB-010 are **Closed*
 
 | Agent | Current task | Status | Blocked by |
 | --- | --- | --- | --- |
-| A1 | Stage 0 review response; PR #1 draft at `90b004f` | Submitted; not integrated | D-005, XB-001, XB-002 |
-| A2 | Static-only PE package; PR #2 draft at `807c447`; evidence at `50b7853` | Submitted; not integrated | A1 review (XB-002), XB-013 |
+| A1 | Second-round response; PR #1 draft at `115a7f4` | Submitted; not integrated | D-005, XB-001, XB-002, XB-014, XB-016 |
+| A2 | Static-only PE package; PR #2 draft at `807c447`; evidence at `50b7853` | Submitted; not integrated | A1 review (XB-002/XB-014), XB-013 |
 | A3 | — | No branch, commit or interface | D-001; must publish IF-008; XB-005, XB-011 |
-| A4 | Stage 0 review follow-up; PR [#3](https://github.com/Momegaii/Ozero/pull/3); head `076ed82` + audit commit | Submitted; awaiting review | Director review |
+| A4 | Stage 0 review follow-up; PR [#3](https://github.com/Momegaii/Ozero/pull/3); head `9ef13bd` + audit commit | Submitted; awaiting review | Director review |
 
 ## Change log
 
@@ -209,6 +217,7 @@ Eight rows are **Open**; XB-006, XB-007, XB-008, XB-009 and XB-010 are **Closed*
 | 2026-11-23 | Cross-agent blocker register; refreshed audit | `596fc6f` |
 | 2026-11-23 | A1/A2 branch verification; A3 absence; namespace and ownership findings | `84fe81a` |
 | 2026-11-23 | A4 branch published to `origin`; upstream set | `84fe81a` |
-| 2026-11-23 | Director round 2: namespace D-009, ownership D-010, settings D-011, cross-agent r2 | `19dac9d` |
+| 2026-11-23 | Director round 2: namespace D-009, ownership D-010, settings D-031, cross-agent r2 | `19dac9d` |
 | 2026-11-23 | A2 evidence re-verified at `807c447`; XB-009 closed, XB-013 opened | `076ed82` |
-| 2026-11-23 | A4 Stage 0 review PR [#3](https://github.com/Momegaii/Ozero/pull/3) opened against `main` | this commit |
+| 2026-11-23 | A4 Stage 0 review PR [#3](https://github.com/Momegaii/Ozero/pull/3) opened against `main` | `9ef13bd` |
+| 2026-11-23 | A1 second-round response verified at `115a7f4`; namespace aligned to `include/ozero/`; D-009/D-010 merged; D-031 renumber | this audit commit |

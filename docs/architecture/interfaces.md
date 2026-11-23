@@ -18,9 +18,9 @@ does not merge. Breaking changes need an ADR and Director approval.
 | IF-003 | Boot image artifact contract (path, format, size, signature) | A4 | 1.0 | A1, A2, A3 | Implemented |
 | IF-004 | Build manifest schema (`build/manifest.json`) | A4 | 1.0 | A1–A3, CI | Implemented |
 | IF-005 | Test result schema (`result.json`) | A4 | 1.0 | CI, dashboard | Implemented |
-| IF-006 | Public kernel header surface (`include/o0/`) | A1 | 0.0 | A2, A3 | Not started |
+| IF-006 | Public kernel header surface (`include/ozero/`) | A1 | 0.2 draft | A2, A3 | Draft; A1 published `03f8883` |
 | IF-007 | Syscall / user-kernel ABI | A1 + A3 | — | A2 | Not started |
-| IF-008 | DMA and platform interface contract | A3 | 0.1 draft | A1, A2 | Proposed |
+| IF-008 | DMA and platform interface contract | A3 | 0.1 draft | A1, A2 | Blocked: A1 conditions issued; A3 not published |
 | IF-009 | PE fixture and static-analysis contract | A2 | 0.1 draft | A4 | Proposed |
 
 `IF-001` and `IF-002` are deliberately drafts. A4 owns the harness that consumes them, not the
