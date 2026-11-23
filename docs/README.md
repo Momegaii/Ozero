@@ -9,6 +9,7 @@
 | Process | [Build and test plan](process/build-and-test.md) | Tested |
 | Process | [Test targets](process/test-targets.md) | Implemented |
 | Process | [CI safety](process/ci-safety.md) | Implemented |
+| Process | [Cross-agent blocker register](process/cross-agent-blockers.md) | Live |
 | Process | [Trust boundaries](process/trust-boundaries.md) | Reviewed |
 | Process | [Integration checklist](process/integration-checklist.md) | Proposed |
 | Process | [Reporting rules](process/reporting.md) | Implemented |

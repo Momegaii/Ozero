@@ -21,6 +21,7 @@ one domain. Copy it into the PR description and fill in the evidence. An uncheck
       `docs/architecture/interfaces.md`.
 - [ ] **Cross-agent sign-off.** A1 has approved any A3 change to DMA or platform interfaces
       (IF-008) before dependent implementation merges. The approval names the interface and version.
+      The row in [`cross-agent-blockers.md`](cross-agent-blockers.md) moves to Signed in the same PR.
 - [ ] **Docs.** The document that describes the changed behaviour is updated in the same PR.
 - [ ] **Evidence.** The agent report is attached and includes the commit hash and the test command.
 - [ ] **Rollback.** `git revert <sha>` restores the previous state with no data migration.

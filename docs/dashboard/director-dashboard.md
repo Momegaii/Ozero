@@ -92,8 +92,23 @@
 | 2 | GitHub team slugs in `CODEOWNERS` are placeholders | Project Director | Review enforcement is not active | Before Stage 1 |
 | 3 | Boot protocol is undecided; Limine is only a candidate | A1 | A1 cannot finalise the boot path; harness is protocol-neutral by design | Stage 1 design |
 | 4 | Branch protection and required CI check are repository settings, not code | Project Director | The merge gate is advisory until enabled | Before Stage 1 |
-| 5 | A4 review branch is unpushed | Project Director (D-008) | The Director cannot independently fetch the reviewed commit | Stage 0 review |
+| 5 | A4 review branch cannot be published | Project Director (D-008) | GitHub token is authenticated as `Momegaii` but has read-only contents; `git push` and ref creation return 403 | Stage 0 review |
 | 6 | No A1/A2/A3 commits exist | A1, A2, A3 | Cross-agent gates are defined but untested | Stage 1 |
+| 7 | Six cross-agent dependencies are Open | A1, A2, A3, A4 | Dependent work cannot merge without owner sign-off | Stage 1 |
+
+## Cross-agent dependencies
+
+The live register is [`docs/process/cross-agent-blockers.md`](../process/cross-agent-blockers.md).
+All rows are **Open**; none is signed.
+
+| ID | Dependency | Owner | State |
+| --- | --- | --- | --- |
+| XB-001 | A1 reviews A3 DMA/platform/block before AHCI probe | A1 | Open |
+| XB-002 | A2 contracts match A1 process/address-space/handle/syscall | A1 → A2 | Open |
+| XB-003 | A2 PE fixture contract before any PE test | A2 | Open |
+| XB-004 | A1 pins Limine and the kernel handoff | A1 | Open |
+| XB-005 | A3 names device tests and hardware requirements with evidence | A3 | Open |
+| XB-006 | A4 publishes the review branch and PR | A4 → Director | Open |
 
 ## Decisions needed
 
