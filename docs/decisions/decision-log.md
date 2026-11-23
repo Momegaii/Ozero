@@ -56,7 +56,7 @@ the register wins.
 | D-028 | Handle inheritance: A1 provides inherit flags and list; A2 chooses policy | **Proposed** | A1 + A2 | Project Director | 2026-11-23 | Before Stage 7 | A1 `docs/a2-interface-review.md` |
 | D-029 | Clock: A1 provides monotonic nanoseconds; resolution measured, not promised | **Proposed** | A1 + A2 | Project Director | 2026-11-23 | Before Stage 7 | A1 `docs/a2-interface-review.md` |
 | D-030 | 32-bit and WOW64 outside A1 Stage 1 scope; deferred to the x86 user-mode milestone | **Proposed** | A1 + A2 | Project Director | 2026-11-23 | Deferred | A1 `docs/a2-interface-review.md` |
-| D-031 | Enable `main` branch protection and required CI checks | **Proposed** | A4 | Project Director | 2026-11-23 | Before Stage 1 | Rechecked: `protected:false`, rulesets `[]`, `CODEOWNERS` 404 on `main`; `evidence/stage0-review/github-settings.txt` |
+| D-031 | Enable `main` branch protection and required CI checks | **Proposed** | A4 | Project Director | 2026-11-23 | Before Stage 1 | Rechecked: `protected:false`, rulesets `[]`, `CODEOWNERS` 404 on `main`; `evidence/stage0-review/github-settings-a4-2026-11-23.txt`; audit `docs/process/branch-protection-audit.md` |
 
 ## Decided
 
