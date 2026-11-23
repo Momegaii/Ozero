@@ -161,6 +161,8 @@ void kmain(void) {
     }
 
     serial_puts("OZERO: Limine base revision accepted\n");
+    x86_64_idt_init();
+    serial_puts("OZERO: IDT installed (CPU exceptions 0-31)\n");
     report_memory_map();
     serial_puts("OZERO: boot success; entering idle halt loop\n");
     halt_forever();
