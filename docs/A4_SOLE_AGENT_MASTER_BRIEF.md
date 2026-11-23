@@ -211,3 +211,20 @@ the relevant blocker row moves only when its evidence condition is met.
 | directive commit | D-005 package, XB-012 audit, XB-005 plan and documentation reconciliation |
 
 main remains 147cc86. No merge to main was performed. No PR was approved.
+
+
+## Director-requested CI expansion — 2026-11-23
+
+A4's consolidated workflow was expanded to exercise the recovered A2 and A3 packages on every pull request and push to `main`:
+
+- `make -C a2 check-static`
+- `python3 -m unittest discover -s a2/tests -v`
+- `make -C a3 check`
+
+The root Stage 0 steps remain: toolchain validation, CI safety, MBR fixture build/harness, reproducibility and clean-checkout validation. The documented QEMU minimum was corrected to match `toolchain/toolchain.lock` (8.0).
+
+At commit `8478c6e6b97e56f583e7b244b6bb43dc9184cb06`, GitHub Actions run #19 completed successfully. Every step passed, including A2 static checks, A2 unit tests and A3 interface/matrix tests. The run is linked at https://github.com/Momegaii/Ozero/actions/runs/45205402129.
+
+This is additional automated L0/static and unit-test coverage. It does not demonstrate an Ozero kernel boot, PE/Windows runtime, AHCI/DMA/GPU operation or real-hardware compatibility. The MBR harness is still only a fixture smoke test.
+
+The documentation and workflow changes are on `a4/stage0-review-followup`; they have not been merged into `main`. Stage 0 remains **NOT ACCEPTED**. XB-004, XB-005 and XB-012 remain open. IF-009 v1.1 is implemented at L0 but remains unsigned pending A1/A3 re-signatures.
