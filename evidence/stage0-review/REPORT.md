@@ -209,7 +209,7 @@ from the existing branch; it did not restart Stage 0 and did not merge into `mai
 | Ref | Commit | State |
 | --- | --- | --- |
 | `origin/main` | `147cc86` | unchanged |
-| `origin/a1/stage0-review` | `115a7f4` | PR #1, open, draft; second-round response |
+| `origin/a1/stage0-review` | `30ee4f0` | PR #1, open, draft; second-round response |
 | `origin/agent/a2-stage0` | `807c447` | PR #2, open, draft; evidence at `50b7853` |
 | A3 | none | no branch, commit or interface |
 | `origin/a4/stage0-review-followup` | `210653c` plus documentation and audit commits | published; PR #3 open |
@@ -219,7 +219,7 @@ from the existing branch; it did not restart Stage 0 and did not merge into `mai
 1. **Open the A4 Stage 0 review PR** — done: [#3](https://github.com/Momegaii/Ozero/pull/3).
 2. **Refresh the audit after A3 is published** — pending A3; the audit covers A1/A2/A4 and is
    tracked as XB-011.
-3. **Verify A1/A2/A3 evidence and ancestry** — A1 at `115a7f4`, A2 at `807c447`, A3 absent. A2
+3. **Verify A1/A2/A3 evidence and ancestry** — A1 at `30ee4f0`, A2 at `807c447`, A3 absent. A2
    evidence is at code revision `50b7853`, and `807c447` adds only evidence. A1 reviewed A2 at the
    older `f324b28` (XB-014) and keeps its command output inline rather than in `evidence/`
    (XB-016). See

@@ -32,7 +32,8 @@ integration authority. The Director approves architecture and stage acceptance.
 The public header namespace is `include/ozero/` (D-009). A1's `03f8883` refactor makes it the only
 public root, and `tools/check-headers.sh` rejects `include/o0/`. `tools/check-headers.sh` and
 `tests/abi_static_asserts.c` are A1-owned; A4 owns CI integration and A3 owns other `tools/` content
-(D-010). The specific `CODEOWNERS` entries override the `tools/` default.
+(D-010). A1 supplied the exact entries at `30ee4f0`; both files list A1 and A4. The specific
+`CODEOWNERS` entries override the `tools/` default.
 
 `CODEOWNERS` is the enforced copy of this table. If the two disagree, `CODEOWNERS` wins at review
 time and this document is a bug.

@@ -14,7 +14,7 @@
 
 - The A4 control plane is published on `a4/stage0-review-followup`. The Stage 0 review actions and
   the Director's 23 Nov A4 actions are implemented; evidence is in `evidence/stage0-review/`.
-- A1 published `a1/stage0-review` at `115a7f4` (PR #1, draft). A2 published `agent/a2-stage0` at
+- A1 published `a1/stage0-review` at `30ee4f0` (PR #1, draft). A2 published `agent/a2-stage0` at
   `807c447` (PR #2, draft); its evidence was regenerated at code revision `50b7853`. A3 has no branch.
 - A1's evidence is an inline report, not raw logs (XB-016). A2's evidence is static-only and now
   current, but its review-response document still cites `8bac650` (XB-013). A1 reviewed A2 at the
@@ -202,7 +202,7 @@ Ten rows are **Open**; XB-006, XB-007, XB-008, XB-009, XB-010 and XB-015 are **C
 
 | Agent | Current task | Status | Blocked by |
 | --- | --- | --- | --- |
-| A1 | Second-round response; PR #1 draft at `115a7f4` | Submitted; not integrated | D-005, XB-001, XB-002, XB-014, XB-016 |
+| A1 | Second-round response; PR #1 draft at `30ee4f0` | Submitted; not integrated | D-005, XB-001, XB-002, XB-014, XB-016 |
 | A2 | Static-only PE package; PR #2 draft at `807c447`; evidence at `50b7853` | Submitted; not integrated | A1 review (XB-002/XB-014), XB-013 |
 | A3 | — | No branch, commit or interface | D-001; must publish IF-008; XB-005, XB-011 |
 | A4 | Stage 0 review follow-up; PR [#3](https://github.com/Momegaii/Ozero/pull/3); head `210653c` + documentation and audit commits | Submitted; awaiting review | Director review |
@@ -221,4 +221,5 @@ Ten rows are **Open**; XB-006, XB-007, XB-008, XB-009, XB-010 and XB-015 are **C
 | 2026-11-23 | A2 evidence re-verified at `807c447`; XB-009 closed, XB-013 opened | `076ed82` |
 | 2026-11-23 | A4 Stage 0 review PR [#3](https://github.com/Momegaii/Ozero/pull/3) opened against `main` | `9ef13bd` |
 | 2026-11-23 | A1 second-round response verified at `115a7f4`; namespace aligned to `include/ozero/`; D-009/D-010 merged; D-031 renumber | `210653c` |
+| 2026-11-23 | A1 supplied exact `CODEOWNERS` overrides at `30ee4f0`; A4 applied both owners | this review commit |
 | 2026-11-23 | Repository audit refreshed after A1's second-round commits | this audit commit |

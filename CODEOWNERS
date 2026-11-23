@@ -27,8 +27,8 @@
 /userland/                          @ozero/a3-userland
 /userland/platform/dma/             @ozero/a3-userland @ozero/a1-kernel
 /tools/                             @ozero/a3-userland
-/tools/check-headers.sh             @ozero/a1-kernel
-/tests/abi_static_asserts.c         @ozero/a1-kernel
+/tools/check-headers.sh             @ozero/a1-kernel @ozero/a4-integration
+/tests/abi_static_asserts.c         @ozero/a1-kernel @ozero/a4-integration
 
 # Third-party intake is pinned and reviewed by A4 plus the consuming owner.
 /third_party/                       @ozero/a4-integration

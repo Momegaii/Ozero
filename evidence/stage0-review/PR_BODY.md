@@ -13,7 +13,7 @@ the review evidence, the cross-agent verification and the Director's 23 Nov A4 a
 | --- | --- | --- |
 | 1 | Open the A4 Stage 0 review PR | This PR |
 | 2 | Refresh the audit after A3 is published | Pending A3; audit covers A1/A2/A4 (XB-011) |
-| 3 | Verify A1/A2/A3 evidence and ancestry | A1 at `115a7f4`, A2 at `807c447`, A3 absent; A1 reviewed A2 at older `f324b28` (XB-014) |
+| 3 | Verify A1/A2/A3 evidence and ancestry | A1 at `30ee4f0`, A2 at `807c447`, A3 absent; A1 reviewed A2 at older `f324b28` (XB-014) |
 | 4 | Resolve namespace and ownership | D-009: `include/ozero/` only, A1 `03f8883`; D-010: A1 owns `tools/check-headers.sh` and `tests/abi_static_asserts.c`, A4 owns CI integration, A3 owns other `tools/` |
 | 5 | Keep MBR harness separate from kernel boot | Only `mbr-harness-smoke` ran; Limine/kernel target not implemented |
 | 6 | Confirm branch protection and checks | Not enabled: `"protected": false`, rulesets empty |

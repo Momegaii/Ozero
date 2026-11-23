@@ -6,7 +6,7 @@ first note stays as the earlier snapshot.
 | Ref | Commit | State |
 | --- | --- | --- |
 | `origin/main` | `147cc86` | unchanged |
-| `origin/a1/stage0-review` | `115a7f4` | PR #1, open, draft; second-round response |
+| `origin/a1/stage0-review` | `30ee4f0` | PR #1, open, draft; second-round response |
 | `origin/agent/a2-stage0` | `807c447` | PR #2, open, draft; evidence-only commit after code `50b7853` |
 | A3 | none | no branch, commit or interface |
 | `origin/a4/stage0-review-followup` | `210653c` plus documentation and audit commits | published; PR #3 open |
@@ -19,9 +19,9 @@ Commands run in `/workspace/Ozero` after `git fetch origin --prune`:
 $ git merge-base --is-ancestor origin/main origin/a1/stage0-review
 exit=0
 $ git rev-list --count origin/main..origin/a1/stage0-review
-14
+15
 $ git diff --stat origin/main..origin/a1/stage0-review | tail -1
- 27 files changed, 3516 insertions(+)
+ 27 files changed, 3529 insertions(+)
 
 $ git merge-base --is-ancestor origin/main origin/agent/a2-stage0
 exit=0
@@ -77,7 +77,7 @@ XB-014 tracks the re-review; XB-002 remains Open until A1 confirms the current r
 
 ## A1 second-round response
 
-A1 moved from `90b004f` to `115a7f4` during this round:
+A1 moved from `90b004f` to `30ee4f0` during this round:
 
 | Commit | Change |
 | --- | --- |
@@ -85,13 +85,15 @@ A1 moved from `90b004f` to `115a7f4` during this round:
 | `164360e` | Expose driver DMA callbacks and A2 thread primitives |
 | `c50e385` | Answer the Director's second review; add A1 decisions, A2 review and A3 DMA contract |
 | `115a7f4` | Record second-round evidence and hashes |
+| `30ee4f0` | Give A4 the exact `CODEOWNERS` overrides for A1 artifacts (D-010) |
 
 A1 answers its four Director actions on its branch:
 
 - Namespace: `include/ozero/` only; `include/o0/` removed; `tools/check-headers.sh` rejects the old
   path. A4 aligned D-009 and its map to this choice.
 - Tools ownership: A1 owns `tools/check-headers.sh` and `tests/abi_static_asserts.c`; A4 owns CI
-  integration; A3 owns other `tools/`. A4 aligned D-010 and `CODEOWNERS`.
+  integration; A3 owns other `tools/`. A1 supplied the exact `CODEOWNERS` lines at `30ee4f0`; A4
+  lists A1 and A4 on both files. A4 aligned D-010 and `CODEOWNERS`.
 - A2 review: `docs/a2-interface-review.md` reviews 14 requirement groups with conditions. It is not
   an ABI freeze and is at the older A2 head (XB-014).
 - A3 DMA contract: `docs/a3-dma-contract.md` fixes `struct o0_device_ops` and the Stage 1
@@ -106,7 +108,7 @@ its own branch-protection row to D-031 (XB-015).
 
 | PR | Head | Base | Draft |
 | --- | --- | --- | --- |
-| #1 | `a1/stage0-review` at `115a7f4` | `main` | yes |
+| #1 | `a1/stage0-review` at `30ee4f0` | `main` | yes |
 | #2 | `agent/a2-stage0` at `807c447` | `main` | yes |
 | #3 | `a4/stage0-review-followup` at `210653c` plus documentation and audit commits | `main` | no |
 
