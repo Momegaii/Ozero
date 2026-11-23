@@ -281,3 +281,56 @@ names `6d305b8` / `64b3458`; XB-013 remains Open. A1's raw log is committed at
 `docs/evidence/a1-raw-checks-2026-11-23-r2.txt` (A1 `2693a34`), so XB-016 is Closed. The blocker
 snapshot is **5 Open, 14 Closed, 1 Signed**. Stage 0 remains **NOT ACCEPTED** and D-006 remains
 **Proposed**.
+
+## 11. Sole-agent takeover addendum — 2026-11-23
+
+A4 is the sole active agent under the 23 November 2026 all-work takeover order. It recovered
+A1/A2/A3 work from the existing branches and PRs, preserved authorship, and continued on
+`a4/stage0-review-followup`. It did not restart Stage 0 and did not merge into `main`.
+
+### Current refs
+
+| Ref | Commit | State |
+| --- | --- | --- |
+| `origin/main` | `147cc86` | unchanged |
+| `origin/a1/stage0-review` | `2693a34` | PR #1, open, draft; raw log recovered and re-verified |
+| `origin/agent/a2-stage0` | `d83cfbe` | PR #2, open, draft; code `f6ed1d8`, evidence `d83cfbe` |
+| `origin/a3/stage0-review-response` | `48d434f` | PR #4; integrated into A4 at `44d566e`; still open on GitHub |
+| `origin/a4/stage0-review-followup` | `44d566e` plus this takeover commit | published; PR #3 open |
+
+### Work completed
+
+1. **A1 evidence** — copied `docs/evidence/a1-raw-checks-2026-11-23-r2.txt` to
+   `evidence/a1-stage0/` (source blob `24ce6a9a…`) and re-ran `./tools/check-headers.sh` at A1
+   `2693a34`. The result is `RESULT: PASS`, exit 0. XB-016 stays Closed. This is static header/ABI
+   evidence, not runtime evidence.
+2. **A2 reconciliation** — `docs/architecture/a2-review-ledger-reconciled.md` records code
+   `f6ed1d8`, evidence `d83cfbe`, signed contract `d02598a`, unchanged manifest `f505cb4d…`, and
+   all three signatures. A2's branch ledger remains historical. XB-013 is Closed in the candidate.
+3. **IF-009 v1.1** — `docs/architecture/if-009-v1.1-disposition.md` carries the truncated-header
+   and missing-DLL-name gaps into six required negative cases with L0-only criteria. v1.1 is not
+   signed or implemented. XB-021 is Open.
+4. **A3 integration** — merge `44d566e` adds 56 files: 44 under `a3/`, 12 under `include/ozero/`.
+   No A4 control-plane file changed. A1's ten headers are byte-identical to `74b1471`; A3's
+   `platform.h`/`block.h` match its package. XB-020 is Closed. The file-level map is
+   `docs/architecture/a3-integration-map.md`.
+5. **Checks** — `make -C a3 check` passes 19 tests; `make -C a3 check-a1-headers A1_INCLUDE=include`
+   exits 0; `make clean && make ci` ends `ci: ok` with 5 markers and image SHA-256 `37ad8227…`.
+   Raw output is in `evidence/stage0-review/a3-integration-checks-2026-11-23.log`.
+
+### Blocker snapshot
+
+**4 Open, 16 Closed, 1 Signed.** Open: XB-004, XB-005, XB-012, XB-021. Signed: XB-002. Closed this
+round: XB-013, XB-016, XB-020.
+
+### Decision status
+
+D-008, D-009 and D-010 remain **Approved**. D-001–D-007 and D-011–D-031 remain **Proposed**.
+D-006 is explicitly **not** approved. Stage 0 remains **NOT ACCEPTED**. D-007 and D-021 remain
+Proposed; A3 integration does not authorize AHCI, DMA, GPU or hardware work.
+
+### Still not tested
+
+UEFI, Limine loading an Ozero kernel, Ozero kernel entry, real hardware, PE loading or execution,
+Windows compatibility, A3 driver code, AHCI probe, DMA transfer, GPU execution, A1/A2 integration,
+IF-009 v1.1 negative cases, and branch-protection enforcement.

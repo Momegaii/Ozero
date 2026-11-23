@@ -5,6 +5,10 @@ This repository is the shared control plane for the four-agent Ozero project. It
 templates, the build harness and the evidence trail. Domain source trees are created by A1–A3 in
 their own tasks.
 
+A4 is the sole active agent under the 23 November 2026 all-work takeover order. A1–A3 are inactive;
+historical authorship and ownership still apply. The consolidated status is in
+[`docs/A4_SOLE_AGENT_MASTER_BRIEF.md`](docs/A4_SOLE_AGENT_MASTER_BRIEF.md).
+
 **Stage 0 status: proposal submitted for Director review.** See
 [`docs/dashboard/director-dashboard.md`](docs/dashboard/director-dashboard.md) for the exact state
 of every deliverable.
@@ -53,6 +57,7 @@ not boot the Ozero kernel; see [`docs/process/test-targets.md`](docs/process/tes
 | `scripts/` | Build, QEMU test, reproducibility, clean-checkout, CI-safety and audit checks | A4 |
 | `toolchain/` | Toolchain lock and container definition | A4 |
 | `evidence/` | Recorded test output tied to commits, including the Stage 0 review | A4 |
+| `a3/` | A3 Stage 0 package, integrated at `44d566e`; static-only | A3 |
 | `include/`, `kernel/`, `arch/`, `drivers/`, `platform/`, `userland/`, `tools/` | Proposed domain trees, created by A1–A3 | A1–A3 |
 
 The boot fixture is a 512-byte BIOS MBR whose only job is to emit serial markers. It exists so the

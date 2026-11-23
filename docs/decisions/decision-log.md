@@ -32,7 +32,7 @@ the register wins.
 | D-004 | Approve agent trust boundaries and workspace profiles | **Proposed** | A4 | Project Director | 2026-11-23 | Before Stage 1 | ADR-0004 |
 | D-005 | Choose the boot protocol and kernel handoff (Limine is a candidate only) | **Proposed** | A1 | Project Director | 2026-11-23 | Stage 1 design | IF-001 |
 | D-006 | Accept Stage 0 | **Proposed** | A4 | Project Director | 2026-11-23 | Stage 0 exit | `docs/templates/stage-acceptance.md` |
-| D-007 | Approve the A3 DMA/platform interface and the required A1 sign-off gate | **Proposed** | A1 + A3 | Project Director | 2026-11-23 | Before A3 DMA work | IF-008 v1.1 at A3 `b9a69d8`; A1 **ACCEPT** at A1 `74b1471`; A3 accepted §6 at `307b919`; PR #4 `48d434f` reviewed and merge-clean; Director approval pending |
+| D-007 | Approve the A3 DMA/platform interface and the required A1 sign-off gate | **Proposed** | A1 + A3 | Project Director | 2026-11-23 | Before A3 DMA work | IF-008 v1.1 at A3 `b9a69d8`; A1 **ACCEPT** at A1 `74b1471`; A3 accepted §6 at `307b919`; PR #4 `48d434f` integrated at `44d566e`; Director approval still pending |
 | D-008 | Approve publishing the A4 Stage 0 branch for independent verification | **Approved** | A4 | Project Director | 2026-11-23 | Stage 0 review | [#3](https://github.com/Momegaii/Ozero/pull/3), `evidence/stage0-review/director-review-2026-11-23.md` |
 | D-009 | Adopt `include/ozero/` as the only public header root; remove `include/o0/`; keep `o0_` symbol prefixes; A2/A3 include `<ozero/...>` | **Approved** | A1 + A4 | Project Director | 2026-11-23 | Before A1 merge | A1 `03f8883`, `docs/architecture/ownership.md` |
 | D-010 | A1 owns `tools/check-headers.sh` and `tests/abi_static_asserts.c`; A4 owns CI integration; A3 owns other `tools/`; file-level `CODEOWNERS` overrides | **Approved** | A1 + A4 | Project Director | 2026-11-23 | Before A1 merge | `CODEOWNERS` |
@@ -79,11 +79,12 @@ the register wins.
   was renumbered to D-031 because A1's D-011 already uses that ID.
 - A3 corrected the `include/o0/` citation and now records D-009 as Approved with `include/ozero/`
   at A3 `307b919`, reviewing against A4 `3ae7aca`. XB-018 is Closed. D-009 remains Approved.
-  A3 `307b919` is based on A4 `3ae7aca`; A4 `b4232a0` and PR #3 do not contain A3's `a3/` package
-  or root `include/ozero/` headers (XB-020). This does not change any decision status.
+  A3 `307b919` is based on A4 `3ae7aca`; A4 integrated its package at `44d566e` (XB-020 Closed).
+  Integration does not change any decision status.
 - D-031 remains **Proposed**. The 2026-11-23 recheck records `main` as `protected:false`, no
   repository rulesets and no `CODEOWNERS` on `main`; required checks are not enabled.
-- The R3 audit does not change any decision status. D-006 remains **Proposed** and Stage 0 remains
-  **not accepted**. D-007 and D-021 remain **Proposed**; A3 PR #4 is reviewed and merge-clean but
-  was not merged. IF-009 v1.0 is **Signed**; that is an interface signature, not a Stage 0 or D-006
-  approval.
+- The sole-agent takeover does not change any decision status. D-006 remains **Proposed** and Stage 0
+  remains **not accepted**. D-007 and D-021 remain **Proposed**; A3 PR #4 is integrated into the A4
+  candidate at `44d566e`, but no AHCI, DMA, GPU or hardware work is authorized. IF-009 v1.0 is
+  **Signed**; that is an interface signature, not a Stage 0 or D-006 approval. IF-009 v1.1 gaps are
+  recorded as XB-021 and are not approved.

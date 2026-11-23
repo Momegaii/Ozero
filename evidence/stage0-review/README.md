@@ -6,13 +6,13 @@
 | Repository | `Momegaii/Ozero` |
 | Branch | `a4/stage0-review-followup` (published) |
 | Commit under test | `43961551442009aac8189e5edca3f5c7af43a2cd` (harness baseline) |
-| Current head | `eaca921` plus this R3 audit commit |
-| A1 / A2 / A3 refs | `2693a34` / `d83cfbe` (`f6ed1d8` code, `d83cfbe` evidence) / PR #4 `48d434f` (`b9a69d8` IF-008 v1.1) |
+| Current head | `44d566e` (A3 integration merge) plus this takeover commit |
+| A1 / A2 / A3 refs | `2693a34` / `d83cfbe` (`f6ed1d8` code, `d83cfbe` evidence) / PR #4 `48d434f`, integrated at `44d566e` |
 | Import commit | `5a50c0d28f323372cad5126baf6645df07407975` |
 | Base commit | `147cc86c027cef7cec42525024d26dcccf66d7db` (`origin/main`) |
 | Date | 2026-11-23 |
 | Environment | Debian 13, binutils 2.44, GNU make 4.4.1, bash 5.2.37, QEMU 10.0.13 |
-| Overall | All checks passed; negative tests failed as required |
+| Overall | All checks passed; negative tests failed as required; A3 integrated at `44d566e` and rechecked |
 
 The report required by the review is [`REPORT.md`](REPORT.md). This file indexes the raw output.
 
@@ -23,7 +23,10 @@ The report required by the review is [`REPORT.md`](REPORT.md). This file indexes
 | Toolchain | `scripts/check-toolchain.sh --strict` | 0 | exact reference versions | `toolchain.txt` |
 | Targets | `make targets` | 0 | five targets, one implemented | `targets.txt` |
 | CI safety | `make check-ci-safety` | 0 | 8 files scanned, no findings | `ci-safety.log` |
-| Build and MBR harness smoke | `make clean && make ci` | 0 | 5/5 markers, 223 ms at the R3 audit tree; not kernel boot | `ci.log`, `qemu/` |
+| Build and MBR harness smoke | `make clean && make ci` | 0 | 5/5 markers, 224 ms on the integrated tree; not kernel boot | `a3-integration-checks-2026-11-23.log`, `ci.log`, `qemu/` |
+| A3 package checks | `make -C a3 check` | 0 | 19 tests, `OK`; matrix and deliverables pass | `a3-integration-checks-2026-11-23.log` |
+| A3 A1-header check | `make -C a3 check-a1-headers A1_INCLUDE=include` | 0 | A1 headers compile against A3 | `a3-integration-checks-2026-11-23.log` |
+| A1 re-verification | `./tools/check-headers.sh` at A1 `2693a34` | 0 | `RESULT: PASS`; static only | `../a1-stage0/a4-verification-2026-11-23.txt` |
 | Reproducibility | `make verify-repro` | 0 | image, ELF and manifest identical | `repro.log` |
 | Clean checkout | `make verify-clean` | 0 | fresh clone at `4396155` passed | `clean-checkout.log` |
 | Missing marker | `scripts/test-qemu.sh` with an extra marker | 1 | failed as required | `negative-missing-marker.log` |
@@ -56,6 +59,16 @@ manifest records `commit: unknown` inside both reproducibility copies.
 | `cross-agent-verification-2026-11-23-r4.md` | Round-4 record; corrected by r5 because it wrongly called A3 integrated on A4 |
 | `cross-agent-verification-2026-11-23-r5.md` | R2 audit: A3/A4 path and ancestry proof, corrected XB-003, blocker snapshot, ownership and governance |
 | `cross-agent-verification-2026-11-23-r6.md` | R3 audit: PR #4 review, header hashes, clean merge test, A2 pair, A1 raw log, blocker snapshot |
+| `takeover-baseline-2026-11-23.txt` | Sole-agent takeover live baseline: refs, PRs, runs and local state |
+| `a3-integration-verification-2026-11-23.md` | Sole-agent takeover: A3 merge `44d566e`, tree/header proof and checks |
+| `a3-integration-checks-2026-11-23.log` | Raw `make -C a3 check`, `check-a1-headers` and `make ci` output on the integrated tree |
+| `final-takeover-checks-2026-11-23.log` | Final `make check-ci-safety` and `make ci` at the takeover tree |
+| `../../docs/architecture/a3-integration-map.md` | File-level ownership map for all 56 A3 files |
+| `../../docs/architecture/a2-review-ledger-reconciled.md` | A2 ledger reconciliation at `f6ed1d8` / `d83cfbe` |
+| `../../docs/architecture/if-009-v1.1-disposition.md` | IF-009 v1.1 negative-case disposition (XB-021) |
+| `../../evidence/a1-stage0/` | A1 raw log copy and A4 re-verification at `2693a34` |
+| `../../docs/A4_SOLE_AGENT_MASTER_BRIEF.md` | One consolidated A4 master brief source |
+| `../../Ozero_A4_Sole_Agent_Master_Brief_2026-11-23.pdf` | One consolidated A4 master brief PDF; no separate A1/A2/A3 briefs generated |
 | `cross-agent-commands-2026-11-23-r3.log` | Raw commands for round-3 heads, stale references and GitHub settings |
 | `cross-agent-commands-2026-11-23-r4.log` | Raw commands for round-4 heads, ancestry, checks and governance |
 | `cross-agent-commands-2026-11-23-r5.log` | Raw commands for the R2 audit: A4 tree, A3 tree, PR #3 file list, checks and API state |
@@ -92,13 +105,11 @@ make verify-clean
 
 - QEMU TCG is not real hardware.
 - The image is the A4 MBR harness fixture, not the Ozero kernel.
-- A1, A2 and A3 have review branches, but none is integrated. A3's package is static-only; no
-  AHCI probe, DMA transfer or device test ran. No cross-agent interface or driver test has run.
-- A3 PR [#4](https://github.com/Momegaii/Ozero/pull/4) at `48d434f` is reviewed and merge-clean from
-  A4 `eaca921`, but A4 did **not** merge it. D-007 and D-021 remain Proposed and the integration
-  checklist requires Director authorization. A4 `eaca921` and PR #3 contain no `a3/` or root
-  `include/ozero/` paths (XB-020).
-- IF-009 v1.0 is Signed and XB-003 is Closed, but A2's ledger still names `6d305b8` / `64b3458`
-  while the current pair is `f6ed1d8` / `d83cfbe` (XB-013).
+- A3 is integrated into the A4 candidate at `44d566e`, but A3's package is static-only; no AHCI
+  probe, DMA transfer, GPU execution or device test ran. A1 and A2 are not integrated.
+- PR [#4](https://github.com/Momegaii/Ozero/pull/4) at `48d434f` is integrated into the A4 branch,
+  not merged to `main`. D-007 and D-021 remain Proposed; XB-020 is Closed.
+- IF-009 v1.0 is Signed and XB-003 is Closed. A4 reconciled A2's ledger at `f6ed1d8` / `d83cfbe`
+  (XB-013 Closed). IF-009 v1.1 gaps remain Open as XB-021.
 - The branch is published and Stage 0 PR [#3](https://github.com/Momegaii/Ozero/pull/3) is open.
-  Stage 0 is still not accepted. A3 PR #4 is open against the A4 branch, not `main`.
+  Stage 0 is still not accepted. D-006 remains Proposed.

@@ -41,12 +41,13 @@ public root, and `tools/check-headers.sh` rejects `include/o0/`. `tools/check-he
 A3 owns `include/ozero/platform.h` and `include/ozero/block.h` for IF-008, with A1 as the required
 reviewer. A1 recorded **ACCEPT** for IF-008 v1.1 at A3 `b9a69d8` in A1 `74b1471`; A3 accepted all
 eight §6 conditions at `307b919` (XB-019 Closed). A3 PR [#4](https://github.com/Momegaii/Ozero/pull/4)
-adds the package under `a3/` and the root headers on top of A4 `b4232a0`; the final diff is 56 files,
-44 under `a3/` and 12 under `include/ozero/`, with no A4 control-plane file changed. `CODEOWNERS`
-now lists `/a3/` as A3-owned with A4 co-review. A4 `eaca921` and PR #3 still contain no `a3/` or
-root `include/ozero/` paths, so A3 is not integrated (XB-020). On merge, the vendored header
-snapshots are not authoritative and must not replace A1's files (XB-017 Closed). The file-level
-`CODEOWNERS` entries for the two A3-owned interface files override the directory rule.
+is integrated into the A4 candidate as merge commit `44d566e`: 56 files, 44 under `a3/` and 12 under
+`include/ozero/`, with no A4 control-plane file changed. `CODEOWNERS` lists `/a3/` as A3-owned with
+A4 co-review. A1's ten root headers are byte-identical to `74b1471`; A3's `platform.h` and `block.h`
+match its package. The vendored header snapshots under `a3/include/ozero/` are not authoritative and
+do not replace A1's files (XB-017 and XB-020 Closed). The file-level `CODEOWNERS` entries for the two
+A3-owned interface files override the directory rule. Integration is not a hardware result: XB-005,
+D-007 and D-021 remain open or Proposed.
 
 `CODEOWNERS` is the enforced copy of this table. If the two disagree, `CODEOWNERS` wins at review
 time and this document is a bug.

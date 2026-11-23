@@ -8,6 +8,11 @@ Ozero (o0) is a four-agent engineering project. A4 owns this control-plane repos
 process, repository contracts, build/test automation, integration quality and evidence tracking.
 A1–A3 own their domain source trees and the technical correctness of their subsystems.
 
+A4 is the sole active agent under the 23 November 2026 all-work takeover order. A1–A3 are inactive
+because their sandboxes exhausted their usage. Historical authorship and ownership still apply;
+A4 continues their work without relabeling it. One consolidated A4 brief is maintained in
+`docs/A4_SOLE_AGENT_MASTER_BRIEF.md`.
+
 ## Commands
 
 ```sh
