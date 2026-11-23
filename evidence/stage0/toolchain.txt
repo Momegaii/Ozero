@@ -1,0 +1,15 @@
+$ scripts/check-toolchain.sh --strict
+toolchain lock: /workspace/project/toolchain/toolchain.lock
+mode: strict
+
+ok    as       2.44 (exact)
+ok    ld       2.44 (exact)
+ok    objcopy  2.44 (exact)
+ok    make     4.4.1 (exact)
+ok    bash     5.2.37 (exact)
+ok    qemu     10.0.13 (exact)
+
+Reference environment for recorded evidence: Debian 13
+
+check-toolchain: ok
+exit=0

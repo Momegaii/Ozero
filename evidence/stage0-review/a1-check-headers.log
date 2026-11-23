@@ -1,0 +1,24 @@
+== standalone header compilation ==
+PASS  boot.h
+PASS  cpu.h
+PASS  driver.h
+PASS  ipc.h
+PASS  irq.h
+PASS  mm.h
+PASS  o0.h
+PASS  status.h
+PASS  thread.h
+PASS  types.h
+== umbrella header, C and C++ ==
+PASS  ozero/o0.h (C11)
+PASS  ozero/o0.h (C++17)
+== ABI static assertions ==
+PASS  tests/abi_static_asserts.c
+== generic-interface device neutrality ==
+PASS  no device-class or GPU-generation terms in include/ozero
+== freestanding headers only ==
+PASS  no hosted libc headers in include/ozero
+== public namespace ==
+PASS  no include/o0
+PASS  no legacy o0/ includes
+RESULT: PASS

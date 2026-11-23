@@ -1,0 +1,8 @@
+$ make verify-repro
+verify-repro: building copy 1
+verify-repro: building copy 2
+ok    ozero-stage0.img   37ad8227720cd7f40b1393a8ad554a78f76d08b09ff97be68b1d2579f5e15319
+ok    ozero-stage0.elf   4e2b74c41b38888430f649eb95548ae2c5ebe29e63db97ff19e43ed087825665
+ok    manifest.json      6a6be1bdd7ed43520843fbe48252a8e7c4305eac266cecb1649d486e39e477d7
+verify-repro: ok at e12983e29c07cc987e813f605f178ce76d1dce85
+exit=0

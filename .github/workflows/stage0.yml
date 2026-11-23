@@ -1,0 +1,58 @@
+name: stage0
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-boot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install QEMU
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86
+
+      - name: Record toolchain
+        run: |
+          make check-toolchain
+          {
+            echo "### Toolchain"
+            echo '```'
+            as --version | head -1
+            ld --version | head -1
+            make --version | head -1
+            qemu-system-x86_64 --version | head -1
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Build
+        run: make build
+
+      - name: CI safety policy
+        run: make check-ci-safety
+
+      - name: Boot smoke test
+        run: make test-mbr-harness
+
+      - name: Reproducibility
+        run: make verify-repro
+
+      - name: Clean-checkout validation
+        run: make verify-clean
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage0-evidence
+          path: build/
+          if-no-files-found: warn

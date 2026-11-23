@@ -1,0 +1,34 @@
+# Ozero ownership map. Machine-readable copy of docs/architecture/ownership.md.
+# Order matters: the last matching pattern wins.
+# Team slugs are proposals pending Director confirmation (ADR-0001).
+
+*                                   @ozero/a4-integration
+
+# Control plane: A4 owns, Director co-reviews decisions.
+/docs/                              @ozero/a4-integration
+/docs/adr/                          @ozero/a4-integration @ozero/director
+/docs/dashboard/                    @ozero/a4-integration @ozero/director
+/scripts/                           @ozero/a4-integration
+/tests/                             @ozero/a4-integration
+/harness/                           @ozero/a4-integration
+/toolchain/                         @ozero/a4-integration
+/.github/                           @ozero/a4-integration
+/CODEOWNERS                         @ozero/a4-integration @ozero/director
+/AGENTS.md                          @ozero/a4-integration
+
+# Shared interface surface: A1 owns, A4 reviews, consumers read.
+/include/ozero/                     @ozero/a1-kernel @ozero/a4-integration
+
+# Proposed domain trees.
+/kernel/                            @ozero/a1-kernel
+/arch/                              @ozero/a1-kernel
+/drivers/                           @ozero/a2-platform
+/platform/                          @ozero/a2-platform
+/userland/                          @ozero/a3-userland
+/userland/platform/dma/             @ozero/a3-userland @ozero/a1-kernel
+/tools/                             @ozero/a3-userland
+/tools/check-headers.sh             @ozero/a1-kernel @ozero/a4-integration
+/tests/abi_static_asserts.c         @ozero/a1-kernel @ozero/a4-integration
+
+# Third-party intake is pinned and reviewed by A4 plus the consuming owner.
+/third_party/                       @ozero/a4-integration

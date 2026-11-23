@@ -1,0 +1,6 @@
+id	status	owner	depends_on	command	proves	does_not_prove
+mbr-harness-smoke	implemented	A4	-	make test-mbr-harness	512-byte BIOS MBR fixture boots in QEMU; serial markers appear in order; missing markers, corrupt images and timeouts fail non-zero	UEFI boot; Limine; kernel entry; Ozero kernel boot; real-hardware compatibility
+future-limine-kernel-boot	not-implemented	A1	D-005, IF-001, A1 Limine handoff	make test-limine	planned: Limine loads the Ozero kernel and reaches the documented handoff state	anything until A1 supplies the image and the handoff contract
+header-contract	not-started	A1	IF-006	make test-headers	planned: public headers compile for every consumer and match the interface registry	ABI behaviour; runtime correctness
+pe-static-analysis	not-started	A2	IF-009	make test-pe-static	planned: static inspection of PE fixtures without executing them	runtime behaviour; Windows compatibility
+hardware-matrix-check	not-started	A4/A3	hardware access, A3 device tests	make test-hardware	planned: boot and device checks on named physical machines	anything until hardware is available

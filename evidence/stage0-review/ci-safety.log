@@ -1,0 +1,13 @@
+$ make check-ci-safety
+check-ci-safety: ok (8 files scanned)
+exit=0
+
+$ printf "#!/bin/sh\\ndocker run --privileged alpine true\\n" > scripts/tmp-ci-safety-violation.sh
+$ scripts/check-ci-safety.sh
+FAIL  privileged container
+/workspace/Ozero/scripts/tmp-ci-safety-violation.sh:2:docker run --privileged alpine true
+
+check-ci-safety: FAIL
+Normal CI must not use privileges, raw disks or third-party Windows binaries.
+See docs/process/ci-safety.md.
+exit=1

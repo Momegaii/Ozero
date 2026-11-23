@@ -1,0 +1,9 @@
+$ make targets
+TARGET                         STATUS           OWNER    COMMAND
+------------------------------ ---------------- -------- -------
+mbr-harness-smoke              implemented      A4       make test-mbr-harness
+future-limine-kernel-boot      not-implemented  A1       make test-limine
+header-contract                not-started      A1       make test-headers
+pe-static-analysis             not-started      A2       make test-pe-static
+hardware-matrix-check          not-started      A4/A3    make test-hardware
+exit=0

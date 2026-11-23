@@ -1,0 +1,36 @@
+$ make verify-clean
+verify-clean: cloning e12983e29c07cc987e813f605f178ce76d1dce85 into a temporary directory
+verify-clean: running make ci in the clone
+make[1]: Entering directory '<tmp>/repo'
+toolchain lock: <tmp>/repo/toolchain/toolchain.lock
+mode: minimum
+
+ok    as       2.44 (>= 2.42)
+ok    ld       2.44 (>= 2.42)
+ok    objcopy  2.44 (>= 2.42)
+ok    make     4.4.1 (>= 4.3)
+ok    bash     5.2.37 (>= 5.1)
+ok    qemu     10.0.13 (>= 8.0)
+
+check-toolchain: ok
+build: assembling harness/fixture/boot.S
+build: linking at 0x7C00
+build: ok
+  image  build/ozero-stage0.img  (512 bytes)
+  sha256 37ad8227720cd7f40b1393a8ad554a78f76d08b09ff97be68b1d2579f5e15319
+  elf    build/ozero-stage0.elf  (debug symbols retained)
+  map    build/ozero-stage0.map
+  commit e12983e29c07cc987e813f605f178ce76d1dce85
+qemu boot smoke test
+status:   pass
+image:    build/ozero-stage0.img
+sha256:   37ad8227720cd7f40b1393a8ad554a78f76d08b09ff97be68b1d2579f5e15319
+qemu:     QEMU emulator version 10.0.13 (Debian 1:10.0.13+ds-0+deb13u1)
+timeout:  20s
+duration: 226ms
+serial:   build/qemu/serial.log
+test: ok (5 markers in order)
+ci: ok
+make[1]: Leaving directory '<tmp>/repo'
+verify-clean: ok at e12983e29c07cc987e813f605f178ce76d1dce85
+exit=0

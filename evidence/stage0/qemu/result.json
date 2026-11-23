@@ -1,0 +1,16 @@
+{
+  "schema": "ozero.test.result/v1",
+  "test": "qemu-boot-smoke",
+  "status": "pass",
+  "image": "build/ozero-stage0.img",
+  "image_sha256": "37ad8227720cd7f40b1393a8ad554a78f76d08b09ff97be68b1d2579f5e15319",
+  "qemu_version": "QEMU emulator version 10.0.13 (Debian 1:10.0.13+ds-0+deb13u1)",
+  "timeout_s": 20,
+  "duration_ms": 225,
+  "markers_expected": ["OZERO-STAGE0-BOOT","OZERO-STAGE0-HARNESS=fixture","OZERO-STAGE0-MODE=real16","OZERO-STAGE0-SERIAL=ok","OZERO-STAGE0-OK"],
+  "markers_missing": [],
+  "markers_out_of_order": [],
+  "serial_log": "build/qemu/serial.log",
+  "debug_log": "build/qemu/qemu-debug.log",
+  "command": ["qemu-system-x86_64","-machine","pc","-accel","tcg,thread=single","-m","128M","-nodefaults","-display","none","-monitor","none","-nic","none","-no-reboot","-boot","c","-serial","file:build/qemu/serial.log","-drive","file=build/ozero-stage0.img,format=raw,if=ide,index=0,media=disk","-device","isa-debug-exit,iobase=0x501,iosize=0x04","-d","guest_errors","-D","build/qemu/qemu-debug.log"]
+}

@@ -1,0 +1,830 @@
+$ make check-static
+python3 tools/corpus_lint.py
+PASS manifest                     policy.honesty                           present
+PASS manifest                     policy.redistribution                    present
+PASS manifest                     policy.claims                            present
+PASS manifest                     policy.sandbox                           present
+PASS manifest                     policy.execution_gate                    present
+PASS manifest                     required_categories_non_empty            ['console', 'gui', 'file-process', 'dotnet', 'directx']
+PASS manifest                     category_defined.console                 defined
+PASS manifest                     category_defined.gui                     defined
+PASS manifest                     category_defined.file-process            defined
+PASS manifest                     category_defined.dotnet                  defined
+PASS manifest                     category_defined.directx                 defined
+PASS manifest                     entry_count                              17 entries
+PASS a2-console-hello             id_format                                a2-console-hello
+PASS a2-console-hello             category_known                           console
+PASS a2-console-hello             tier_known                               fixture
+PASS a2-console-hello             supporting_flag                          False
+PASS a2-console-hello             field_name                               A2 console hello
+PASS a2-console-hello             field_version                            built from fixtures/src/console_hello.c
+PASS a2-console-hello             field_license                            repository license
+PASS a2-console-hello             field_expected_behavior                  Prints 'a2 console fixture: compute=22 module=<non-null>' an
+PASS a2-console-hello             field_prerequisites                      4 items
+PASS a2-console-hello             field_apis_exercised                     4 items
+PASS a2-console-hello             field_pass_criteria                      4 items
+PASS a2-console-hello             field_fail_signals                       4 items
+PASS a2-console-hello             source_type                              repo
+PASS a2-console-hello             fixture_source_exists                    fixtures/src/console_hello.c
+PASS a2-console-hello             fixture_has_no_hash                      hash not required for locally built files
+PASS a2-console-hello             static_status_known                      done
+PASS a2-console-hello             static_tool                              tools/pe_inspect.py
+PASS a2-console-hello             static_command                           python3 tools/pe_inspect.py build/console_hello.exe
+PASS a2-console-hello             static_date                              2026-11-23
+PASS a2-console-hello             static_observed                          {'format': 'PE32+ amd64 windows-cui', 'imports': '7 DLLs / 3
+PASS a2-console-hello             execution_status_known                   not-run
+PASS a2-console-hello             not_run_has_no_observed_results          no observed results recorded
+PASS a2-console-hello             not_run_has_reason                       no Windows-compatible runtime exists yet (A1 loader primitiv
+PASS a2-console-hello             no_unmeasured_compatibility_claim        no absolute claim
+PASS a2-console-hello             evidence_level_known                     L0
+PASS a2-console-hello             L0_requires_static_analysis              static=done
+PASS a2-console-hello             static_done_means_L0                     level=L0
+PASS a2-console-hello             sandbox_flag_boolean                     False
+PASS a2-console-hello             fixture_has_manifest                     fixture_id=console_hello manifest=fixtures/build-manifest.json
+PASS a2-console-hello             fixture_manifest_loaded                  fixtures/build-manifest.json
+PASS a2-console-hello             fixture_manifest_entry                   console_hello
+PASS a2-console-hello             fixture_source_path                      fixtures/src/console_hello.c
+PASS a2-console-hello             fixture_source_hash_matches              actual=63ccdb77707949a6… manifest=63ccdb77707949a6…
+PASS a2-cpp-exceptions            id_format                                a2-cpp-exceptions
+PASS a2-cpp-exceptions            category_known                           console
+PASS a2-cpp-exceptions            tier_known                               fixture
+PASS a2-cpp-exceptions            supporting_flag                          False
+PASS a2-cpp-exceptions            field_name                               A2 C++ exception unwind
+PASS a2-cpp-exceptions            field_version                            built from fixtures/src/cpp_throw.cpp
+PASS a2-cpp-exceptions            field_license                            repository license
+PASS a2-cpp-exceptions            field_expected_behavior                  Prints 'a2 c++ fixture: caught=42' and exits with code 0.
+PASS a2-cpp-exceptions            field_prerequisites                      4 items
+PASS a2-cpp-exceptions            field_apis_exercised                     4 items
+PASS a2-cpp-exceptions            field_pass_criteria                      4 items
+PASS a2-cpp-exceptions            field_fail_signals                       4 items
+PASS a2-cpp-exceptions            source_type                              repo
+PASS a2-cpp-exceptions            fixture_source_exists                    fixtures/src/cpp_throw.cpp
+PASS a2-cpp-exceptions            fixture_has_no_hash                      hash not required for locally built files
+PASS a2-cpp-exceptions            static_status_known                      done
+PASS a2-cpp-exceptions            static_tool                              tools/pe_inspect.py
+PASS a2-cpp-exceptions            static_command                           python3 tools/pe_inspect.py build/cpp_throw.exe
+PASS a2-cpp-exceptions            static_date                              2026-11-23
+PASS a2-cpp-exceptions            static_observed                          {'format': 'PE32+ amd64 windows-cui', 'imports': '9 DLLs / 5
+PASS a2-cpp-exceptions            execution_status_known                   not-run
+PASS a2-cpp-exceptions            not_run_has_no_observed_results          no observed results recorded
+PASS a2-cpp-exceptions            not_run_has_reason                       requires SEH dispatch and C++ runtime
+PASS a2-cpp-exceptions            no_unmeasured_compatibility_claim        no absolute claim
+PASS a2-cpp-exceptions            evidence_level_known                     L0
+PASS a2-cpp-exceptions            L0_requires_static_analysis              static=done
+PASS a2-cpp-exceptions            static_done_means_L0                     level=L0
+PASS a2-cpp-exceptions            sandbox_flag_boolean                     False
+PASS a2-cpp-exceptions            fixture_has_manifest                     fixture_id=cpp_throw manifest=fixtures/build-manifest.json
+PASS a2-cpp-exceptions            fixture_manifest_loaded                  fixtures/build-manifest.json
+PASS a2-cpp-exceptions            fixture_manifest_entry                   cpp_throw
+PASS a2-cpp-exceptions            fixture_source_path                      fixtures/src/cpp_throw.cpp
+PASS a2-cpp-exceptions            fixture_source_hash_matches              actual=10d50c5be2e7a97d… manifest=10d50c5be2e7a97d…
+PASS a2-gui-messagebox            id_format                                a2-gui-messagebox
+PASS a2-gui-messagebox            category_known                           gui
+PASS a2-gui-messagebox            tier_known                               fixture
+PASS a2-gui-messagebox            supporting_flag                          False
+PASS a2-gui-messagebox            field_name                               A2 GUI message box
+PASS a2-gui-messagebox            field_version                            built from fixtures/src/gui_messagebox.c
+PASS a2-gui-messagebox            field_license                            repository license
+PASS a2-gui-messagebox            field_expected_behavior                  Shows a message box titled 'Ozero A2' and exits with code 0 
+PASS a2-gui-messagebox            field_prerequisites                      5 items
+PASS a2-gui-messagebox            field_apis_exercised                     4 items
+PASS a2-gui-messagebox            field_pass_criteria                      4 items
+PASS a2-gui-messagebox            field_fail_signals                       4 items
+PASS a2-gui-messagebox            source_type                              repo
+PASS a2-gui-messagebox            fixture_source_exists                    fixtures/src/gui_messagebox.c
+PASS a2-gui-messagebox            fixture_has_no_hash                      hash not required for locally built files
+PASS a2-gui-messagebox            static_status_known                      done
+PASS a2-gui-messagebox            static_tool                              tools/pe_inspect.py
+PASS a2-gui-messagebox            static_command                           python3 tools/pe_inspect.py build/gui_messagebox.exe
+PASS a2-gui-messagebox            static_date                              2026-11-23
+PASS a2-gui-messagebox            static_observed                          {'format': 'PE32+ amd64 windows-gui', 'imports': '8 DLLs / 4
+PASS a2-gui-messagebox            execution_status_known                   not-run
+PASS a2-gui-messagebox            not_run_has_no_observed_results          no observed results recorded
+PASS a2-gui-messagebox            not_run_has_reason                       requires a windowing subsystem
+PASS a2-gui-messagebox            no_unmeasured_compatibility_claim        no absolute claim
+PASS a2-gui-messagebox            evidence_level_known                     L0
+PASS a2-gui-messagebox            L0_requires_static_analysis              static=done
+PASS a2-gui-messagebox            static_done_means_L0                     level=L0
+PASS a2-gui-messagebox            sandbox_flag_boolean                     False
+PASS a2-gui-messagebox            fixture_has_manifest                     fixture_id=gui_messagebox manifest=fixtures/build-manifest.json
+PASS a2-gui-messagebox            fixture_manifest_loaded                  fixtures/build-manifest.json
+PASS a2-gui-messagebox            fixture_manifest_entry                   gui_messagebox
+PASS a2-gui-messagebox            fixture_source_path                      fixtures/src/gui_messagebox.c
+PASS a2-gui-messagebox            fixture_source_hash_matches              actual=65074a6321e83e10… manifest=65074a6321e83e10…
+PASS a2-fileproc                  id_format                                a2-fileproc
+PASS a2-fileproc                  category_known                           file-process
+PASS a2-fileproc                  tier_known                               fixture
+PASS a2-fileproc                  supporting_flag                          False
+PASS a2-fileproc                  field_name                               A2 file and process APIs
+PASS a2-fileproc                  field_version                            built from fixtures/src/fileproc.c
+PASS a2-fileproc                  field_license                            repository license
+PASS a2-fileproc                  field_expected_behavior                  Creates a pipe, writes and reads 4 bytes, creates and delete
+PASS a2-fileproc                  field_prerequisites                      6 items
+PASS a2-fileproc                  field_apis_exercised                     12 items
+PASS a2-fileproc                  field_pass_criteria                      4 items
+PASS a2-fileproc                  field_fail_signals                       4 items
+PASS a2-fileproc                  source_type                              repo
+PASS a2-fileproc                  fixture_source_exists                    fixtures/src/fileproc.c
+PASS a2-fileproc                  fixture_has_no_hash                      hash not required for locally built files
+PASS a2-fileproc                  static_status_known                      done
+PASS a2-fileproc                  static_tool                              tools/pe_inspect.py
+PASS a2-fileproc                  static_command                           python3 tools/pe_inspect.py build/fileproc.exe
+PASS a2-fileproc                  static_date                              2026-11-23
+PASS a2-fileproc                  static_observed                          {'format': 'PE32+ amd64 windows-cui', 'imports': '7 DLLs / 4
+PASS a2-fileproc                  execution_status_known                   not-run
+PASS a2-fileproc                  not_run_has_no_observed_results          no observed results recorded
+PASS a2-fileproc                  not_run_has_reason                       requires A1 process, handle and I/O primitives
+PASS a2-fileproc                  no_unmeasured_compatibility_claim        no absolute claim
+PASS a2-fileproc                  evidence_level_known                     L0
+PASS a2-fileproc                  L0_requires_static_analysis              static=done
+PASS a2-fileproc                  static_done_means_L0                     level=L0
+PASS a2-fileproc                  sandbox_flag_boolean                     False
+PASS a2-fileproc                  fixture_has_manifest                     fixture_id=fileproc manifest=fixtures/build-manifest.json
+PASS a2-fileproc                  fixture_manifest_loaded                  fixtures/build-manifest.json
+PASS a2-fileproc                  fixture_manifest_entry                   fileproc
+PASS a2-fileproc                  fixture_source_path                      fixtures/src/fileproc.c
+PASS a2-fileproc                  fixture_source_hash_matches              actual=3e34988ee52a2953… manifest=3e34988ee52a2953…
+PASS a2-tls-dll                   id_format                                a2-tls-dll
+PASS a2-tls-dll                   category_known                           native-library
+PASS a2-tls-dll                   tier_known                               fixture
+PASS a2-tls-dll                   supporting_flag                          True
+PASS a2-tls-dll                   field_name                               A2 TLS callback DLL
+PASS a2-tls-dll                   field_version                            built from fixtures/src/tls_dll.c
+PASS a2-tls-dll                   field_license                            repository license
+PASS a2-tls-dll                   field_expected_behavior                  A host process loads the DLL, calls a2_add(2,3)=5 and a2_get
+PASS a2-tls-dll                   field_prerequisites                      5 items
+PASS a2-tls-dll                   field_apis_exercised                     4 items
+PASS a2-tls-dll                   field_pass_criteria                      4 items
+PASS a2-tls-dll                   field_fail_signals                       4 items
+PASS a2-tls-dll                   source_type                              repo
+PASS a2-tls-dll                   fixture_source_exists                    fixtures/src/tls_dll.c
+PASS a2-tls-dll                   fixture_has_no_hash                      hash not required for locally built files
+PASS a2-tls-dll                   static_status_known                      done
+PASS a2-tls-dll                   static_tool                              tools/pe_inspect.py
+PASS a2-tls-dll                   static_command                           python3 tools/pe_inspect.py build/tls_dll.dll
+PASS a2-tls-dll                   static_date                              2026-11-23
+PASS a2-tls-dll                   static_observed                          {'format': 'PE32+ amd64 windows-gui dll', 'exports': '2 name
+PASS a2-tls-dll                   execution_status_known                   not-run
+PASS a2-tls-dll                   not_run_has_no_observed_results          no observed results recorded
+PASS a2-tls-dll                   not_run_has_reason                       requires a host process and LoadLibrary semantics
+PASS a2-tls-dll                   no_unmeasured_compatibility_claim        no absolute claim
+PASS a2-tls-dll                   evidence_level_known                     L0
+PASS a2-tls-dll                   L0_requires_static_analysis              static=done
+PASS a2-tls-dll                   static_done_means_L0                     level=L0
+PASS a2-tls-dll                   sandbox_flag_boolean                     False
+PASS a2-tls-dll                   fixture_has_manifest                     fixture_id=tls_dll manifest=fixtures/build-manifest.json
+PASS a2-tls-dll                   fixture_manifest_loaded                  fixtures/build-manifest.json
+PASS a2-tls-dll                   fixture_manifest_entry                   tls_dll
+PASS a2-tls-dll                   fixture_source_path                      fixtures/src/tls_dll.c
+PASS a2-tls-dll                   fixture_source_hash_matches              actual=d560b6fb4b3f3d89… manifest=d560b6fb4b3f3d89…
+PASS 7zr-standalone               id_format                                7zr-standalone
+PASS 7zr-standalone               category_known                           console
+PASS 7zr-standalone               tier_known                               open-source
+PASS 7zr-standalone               supporting_flag                          False
+PASS 7zr-standalone               field_name                               7-Zip standalone console (7zr.exe)
+PASS 7zr-standalone               field_version                            as published on 7-zip.org (recorded by SHA-256)
+PASS 7zr-standalone               field_license                            LGPL-2.1-or-later with unRAR restriction
+PASS 7zr-standalone               field_expected_behavior                  `7zr.exe i` prints its version banner and the list of suppor
+PASS 7zr-standalone               field_prerequisites                      4 items
+PASS 7zr-standalone               field_apis_exercised                     7 items
+PASS 7zr-standalone               field_pass_criteria                      3 items
+PASS 7zr-standalone               field_fail_signals                       4 items
+PASS 7zr-standalone               source_type                              download
+PASS 7zr-standalone               source_url                               https://www.7-zip.org/a/7zr.exe
+PASS 7zr-standalone               sha256_format                            256feca8e274e5da655e2a284fabafd9f554365eb164862089dacd4e8276d282
+PASS 7zr-standalone               static_status_known                      done
+PASS 7zr-standalone               static_tool                              tools/pe_inspect.py
+PASS 7zr-standalone               static_command                           python3 tools/pe_inspect.py .cache/7zr.exe
+PASS 7zr-standalone               static_date                              2026-11-23
+PASS 7zr-standalone               static_observed                          {'format': 'PE32 i386 windows-cui', 'imports': '5 DLLs / 139
+PASS 7zr-standalone               execution_status_known                   not-run
+PASS 7zr-standalone               not_run_has_no_observed_results          no observed results recorded
+PASS 7zr-standalone               not_run_has_reason                       requires 32-bit user-mode support
+PASS 7zr-standalone               no_unmeasured_compatibility_claim        no absolute claim
+PASS 7zr-standalone               evidence_level_known                     L0
+PASS 7zr-standalone               L0_requires_static_analysis              static=done
+PASS 7zr-standalone               static_done_means_L0                     level=L0
+PASS 7zr-standalone               sandbox_flag_boolean                     True
+PASS 7zr-standalone               third_party_requires_sandbox             True
+PASS 7zr-standalone               provenance_present                       present
+PASS 7zr-standalone               provenance_retrieved_key                 2026-11-23
+PASS 7zr-standalone               provenance_no_redistribution             False
+PASS 7zr-standalone               provenance_verify_sha256                 sha256
+PASS 7zr-standalone               provenance_method                        https download with SHA-256 verification
+PASS notepad-plus-plus            id_format                                notepad-plus-plus
+PASS notepad-plus-plus            category_known                           gui
+PASS notepad-plus-plus            tier_known                               open-source
+PASS notepad-plus-plus            supporting_flag                          False
+PASS notepad-plus-plus            field_name                               Notepad++ (portable)
+PASS notepad-plus-plus            field_version                            8.x portable x64
+PASS notepad-plus-plus            field_license                            GPL-3.0-or-later
+PASS notepad-plus-plus            field_expected_behavior                  Window opens, a file can be opened, edited and saved with th
+PASS notepad-plus-plus            field_prerequisites                      5 items
+PASS notepad-plus-plus            field_apis_exercised                     6 items
+PASS notepad-plus-plus            field_pass_criteria                      4 items
+PASS notepad-plus-plus            field_fail_signals                       4 items
+PASS notepad-plus-plus            source_type                              download
+PASS notepad-plus-plus            source_url                               https://notepad-plus-plus.org/downloads/
+PASS notepad-plus-plus            hash_pending_declared                    binary not downloaded in this environment; pin the SHA-256 b
+PASS notepad-plus-plus            unpinned_binary_not_executed             execution is not-run
+PASS notepad-plus-plus            static_status_known                      not-run
+PASS notepad-plus-plus            static_not_run_has_reason                not downloaded in this environment
+PASS notepad-plus-plus            execution_status_known                   not-run
+PASS notepad-plus-plus            not_run_has_no_observed_results          no observed results recorded
+PASS notepad-plus-plus            not_run_has_reason                       requires USER/GDI implementation
+PASS notepad-plus-plus            no_unmeasured_compatibility_claim        no absolute claim
+PASS notepad-plus-plus            evidence_level_known                     none
+PASS notepad-plus-plus            unpinned_binary_is_unanalysed            level=none
+PASS notepad-plus-plus            sandbox_flag_boolean                     True
+PASS notepad-plus-plus            third_party_requires_sandbox             True
+PASS notepad-plus-plus            provenance_present                       present
+PASS notepad-plus-plus            provenance_retrieved_key                 None
+PASS notepad-plus-plus            provenance_no_redistribution             False
+PASS notepad-plus-plus            provenance_verify_sha256                 sha256
+PASS notepad-plus-plus            provenance_method                        operator-supplied; hash not yet pinned
+PASS paint-dotnet                 id_format                                paint-dotnet
+PASS paint-dotnet                 category_known                           dotnet
+PASS paint-dotnet                 tier_known                               commercial
+PASS paint-dotnet                 supporting_flag                          False
+PASS paint-dotnet                 field_name                               Paint.NET
+PASS paint-dotnet                 field_version                            5.x
+PASS paint-dotnet                 field_license                            freeware, proprietary (no redistribution)
+PASS paint-dotnet                 field_expected_behavior                  Application starts, opens an image, applies a fixed effect a
+PASS paint-dotnet                 field_prerequisites                      5 items
+PASS paint-dotnet                 field_apis_exercised                     4 items
+PASS paint-dotnet                 field_pass_criteria                      4 items
+PASS paint-dotnet                 field_fail_signals                       4 items
+PASS paint-dotnet                 source_type                              download
+PASS paint-dotnet                 source_url                               https://www.getpaint.net/download.html
+PASS paint-dotnet                 hash_pending_declared                    binary not downloaded in this environment; pin the SHA-256 b
+PASS paint-dotnet                 unpinned_binary_not_executed             execution is not-run
+PASS paint-dotnet                 static_status_known                      not-run
+PASS paint-dotnet                 static_not_run_has_reason                proprietary binary not downloaded
+PASS paint-dotnet                 execution_status_known                   not-run
+PASS paint-dotnet                 not_run_has_no_observed_results          no observed results recorded
+PASS paint-dotnet                 not_run_has_reason                       requires CLR plus GDI+ and a GPU path
+PASS paint-dotnet                 no_unmeasured_compatibility_claim        no absolute claim
+PASS paint-dotnet                 evidence_level_known                     none
+PASS paint-dotnet                 unpinned_binary_is_unanalysed            level=none
+PASS paint-dotnet                 sandbox_flag_boolean                     True
+PASS paint-dotnet                 third_party_requires_sandbox             True
+PASS paint-dotnet                 provenance_present                       present
+PASS paint-dotnet                 provenance_retrieved_key                 None
+PASS paint-dotnet                 provenance_no_redistribution             False
+PASS paint-dotnet                 provenance_verify_sha256                 sha256
+PASS paint-dotnet                 provenance_method                        operator-supplied; hash not yet pinned
+PASS 7zip-file-ops                id_format                                7zip-file-ops
+PASS 7zip-file-ops                category_known                           file-process
+PASS 7zip-file-ops                tier_known                               open-source
+PASS 7zip-file-ops                supporting_flag                          False
+PASS 7zip-file-ops                field_name                               7-Zip console (7z.exe) archive round-trip
+PASS 7zip-file-ops                field_version                            24.x x64
+PASS 7zip-file-ops                field_license                            LGPL-2.1-or-later
+PASS 7zip-file-ops                field_expected_behavior                  `7z a -t7z out.7z <dir>` then `7z x` reproduces the input tr
+PASS 7zip-file-ops                field_prerequisites                      4 items
+PASS 7zip-file-ops                field_apis_exercised                     7 items
+PASS 7zip-file-ops                field_pass_criteria                      4 items
+PASS 7zip-file-ops                field_fail_signals                       4 items
+PASS 7zip-file-ops                source_type                              download
+PASS 7zip-file-ops                source_url                               https://www.7-zip.org/download.html
+PASS 7zip-file-ops                hash_pending_declared                    binary not downloaded in this environment; pin the SHA-256 b
+PASS 7zip-file-ops                unpinned_binary_not_executed             execution is not-run
+PASS 7zip-file-ops                static_status_known                      not-run
+PASS 7zip-file-ops                static_not_run_has_reason                x64 package not downloaded in this environment
+PASS 7zip-file-ops                execution_status_known                   not-run
+PASS 7zip-file-ops                not_run_has_no_observed_results          no observed results recorded
+PASS 7zip-file-ops                not_run_has_reason                       requires threading and file semantics
+PASS 7zip-file-ops                no_unmeasured_compatibility_claim        no absolute claim
+PASS 7zip-file-ops                evidence_level_known                     none
+PASS 7zip-file-ops                unpinned_binary_is_unanalysed            level=none
+PASS 7zip-file-ops                sandbox_flag_boolean                     True
+PASS 7zip-file-ops                third_party_requires_sandbox             True
+PASS 7zip-file-ops                provenance_present                       present
+PASS 7zip-file-ops                provenance_retrieved_key                 None
+PASS 7zip-file-ops                provenance_no_redistribution             False
+PASS 7zip-file-ops                provenance_verify_sha256                 sha256
+PASS 7zip-file-ops                provenance_method                        operator-supplied; hash not yet pinned
+PASS curl-windows                 id_format                                curl-windows
+PASS curl-windows                 category_known                           file-process
+PASS curl-windows                 tier_known                               open-source
+PASS curl-windows                 supporting_flag                          False
+PASS curl-windows                 field_name                               curl for Windows
+PASS curl-windows                 field_version                            8.x win64
+PASS curl-windows                 field_license                            curl license (MIT-like)
+PASS curl-windows                 field_expected_behavior                  `curl --version` prints the version and protocol list; `curl
+PASS curl-windows                 field_prerequisites                      5 items
+PASS curl-windows                 field_apis_exercised                     6 items
+PASS curl-windows                 field_pass_criteria                      4 items
+PASS curl-windows                 field_fail_signals                       4 items
+PASS curl-windows                 source_type                              download
+PASS curl-windows                 source_url                               https://curl.se/windows/
+PASS curl-windows                 hash_pending_declared                    binary not downloaded in this environment; pin the SHA-256 b
+PASS curl-windows                 unpinned_binary_not_executed             execution is not-run
+PASS curl-windows                 static_status_known                      not-run
+PASS curl-windows                 static_not_run_has_reason                not downloaded in this environment
+PASS curl-windows                 execution_status_known                   not-run
+PASS curl-windows                 not_run_has_no_observed_results          no observed results recorded
+PASS curl-windows                 not_run_has_reason                       requires Winsock and a TLS provider
+PASS curl-windows                 no_unmeasured_compatibility_claim        no absolute claim
+PASS curl-windows                 evidence_level_known                     none
+PASS curl-windows                 unpinned_binary_is_unanalysed            level=none
+PASS curl-windows                 sandbox_flag_boolean                     True
+PASS curl-windows                 third_party_requires_sandbox             True
+PASS curl-windows                 provenance_present                       present
+PASS curl-windows                 provenance_retrieved_key                 None
+PASS curl-windows                 provenance_no_redistribution             False
+PASS curl-windows                 provenance_verify_sha256                 sha256
+PASS curl-windows                 provenance_method                        operator-supplied; hash not yet pinned
+PASS a2-dotnet-hello              id_format                                a2-dotnet-hello
+PASS a2-dotnet-hello              category_known                           dotnet
+PASS a2-dotnet-hello              tier_known                               fixture
+PASS a2-dotnet-hello              supporting_flag                          False
+PASS a2-dotnet-hello              field_name                               A2 managed hello (framework-dependent and self-contained)
+PASS a2-dotnet-hello              field_version                            planned; .NET 8
+PASS a2-dotnet-hello              field_license                            repository license
+PASS a2-dotnet-hello              field_expected_behavior                  Prints 'a2 dotnet fixture' and exits 0, both framework-depen
+PASS a2-dotnet-hello              field_prerequisites                      4 items
+PASS a2-dotnet-hello              field_apis_exercised                     4 items
+PASS a2-dotnet-hello              field_pass_criteria                      3 items
+PASS a2-dotnet-hello              field_fail_signals                       3 items
+PASS a2-dotnet-hello              source_type                              planned
+PASS a2-dotnet-hello              fixture_has_no_hash                      hash not required for locally built files
+PASS a2-dotnet-hello              static_status_known                      not-run
+PASS a2-dotnet-hello              static_not_run_has_reason                no .NET SDK in this environment
+PASS a2-dotnet-hello              execution_status_known                   not-run
+PASS a2-dotnet-hello              not_run_has_no_observed_results          no observed results recorded
+PASS a2-dotnet-hello              not_run_has_reason                       no CLR host exists
+PASS a2-dotnet-hello              no_unmeasured_compatibility_claim        no absolute claim
+PASS a2-dotnet-hello              evidence_level_known                     none
+PASS a2-dotnet-hello              sandbox_flag_boolean                     False
+PASS newtonsoft-json              id_format                                newtonsoft-json
+PASS newtonsoft-json              category_known                           dotnet
+PASS newtonsoft-json              tier_known                               open-source
+PASS newtonsoft-json              supporting_flag                          True
+PASS newtonsoft-json              field_name                               Newtonsoft.Json 13.0.3 (net20 assembly)
+PASS newtonsoft-json              field_version                            13.0.3
+PASS newtonsoft-json              field_license                            MIT
+PASS newtonsoft-json              field_expected_behavior                  Used as a library, not an application: a host can load the a
+PASS newtonsoft-json              field_prerequisites                      3 items
+PASS newtonsoft-json              field_apis_exercised                     3 items
+PASS newtonsoft-json              field_pass_criteria                      3 items
+PASS newtonsoft-json              field_fail_signals                       3 items
+PASS newtonsoft-json              source_type                              download
+PASS newtonsoft-json              source_url                               https://www.nuget.org/api/v2/package/Newtonsoft.Json/13.0.3
+PASS newtonsoft-json              sha256_format                            0f89b82c6b76816b17286951ba83201c71b6611f3e75e907552247dfc72034f2
+PASS newtonsoft-json              static_status_known                      done
+PASS newtonsoft-json              static_tool                              tools/pe_inspect.py
+PASS newtonsoft-json              static_command                           python3 tools/pe_inspect.py .cache/Newtonsoft.Json.dll
+PASS newtonsoft-json              static_date                              2026-11-23
+PASS newtonsoft-json              static_observed                          {'format': 'PE32 i386 windows-cui dll', 'clr': 'cb=72, runti
+PASS newtonsoft-json              execution_status_known                   not-run
+PASS newtonsoft-json              not_run_has_no_observed_results          no observed results recorded
+PASS newtonsoft-json              not_run_has_reason                       requires a CLR host
+PASS newtonsoft-json              no_unmeasured_compatibility_claim        no absolute claim
+PASS newtonsoft-json              evidence_level_known                     L0
+PASS newtonsoft-json              L0_requires_static_analysis              static=done
+PASS newtonsoft-json              static_done_means_L0                     level=L0
+PASS newtonsoft-json              sandbox_flag_boolean                     True
+PASS newtonsoft-json              third_party_requires_sandbox             True
+PASS newtonsoft-json              provenance_present                       present
+PASS newtonsoft-json              provenance_retrieved_key                 2026-11-23
+PASS newtonsoft-json              provenance_no_redistribution             False
+PASS newtonsoft-json              provenance_verify_sha256                 sha256
+PASS newtonsoft-json              provenance_method                        https download with SHA-256 verification
+PASS powershell-7                 id_format                                powershell-7
+PASS powershell-7                 category_known                           dotnet
+PASS powershell-7                 tier_known                               open-source
+PASS powershell-7                 supporting_flag                          False
+PASS powershell-7                 field_name                               PowerShell 7 (win-x64, self-contained)
+PASS powershell-7                 field_version                            7.4.x
+PASS powershell-7                 field_license                            MIT
+PASS powershell-7                 field_expected_behavior                  `pwsh -NoLogo -Command "1+1"` prints 2 and exits 0.
+PASS powershell-7                 field_prerequisites                      5 items
+PASS powershell-7                 field_apis_exercised                     5 items
+PASS powershell-7                 field_pass_criteria                      4 items
+PASS powershell-7                 field_fail_signals                       3 items
+PASS powershell-7                 source_type                              download
+PASS powershell-7                 source_url                               https://github.com/PowerShell/PowerShell/releases
+PASS powershell-7                 hash_pending_declared                    binary not downloaded in this environment; pin the SHA-256 b
+PASS powershell-7                 unpinned_binary_not_executed             execution is not-run
+PASS powershell-7                 static_status_known                      not-run
+PASS powershell-7                 static_not_run_has_reason                not downloaded in this environment
+PASS powershell-7                 execution_status_known                   not-run
+PASS powershell-7                 not_run_has_no_observed_results          no observed results recorded
+PASS powershell-7                 not_run_has_reason                       requires a CLR host
+PASS powershell-7                 no_unmeasured_compatibility_claim        no absolute claim
+PASS powershell-7                 evidence_level_known                     none
+PASS powershell-7                 unpinned_binary_is_unanalysed            level=none
+PASS powershell-7                 sandbox_flag_boolean                     True
+PASS powershell-7                 third_party_requires_sandbox             True
+PASS powershell-7                 provenance_present                       present
+PASS powershell-7                 provenance_retrieved_key                 None
+PASS powershell-7                 provenance_no_redistribution             False
+PASS powershell-7                 provenance_verify_sha256                 sha256
+PASS powershell-7                 provenance_method                        operator-supplied; hash not yet pinned
+PASS markupsafe-pyd               id_format                                markupsafe-pyd
+PASS markupsafe-pyd               category_known                           native-library
+PASS markupsafe-pyd               tier_known                               open-source
+PASS markupsafe-pyd               supporting_flag                          True
+PASS markupsafe-pyd               field_name                               MarkupSafe 3.0.4 native extension (win_amd64)
+PASS markupsafe-pyd               field_version                            3.0.4
+PASS markupsafe-pyd               field_license                            BSD-3-Clause
+PASS markupsafe-pyd               field_expected_behavior                  A host can load the module and call PyInit__speedups when a 
+PASS markupsafe-pyd               field_prerequisites                      4 items
+PASS markupsafe-pyd               field_apis_exercised                     4 items
+PASS markupsafe-pyd               field_pass_criteria                      3 items
+PASS markupsafe-pyd               field_fail_signals                       3 items
+PASS markupsafe-pyd               source_type                              download
+PASS markupsafe-pyd               source_url                               https://pypi.org/project/MarkupSafe/3.0.4/#files
+PASS markupsafe-pyd               sha256_format                            79d6891d23e7bb5acfae0ab87b2c8d59431450724999e9cfc3deb8877e1f4cb9
+PASS markupsafe-pyd               static_status_known                      done
+PASS markupsafe-pyd               static_tool                              tools/pe_inspect.py
+PASS markupsafe-pyd               static_command                           python3 tools/pe_inspect.py .cache/_speedups.cp311-win_amd64
+PASS markupsafe-pyd               static_date                              2026-11-23
+PASS markupsafe-pyd               static_observed                          {'format': 'PE32+ amd64 windows-gui dll', 'imports': '4 DLLs
+PASS markupsafe-pyd               execution_status_known                   not-run
+PASS markupsafe-pyd               not_run_has_no_observed_results          no observed results recorded
+PASS markupsafe-pyd               not_run_has_reason                       requires a Python host
+PASS markupsafe-pyd               no_unmeasured_compatibility_claim        no absolute claim
+PASS markupsafe-pyd               evidence_level_known                     L0
+PASS markupsafe-pyd               L0_requires_static_analysis              static=done
+PASS markupsafe-pyd               static_done_means_L0                     level=L0
+PASS markupsafe-pyd               sandbox_flag_boolean                     True
+PASS markupsafe-pyd               third_party_requires_sandbox             True
+PASS markupsafe-pyd               provenance_present                       present
+PASS markupsafe-pyd               provenance_retrieved_key                 2026-11-23
+PASS markupsafe-pyd               provenance_no_redistribution             False
+PASS markupsafe-pyd               provenance_verify_sha256                 sha256
+PASS markupsafe-pyd               provenance_method                        https download with SHA-256 verification
+PASS imgui-d3d11                  id_format                                imgui-d3d11
+PASS imgui-d3d11                  category_known                           directx
+PASS imgui-d3d11                  tier_known                               open-source
+PASS imgui-d3d11                  supporting_flag                          False
+PASS imgui-d3d11                  field_name                               Dear ImGui example_win32_directx11
+PASS imgui-d3d11                  field_version                            1.90.x
+PASS imgui-d3d11                  field_license                            MIT
+PASS imgui-d3d11                  field_expected_behavior                  A window with the ImGui demo renders continuously and exits 
+PASS imgui-d3d11                  field_prerequisites                      5 items
+PASS imgui-d3d11                  field_apis_exercised                     4 items
+PASS imgui-d3d11                  field_pass_criteria                      4 items
+PASS imgui-d3d11                  field_fail_signals                       4 items
+PASS imgui-d3d11                  source_type                              external-repo
+PASS imgui-d3d11                  source_url                               https://github.com/ocornut/imgui
+PASS imgui-d3d11                  hash_pending_declared                    binary not downloaded in this environment; pin the SHA-256 b
+PASS imgui-d3d11                  unpinned_binary_not_executed             execution is not-run
+PASS imgui-d3d11                  static_status_known                      not-run
+PASS imgui-d3d11                  static_not_run_has_reason                not built in this environment (needs MSVC and Windows SDK)
+PASS imgui-d3d11                  execution_status_known                   not-run
+PASS imgui-d3d11                  not_run_has_no_observed_results          no observed results recorded
+PASS imgui-d3d11                  not_run_has_reason                       requires A3 graphics stack
+PASS imgui-d3d11                  no_unmeasured_compatibility_claim        no absolute claim
+PASS imgui-d3d11                  evidence_level_known                     none
+PASS imgui-d3d11                  unpinned_binary_is_unanalysed            level=none
+PASS imgui-d3d11                  sandbox_flag_boolean                     True
+PASS imgui-d3d11                  third_party_requires_sandbox             True
+PASS imgui-d3d11                  provenance_present                       present
+PASS imgui-d3d11                  provenance_retrieved_key                 None
+PASS imgui-d3d11                  provenance_no_redistribution             False
+PASS imgui-d3d11                  provenance_verify_sha256                 sha256
+PASS imgui-d3d11                  provenance_method                        operator-supplied; hash not yet pinned
+PASS d3d12-miniengine             id_format                                d3d12-miniengine
+PASS d3d12-miniengine             category_known                           directx
+PASS d3d12-miniengine             tier_known                               open-source
+PASS d3d12-miniengine             supporting_flag                          False
+PASS d3d12-miniengine             field_name                               DirectX-Graphics-Samples MiniEngine
+PASS d3d12-miniengine             field_version                            current main
+PASS d3d12-miniengine             field_license                            MIT
+PASS d3d12-miniengine             field_expected_behavior                  Renders the sample scene at a stable frame rate and exits on
+PASS d3d12-miniengine             field_prerequisites                      5 items
+PASS d3d12-miniengine             field_apis_exercised                     5 items
+PASS d3d12-miniengine             field_pass_criteria                      4 items
+PASS d3d12-miniengine             field_fail_signals                       3 items
+PASS d3d12-miniengine             source_type                              external-repo
+PASS d3d12-miniengine             source_url                               https://github.com/microsoft/DirectX-Graphics-Samples
+PASS d3d12-miniengine             hash_pending_declared                    binary not downloaded in this environment; pin the SHA-256 b
+PASS d3d12-miniengine             unpinned_binary_not_executed             execution is not-run
+PASS d3d12-miniengine             static_status_known                      not-run
+PASS d3d12-miniengine             static_not_run_has_reason                not built in this environment
+PASS d3d12-miniengine             execution_status_known                   not-run
+PASS d3d12-miniengine             not_run_has_no_observed_results          no observed results recorded
+PASS d3d12-miniengine             not_run_has_reason                       requires D3D12 plus a WDDM-equivalent driver model
+PASS d3d12-miniengine             no_unmeasured_compatibility_claim        no absolute claim
+PASS d3d12-miniengine             evidence_level_known                     none
+PASS d3d12-miniengine             unpinned_binary_is_unanalysed            level=none
+PASS d3d12-miniengine             sandbox_flag_boolean                     True
+PASS d3d12-miniengine             third_party_requires_sandbox             True
+PASS d3d12-miniengine             provenance_present                       present
+PASS d3d12-miniengine             provenance_retrieved_key                 None
+PASS d3d12-miniengine             provenance_no_redistribution             False
+PASS d3d12-miniengine             provenance_verify_sha256                 sha256
+PASS d3d12-miniengine             provenance_method                        operator-supplied; hash not yet pinned
+PASS vkd3d-proton-tests           id_format                                vkd3d-proton-tests
+PASS vkd3d-proton-tests           category_known                           directx
+PASS vkd3d-proton-tests           tier_known                               open-source
+PASS vkd3d-proton-tests           supporting_flag                          True
+PASS vkd3d-proton-tests           field_name                               vkd3d-proton test suite (conformance reference)
+PASS vkd3d-proton-tests           field_version                            current main
+PASS vkd3d-proton-tests           field_license                            LGPL-2.1
+PASS vkd3d-proton-tests           field_expected_behavior                  Serves as a reference for what a D3D12 implementation must d
+PASS vkd3d-proton-tests           field_prerequisites                      3 items
+PASS vkd3d-proton-tests           field_apis_exercised                     3 items
+PASS vkd3d-proton-tests           field_pass_criteria                      1 items
+PASS vkd3d-proton-tests           field_fail_signals                       1 items
+PASS vkd3d-proton-tests           source_type                              external-repo
+PASS vkd3d-proton-tests           source_url                               https://github.com/HansKristian-Work/vkd3d-proton
+PASS vkd3d-proton-tests           hash_pending_declared                    binary not downloaded in this environment; pin the SHA-256 b
+PASS vkd3d-proton-tests           unpinned_binary_not_executed             execution is not-run
+PASS vkd3d-proton-tests           static_status_known                      not-run
+PASS vkd3d-proton-tests           static_not_run_has_reason                reference only
+PASS vkd3d-proton-tests           execution_status_known                   not-run
+PASS vkd3d-proton-tests           not_run_has_no_observed_results          no observed results recorded
+PASS vkd3d-proton-tests           not_run_has_reason                       not an Ozero target
+PASS vkd3d-proton-tests           no_unmeasured_compatibility_claim        no absolute claim
+PASS vkd3d-proton-tests           evidence_level_known                     none
+PASS vkd3d-proton-tests           unpinned_binary_is_unanalysed            level=none
+PASS vkd3d-proton-tests           sandbox_flag_boolean                     True
+PASS vkd3d-proton-tests           third_party_requires_sandbox             True
+PASS vkd3d-proton-tests           provenance_present                       present
+PASS vkd3d-proton-tests           provenance_retrieved_key                 None
+PASS vkd3d-proton-tests           provenance_no_redistribution             False
+PASS vkd3d-proton-tests           provenance_verify_sha256                 sha256
+PASS vkd3d-proton-tests           provenance_method                        operator-supplied; hash not yet pinned
+PASS coverage                     console_has_two_entries                  3 entries
+PASS coverage                     console_has_executable_entry             3 non-supporting
+PASS coverage                     gui_has_two_entries                      2 entries
+PASS coverage                     gui_has_executable_entry                 2 non-supporting
+PASS coverage                     file-process_has_two_entries             3 entries
+PASS coverage                     file-process_has_executable_entry        3 non-supporting
+PASS coverage                     dotnet_has_two_entries                   4 entries
+PASS coverage                     dotnet_has_executable_entry              3 non-supporting
+PASS coverage                     directx_has_two_entries                  3 entries
+PASS coverage                     directx_has_executable_entry             2 non-supporting
+
+559 checks, 0 failed
+python3 tools/docs_check.py
+PASS README.md                                  exists                         README.md
+PASS docs/00-compatibility-scope.md             exists                         docs/00-compatibility-scope.md
+PASS docs/00-compatibility-scope.md             linked_from_readme             link present
+PASS docs/00-compatibility-scope.md             reporting_field_status         present
+PASS docs/00-compatibility-scope.md             reporting_field_evidence       present
+PASS docs/00-compatibility-scope.md             reporting_field_decisions_needed present
+PASS docs/00-compatibility-scope.md             reporting_field_risks          present
+PASS docs/00-compatibility-scope.md             reporting_field_next_step      present
+PASS docs/00-compatibility-scope.md             has_sources_section            sources section
+PASS docs/00-compatibility-scope.md             cites_a_source                 9 urls
+PASS docs/00-compatibility-scope.md             local_link_resolves            ../data/test-corpus.json
+PASS docs/00-compatibility-scope.md             local_link_resolves            01-pe-loader-requirements.md
+PASS docs/00-compatibility-scope.md             local_link_resolves            09-open-questions.md
+PASS docs/00-compatibility-scope.md             local_link_resolves            05-risk-report.md
+PASS docs/00-compatibility-scope.md             local_link_resolves            07-stage7-milestone.md
+PASS docs/00-compatibility-scope.md             local_link_resolves            07-stage7-milestone.md
+PASS docs/00-compatibility-scope.md             local_link_resolves            ../data/test-corpus.json
+PASS docs/00-compatibility-scope.md             local_link_resolves            03-a1-interface-requirements.md
+PASS docs/00-compatibility-scope.md             local_link_resolves            08-a3-graphics-requirements.md
+PASS docs/00-compatibility-scope.md             local_link_resolves            evidence/docs-check.txt
+PASS docs/00-compatibility-scope.md             local_link_resolves            evidence/corpus-lint.txt
+PASS docs/00-compatibility-scope.md             local_link_resolves            01-pe-loader-requirements.md
+PASS docs/01-pe-loader-requirements.md          exists                         docs/01-pe-loader-requirements.md
+PASS docs/01-pe-loader-requirements.md          linked_from_readme             link present
+PASS docs/01-pe-loader-requirements.md          reporting_field_status         present
+PASS docs/01-pe-loader-requirements.md          reporting_field_evidence       present
+PASS docs/01-pe-loader-requirements.md          reporting_field_decisions_needed present
+PASS docs/01-pe-loader-requirements.md          reporting_field_risks          present
+PASS docs/01-pe-loader-requirements.md          reporting_field_next_step      present
+PASS docs/01-pe-loader-requirements.md          has_sources_section            sources section
+PASS docs/01-pe-loader-requirements.md          cites_a_source                 7 urls
+PASS docs/01-pe-loader-requirements.md          local_link_resolves            ../data/pe32plus-structures.json
+PASS docs/01-pe-loader-requirements.md          local_link_resolves            evidence/pe-structure-checks.txt
+PASS docs/01-pe-loader-requirements.md          local_link_resolves            evidence/pe-inspect.txt
+PASS docs/01-pe-loader-requirements.md          local_link_resolves            05-risk-report.md
+PASS docs/01-pe-loader-requirements.md          local_link_resolves            07-stage7-milestone.md
+PASS docs/01-pe-loader-requirements.md          local_link_resolves            ../data/pe32plus-structures.json
+PASS docs/01-pe-loader-requirements.md          local_link_resolves            ../data/pe32plus-structures.json
+PASS docs/01-pe-loader-requirements.md          local_link_resolves            10-technical-findings.md
+PASS docs/01-pe-loader-requirements.md          local_link_resolves            02-nt-win32-dependency-map.md
+PASS docs/02-nt-win32-dependency-map.md         exists                         docs/02-nt-win32-dependency-map.md
+PASS docs/02-nt-win32-dependency-map.md         linked_from_readme             link present
+PASS docs/02-nt-win32-dependency-map.md         reporting_field_status         present
+PASS docs/02-nt-win32-dependency-map.md         reporting_field_evidence       present
+PASS docs/02-nt-win32-dependency-map.md         reporting_field_decisions_needed present
+PASS docs/02-nt-win32-dependency-map.md         reporting_field_risks          present
+PASS docs/02-nt-win32-dependency-map.md         reporting_field_next_step      present
+PASS docs/02-nt-win32-dependency-map.md         has_sources_section            sources section
+PASS docs/02-nt-win32-dependency-map.md         cites_a_source                 8 urls
+PASS docs/02-nt-win32-dependency-map.md         local_link_resolves            01-pe-loader-requirements.md
+PASS docs/02-nt-win32-dependency-map.md         local_link_resolves            evidence/pe-inspect.txt
+PASS docs/02-nt-win32-dependency-map.md         local_link_resolves            ../data/test-corpus.json
+PASS docs/02-nt-win32-dependency-map.md         local_link_resolves            05-risk-report.md
+PASS docs/02-nt-win32-dependency-map.md         local_link_resolves            03-a1-interface-requirements.md
+PASS docs/02-nt-win32-dependency-map.md         local_link_resolves            03-a1-interface-requirements.md
+PASS docs/03-a1-interface-requirements.md       exists                         docs/03-a1-interface-requirements.md
+PASS docs/03-a1-interface-requirements.md       linked_from_readme             link present
+PASS docs/03-a1-interface-requirements.md       reporting_field_status         present
+PASS docs/03-a1-interface-requirements.md       reporting_field_evidence       present
+PASS docs/03-a1-interface-requirements.md       reporting_field_decisions_needed present
+PASS docs/03-a1-interface-requirements.md       reporting_field_risks          present
+PASS docs/03-a1-interface-requirements.md       reporting_field_next_step      present
+PASS docs/03-a1-interface-requirements.md       has_sources_section            sources section
+PASS docs/03-a1-interface-requirements.md       cites_a_source                 5 urls
+PASS docs/03-a1-interface-requirements.md       local_link_resolves            01-pe-loader-requirements.md
+PASS docs/03-a1-interface-requirements.md       local_link_resolves            02-nt-win32-dependency-map.md
+PASS docs/03-a1-interface-requirements.md       local_link_resolves            00-compatibility-scope.md
+PASS docs/03-a1-interface-requirements.md       local_link_resolves            01-pe-loader-requirements.md
+PASS docs/04-test-corpus.md                     exists                         docs/04-test-corpus.md
+PASS docs/04-test-corpus.md                     linked_from_readme             link present
+PASS docs/04-test-corpus.md                     reporting_field_status         present
+PASS docs/04-test-corpus.md                     reporting_field_evidence       present
+PASS docs/04-test-corpus.md                     reporting_field_decisions_needed present
+PASS docs/04-test-corpus.md                     reporting_field_risks          present
+PASS docs/04-test-corpus.md                     reporting_field_next_step      present
+PASS docs/04-test-corpus.md                     has_sources_section            sources section
+PASS docs/04-test-corpus.md                     cites_a_source                 5 urls
+PASS docs/04-test-corpus.md                     local_link_resolves            ../data/test-corpus.json
+PASS docs/04-test-corpus.md                     local_link_resolves            evidence/corpus-lint.txt
+PASS docs/04-test-corpus.md                     local_link_resolves            evidence/pe-inspect.txt
+PASS docs/04-test-corpus.md                     local_link_resolves            05-risk-report.md
+PASS docs/04-test-corpus.md                     local_link_resolves            ../data/test-corpus.json
+PASS docs/04-test-corpus.md                     local_link_resolves            ../data/test-corpus.json
+PASS docs/04-test-corpus.md                     local_link_resolves            09-open-questions.md
+PASS docs/05-risk-report.md                     exists                         docs/05-risk-report.md
+PASS docs/05-risk-report.md                     linked_from_readme             link present
+PASS docs/05-risk-report.md                     reporting_field_status         present
+PASS docs/05-risk-report.md                     reporting_field_evidence       present
+PASS docs/05-risk-report.md                     reporting_field_decisions_needed present
+PASS docs/05-risk-report.md                     reporting_field_risks          present
+PASS docs/05-risk-report.md                     reporting_field_next_step      present
+PASS docs/05-risk-report.md                     has_sources_section            sources section
+PASS docs/05-risk-report.md                     cites_a_source                 7 urls
+PASS docs/05-risk-report.md                     local_link_resolves            00-compatibility-scope.md
+PASS docs/05-risk-report.md                     local_link_resolves            09-open-questions.md
+PASS docs/05-risk-report.md                     local_link_resolves            01-pe-loader-requirements.md
+PASS docs/05-risk-report.md                     local_link_resolves            02-nt-win32-dependency-map.md
+PASS docs/05-risk-report.md                     local_link_resolves            07-stage7-milestone.md
+PASS docs/05-risk-report.md                     local_link_resolves            01-pe-loader-requirements.md
+PASS docs/06-reactos-review.md                  exists                         docs/06-reactos-review.md
+PASS docs/06-reactos-review.md                  linked_from_readme             link present
+PASS docs/06-reactos-review.md                  reporting_field_status         present
+PASS docs/06-reactos-review.md                  reporting_field_evidence       present
+PASS docs/06-reactos-review.md                  reporting_field_decisions_needed present
+PASS docs/06-reactos-review.md                  reporting_field_risks          present
+PASS docs/06-reactos-review.md                  reporting_field_next_step      present
+PASS docs/06-reactos-review.md                  has_sources_section            sources section
+PASS docs/06-reactos-review.md                  cites_a_source                 5 urls
+PASS docs/07-stage7-milestone.md                exists                         docs/07-stage7-milestone.md
+PASS docs/07-stage7-milestone.md                linked_from_readme             link present
+PASS docs/07-stage7-milestone.md                reporting_field_status         present
+PASS docs/07-stage7-milestone.md                reporting_field_evidence       present
+PASS docs/07-stage7-milestone.md                reporting_field_decisions_needed present
+PASS docs/07-stage7-milestone.md                reporting_field_risks          present
+PASS docs/07-stage7-milestone.md                reporting_field_next_step      present
+PASS docs/07-stage7-milestone.md                has_sources_section            sources section
+PASS docs/07-stage7-milestone.md                cites_a_source                 5 urls
+PASS docs/07-stage7-milestone.md                local_link_resolves            01-pe-loader-requirements.md
+PASS docs/07-stage7-milestone.md                local_link_resolves            03-a1-interface-requirements.md
+PASS docs/07-stage7-milestone.md                local_link_resolves            05-risk-report.md
+PASS docs/07-stage7-milestone.md                local_link_resolves            evidence/pe-inspect.txt
+PASS docs/08-a3-graphics-requirements.md        exists                         docs/08-a3-graphics-requirements.md
+PASS docs/08-a3-graphics-requirements.md        linked_from_readme             link present
+PASS docs/08-a3-graphics-requirements.md        reporting_field_status         present
+PASS docs/08-a3-graphics-requirements.md        reporting_field_evidence       present
+PASS docs/08-a3-graphics-requirements.md        reporting_field_decisions_needed present
+PASS docs/08-a3-graphics-requirements.md        reporting_field_risks          present
+PASS docs/08-a3-graphics-requirements.md        reporting_field_next_step      present
+PASS docs/08-a3-graphics-requirements.md        has_sources_section            sources section
+PASS docs/08-a3-graphics-requirements.md        cites_a_source                 6 urls
+PASS docs/08-a3-graphics-requirements.md        local_link_resolves            05-risk-report.md
+PASS docs/09-open-questions.md                  exists                         docs/09-open-questions.md
+PASS docs/09-open-questions.md                  linked_from_readme             link present
+PASS docs/09-open-questions.md                  reporting_field_status         present
+PASS docs/09-open-questions.md                  reporting_field_evidence       present
+PASS docs/09-open-questions.md                  reporting_field_decisions_needed present
+PASS docs/09-open-questions.md                  reporting_field_risks          present
+PASS docs/09-open-questions.md                  reporting_field_next_step      present
+PASS docs/09-open-questions.md                  has_sources_section            sources section
+PASS docs/09-open-questions.md                  cites_a_source                 7 urls
+PASS docs/09-open-questions.md                  local_link_resolves            05-risk-report.md
+PASS docs/09-open-questions.md                  local_link_resolves            02-nt-win32-dependency-map.md
+PASS docs/10-technical-findings.md              exists                         docs/10-technical-findings.md
+PASS docs/10-technical-findings.md              linked_from_readme             link present
+PASS docs/10-technical-findings.md              reporting_field_status         present
+PASS docs/10-technical-findings.md              reporting_field_evidence       present
+PASS docs/10-technical-findings.md              reporting_field_decisions_needed present
+PASS docs/10-technical-findings.md              reporting_field_risks          present
+PASS docs/10-technical-findings.md              reporting_field_next_step      present
+PASS docs/10-technical-findings.md              has_sources_section            sources section
+PASS docs/10-technical-findings.md              cites_a_source                 11 urls
+PASS docs/10-technical-findings.md              local_link_resolves            evidence/technical-findings.txt
+PASS docs/10-technical-findings.md              local_link_resolves            evidence/negative-tests.txt
+PASS docs/10-technical-findings.md              local_link_resolves            ../fixtures/build-manifest.json
+PASS docs/10-technical-findings.md              local_link_resolves            01-pe-loader-requirements.md
+PASS docs/10-technical-findings.md              local_link_resolves            evidence/negative-tests.txt
+PASS docs/11-stage0-review-response.md          exists                         docs/11-stage0-review-response.md
+PASS docs/11-stage0-review-response.md          linked_from_readme             link present
+PASS docs/11-stage0-review-response.md          reporting_field_status         present
+PASS docs/11-stage0-review-response.md          reporting_field_evidence       present
+PASS docs/11-stage0-review-response.md          reporting_field_decisions_needed present
+PASS docs/11-stage0-review-response.md          reporting_field_risks          present
+PASS docs/11-stage0-review-response.md          reporting_field_next_step      present
+PASS docs/11-stage0-review-response.md          has_sources_section            sources section
+PASS docs/11-stage0-review-response.md          cites_a_source                 9 urls
+PASS docs/11-stage0-review-response.md          local_link_resolves            05-risk-report.md
+PASS docs/11-stage0-review-response.md          local_link_resolves            03-a1-interface-requirements.md
+PASS docs/11-stage0-review-response.md          local_link_resolves            10-technical-findings.md
+PASS docs/11-stage0-review-response.md          local_link_resolves            12-a1-contract-review.md
+PASS docs/11-stage0-review-response.md          local_link_resolves            07-stage7-milestone.md
+PASS docs/11-stage0-review-response.md          local_link_resolves            04-test-corpus.md
+PASS docs/11-stage0-review-response.md          local_link_resolves            01-pe-loader-requirements.md
+PASS docs/11-stage0-review-response.md          local_link_resolves            10-technical-findings.md
+PASS docs/11-stage0-review-response.md          local_link_resolves            10-technical-findings.md
+PASS docs/11-stage0-review-response.md          local_link_resolves            00-compatibility-scope.md
+PASS docs/11-stage0-review-response.md          local_link_resolves            04-test-corpus.md
+PASS docs/11-stage0-review-response.md          local_link_resolves            07-stage7-milestone.md
+PASS docs/11-stage0-review-response.md          local_link_resolves            07-stage7-milestone.md
+PASS docs/11-stage0-review-response.md          local_link_resolves            07-stage7-milestone.md
+PASS docs/11-stage0-review-response.md          local_link_resolves            07-stage7-milestone.md
+PASS docs/11-stage0-review-response.md          local_link_resolves            09-open-questions.md
+PASS docs/12-a1-contract-review.md              exists                         docs/12-a1-contract-review.md
+PASS docs/12-a1-contract-review.md              linked_from_readme             link present
+PASS docs/12-a1-contract-review.md              reporting_field_status         present
+PASS docs/12-a1-contract-review.md              reporting_field_evidence       present
+PASS docs/12-a1-contract-review.md              reporting_field_decisions_needed present
+PASS docs/12-a1-contract-review.md              reporting_field_risks          present
+PASS docs/12-a1-contract-review.md              reporting_field_next_step      present
+PASS docs/12-a1-contract-review.md              has_sources_section            sources section
+PASS docs/12-a1-contract-review.md              cites_a_source                 5 urls
+PASS docs/12-a1-contract-review.md              local_link_resolves            05-risk-report.md
+PASS docs/12-a1-contract-review.md              local_link_resolves            03-a1-interface-requirements.md
+PASS docs/12-a1-contract-review.md              local_link_resolves            03-a1-interface-requirements.md
+PASS docs/12-a1-contract-review.md              local_link_resolves            10-technical-findings.md
+PASS README.md                                  output_listed_compatibility    Compatibility scope map
+PASS README.md                                  output_listed_pe               PE loader requirements
+PASS README.md                                  output_listed_nt/win32         NT/Win32 dependency map
+PASS README.md                                  output_listed_test             Test corpus proposal
+PASS README.md                                  output_listed_risk             Risk report
+
+199 checks, 0 failed
+python3 tools/pe_structs_check.py
+PASS inventory                    IMAGE_DOS_HEADER.fields_contiguous spans 0..64
+PASS inventory                    IMAGE_DOS_HEADER.declared_size   declared=64 expected=64 fields_end=64
+PASS inventory                    IMAGE_DOS_HEADER.citation        source=ms-pe
+PASS inventory                    IMAGE_FILE_HEADER.fields_contiguous spans 0..20
+PASS inventory                    IMAGE_FILE_HEADER.declared_size  declared=20 expected=20 fields_end=20
+PASS inventory                    IMAGE_FILE_HEADER.citation       source=ms-pe
+PASS inventory                    IMAGE_OPTIONAL_HEADER64.fields_contiguous spans 0..112
+PASS inventory                    IMAGE_OPTIONAL_HEADER64.declared_size declared=112 expected=112 fields_end=112
+PASS inventory                    IMAGE_OPTIONAL_HEADER64.citation source=ms-pe
+PASS inventory                    IMAGE_DATA_DIRECTORY.fields_contiguous spans 0..8
+PASS inventory                    IMAGE_DATA_DIRECTORY.declared_size declared=8 expected=8 fields_end=8
+PASS inventory                    IMAGE_DATA_DIRECTORY.citation    source=ms-pe
+PASS inventory                    IMAGE_SECTION_HEADER.fields_contiguous spans 0..40
+PASS inventory                    IMAGE_SECTION_HEADER.declared_size declared=40 expected=40 fields_end=40
+PASS inventory                    IMAGE_SECTION_HEADER.citation    source=ms-pe
+PASS inventory                    IMAGE_IMPORT_DESCRIPTOR.fields_contiguous spans 0..20
+PASS inventory                    IMAGE_IMPORT_DESCRIPTOR.declared_size declared=20 expected=20 fields_end=20
+PASS inventory                    IMAGE_IMPORT_DESCRIPTOR.citation source=ms-pe
+PASS inventory                    IMAGE_THUNK_DATA64.fields_contiguous spans 0..8
+PASS inventory                    IMAGE_THUNK_DATA64.declared_size declared=8 expected=8 fields_end=8
+PASS inventory                    IMAGE_THUNK_DATA64.citation      source=ms-pe
+PASS inventory                    IMAGE_EXPORT_DIRECTORY.fields_contiguous spans 0..40
+PASS inventory                    IMAGE_EXPORT_DIRECTORY.declared_size declared=40 expected=40 fields_end=40
+PASS inventory                    IMAGE_EXPORT_DIRECTORY.citation  source=ms-pe
+PASS inventory                    IMAGE_BASE_RELOCATION.fields_contiguous spans 0..8
+PASS inventory                    IMAGE_BASE_RELOCATION.declared_size declared=8 expected=8 fields_end=8
+PASS inventory                    IMAGE_BASE_RELOCATION.citation   source=ms-pe
+PASS inventory                    IMAGE_TLS_DIRECTORY64.fields_contiguous spans 0..40
+PASS inventory                    IMAGE_TLS_DIRECTORY64.declared_size declared=40 expected=40 fields_end=40
+PASS inventory                    IMAGE_TLS_DIRECTORY64.citation   source=ms-pe
+PASS inventory                    RUNTIME_FUNCTION.fields_contiguous spans 0..12
+PASS inventory                    RUNTIME_FUNCTION.declared_size   declared=12 expected=12 fields_end=12
+PASS inventory                    RUNTIME_FUNCTION.citation        source=ms-x64-unwind
+PASS inventory                    UNWIND_INFO.fields_contiguous    spans 0..6
+PASS inventory                    UNWIND_INFO.citation             source=ms-x64-unwind
+PASS inventory                    IMAGE_LOAD_CONFIG_DIRECTORY64.fields_contiguous spans 0..320
+PASS inventory                    IMAGE_LOAD_CONFIG_DIRECTORY64.citation source=winnt-h
+PASS inventory                    IMAGE_DELAYLOAD_DESCRIPTOR.fields_contiguous spans 0..32
+PASS inventory                    IMAGE_DELAYLOAD_DESCRIPTOR.declared_size declared=32 expected=32 fields_end=32
+PASS inventory                    IMAGE_DELAYLOAD_DESCRIPTOR.citation source=ms-pe
+PASS inventory                    IMAGE_BOUND_IMPORT_DESCRIPTOR.fields_contiguous spans 0..8
+PASS inventory                    IMAGE_BOUND_IMPORT_DESCRIPTOR.declared_size declared=8 expected=8 fields_end=8
+PASS inventory                    IMAGE_BOUND_IMPORT_DESCRIPTOR.citation source=ms-pe
+PASS inventory                    IMAGE_DEBUG_DIRECTORY.fields_contiguous spans 0..28
+PASS inventory                    IMAGE_DEBUG_DIRECTORY.declared_size declared=28 expected=28 fields_end=28
+PASS inventory                    IMAGE_DEBUG_DIRECTORY.citation   source=ms-pe
+PASS inventory                    IMAGE_RESOURCE_DIRECTORY.fields_contiguous spans 0..16
+PASS inventory                    IMAGE_RESOURCE_DIRECTORY.declared_size declared=16 expected=16 fields_end=16
+PASS inventory                    IMAGE_RESOURCE_DIRECTORY.citation source=ms-pe
+PASS inventory                    IMAGE_RESOURCE_DIRECTORY_ENTRY.fields_contiguous spans 0..8
+PASS inventory                    IMAGE_RESOURCE_DIRECTORY_ENTRY.declared_size declared=8 expected=8 fields_end=8
+PASS inventory                    IMAGE_RESOURCE_DIRECTORY_ENTRY.citation source=ms-pe
+PASS inventory                    IMAGE_RESOURCE_DATA_ENTRY.fields_contiguous spans 0..16
+PASS inventory                    IMAGE_RESOURCE_DATA_ENTRY.declared_size declared=16 expected=16 fields_end=16
+PASS inventory                    IMAGE_RESOURCE_DATA_ENTRY.citation source=ms-pe
+PASS inventory                    IMAGE_COR20_HEADER.fields_contiguous spans 0..72
+PASS inventory                    IMAGE_COR20_HEADER.declared_size declared=72 expected=72 fields_end=72
+PASS inventory                    IMAGE_COR20_HEADER.citation      source=ecma-335
+PASS inventory                    WIN_CERTIFICATE.fields_contiguous spans 0..8
+PASS inventory                    WIN_CERTIFICATE.declared_size    declared=8 expected=8 fields_end=8
+PASS inventory                    WIN_CERTIFICATE.citation         source=ms-pe
+
+61 checks, 0 failed
+exit=0
