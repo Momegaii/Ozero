@@ -330,6 +330,96 @@ static o0_status map_range_2mb(uint64_t *pml4, uint64_t vaddr, uint64_t paddr,
     return O0_OK;
 }
 
+/* Map [vaddr, vaddr + size) to [paddr, ...) with 4 KiB pages.
+ *
+ * The kernel image cannot be described by 2 MiB pages: the bootloader loads it
+ * at a physical address (kernel_phys) that is not congruent to its link address
+ * (kernel_virt) modulo 2 MiB. Aligning both down to 2 MiB independently, as a
+ * large-page mapping must, silently drops the sub-2 MiB offset and the kernel
+ * ends up reading and writing the wrong physical bytes after the CR3 switch.
+ * Four-kilobyte pages preserve the exact virtual/physical offset, so the kernel
+ * image is mapped here page by page. */
+static o0_status map_range_4kb(uint64_t *pml4, uint64_t vaddr, uint64_t paddr,
+                               uint64_t size, uint32_t flags) {
+    if (!O0_IS_ALIGNED(vaddr, O0_PAGE_SIZE) || !O0_IS_ALIGNED(paddr, O0_PAGE_SIZE)) {
+        return O0_EINVAL;
+    }
+
+    const uint64_t bits = flag_bits(flags);
+    for (uint64_t offset = 0; offset < size; offset += O0_PAGE_SIZE) {
+        uint64_t cur_vaddr = vaddr + offset;
+        uint64_t cur_paddr = paddr + offset;
+
+        uint64_t entry = pml4[O0_PML4_INDEX(cur_vaddr)];
+        uint64_t *pdpt;
+        if ((entry & O0_ENTRY_PRESENT) == 0) {
+            pdpt = table_alloc();
+            if (pdpt == NULL) {
+                return O0_ENOMEM;
+            }
+            uint64_t pdpt_phys = table_phys(pdpt);
+            if (pdpt_phys == 0) {
+                return O0_EFAULT;
+            }
+            pml4[O0_PML4_INDEX(cur_vaddr)] = pdpt_phys | O0_ENTRY_PRESENT | O0_ENTRY_WRITE;
+        } else {
+            pdpt = (uint64_t *)phys_ptr(entry & O0_ADDR_MASK);
+            if (pdpt == NULL) {
+                return O0_EFAULT;
+            }
+        }
+
+        uint64_t pd_index = O0_PDPT_INDEX(cur_vaddr);
+        entry = pdpt[pd_index];
+        uint64_t *pd;
+        if ((entry & O0_ENTRY_PRESENT) == 0) {
+            pd = table_alloc();
+            if (pd == NULL) {
+                return O0_ENOMEM;
+            }
+            uint64_t pd_phys = table_phys(pd);
+            if (pd_phys == 0) {
+                return O0_EFAULT;
+            }
+            pdpt[pd_index] = pd_phys | O0_ENTRY_PRESENT | O0_ENTRY_WRITE;
+        } else {
+            if ((entry & O0_ENTRY_HUGE) != 0) {
+                return O0_EINVAL;
+            }
+            pd = (uint64_t *)phys_ptr(entry & O0_ADDR_MASK);
+            if (pd == NULL) {
+                return O0_EFAULT;
+            }
+        }
+
+        uint64_t pd_pt_index = O0_PD_INDEX(cur_vaddr);
+        entry = pd[pd_pt_index];
+        uint64_t *pt;
+        if ((entry & O0_ENTRY_PRESENT) == 0) {
+            pt = table_alloc();
+            if (pt == NULL) {
+                return O0_ENOMEM;
+            }
+            uint64_t pt_phys = table_phys(pt);
+            if (pt_phys == 0) {
+                return O0_EFAULT;
+            }
+            pd[pd_pt_index] = pt_phys | O0_ENTRY_PRESENT | O0_ENTRY_WRITE;
+        } else {
+            if ((entry & O0_ENTRY_HUGE) != 0) {
+                return O0_EINVAL;
+            }
+            pt = (uint64_t *)phys_ptr(entry & O0_ADDR_MASK);
+            if (pt == NULL) {
+                return O0_EFAULT;
+            }
+        }
+
+        pt[O0_PT_INDEX(cur_vaddr)] = cur_paddr | bits;
+    }
+    return O0_OK;
+}
+
 /* Fetch (or create) the page table for a 4 KiB mapping. */
 static uint64_t *get_pt(struct o0_as *as, uint64_t vaddr, bool create) {
     uint64_t *pml4 = as->pml4;
@@ -452,13 +542,14 @@ o0_status o0_paging_init(const struct o0_boot_info *bi) {
         return status;
     }
 
-    /* Kernel image at its linked high-half address. */
-    uint64_t image_virt = O0_ALIGN_DOWN(bi->kernel_virt, 1ull << 21);
-    uint64_t image_phys = O0_ALIGN_DOWN(bi->kernel_phys, 1ull << 21);
-    uint64_t image_span = bi->kernel_phys_size +
-                          (bi->kernel_virt - image_virt);
-    uint64_t image_size = O0_ALIGN_UP(image_span, 1ull << 21);
-    status = map_range_2mb(kernel_pml4, image_virt, image_phys, image_size,
+    /* Kernel image at its linked high-half address. The physical load address
+     * is not 2 MiB-aligned, so the image is mapped with 4 KiB pages to keep the
+     * virtual/physical offset exact (see map_range_4kb). */
+    uint64_t image_virt = O0_ALIGN_DOWN(bi->kernel_virt, O0_PAGE_SIZE);
+    uint64_t image_phys = O0_ALIGN_DOWN(bi->kernel_phys, O0_PAGE_SIZE);
+    uint64_t image_span = (bi->kernel_virt + bi->kernel_phys_size) - image_virt;
+    uint64_t image_size = O0_ALIGN_UP(image_span, O0_PAGE_SIZE);
+    status = map_range_4kb(kernel_pml4, image_virt, image_phys, image_size,
                            O0_MAP_READ | O0_MAP_WRITE | O0_MAP_EXEC | O0_MAP_GLOBAL);
     if (status != O0_OK) {
         return status;

@@ -44,6 +44,17 @@ required_markers=(
     "OZERO: Limine base revision accepted"
     "OZERO: memory map entries="
     "OZERO: boot success"
+    # Stage 3 execution model: page tables, heap, scheduler, self-tests, and
+    # the demo threads running to completion under the preemptive scheduler.
+    "OZERO: page tables active"
+    "OZERO: kernel heap ready"
+    "OZERO: scheduler initialised"
+    "OZERO: stage3 self-test complete"
+    "OZERO: kernel threads created="
+    "OZERO: worker-a iteration=2"
+    "OZERO: worker-b iteration=2"
+    "OZERO: worker-a exiting"
+    "OZERO: worker-b exiting"
 )
 
 for marker in "${required_markers[@]}"; do

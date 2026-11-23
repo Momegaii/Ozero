@@ -57,9 +57,12 @@ public `include/ozero` contract).
 - NX is not enabled; `O0_MAP_EXEC`/`O0_MAP_NX` describe intent only.
 - One static page-table pool (128 tables, 8 address spaces) that is never reclaimed.
 - Freed thread stacks are not returned to the PMM.
-- BSP only; no SMP, no APIC, no ACPI.
-- No boot verification was performed for this revision in the authoring environment (no
-  QEMU/xorriso); see `docs/PROJECT_STATUS.md`.
+- BSP only; no SMP, no ACPI. Limine leaves the local APIC enabled; PIC init clears the
+  APIC global-enable bit (`IA32_APIC_BASE` bit 11) so the 8259 PIT tick is delivered, and
+  Stage 4 AP bring-up re-enables and configures the LAPIC.
+- Boot verified in QEMU (BIOS, `q35` and `pc`) for this revision via `make iso` +
+  `tools/qemu-smoke.sh`; UEFI (OVMF) and physical hardware are not yet exercised. See
+  `docs/PROJECT_STATUS.md`.
 
 Build with `make kernel`; create a bootable ISO with `make iso`; run host tests with
 `make test`; boot it with `make run`.

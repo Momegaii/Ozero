@@ -33,10 +33,25 @@ static uint16_t pic2_mask = 0xffff;
 static bool pic_ready;
 static uint32_t pit_hz;
 
+/* Limine leaves the local APIC enabled (IA32_APIC_BASE bit 11). With the APIC
+ * active, the 8259's INTR is routed through the LAPIC's LINT0 pin and is only
+ * delivered to the CPU if LVT0 is programmed for ExtINT (virtual-wire) delivery.
+ * This stage is PIC-only and does not configure the APIC, so a globally enabled
+ * APIC would silently swallow every maskable interrupt. Clear the global enable
+ * so the 8259 INTR reaches the CPU directly; Stage 4 AP bring-up re-enables it. */
+static void disable_local_apic(void) {
+    uint32_t lo, hi;
+    __asm__ volatile ("rdmsr" : "=a"(lo), "=d"(hi) : "c"((uint32_t)0x1b));
+    lo &= ~(1u << 11);
+    __asm__ volatile ("wrmsr" : : "a"(lo), "d"(hi), "c"((uint32_t)0x1b) : "memory");
+}
+
 o0_status o0_pic_init(void) {
     if (pic_ready) {
         return O0_EBUSY;
     }
+
+    disable_local_apic();
 
     /* Start the initialisation sequence and remap IRQ0..15 to 0x20..0x2f. */
     outb(O0_PIC1_COMMAND, O0_ICW1_INIT);

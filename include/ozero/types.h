@@ -32,9 +32,14 @@ typedef uint64_t o0_vaddr_t;
 #define O0_PAGE_SIZE ((size_t)1u << O0_PAGE_SHIFT)
 #define O0_PAGE_MASK (~(o0_paddr_t)(O0_PAGE_SIZE - 1u))
 
-#define O0_ALIGN_UP(x, a) (((x) + ((a) - 1u)) & ~((a) - 1u))
-#define O0_ALIGN_DOWN(x, a) ((x) & ~((a) - 1u))
-#define O0_IS_ALIGNED(x, a) (((x) & ((a) - 1u)) == 0u)
+/* Alignment helpers. The mask arithmetic is done in o0_paddr_t (64-bit) so a
+ * 32-bit alignment argument cannot truncate the high half of a 64-bit value:
+ * ~((a) - 1u) with a plain int would otherwise yield 0x00000000fffffff0 and
+ * clear bits 32..63 of a pointer. */
+#define O0_ALIGN_UP(x, a)                                                  \
+    (((x) + ((o0_paddr_t)(a) - 1u)) & ~((o0_paddr_t)(a) - 1u))
+#define O0_ALIGN_DOWN(x, a) ((x) & ~((o0_paddr_t)(a) - 1u))
+#define O0_IS_ALIGNED(x, a) (((x) & ((o0_paddr_t)(a) - 1u)) == 0u)
 
 #define O0_ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 #define O0_MIN(a, b) ((a) < (b) ? (a) : (b))
