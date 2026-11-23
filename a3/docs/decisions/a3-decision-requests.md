@@ -4,9 +4,9 @@
 |---|---|
 | Owner | A3 |
 | Purpose | Decision-ready wording for the A3 action brief (23 November 2026) |
-| Canonical register | A4 `docs/decisions/decision-log.md` @ `245007d` |
+| Canonical register | A4 `docs/decisions/decision-log.md` @ `3ae7aca` |
 | A3 status | Input only; A3 does not approve global decisions |
-| Gate | A1 IF-008 v1.1 sign-off and Director D-007/D-021 before AHCI |
+| Gate | A1 IF-008 v1.1 ACCEPT recorded; Director D-007/D-021 before AHCI |
 
 A4 owns the canonical IDs and statuses. This document gives the Director concise
 text and exact impact; it does not create a parallel register.
@@ -19,17 +19,17 @@ A1 sign-off gate."
 **A3 decision-ready wording:**
 
 > Approve IF-008 v1.1, published by A3 at commit `b9a69d8`, as the Stage 1
-> DMA/platform contract. Require A1 to review that exact `platform.h` and
-> `block.h` and record **ACCEPT** or **CHANGE REQUIRED**. A3 may start the AHCI
-> probe only after A1 records ACCEPT and the Director records this decision.
+> DMA/platform contract. A1 has reviewed that exact `platform.h` and `block.h`
+> and recorded **ACCEPT** at `4716e09`. A3 may start the AHCI probe only after
+> the Director records D-007 and D-021.
 
-**Status:** Proposed in A4 `245007d`. Owner A1 + A3; approver Project Director;
+**Status:** Proposed in A4 `3ae7aca`. A1 recorded **ACCEPT** at `b9a69d8` (`4716e09`); Director approval pending. Owner A1 + A3; approver Project Director;
 needed before A3 DMA work.
 
 **Impact if approved:**
 - The A1 review gate becomes the formal Stage 1 contract gate.
-- A3 may begin the AHCI probe only after A1's explicit ACCEPT; approval of D-007
-  alone is not A1 sign-off.
+- The A1 gate is met at `b9a69d8`; Director approval of D-007 completes the
+  decision. Director approval of D-021 is still required before the probe.
 - No runtime support claim changes. All storage rows remain `not-started`.
 
 **Impact if not approved:**
@@ -52,7 +52,7 @@ recorded."
 > type. Any userspace or untrusted DMA requires a new interface version, a new
 > global decision and Director approval.
 
-**Status:** Proposed in A4 `245007d`. Owner A1; approver Project Director; needed
+**Status:** Proposed in A4 `3ae7aca`. Owner A1; approver Project Director; needed
 before DMA work.
 
 **Impact if approved:**
@@ -70,7 +70,7 @@ address type.
 
 ## D-009 — Public header namespace (already approved)
 
-**Canonical A4 status:** **Approved** at `245007d`. The canonical namespace is
+**Canonical A4 status:** **Approved** at `3ae7aca`. The canonical namespace is
 `include/ozero/` only; `include/o0/` is removed; symbols keep the `o0_` prefix;
 A2/A3 include `<ozero/...>`. A1's `03f8883` implements it. XB-007 is **Closed**.
 
@@ -78,11 +78,11 @@ A2/A3 include `<ozero/...>`. A1's `03f8883` implements it. XB-007 is **Closed**.
 A1's public-header snapshot. A3 does not request a new decision.
 
 **Impact:** No open namespace conflict remains. A4's earlier audit text that
-described a conflict is stale and should be refreshed against `245007d`.
+described a conflict is stale and should be refreshed against `3ae7aca`.
 
 ## D-010 — Header-check ownership (already approved)
 
-**Canonical A4 status:** **Approved** at `245007d`. A1 owns
+**Canonical A4 status:** **Approved** at `3ae7aca`. A1 owns
 `tools/check-headers.sh` and `tests/abi_static_asserts.c`; A4 owns CI
 integration; A3 owns other `tools/` content. XB-008 is **Closed**.
 
@@ -95,17 +95,17 @@ for A1's checker.
 
 ## A4 register refresh request
 
-A4's `245007d` is authoritative, but three blocker rows still describe A3 as
+A4's `3ae7aca` is authoritative, but three blocker rows still describe A3 as
 unpublished. A4 should refresh these evidence fields:
 
 | ID | Current A4 text | Requested refresh |
 |---|---|---|
-| XB-001 | "A3 has no branch or interface version" | A3 published IF-008 v1.1 at `b9a69d8`; A1 review is pending. Keep **Open** until A1 records ACCEPT. |
+| XB-001 | "A3 has no branch or interface version" | A3 published IF-008 v1.1 at `b9a69d8`; A1 recorded ACCEPT at `4716e09`. Keep **Open** until A4 refreshes the evidence row. |
 | XB-005 | "A3 has no branch, commit or test evidence" | A3 pushed `origin/a3/stage0-review-response`; static evidence only, no device tests. Keep **Open** until A4 audits. |
 | XB-011 | "A3 has no branch" | A3 pushed `origin/a3/stage0-review-response`; A4 can refresh the audit. Keep **Open** until A4 records the refresh. |
 
 D-009, D-010, XB-007 and XB-008 need no change; they are already approved or
-closed in `245007d`.
+closed in `3ae7aca`.
 
 ## References
 

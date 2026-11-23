@@ -6,8 +6,10 @@ Base commit on main: `147cc86c027cef7cec42525024d26dcccf66d7db`
 Branch: `a3/stage0-review-response`
 Stage 0 package commit: `a2890b5e3c070fb8a13fa64030a0a6e6a6e80714`
 A1 review source: `origin/a1/stage0-review` @ `30ee4f0`
-A4 register basis: `origin/a4/stage0-review-followup` @ `245007d`
+A1 IF-008 decision: **ACCEPT** at `b9a69d8`; A1 commit `4716e09`
+A4 register basis: `origin/a4/stage0-review-followup` @ `3ae7aca`
 A3 action brief reviewed: `Ozero_A3_Action_Brief_2026-11-23_v2.pdf`
+A3 proceed brief reviewed: `Ozero_A3_Proceed_Brief_2026-11-23.pdf`
 A1 review response commit: this commit (HEAD)
 IF-008 version: 1.1
 IF-008 reconciliation commit: this commit (HEAD); A1 header snapshot: `30ee4f0`
@@ -177,7 +179,7 @@ and protocol, not by a hard-coded VID/PID list.
 
 | # | Review action | Status | Artifact |
 |---|---|---|---|
-| 1 | A1 written review before AHCI probe | **received; IF-008 v1.1 published; A1 final approval pending — AHCI probe blocked** | `origin/a1/stage0-review` @ `30ee4f0`, `docs/interface-draft.md` §11 and `docs/a3-dma-contract.md`; `docs/interfaces/IF-008-dma-platform.md` |
+| 1 | A1 written review before AHCI probe | **received; IF-008 v1.1 published; A1 ACCEPT at `b9a69d8`; Director D-007 pending — AHCI probe blocked** | `origin/a1/stage0-review` @ `30ee4f0`, `docs/interface-draft.md` §11 and `docs/a3-dma-contract.md`; `docs/interfaces/IF-008-dma-platform.md` |
 | 2 | Pin spec revision, status, emulator, hardware, test per row | done | matrix schema v2 |
 | 3 | Separate media from transport; keep drivers distinct | done | `docs/01` §2–§3 |
 | 4 | Defer ZNS and port multiplier | done | matrix rows `deferred` |
@@ -192,9 +194,9 @@ and protocol, not by a hard-coded VID/PID list.
 | D-002 | Branch isolation and review gate; protect `main` | Protect `main`; merge through PRs only | A4 |
 | D-005 | Boot protocol and kernel handoff | Limine is a candidate only; A3 consumes A1's boot/platform data | A1 |
 | D-006 | Accept Stage 0 | Not accepted; this package is desk evidence only | A4 |
-| D-007 | Approve IF-008 v1.1 and the A1 sign-off gate | A3 published v1.1; A1 final approval and director approval pending | A1 + A3 |
-| D-009 | Public header namespace | **Approved** in A4 `245007d`: canonical root is `include/ozero/` only; A1 `03f8883`; A3 aligned; XB-007 closed | A1 + A4 |
-| D-010 | `tools/check-headers.sh` ownership | **Approved** in A4 `245007d`: A1 owns checker and static asserts; A4 owns CI; XB-008 closed | A1 + A4 |
+| D-007 | Approve IF-008 v1.1 and the A1 sign-off gate | A3 published v1.1; A1 ACCEPT at `b9a69d8`; Director D-007 pending | A1 + A3 |
+| D-009 | Public header namespace | **Approved** in A4 `3ae7aca`: canonical root is `include/ozero/` only; A1 `03f8883`; A3 aligned; XB-007 closed | A1 + A4 |
+| D-010 | `tools/check-headers.sh` ownership | **Approved** in A4 `3ae7aca`: A1 owns checker and static asserts; A4 owns CI; XB-008 closed | A1 + A4 |
 | D-020 | DMA is constraint-driven, never device-class-driven | A3 supplies `o0_dma_constraint`; A1 does not infer it | A1 |
 | D-021 | IOMMU policy: trusted ring-0 only in Stage 1 | No DMA domain, no IOVA and no translated DMA type; director approval pending | A1 |
 
@@ -204,8 +206,8 @@ the conditions for trusted ring-0 Stage 1 and has published IF-008 v1.1.
 `block.h` embeds one `o0_io_request`, has no SG pointer, and splits large
 transfers into multiple buffers and requests. A3 implements
 `struct o0_device_ops`; reset does not free buffers or unmap BARs. The AHCI
-probe remains blocked until A1 finally approves IF-008 v1.1 and the director
-approves D-007 and D-021.
+probe remains blocked until the Director approves D-007 and D-021. A1 accepted
+IF-008 v1.1 at `b9a69d8` on 23 November 2026.
 
 ## 6. Unresolved risks
 
@@ -217,15 +219,16 @@ approves D-007 and D-021.
 - eDRAM enable sequence is not implemented or validated.
 - A1's no-IOMMU blocker: Stage 1 returns physical, untranslated DMA addresses;
   untrusted or userspace DMA is unsafe.
-- A1 has not finally approved IF-008 v1.1; its review imposes conditions on
-  A3's published headers and defers final approval until after publication.
+- A1 accepted IF-008 v1.1 at `b9a69d8` (`4716e09`). A1's conditions are
+  accepted in `docs/interfaces/IF-008-v1.1-acceptance.md`; Director approval is
+  still required.
 - Director approval of D-007 and D-021 is pending.
-- D-009 and D-010 are approved in A4 `245007d`: `include/ozero/` is the only
+- D-009 and D-010 are approved in A4 `3ae7aca`: `include/ozero/` is the only
   public root and A1 owns the header checker. XB-007 and XB-008 are closed.
-- A4's XB-001, XB-005 and XB-011 evidence still describes A3 as unpublished;
-  A4 should refresh from A3 `b9a69d8` and `origin/a3/stage0-review-response`.
-- The branch is pushed, but no pull request is open; A4 has not refreshed its
-  audit under XB-005.
+- A4's XB-001 and XB-005 evidence still describes A3 as unpublished; XB-011 is
+  closed but cites `15cd9ce`. A4 should refresh from the current A3 branch head.
+- The branch is pushed, but no pull request is open; A4's audit does not cover
+  the current head, so XB-005 remains open.
 - Archived PRM and specification links may rot.
 
 ## 7. Commit, branch, and files
@@ -265,8 +268,11 @@ M  docs/04-driver-interface-draft.md
 M  docs/05-hardware-test-plan.md
 M  docs/06-stage0-review-response.md
 A  docs/07-a3-action-brief-response.md
+A  docs/08-control-plane-integration.md
+A  docs/09-proceed-brief-response.md
 A  docs/decisions/a3-decision-requests.md
 A  docs/interfaces/IF-008-dma-platform.md
+A  docs/interfaces/IF-008-v1.1-acceptance.md
 A  docs/interfaces/IF-008-v1.1-a1-review-packet.md
 A  docs/interfaces/IF-009-a3-review.md
 M  include/ozero/block.h
@@ -297,6 +303,7 @@ A  EVIDENCE.md
 A  Makefile
 A  Ozero_A3_Briefing.pdf
 A  Ozero_A3_Action_Brief_2026-11-23_v2.pdf
+A  Ozero_A3_Proceed_Brief_2026-11-23.pdf
 M  README.md
 A  docs/01-hardware-support-matrix.md
 A  docs/02-storage-architecture.md
@@ -348,9 +355,8 @@ The following were **not** run in the authoring environment:
 - No ACPI/UEFI table parsing on real Haswell firmware.
 - No suspend/resume, runtime power management, or thermal test.
 - No performance or endurance measurement.
-- No A1 final approval of IF-008 v1.1.
-- No director approval of global D-007 or acceptance of the no-IOMMU Stage 1
-  limitation.
+- No Director D-007/D-021 approval and no acceptance of the no-IOMMU Stage 1
+  limitation. A1 accepted IF-008 v1.1 at `b9a69d8`.
 - No AHCI probe work; it remains blocked until the interface is approved.
 
 ## 9. Next evidence to collect

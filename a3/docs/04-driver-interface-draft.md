@@ -4,8 +4,7 @@ Status: **Stage 0 desk artifact; no implementation or hardware validation**
 
 A3 has reconciled its draft against A1's signed Stage 1 surface at
 `a1/stage0-review` @ `30ee4f0`. The authoritative interface is
-[IF-008 v1.1](interfaces/IF-008-dma-platform.md). A1 final approval of that exact
-version is still pending, so the AHCI probe remains blocked. See
+[IF-008 v1.1](interfaces/IF-008-dma-platform.md). A1 ACCEPTed at `b9a69d8`; Director D-007 is pending, so the AHCI probe remains blocked. See
 [`06-stage0-review-response.md`](06-stage0-review-response.md).
 
 Scope: discovery, MMIO, DMA, interrupts, reset and asynchronous I/O that A3
@@ -408,9 +407,9 @@ Global decision register: A4's
 | D-002 | Branch isolation and review gate; protect `main` | A4 | Proposed |
 | D-005 | Boot protocol and kernel handoff | A1 | Proposed |
 | D-006 | Accept Stage 0 | A4 | Proposed |
-| D-007 | Approve IF-008 and the A1 sign-off gate | A1 + A3 | Proposed; A3 published v1.1, A1 final approval pending |
-| D-009 | Public header namespace | A1 + A4 | **Approved** in A4 `245007d`: `include/ozero/` only; A1 `03f8883`; XB-007 closed |
-| D-010 | `tools/check-headers.sh` ownership | A1 + A4 | **Approved** in A4 `245007d`: A1 owns checker and static asserts; A4 owns CI; XB-008 closed |
+| D-007 | Approve IF-008 and the A1 sign-off gate | A1 + A3 | Proposed; A1 ACCEPT at `b9a69d8`; Director approval pending |
+| D-009 | Public header namespace | A1 + A4 | **Approved** in A4 `3ae7aca`: `include/ozero/` only; A1 `03f8883`; XB-007 closed |
+| D-010 | `tools/check-headers.sh` ownership | A1 + A4 | **Approved** in A4 `3ae7aca`: A1 owns checker and static asserts; A4 owns CI; XB-008 closed |
 | D-020 | DMA is constraint-driven, never device-class-driven | A1 | Proposed |
 | D-021 | IOMMU policy: trusted ring-0 only in Stage 1 | A1 | Proposed; director approval pending |
 

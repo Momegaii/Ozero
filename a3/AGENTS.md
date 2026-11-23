@@ -1,5 +1,8 @@
 # AGENTS.md — Ozero A3 Stage 0
 
+This file is the A3 package memory under `a3/`. The repository root is the A4
+control plane and has its own `AGENTS.md`.
+
 ## Project purpose
 
 Stage 0 hardware-engineering package for Ozero (o0) A3: device model, storage,
@@ -56,7 +59,7 @@ available.
 
 ## Current state
 
-- Deliverables: `docs/01`–`docs/07`, `docs/decisions/`, `docs/interfaces/`,
+- Deliverables: `docs/01`–`docs/09`, `docs/decisions/`, `docs/interfaces/`,
   `include/ozero/*.h` (A3 `platform.h` and `block.h`, plus an A1 public-header
   snapshot at `30ee4f0`), `matrix/*.csv`, `tools/*`.
 - Static checks pass: matrix validation, deliverable check, 19 semantics
@@ -67,21 +70,23 @@ available.
 - No QEMU or real hardware was available in the authoring environment; L1–L4
   tests are planned but not executed.
 - A1 review received on `a1/stage0-review` @ `30ee4f0`: signed with an IOMMU
-  blocker and five conditions; final IF-008 approval is pending. A3 accepts the
-  conditions for trusted ring-0 Stage 1.
+  blocker and five conditions; A1 later recorded **ACCEPT** of IF-008 v1.1 at
+  `b9a69d8` (`4716e09`). A3 accepts the conditions for trusted ring-0 Stage 1.
 - A3 published `docs/interfaces/IF-008-dma-platform.md` v1.1. `platform.h`
   includes A1's `<ozero/*.h>` directly and does not redeclare A1 types.
   `block.h` embeds one `o0_io_request`, has no SG pointer, and splits large
   transfers into multiple buffers and requests. A3 implements
   `struct o0_device_ops`; reset does not free buffers or unmap BARs.
-- D-009 and D-010 are approved in A4 `245007d`: `include/ozero/` is the only
+- D-009 and D-010 are approved in A4 `3ae7aca`: `include/ozero/` is the only
   public root, A1 owns the header checker, and XB-007/XB-008 are closed.
-- A1 review packet: `docs/interfaces/IF-008-v1.1-a1-review-packet.md` requests
-  ACCEPT or CHANGE REQUIRED on exact commit `b9a69d8`.
+- A1 review packet: `docs/interfaces/IF-008-v1.1-a1-review-packet.md`; A1
+  recorded ACCEPT at `b9a69d8` in `4716e09`. A3 acceptance is in
+  `docs/interfaces/IF-008-v1.1-acceptance.md`.
 - Decision wording for D-007 and D-021: `docs/decisions/a3-decision-requests.md`.
-- IF-009 hardware-boundary review: `docs/interfaces/IF-009-a3-review.md`; no
-  A3 hardware types leak into A2's PE fixture contract. A3 recommends ACCEPT
-  WITH COMMENTS.
-- Next decision: A1 final approval of IF-008 v1.1 and director approval of
-  D-007 and D-021. The AHCI probe is blocked until both are recorded. XB-011 is
-  pushed as `origin/a3/stage0-review-response`; A4 can refresh its audit.
+- IF-009 hardware-boundary review: `docs/interfaces/IF-009-a3-review.md`; A3
+  accepts IF-009 v1.0 at A2 `d02598a` with no hardware-type leakage. A1 review
+  and A2 signature recording remain open.
+- Next decision: Director approval of D-007 and D-021. A1 accepted IF-008 v1.1
+  at `b9a69d8`; the AHCI probe stays blocked until the Director records both.
+  The A3 package is under `a3/`; the A4 control plane owns the shared root.
+  XB-011 is pushed as `origin/a3/stage0-review-response`.
