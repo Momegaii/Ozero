@@ -9,7 +9,7 @@ first note stays as the earlier snapshot.
 | `origin/a1/stage0-review` | `115a7f4` | PR #1, open, draft; second-round response |
 | `origin/agent/a2-stage0` | `807c447` | PR #2, open, draft; evidence-only commit after code `50b7853` |
 | A3 | none | no branch, commit or interface |
-| `origin/a4/stage0-review-followup` | `210653c` plus this audit commit | published; PR #3 open |
+| `origin/a4/stage0-review-followup` | `210653c` plus documentation and audit commits | published; PR #3 open |
 
 ## Commit ancestry
 
@@ -108,7 +108,7 @@ its own branch-protection row to D-031 (XB-015).
 | --- | --- | --- | --- |
 | #1 | `a1/stage0-review` at `115a7f4` | `main` | yes |
 | #2 | `agent/a2-stage0` at `807c447` | `main` | yes |
-| #3 | `a4/stage0-review-followup` at `210653c` plus this audit commit | `main` | no |
+| #3 | `a4/stage0-review-followup` at `210653c` plus documentation and audit commits | `main` | no |
 
 ## Namespace and ownership resolution
 

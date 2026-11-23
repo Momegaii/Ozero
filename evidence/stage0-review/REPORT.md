@@ -212,7 +212,7 @@ from the existing branch; it did not restart Stage 0 and did not merge into `mai
 | `origin/a1/stage0-review` | `115a7f4` | PR #1, open, draft; second-round response |
 | `origin/agent/a2-stage0` | `807c447` | PR #2, open, draft; evidence at `50b7853` |
 | A3 | none | no branch, commit or interface |
-| `origin/a4/stage0-review-followup` | `210653c` plus audit commit | published; PR #3 open |
+| `origin/a4/stage0-review-followup` | `210653c` plus documentation and audit commits | published; PR #3 open |
 
 ### Director A4 actions
 

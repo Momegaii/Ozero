@@ -205,7 +205,7 @@ Ten rows are **Open**; XB-006, XB-007, XB-008, XB-009, XB-010 and XB-015 are **C
 | A1 | Second-round response; PR #1 draft at `115a7f4` | Submitted; not integrated | D-005, XB-001, XB-002, XB-014, XB-016 |
 | A2 | Static-only PE package; PR #2 draft at `807c447`; evidence at `50b7853` | Submitted; not integrated | A1 review (XB-002/XB-014), XB-013 |
 | A3 | — | No branch, commit or interface | D-001; must publish IF-008; XB-005, XB-011 |
-| A4 | Stage 0 review follow-up; PR [#3](https://github.com/Momegaii/Ozero/pull/3); head `210653c` + audit commit | Submitted; awaiting review | Director review |
+| A4 | Stage 0 review follow-up; PR [#3](https://github.com/Momegaii/Ozero/pull/3); head `210653c` + documentation and audit commits | Submitted; awaiting review | Director review |
 
 ## Change log
 
