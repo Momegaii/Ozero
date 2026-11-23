@@ -9,12 +9,13 @@ The initial architecture target is x86-64. Hardware support is intended to remai
 
 ## Project status
 
-The repository is at **Stage 0: architecture specification and toolchain**. This stage establishes the engineering contract before kernel implementation begins. No bootable kernel or hardware compatibility is claimed yet.
+The repository is at **Stage 0: architecture specification and toolchain**. The first developer-tooling scaffold and automated repository checks are now present. No bootable kernel or hardware compatibility is claimed yet.
 
 - [Architecture baseline](docs/ARCHITECTURE_BASELINE.md)
 - [Development roadmap](docs/ROADMAP.md)
 - [Current status and Stage 0 exit criteria](docs/PROJECT_STATUS.md)
 - [Engineering and agent workflow](docs/ENGINEERING_WORKFLOW.md)
+- [ADR 0001: boot path and kernel language](docs/decisions/0001-boot-and-kernel-language.md)
 
 ## Principles
 
@@ -25,8 +26,17 @@ The repository is at **Stage 0: architecture specification and toolchain**. This
 - Keep kernel-critical code separate from orchestration and developer tooling.
 - Measure performance and compatibility; do not claim them without reproducible tests.
 
-## Development
+## Developer quick start
 
-The exact compiler, linker, assembler, boot protocol, kernel language, and build environment remain explicit Stage 0 decisions. See the architecture baseline before adding implementation assumptions.
+Requirements: Python 3, GNU Make, and Git.
+
+```sh
+git clone https://github.com/Momegaii/Ozero.git
+cd Ozero
+make doctor
+make check
+```
+
+The current checks validate repository structure and developer-tooling syntax. They do not compile or boot a kernel. Kernel toolchain and boot-image work begins after ADR 0001 is approved.
 
 Contributions should follow the review and ownership rules in [ENGINEERING_WORKFLOW.md](docs/ENGINEERING_WORKFLOW.md).
