@@ -30,8 +30,12 @@ int main(void) {
         CHECK(f->clfsh==(((d>>19)&1u)!=0),"CLFLUSH mismatch");
         CHECK(f->xsave==(((c>>26)&1u)!=0),"XSAVE mismatch");
         CHECK(f->pcid==(((c>>17)&1u)!=0),"PCID mismatch");
-        CHECK(f->xcr0_supported==0 || (f->xsave && ((c>>27)&1u)),
+        bool osxsave=((c>>27)&1u)!=0;
+        CHECK(f->xcr0_supported==0 || (f->xsave && osxsave),
               "XGETBV result without XSAVE+OSXSAVE");
+        bool avx_usable=((c>>28)&1u)!=0 && f->xsave && osxsave &&
+                        (f->xcr0_supported&0x6u)==0x6u;
+        CHECK(f->avx==avx_usable,"AVX OS-state gating mismatch");
     }
     if (max_leaf>=7) {
         raw_cpuid(7,0,&a,&b,&c,&d);
@@ -39,6 +43,11 @@ int main(void) {
         CHECK(f->smap==(((b>>20)&1u)!=0),"SMAP mismatch");
         CHECK(f->umip==(((c>>2)&1u)!=0),"UMIP mismatch");
         CHECK(f->serialize==(((d>>14)&1u)!=0),"SERIALIZE mismatch");
+        CHECK(f->avx2==((((b>>5)&1u)!=0) && f->avx),
+              "AVX2 OS-state gating mismatch");
+        CHECK(f->avx512f==((((b>>16)&1u)!=0) &&
+              ((f->xcr0_supported&0xe6u)==0xe6u)),
+              "AVX-512 OS-state gating mismatch");
     }
     puts("CPU feature tests: PASS");
     return 0;
