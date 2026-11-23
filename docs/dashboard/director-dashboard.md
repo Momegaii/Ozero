@@ -5,7 +5,7 @@
 | Updated | 2026-11-23 |
 | Prepared by | A4 |
 | Base commit | `5a50c0d` (A4 control plane imported into `Momegaii/Ozero`) |
-| Current head | `HEAD` of `a4/stage0-review-followup`; directive baseline `7208a28` |
+| Current head | `8478c6e6b97e56f583e7b244b6bb43dc9184cb06` (`a4/stage0-review-followup`) |
 | Review branch | `a4/stage0-review-followup` (published) |
 | Review round | Sole-agent takeover, 2026-11-23 |
 | Stage | 0 — architecture, integration and QA control plane |
@@ -47,9 +47,7 @@
   Stage 0 is **not accepted** (D-006). A4 prepared the D-005 package but did not approve it; the
   XB-012 audit recommends settings but did not change protection; the XB-005 plan does not run
   hardware.
-- The A4 Stage 0 PR is open: [#3](https://github.com/Momegaii/Ozero/pull/3), head `HEAD` of
-  `a4/stage0-review-followup`, CI `build-and-boot` successful at the last recorded head. It is not
-  approved and not merged. `main` is **not protected**, has **no required status checks**, and has
+- The A4 Stage 0 PR is open: [#3](https://github.com/Momegaii/Ozero/pull/3), head `8478c6e6b97e56f583e7b244b6bb43dc9184cb06`, CI run #19 passed including root Stage 0, A2 static/unit checks and A3 interface/matrix checks. It is not approved and not merged. `main` is **not protected**, has **no required status checks**, and has
   **no `CODEOWNERS`** (XB-012 / D-031). The exact recommendations are in
   [`branch-protection-audit.md`](../process/branch-protection-audit.md).
 
@@ -336,3 +334,12 @@ Three rows are **Open** (XB-004, XB-005, XB-012), seventeen are **Closed**, and 
 | 2026-11-23 | A2 Stage 0 package integrated at `f0c64a9`; no A2 branch rewrite | `f0c64a9` |
 | 2026-11-23 | IF-009 v1.1 six negative cases implemented; evidence regenerated; XB-021 Closed for implementation; blockers 3/17/1 | `31e6825`, evidence `37e9bf0` |
 | 2026-11-23 | Director execution directive: D-005 package, XB-012 audit, XB-005 plan; Stage 0 still not accepted | this directive commit |
+
+
+## Latest consolidated CI expansion — 2026-11-23
+
+- Current A4 head: `8478c6e6b97e56f583e7b244b6bb43dc9184cb06`.
+- CI run #19: **success**. It executed the root Stage 0 build, CI safety check, MBR fixture harness, A2 static contract checks, A2 unit tests, A3 interface/matrix tests, reproducibility check and clean-checkout validation.
+- The MBR harness remains a fixture smoke test, not an Ozero kernel boot. A2 checks remain static parser/tooling tests, not Windows runtime execution. A3 checks remain interface/matrix tests, not device or real-hardware evidence.
+- PR #3 remains open and unmerged; `main` remains `147cc86c027cef7cec42525024d26dcccf66d7db`.
+- Stage 0 remains **NOT ACCEPTED**. XB-004, XB-005 and XB-012 remain open; IF-009 v1.1 implementation is complete at L0, but A1/A3 re-signatures remain outstanding.
