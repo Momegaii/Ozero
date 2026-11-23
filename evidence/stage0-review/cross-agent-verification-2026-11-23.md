@@ -72,9 +72,9 @@ No branch, commit, pull request or interface version exists. XB-001 and XB-005 s
 
 ## A4
 
-The branch is committed locally through `596fc6f` and has no pull request. `git push` and the GitHub
-refs API both return 403; the authenticated account is `Momegaii`, but the token cannot write
-contents. XB-006 stays Open until a Contents: write credential is supplied.
+The branch was published at `84fe81a` and now tracks `origin/a4/stage0-review-followup`. No Stage 0
+pull request is open; XB-006 is Closed and XB-010 tracks the PR. The branch includes the CI workflow,
+so the push needed the token's `workflow` scope.
 
 ## Recommended merge order
 

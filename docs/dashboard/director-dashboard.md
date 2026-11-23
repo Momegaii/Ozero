@@ -20,8 +20,8 @@
 - The build and QEMU MBR harness are **Tested**. The 512-byte MBR fixture is not the Ozero kernel
   and is never described as kernel boot.
 - All Director decisions are **Proposed**. None is approved.
-- The A4 review branch cannot be pushed: the authenticated token has no contents write. Independent
-  verification needs XB-006 / D-008.
+- The A4 branch is published at `84fe81a` and tracks `origin/a4/stage0-review-followup`. No Stage 0
+  pull request is open yet (XB-010).
 
 ## Stage 0 review actions
 
@@ -97,7 +97,7 @@
 | 2 | GitHub team slugs in `CODEOWNERS` are placeholders | Project Director | Review enforcement is not active | Before Stage 1 |
 | 3 | Boot protocol is proposed as Limine v12.11.1, base revision 6; Director D-005 is open | A1 → Director | A1 cannot finalise the boot path; the MBR harness is protocol-neutral | Stage 1 design |
 | 4 | Branch protection and required CI check are repository settings, not code | Project Director | The merge gate is advisory until enabled | Before Stage 1 |
-| 5 | A4 review branch cannot be published | Project Director (XB-006 / D-008) | `git push` and ref creation return 403; the token cannot write contents | Stage 0 review |
+| 5 | A4 branch is published; the Stage 0 PR is not open | A4 → Director (XB-010) | The Director can fetch the branch, but there is no review thread | Stage 0 review |
 | 6 | A1 and A2 branches are not integrated; A3 has no branch | A1, A2, A3, A4 | Cross-agent gates are defined but untested; merge conflicts are known | Stage 1 |
 | 7 | Nine cross-agent dependencies are Open | A1, A2, A3, A4 | Dependent work cannot merge without owner sign-off | Stage 1 |
 | 8 | A1 uses `include/o0/`; the map and `CODEOWNERS` say `include/ozero/` | A1, A4 → Director | A1 cannot merge without a namespace decision | Before A1 merge |
@@ -115,10 +115,11 @@ All rows are **Open**; none is signed.
 | XB-003 | A2 PE fixture contract before any PE test | A2 → A1/A3 | Open; A2 static-only package published |
 | XB-004 | A1 pins Limine and the kernel handoff | A1 → Director | Open; v12.11.1 / base 6 pinned, D-005 pending |
 | XB-005 | A3 names device tests and hardware requirements with evidence | A3 → A4 | Open; no A3 branch |
-| XB-006 | A4 publishes the review branch and PR | A4 → Director | Open; push returns 403 |
+| XB-006 | A4 publishes the review branch | A4 → Director | Closed at `84fe81a` |
 | XB-007 | Header namespace `include/o0/` vs `include/ozero/` | A1 → A4 → Director | Open |
 | XB-008 | A1's `tools/check-headers.sh` is in A3-owned `tools/` | A1 → A3 | Open |
 | XB-009 | A2 evidence cites `8bac650`, head is `f324b28` | A2 → A4 | Open |
+| XB-010 | A4 opens the Stage 0 review PR | A4 → Director | Open; branch published, no PR |
 
 ## Decisions needed
 
@@ -137,7 +138,7 @@ All rows are **Open**; none is signed.
 
 | Risk | Likelihood | Impact | Mitigation | Owner |
 | --- | --- | --- | --- | --- |
-| A4 work is unpushed and cannot be fetched | High | Review cannot be independent | XB-006 / D-008; push the branch when a writable credential exists | A4 |
+| A4 branch is published but has no review PR | Medium | Review lacks a discussion thread | XB-010; open a draft PR when the Director requests it | A4 |
 | A1 and A2 branches are not integrated; A3 is absent | High | Cross-agent gates are untested; merge conflicts are known | A4 merge order; A1 namespace and `tools/` fixes; A3 publishes IF-008 | Director, A1, A3 |
 | A1's "A3 review signed" is read as A3 acceptance | Medium | False cross-agent sign-off | A4 record: A3 has no branch; XB-001 stays Open | A4 |
 | A1 evidence is inline, not raw logs | Medium | Claims are harder to audit | Copy A1 output to `evidence/a1-stage0/` before merge | A1, A4 |
@@ -172,7 +173,7 @@ All rows are **Open**; none is signed.
 | A1 | Stage 0 review response; PR #1 draft at `90b004f` | Submitted; not integrated | D-005, XB-007, XB-008 |
 | A2 | Static-only PE package; PR #2 draft at `f324b28` | Submitted; not integrated | A1 review (XB-002), XB-009 |
 | A3 | — | No branch, commit or interface | D-001; must publish IF-008 |
-| A4 | Stage 0 review follow-up; local `596fc6f` + this commit | Submitted locally; no PR | XB-006 / D-008 (no contents write) |
+| A4 | Stage 0 review follow-up; branch published at `84fe81a` | Submitted; no PR | XB-010 (PR not requested) |
 
 ## Change log
 
@@ -182,4 +183,5 @@ All rows are **Open**; none is signed.
 | 2026-11-23 | Stage 0 review follow-up: targets, decision register, DMA gate, CI safety, evidence | `4396155` (evidence in the next commit) |
 | 2026-11-23 | Review evidence: audit, toolchain, CI, repro, clean clone, negative tests | `f990bf7` |
 | 2026-11-23 | Cross-agent blocker register; refreshed audit | `596fc6f` |
-| 2026-11-23 | A1/A2 branch verification; A3 absence; namespace and ownership findings | this commit |
+| 2026-11-23 | A1/A2 branch verification; A3 absence; namespace and ownership findings | `84fe81a` |
+| 2026-11-23 | A4 branch published to `origin`; upstream set | `84fe81a` |
