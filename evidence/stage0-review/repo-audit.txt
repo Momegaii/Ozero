@@ -1,27 +1,50 @@
 $ git fetch origin --prune
+From https://github.com/Momegaii/Ozero
+   e2d7c0d..90b004f  a1/stage0-review -> origin/a1/stage0-review
+ * [new branch]      agent/a2-stage0  -> origin/agent/a2-stage0
 exit=0
 
 $ scripts/audit-repos.sh /workspace/project
 ==================================================================
 repository: /workspace/Ozero
-head:       f990bf7b9d548b59e391d680bb51d1db315355fe
+head:       596fc6fac3e3a2892a079f552c07af1f7b96a3d6
 branch:     a4/stage0-review-followup
 remotes:
   origin	https://github.com/Momegaii/Ozero.git (fetch)
   origin	https://github.com/Momegaii/Ozero.git (push)
 branches:
-  a4/stage0-review-followup f990bf7 
+  a4/stage0-review-followup 596fc6f 
   main 147cc86 origin/main
   origin 147cc86 
+  origin/a1/stage0-review 90b004f 
+  origin/agent/a2-stage0 f324b28 
   origin/main 147cc86 
 tags:
 commit graph (all refs):
-  * f990bf7 (HEAD -> a4/stage0-review-followup) docs: record Stage 0 review evidence
-  * 4396155 docs: implement Stage 0 review actions
-  * 5a50c0d docs: import A4 Stage 0 control plane
+  * 90b004f (origin/a1/stage0-review) docs: record A1 pull request in Stage 0 report
+  * e2d7c0d docs: add A1 document index
+  *   9ddaf4a Merge shared Ozero main into A1 Stage 0 branch
+  |\  
+  * | a2edceb Stage 0 report: review response, evidence, decisions, risks, not-tested list
+  * | 4943538 Stage 0 review response: pin boot stack, correct revision claim, tighten AP/HHDM/DMA contracts
+  * | b3004b7 Stage 0: point report at final deliverables commit
+  * | c46ee86 Stage 0: final wording and flag-comment fixes
+  * | 3f68e5e Stage 0: add status report with evidence and decisions needed
+  * | 357202f Stage 0: tighten boot contract and CPU baseline after review
+  * | ff439e3 Stage 0: kernel architecture, boot contract, CPU matrix, interface sketch
+   /  
+  | * f324b28 (origin/agent/a2-stage0) chore(a2): record shared-repo revision and regenerate evidence
+  | * 8bac650 docs(a2): import Stage 0 package under a2/
+  |/  
+  | * 596fc6f (HEAD -> a4/stage0-review-followup) docs: add cross-agent blocker register
+  | * 907093d docs: refresh repository audit at evidence head
+  | * f990bf7 docs: record Stage 0 review evidence
+  | * 4396155 docs: implement Stage 0 review actions
+  | * 5a50c0d docs: import A4 Stage 0 control plane
+  |/  
   * 147cc86 (origin/main, origin/HEAD, main) Initial commit
-commit count (all refs): 4
-tracked files: 76
+commit count (all refs): 18
+tracked files: 77
 top-level tracked entries:
   .editorconfig
   .github
@@ -39,9 +62,13 @@ top-level tracked entries:
   toolchain
 working tree: clean
 A1/A2/A3 refs:
-  none
+  refs/remotes/origin/a1/stage0-review
+  refs/remotes/origin/agent/a2-stage0
 A1/A2/A3 commit subjects:
-  none
+  90b004f docs: record A1 pull request in Stage 0 report
+  8bac650 docs(a2): import Stage 0 package under a2/
+  e2d7c0d docs: add A1 document index
+  9ddaf4a Merge shared Ozero main into A1 Stage 0 branch
 ==================================================================
 repository: /workspace/project
 head:       d6b7af0e2bc92466b1aa3d12983044417efca906

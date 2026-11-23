@@ -87,6 +87,25 @@ Stage 0 has no persistent state, so rollback is a revert. For later stages:
 4. If a data or interface migration was shipped, the revert needs a forward fix, not a downgrade.
    That case needs Director approval before merge in the first place.
 
+## Current branch integration order
+
+At the 2026-11-23 snapshot the open branches are `a4/stage0-review-followup`,
+`a1/stage0-review` (PR #1) and `agent/a2-stage0` (PR #2). A3 has no branch. Merge in this order:
+
+1. A4 control plane: it defines `CODEOWNERS`, `Makefile`, `tests/targets.tsv`, `scripts/` and the
+   process documents. Nothing else can be checked against the gates until this lands.
+2. A1: rebase onto the A4 base. Resolve `AGENTS.md`, `README.md` and `docs/README.md` in favour of
+   the A4 control-plane text, then add A1's content. Resolve the `include/o0/` vs `include/ozero/`
+   namespace (XB-007) and the `tools/check-headers.sh` ownership (XB-008) before merge. Register
+   the ABI test in `tests/targets.tsv`.
+3. A2: rebase onto the same base. Keep the `a2/` package intact and add a root `test-pe-static`
+   target; do not merge `a2/Makefile` into the root Makefile. Regenerate evidence at the final head
+   (XB-009).
+4. A3: only after it publishes IF-008 and A1 signs that version (XB-001).
+
+A1's statement that the A3 interface review is "signed with one blocker" is not A3 acceptance.
+A3 has published no interface, so XB-001 stays Open.
+
 ## Stage acceptance handoff
 
 When every box is checked, A4 fills `docs/templates/stage-acceptance.md` with the evidence links and

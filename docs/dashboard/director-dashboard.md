@@ -11,14 +11,17 @@
 
 ## At a glance
 
-- The A4 control plane is now in the Ozero repository on the review branch. The Stage 0 review
-  actions are implemented; raw evidence is in `evidence/stage0-review/`.
-- No A1, A2 or A3 commit exists in the remote or in the imported tree. Those agents have not
-  started.
+- The A4 control plane is on the local review branch. The Stage 0 review actions are implemented;
+  raw evidence is in `evidence/stage0-review/`.
+- A1 published `a1/stage0-review` at `90b004f` (PR #1, draft). A2 published `agent/a2-stage0` at
+  `f324b28` (PR #2, draft). A3 has no branch.
+- A1's evidence is an inline report, not raw logs. A2's evidence is static-only and tied to
+  `8bac650`, not the branch head. Neither branch is integrated.
 - The build and QEMU MBR harness are **Tested**. The 512-byte MBR fixture is not the Ozero kernel
   and is never described as kernel boot.
 - All Director decisions are **Proposed**. None is approved.
-- The review branch is local and unpushed. Independent verification needs D-008.
+- The A4 review branch cannot be pushed: the authenticated token has no contents write. Independent
+  verification needs XB-006 / D-008.
 
 ## Stage 0 review actions
 
@@ -82,7 +85,9 @@
 - Real-hardware boot or device matrix
 - PE parsing, loading or Windows compatibility
 - Public header ABI
-- Any A1, A2 or A3 code, because no such code exists in this repository
+- Any A1 runtime: no kernel, ISO, QEMU boot, AP takeover or DMA execution
+- Any A2 Windows execution: PE evidence is static-only, and all 17 corpus entries are `not-run`
+- Any A3 code, AHCI probe or device test: no A3 branch exists
 
 ## Blockers
 
@@ -90,11 +95,13 @@
 | --- | --- | --- | --- | --- |
 | 1 | ADR-0001 to ADR-0004 are unapproved | Project Director | Stage 1 cannot start with agreed ownership or review rules | Before Stage 1 |
 | 2 | GitHub team slugs in `CODEOWNERS` are placeholders | Project Director | Review enforcement is not active | Before Stage 1 |
-| 3 | Boot protocol is undecided; Limine is only a candidate | A1 | A1 cannot finalise the boot path; harness is protocol-neutral by design | Stage 1 design |
+| 3 | Boot protocol is proposed as Limine v12.11.1, base revision 6; Director D-005 is open | A1 → Director | A1 cannot finalise the boot path; the MBR harness is protocol-neutral | Stage 1 design |
 | 4 | Branch protection and required CI check are repository settings, not code | Project Director | The merge gate is advisory until enabled | Before Stage 1 |
-| 5 | A4 review branch cannot be published | Project Director (D-008) | GitHub token is authenticated as `Momegaii` but has read-only contents; `git push` and ref creation return 403 | Stage 0 review |
-| 6 | No A1/A2/A3 commits exist | A1, A2, A3 | Cross-agent gates are defined but untested | Stage 1 |
-| 7 | Six cross-agent dependencies are Open | A1, A2, A3, A4 | Dependent work cannot merge without owner sign-off | Stage 1 |
+| 5 | A4 review branch cannot be published | Project Director (XB-006 / D-008) | `git push` and ref creation return 403; the token cannot write contents | Stage 0 review |
+| 6 | A1 and A2 branches are not integrated; A3 has no branch | A1, A2, A3, A4 | Cross-agent gates are defined but untested; merge conflicts are known | Stage 1 |
+| 7 | Nine cross-agent dependencies are Open | A1, A2, A3, A4 | Dependent work cannot merge without owner sign-off | Stage 1 |
+| 8 | A1 uses `include/o0/`; the map and `CODEOWNERS` say `include/ozero/` | A1, A4 → Director | A1 cannot merge without a namespace decision | Before A1 merge |
+| 9 | A1 adds `tools/check-headers.sh` under A3-owned `tools/` | A1, A3 | Ownership gate would block the A1 merge | Before A1 merge |
 
 ## Cross-agent dependencies
 
@@ -103,12 +110,15 @@ All rows are **Open**; none is signed.
 
 | ID | Dependency | Owner | State |
 | --- | --- | --- | --- |
-| XB-001 | A1 reviews A3 DMA/platform/block before AHCI probe | A1 | Open |
-| XB-002 | A2 contracts match A1 process/address-space/handle/syscall | A1 → A2 | Open |
-| XB-003 | A2 PE fixture contract before any PE test | A2 | Open |
-| XB-004 | A1 pins Limine and the kernel handoff | A1 | Open |
-| XB-005 | A3 names device tests and hardware requirements with evidence | A3 | Open |
-| XB-006 | A4 publishes the review branch and PR | A4 → Director | Open |
+| XB-001 | A1 reviews the A3 DMA/platform/block interface before AHCI probe | A1 → A3 | Open; A3 has no branch, A1 reviewed its own draft |
+| XB-002 | A2 contracts match A1 process/address-space/handle/syscall | A1 → A2 | Open; A2 published requirements, A1 review pending |
+| XB-003 | A2 PE fixture contract before any PE test | A2 → A1/A3 | Open; A2 static-only package published |
+| XB-004 | A1 pins Limine and the kernel handoff | A1 → Director | Open; v12.11.1 / base 6 pinned, D-005 pending |
+| XB-005 | A3 names device tests and hardware requirements with evidence | A3 → A4 | Open; no A3 branch |
+| XB-006 | A4 publishes the review branch and PR | A4 → Director | Open; push returns 403 |
+| XB-007 | Header namespace `include/o0/` vs `include/ozero/` | A1 → A4 → Director | Open |
+| XB-008 | A1's `tools/check-headers.sh` is in A3-owned `tools/` | A1 → A3 | Open |
+| XB-009 | A2 evidence cites `8bac650`, head is `f324b28` | A2 → A4 | Open |
 
 ## Decisions needed
 
@@ -127,8 +137,11 @@ All rows are **Open**; none is signed.
 
 | Risk | Likelihood | Impact | Mitigation | Owner |
 | --- | --- | --- | --- | --- |
-| A4 work is unpushed and cannot be fetched | High | Review cannot be independent | D-008; push the review branch on approval | A4 |
-| No A1/A2/A3 commits exist to verify | High | Cross-agent gates are untested | Start A1–A3 only after D-001 | Director |
+| A4 work is unpushed and cannot be fetched | High | Review cannot be independent | XB-006 / D-008; push the branch when a writable credential exists | A4 |
+| A1 and A2 branches are not integrated; A3 is absent | High | Cross-agent gates are untested; merge conflicts are known | A4 merge order; A1 namespace and `tools/` fixes; A3 publishes IF-008 | Director, A1, A3 |
+| A1's "A3 review signed" is read as A3 acceptance | Medium | False cross-agent sign-off | A4 record: A3 has no branch; XB-001 stays Open | A4 |
+| A1 evidence is inline, not raw logs | Medium | Claims are harder to audit | Copy A1 output to `evidence/a1-stage0/` before merge | A1, A4 |
+| A2 evidence and branch head differ | Medium | Provenance mismatch | Regenerate at final head; XB-009 | A2 |
 | MBR fixture is mistaken for kernel boot | Medium | False boot claim | Naming rule; explicit not-tested list | A4 |
 | Domain split does not match real work | Medium | Overlapping trees, merge conflicts | Director confirms before Stage 1 | Director |
 | Two agents share a workspace | Medium | Lost work, bad evidence | One branch/workspace per task; clean-checkout test | A4 |
@@ -150,15 +163,16 @@ All rows are **Open**; none is signed.
 | Review build, boot and repro logs | `evidence/stage0-review/` | Recorded |
 | Review negative tests | `evidence/stage0-review/negative-*.log` | Recorded |
 | CI safety log | `evidence/stage0-review/ci-safety.log` | Recorded |
+| Cross-agent verification | `evidence/stage0-review/cross-agent-verification-2026-11-23.md` | Recorded at `596fc6f` + this commit |
 
 ## Agent status
 
 | Agent | Current task | Status | Blocked by |
 | --- | --- | --- | --- |
-| A1 | — | No commits found | D-001, D-005 |
-| A2 | — | No commits found | D-001 |
-| A3 | — | No commits found | D-001 |
-| A4 | Stage 0 review follow-up | Submitted for review | D-001 to D-004, D-008 |
+| A1 | Stage 0 review response; PR #1 draft at `90b004f` | Submitted; not integrated | D-005, XB-007, XB-008 |
+| A2 | Static-only PE package; PR #2 draft at `f324b28` | Submitted; not integrated | A1 review (XB-002), XB-009 |
+| A3 | — | No branch, commit or interface | D-001; must publish IF-008 |
+| A4 | Stage 0 review follow-up; local `596fc6f` + this commit | Submitted locally; no PR | XB-006 / D-008 (no contents write) |
 
 ## Change log
 
@@ -166,3 +180,6 @@ All rows are **Open**; none is signed.
 | --- | --- | --- |
 | 2026-11-23 | Stage 0 control plane, build harness and QEMU MBR harness test | `e12983e` (local source), imported as `5a50c0d` |
 | 2026-11-23 | Stage 0 review follow-up: targets, decision register, DMA gate, CI safety, evidence | `4396155` (evidence in the next commit) |
+| 2026-11-23 | Review evidence: audit, toolchain, CI, repro, clean clone, negative tests | `f990bf7` |
+| 2026-11-23 | Cross-agent blocker register; refreshed audit | `596fc6f` |
+| 2026-11-23 | A1/A2 branch verification; A3 absence; namespace and ownership findings | this commit |

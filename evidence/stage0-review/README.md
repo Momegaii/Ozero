@@ -48,6 +48,7 @@ manifest records `commit: unknown` inside both reproducibility copies.
 | Path | Contents |
 | --- | --- |
 | `REPORT.md` | Required report: commits, files, commands, decisions, risks, not-tested |
+| `cross-agent-verification-2026-11-23.md` | A1/A2 branch verification, A3 absence, merge order |
 | `repo-audit.txt` | Fetch plus commit graph, branches, tags and clean-tree state |
 | `toolchain.txt` | Strict toolchain check |
 | `targets.txt` | Test-target registry |
