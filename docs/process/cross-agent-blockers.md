@@ -10,7 +10,7 @@ checks are in [`directive-checks-2026-11-23.log`](../../evidence/stage0-review/d
 and [`a3-integration-checks-2026-11-23.log`](../../evidence/stage0-review/a3-integration-checks-2026-11-23.log).
 A1 is at `2693a34`; A2 is at `d83cfbe` (code `f6ed1d8`, evidence `d83cfbe`) and is integrated into
 the A4 candidate at `f0c64a9`; A3 PR #4 is at `48d434f`; A4 merged A3 into the candidate at
-`44d566e`. A4 head is `a5fbbf9`. The A4 tree now has `a2/`, `a3/` and root `include/ozero/`;
+`44d566e`. A4 head at the last blocker-register reconciliation was `a5fbbf9`; subsequent CI expansion and dashboard refresh are recorded in the director dashboard at the current branch head. The A4 tree now has `a2/`, `a3/` and root `include/ozero/`;
 XB-020 is Closed. PR #4 is merged into the A4 branch at `44d566e`. `main` remains `147cc86`. The
 IF-009 v1.1 six negative cases are implemented at `31e6825`, with evidence at `37e9bf0`; XB-021 is
 Closed for implementation.
@@ -71,3 +71,8 @@ Closed for implementation.
   Director's 2026-11-23 instruction to resolve the namespace and ownership conflicts. A1's
   D-011–D-030 proposals are recorded in the canonical register; A1's D-009 and D-010 were merged
   into A4's rows on the same topics.
+
+
+## Latest CI expansion — 2026-11-23
+
+The A4 CI workflow was expanded to run A2 static contract checks, A2 unit tests, and A3 interface/matrix checks in addition to the existing root Stage 0 pipeline. At commit `8478c6e6b97e56f583e7b244b6bb43dc9184cb06`, workflow run #19 completed successfully across all steps. The MBR harness remains a fixture smoke test; A2 checks are static and unit-level; A3 checks do not establish device or hardware operation. This does not close XB-004, XB-005 or XB-012, and does not change Stage 0 acceptance.
