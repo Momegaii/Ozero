@@ -24,7 +24,7 @@ timeout "${TIMEOUT_SECONDS}s" "$QEMU" \
     -machine q35 -m 512M -cdrom "$ISO" -boot d \
     -display none -serial "file:$LOG" -monitor none \
     -no-reboot -no-shutdown \
-    -d int,guest_errors,cpu_reset -D "$DEBUG_LOG"
+    -d int,in_asm,guest_errors,cpu_reset -D "$DEBUG_LOG"
 status=$?
 set -e
 
