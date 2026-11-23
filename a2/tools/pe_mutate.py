@@ -12,6 +12,12 @@ attributed to a single defect:
   chain_flags              a CHAININFO entry also claims EHANDLER
   loadconfig_size          the load-config Size field is absurd
   tls_callbacks_unmapped   AddressOfCallBacks points outside the image
+  truncate_dos_header      the file ends inside IMAGE_DOS_HEADER
+  truncate_nt_headers      the file ends inside the PE signature/COFF header
+  truncate_optional_header the file ends inside IMAGE_OPTIONAL_HEADER64
+  truncate_section_table   the file ends inside the section table
+  import_name_rva_zero     the first import descriptor has Name RVA 0
+  import_name_rva_oob      the first import descriptor Name RVA is outside the image
 
 The output keeps the original file name plus a suffix, e.g.
 ``console_hello.sections_swap.exe``.
@@ -37,6 +43,12 @@ MUTATIONS = [
     "chain_flags",
     "loadconfig_size",
     "tls_callbacks_unmapped",
+    "truncate_dos_header",
+    "truncate_nt_headers",
+    "truncate_optional_header",
+    "truncate_section_table",
+    "import_name_rva_zero",
+    "import_name_rva_oob",
 ]
 
 
@@ -50,6 +62,12 @@ def put(data: bytearray, offset: int, payload: bytes, label: str) -> dict:
     original = bytes(data[offset:offset + len(payload)])
     data[offset:offset + len(payload)] = payload
     return {"offset": offset, "original": original.hex(), "patched": payload.hex(), "label": label}
+
+
+def truncate(data: bytearray, size: int, label: str) -> dict:
+    if size <= 0 or size >= len(data):
+        raise NotApplicable(f"{label}: truncation size {size} is not inside the file")
+    return {"offset": size, "original": "", "patched": "", "label": label, "truncate_to": size}
 
 
 def section_table_offset(image: PEImage) -> int:
@@ -141,6 +159,31 @@ def apply(image: PEImage, data: bytearray, mutation: str) -> dict:
         payload = struct.pack("<Q", bogus) if image.pe32_plus else struct.pack("<I", bogus & 0xFFFFFFFF)
         return put(data, field, payload, "TLS.AddressOfCallBacks")
 
+    if mutation == "truncate_dos_header":
+        return truncate(data, 0x20, "IMAGE_DOS_HEADER")
+
+    if mutation == "truncate_nt_headers":
+        return truncate(data, image.e_lfanew + 10, "PE signature + COFF header")
+
+    if mutation == "truncate_optional_header":
+        optional = image.e_lfanew + 4 + 20
+        return truncate(data, optional + 40, "IMAGE_OPTIONAL_HEADER64")
+
+    if mutation == "truncate_section_table":
+        return truncate(data, section_table_offset(image) + 20, "section table")
+
+    if mutation in {"import_name_rva_zero", "import_name_rva_oob"}:
+        directory = image.directory("import")
+        if not directory:
+            raise NotApplicable("no import directory")
+        offset = image.rva_to_offset(directory["virtual_address"])
+        if offset is None:
+            raise NotApplicable("import directory is unmapped")
+        if offset + 20 > len(data):
+            raise NotApplicable("first import descriptor is outside the file")
+        name_rva = 0 if mutation == "import_name_rva_zero" else image.size_of_image + 0x1000
+        return put(data, offset + 12, struct.pack("<I", name_rva), "import[0].Name")
+
     raise NotApplicable(f"unknown mutation {mutation}")
 
 
@@ -170,7 +213,8 @@ def main(argv: list[str]) -> int:
             results.append({"mutation": mutation, "status": "not-applicable", "detail": str(error)})
             continue
         output = args.out_dir / f"{args.source.stem}.{mutation}{args.source.suffix}"
-        output.write_bytes(data)
+        payload = bytes(data[:patch["truncate_to"]]) if "truncate_to" in patch else bytes(data)
+        output.write_bytes(payload)
         results.append({
             "mutation": mutation,
             "status": "written",
@@ -179,6 +223,7 @@ def main(argv: list[str]) -> int:
             "original": patch["original"],
             "patched": patch["patched"],
             "label": patch["label"],
+            "truncate_to": patch.get("truncate_to"),
         })
         failures += 0
 
@@ -187,8 +232,12 @@ def main(argv: list[str]) -> int:
     else:
         for item in results:
             if item["status"] == "written":
-                print(f"WROTE {item['output']}  {item['label']} @ {item['offset']:#x} "
-                      f"{item['original']} -> {item['patched']}")
+                if item.get("truncate_to") is not None:
+                    print(f"WROTE {item['output']}  {item['label']} truncated at "
+                          f"{item['truncate_to']:#x}")
+                else:
+                    print(f"WROTE {item['output']}  {item['label']} @ {item['offset']:#x} "
+                          f"{item['original']} -> {item['patched']}")
             else:
                 print(f"SKIP  {item['mutation']}: {item['detail']}")
     return 0 if failures == 0 else 1

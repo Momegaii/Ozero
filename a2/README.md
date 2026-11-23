@@ -31,8 +31,9 @@ manifest and its linter.
 | Technical findings (hashes, offsets, raw bytes) | [docs/10-technical-findings.md](docs/10-technical-findings.md) | draft ready |
 | Stage 0 review response | [docs/11-stage0-review-response.md](docs/11-stage0-review-response.md) | draft ready |
 | A1 contract review request | [docs/12-a1-contract-review.md](docs/12-a1-contract-review.md) | review requested (XB-002) |
-| PE fixture contract (IF-009) | [docs/13-if-009-pe-fixture-contract.md](docs/13-if-009-pe-fixture-contract.md) | A1 accept with conditions; A3 accept (boundary); A4 registry pending (XB-003) |
+| PE fixture contract (IF-009) | [docs/13-if-009-pe-fixture-contract.md](docs/13-if-009-pe-fixture-contract.md) | v1.0 Signed; v1.1 negative cases implemented, signature pending (XB-021) |
 | Review ledger | [docs/14-review-ledger.md](docs/14-review-ledger.md) | current; XB-002/XB-003/XB-009 states |
+| IF-009 v1.1 negative cases | [docs/15-if-009-v1.1-negative-cases.md](docs/15-if-009-v1.1-negative-cases.md) | implemented at L0; A1/A3 re-sign pending |
 
 Machine readable data:
 
@@ -51,9 +52,10 @@ Tools:
   `fixtures/build-manifest.json`; `--check` detects toolchain drift.
 - `tools/apiset.py` — API set name parser and resolver with positive and negative
   tests (`data/apiset-schema.json` is a test schema, not Microsoft's).
-- `tools/pe_mutate.py` — creates malformed images that each break one invariant.
-- `tools/negative_report.py` — runs the malformed-image suite and requires the
-  expected check to fail.
+- `tools/pe_mutate.py` — creates malformed images that each break one invariant,
+  including the six IF-009 v1.1 truncated-header and import-name cases.
+- `tools/negative_report.py` — runs the 14-case malformed-image suite and requires
+  the expected check to fail.
 - `tools/finding_report.py` — prints hashes, file offsets and raw bytes behind
   the technical findings.
 - `tools/pe_structs_check.py` — validates the structure inventory and checks it
@@ -96,8 +98,8 @@ material; third-party binaries are never redistributed from this repository.
 | 263 structure and layout checks | `python3 tools/pe_structs_check.py ...` | [docs/evidence/pe-structure-checks.txt](docs/evidence/pe-structure-checks.txt) |
 | 559 corpus manifest checks | `python3 tools/corpus_lint.py` | [docs/evidence/corpus-lint.txt](docs/evidence/corpus-lint.txt) |
 | Deliverable structure and citation checks | `python3 tools/docs_check.py` | [docs/evidence/docs-check.txt](docs/evidence/docs-check.txt) |
-| 40 unit tests, including negative cases | `python3 -m unittest discover -s tests -v` | [docs/evidence/unit-tests.txt](docs/evidence/unit-tests.txt) |
-| 8 malformed-image cases, each with an expected failure | `python3 tools/negative_report.py` | [docs/evidence/negative-tests.txt](docs/evidence/negative-tests.txt) |
+| 45 unit tests, including negative cases | `python3 -m unittest discover -s tests -v` | [docs/evidence/unit-tests.txt](docs/evidence/unit-tests.txt) |
+| 14 malformed-image cases, each with an expected failure | `python3 tools/negative_report.py` | [docs/evidence/negative-tests.txt](docs/evidence/negative-tests.txt), [docs/evidence/if-009-v1.1-negative-cases.txt](docs/evidence/if-009-v1.1-negative-cases.txt) |
 | API set contracts resolved for a fixture | `python3 tools/apiset.py --check-image build/console_hello.exe` | [docs/evidence/apiset.txt](docs/evidence/apiset.txt) |
 | Fixture rebuild matches the committed manifest | `python3 tools/build_fixtures.py --check` | [docs/evidence/reproducibility.txt](docs/evidence/reproducibility.txt) |
 
@@ -126,7 +128,7 @@ What they do not show: that any application runs. Every corpus entry is
 | Every milestone has observable pass/fail tests | M0–M5 with pass criteria and evidence format | [docs/07-stage7-milestone.md](docs/07-stage7-milestone.md) |
 | No "full compatibility" claim without a corpus and measured results | claim phrases require measured evidence in the manifest; lint fails otherwise | `tools/corpus_lint.py`, negative test in `tests/test_tools.py` |
 | Every sample has provenance, hash and an evidence level | `evidence_level`, `sandbox_required` and `provenance` are required fields; fixture sources are checked against the build manifest | `data/test-corpus.json`, `fixtures/build-manifest.json` |
-| API sets, TLS, relocations, unwind and load config have negative tests | 8 mutations, each required to trigger a named check | `tools/negative_report.py`, `docs/10-technical-findings.md` |
+| API sets, TLS, relocations, unwind and load config have negative tests | 14 mutations, each required to trigger a named check; six are the IF-009 v1.1 truncated-header and import-name cases | `tools/negative_report.py`, `docs/10-technical-findings.md`, `docs/15-if-009-v1.1-negative-cases.md` |
 | Dependencies on A1 interfaces are listed | 50+ interfaces with semantics, failure behaviour and tests | [docs/03-a1-interface-requirements.md](docs/03-a1-interface-requirements.md) |
 
 ## Reporting format

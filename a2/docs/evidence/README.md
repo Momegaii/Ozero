@@ -12,9 +12,10 @@ make evidence
 | `pe-structure-checks.txt` | `tools/pe_structs_check.py` | inventory consistency plus 263 layout checks against 8 real images |
 | `corpus-lint.txt` | `tools/corpus_lint.py` | corpus structure, coverage, evidence-level, sandbox and provenance rules (559 checks) |
 | `docs-check.txt` | `tools/docs_check.py` | deliverable presence, reporting fields, citations and local links |
-| `unit-tests.txt` | `unittest` | 40 tool tests including the negative cases that must fail |
+| `unit-tests.txt` | `unittest` | 45 tool tests including the negative cases that must fail |
 | `technical-findings.txt` | `tools/finding_report.py` | sample SHA-256, file offsets, raw bytes and references for API sets, TLS, relocations, chained unwind and load config |
-| `negative-tests.txt` | `tools/negative_report.py` | 8 malformed-image cases, each with the check it must fail and the observed detail |
+| `negative-tests.txt` | `tools/negative_report.py` | 14 malformed-image cases, each with the check it must fail and the observed detail |
+| `if-009-v1.1-negative-cases.txt` | `tools/negative_report.py` | the six IF-009 v1.1 truncated-header and missing-DLL-name cases with expected and observed failure details |
 | `apiset.txt` | `tools/apiset.py --check-image` | API set contracts imported by the console fixture and their test-schema hosts |
 | `reproducibility.txt` | `tools/build_fixtures.py --check` | fixture rebuild compared with the committed build manifest |
 

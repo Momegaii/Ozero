@@ -18,16 +18,36 @@ import pe_mutate  # noqa: E402
 import pe_structs_check  # noqa: E402
 from pe_inspect import PEImage  # noqa: E402
 
-# mutation -> (source, check that must fail)
+# mutation -> source, check that must fail, and optional detail substring
 CASES = [
-    ("sections_swap", "build/console_hello.exe", "sections_ascending"),
-    ("reloc_block_size", "build/console_hello.exe", "relocation_blocks_consistent"),
-    ("import_terminator", "build/console_hello.exe", "import_descriptors_terminated"),
-    ("pdata_remainder", "build/console_hello.exe", "exception_table_entry_size"),
-    ("pdata_swap", "build/console_hello.exe", "exception_table_sorted"),
-    ("tls_callbacks_unmapped", "build/console_hello.exe", "tls_callbacks_terminated"),
-    ("chain_flags", ".cache/_speedups.cp311-win_amd64.pyd", "chained_unwind_flags_clear"),
-    ("loadconfig_size", ".cache/_speedups.cp311-win_amd64.pyd", "load_config_size_sane"),
+    {"mutation": "sections_swap", "source": "build/console_hello.exe",
+     "expected": "sections_ascending"},
+    {"mutation": "reloc_block_size", "source": "build/console_hello.exe",
+     "expected": "relocation_blocks_consistent"},
+    {"mutation": "import_terminator", "source": "build/console_hello.exe",
+     "expected": "import_descriptors_terminated"},
+    {"mutation": "pdata_remainder", "source": "build/console_hello.exe",
+     "expected": "exception_table_entry_size"},
+    {"mutation": "pdata_swap", "source": "build/console_hello.exe",
+     "expected": "exception_table_sorted"},
+    {"mutation": "tls_callbacks_unmapped", "source": "build/console_hello.exe",
+     "expected": "tls_callbacks_terminated"},
+    {"mutation": "chain_flags", "source": ".cache/_speedups.cp311-win_amd64.pyd",
+     "expected": "chained_unwind_flags_clear"},
+    {"mutation": "loadconfig_size", "source": ".cache/_speedups.cp311-win_amd64.pyd",
+     "expected": "load_config_size_sane"},
+    {"mutation": "truncate_dos_header", "source": "build/console_hello.exe",
+     "expected": "parse", "detail": "truncated DOS header"},
+    {"mutation": "truncate_nt_headers", "source": "build/console_hello.exe",
+     "expected": "parse", "detail": "truncated NT headers"},
+    {"mutation": "truncate_optional_header", "source": "build/console_hello.exe",
+     "expected": "parse", "detail": "truncated optional header"},
+    {"mutation": "truncate_section_table", "source": "build/console_hello.exe",
+     "expected": "parse", "detail": "truncated section table"},
+    {"mutation": "import_name_rva_zero", "source": "build/console_hello.exe",
+     "expected": "import_names_mapped"},
+    {"mutation": "import_name_rva_oob", "source": "build/console_hello.exe",
+     "expected": "import_names_mapped"},
 ]
 
 
@@ -54,8 +74,11 @@ def main(argv: list[str]) -> int:
     args.out_dir.mkdir(parents=True, exist_ok=True)
     rows = []
     failures = 0
-    for mutation, source_name, expected in CASES:
-        source = Path(source_name)
+    for case in CASES:
+        mutation = case["mutation"]
+        source = Path(case["source"])
+        expected = case["expected"]
+        expected_detail = case.get("detail", "")
         if not source.exists():
             rows.append({"mutation": mutation, "status": "skipped", "detail": f"{source} missing",
                          "expected_check": expected, "failures": []})
@@ -74,24 +97,27 @@ def main(argv: list[str]) -> int:
             rows.append({"mutation": mutation, "status": "not-applicable", "detail": str(error)})
             continue
         output = args.out_dir / f"{source.stem}.{mutation}{source.suffix}"
-        output.write_bytes(data)
+        payload = bytes(data[:patch["truncate_to"]]) if "truncate_to" in patch else bytes(data)
+        output.write_bytes(payload)
         mutated = check(output, inventory, by_name)
         failed_checks = {row["check"] for row in mutated.failures}
-        hit = expected in failed_checks
+        detail = next((row["detail"] for row in mutated.failures if row["check"] == expected), "")
+        hit = expected in failed_checks and (not expected_detail or expected_detail in detail)
         if not hit:
             failures += 1
-        detail = next((row["detail"] for row in mutated.failures if row["check"] == expected), "")
         rows.append({
             "mutation": mutation,
             "status": "pass" if hit else "fail",
             "source": str(source),
             "output": str(output),
             "expected_check": expected,
+            "expected_detail": expected_detail,
             "failures": sorted(failed_checks),
             "detail": detail,
             "patch_offset": patch["offset"],
             "original": patch["original"],
             "patched": patch["patched"],
+            "truncate_to": patch.get("truncate_to"),
         })
 
     if args.json:
@@ -99,8 +125,12 @@ def main(argv: list[str]) -> int:
     else:
         for row in rows:
             if row["status"] == "pass":
-                print(f"PASS {row['mutation']:<24} -> {row['expected_check']:<34} "
-                      f"@ {row['patch_offset']:#x} {row['original']} -> {row['patched']}")
+                if row.get("truncate_to") is not None:
+                    print(f"PASS {row['mutation']:<24} -> {row['expected_check']:<24} "
+                          f"truncated at {row['truncate_to']:#x}")
+                else:
+                    print(f"PASS {row['mutation']:<24} -> {row['expected_check']:<24} "
+                          f"@ {row['patch_offset']:#x} {row['original']} -> {row['patched']}")
                 print(f"     {row['detail']}")
             elif row["status"] in {"not-applicable", "skipped"}:
                 print(f"SKIP {row['mutation']:<24} {row['detail']}")

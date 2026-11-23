@@ -107,14 +107,18 @@ gaps:
 | A1 category | v1.0 case | State |
 | --- | --- | --- |
 | Malformed PE | `sections_swap`, `pdata_remainder`, `loadconfig_size` | Covered |
-| Truncated headers | — | **Gap**; candidate for v1.1 |
+| Truncated headers | `truncate_dos_header`, `truncate_nt_headers`, `truncate_optional_header`, `truncate_section_table` | Covered by the v1.1 candidate; A1/A3 re-sign pending |
 | Bad relocations | `reloc_block_size` | Covered |
-| Missing imports | `import_terminator` | Partial; a missing DLL name is a **gap** for v1.1 |
+| Missing imports | `import_terminator`, `import_name_rva_zero`, `import_name_rva_oob` | Covered by the v1.1 candidate; A1/A3 re-sign pending |
 | Invalid TLS | `tls_callbacks_unmapped` | Covered |
-| Expected error/evidence | Each case names the check it must trigger | Covered |
+| Expected error/evidence | Each case names the check it must trigger | Covered; raw run in `docs/evidence/if-009-v1.1-negative-cases.txt` |
 
-A1's review of v1.0 will decide whether the two gaps block acceptance or can be deferred
-to v1.1.
+The six v1.1 cases are documented in [15-if-009-v1.1-negative-cases.md](15-if-009-v1.1-negative-cases.md).
+They are implemented and pass at L0, but IF-009 v1.1 is **not signed**; v1.0 remains the accepted
+version until A1 and A3 record new signatures.
+
+A1 accepted v1.0 with these two gaps explicitly deferred to v1.1. The v1.1 candidate now covers
+both, but it has no v1.1 signature yet.
 
 ## A1 interface assumptions
 

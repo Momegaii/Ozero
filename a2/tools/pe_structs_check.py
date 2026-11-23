@@ -284,6 +284,17 @@ def check_image(path: Path, inventory: dict, by_name: dict[str, dict], results: 
             (descriptors + 1) * 20 <= directory["size"],
             f"descriptors={descriptors} directory={directory['size']}",
         )
+        bad_names = [
+            f"{entry['dll_rva']:#x}"
+            for entry in image.imports()
+            if entry["dll_rva"] == 0 or entry["dll_offset"] is None
+        ]
+        results.add(
+            scope, "import_names_mapped",
+            not bad_names,
+            "all import Name RVAs map to file offsets"
+            if not bad_names else f"unmapped Name RVAs: {', '.join(bad_names)}",
+        )
 
     tls = image.tls()
     if tls:

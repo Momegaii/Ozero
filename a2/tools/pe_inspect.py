@@ -111,9 +111,18 @@ class PEImage:
     # ---- header parsing ----------------------------------------------
     def parse(self) -> None:
         r = self.reader
-        if len(r.data) < 0x40 or r.data[:2] != b"MZ":
+        if len(r.data) < 0x40:
+            raise ParseError(
+                f"truncated DOS header: file is {len(r.data)} bytes, need at least 64"
+            )
+        if r.data[:2] != b"MZ":
             raise ParseError("missing MZ signature")
         self.e_lfanew = r.u32(0x3C)
+        if self.e_lfanew + 24 > len(r.data):
+            raise ParseError(
+                f"truncated NT headers: e_lfanew={self.e_lfanew:#x}, "
+                f"need 24 bytes at that offset, file is {len(r.data)} bytes"
+            )
         if r.bytes(self.e_lfanew, 4) != b"PE\0\0":
             raise ParseError("missing PE signature")
         coff = self.e_lfanew + 4
@@ -127,6 +136,15 @@ class PEImage:
         if not 0 < self.number_of_sections <= 96:
             raise ParseError(f"implausible section count {self.number_of_sections}")
         optional = coff + 20
+        if self.size_of_optional_header < 2:
+            raise ParseError(
+                f"truncated optional header: SizeOfOptionalHeader={self.size_of_optional_header}"
+            )
+        if optional + self.size_of_optional_header > len(r.data):
+            raise ParseError(
+                f"truncated optional header: need {self.size_of_optional_header} bytes "
+                f"at {optional:#x}, file is {len(r.data)} bytes"
+            )
         self.magic = r.u16(optional)
         if self.magic == 0x20B:
             self.pe32_plus = True
@@ -136,7 +154,14 @@ class PEImage:
             self._parse_optional32(optional)
         else:
             raise ParseError(f"unsupported optional header magic {self.magic:#x}")
-        self._parse_sections(optional + self.size_of_optional_header)
+        table = optional + self.size_of_optional_header
+        table_end = table + self.number_of_sections * 40
+        if table_end > len(r.data):
+            raise ParseError(
+                f"truncated section table: {self.number_of_sections} entries need "
+                f"{table_end - table} bytes at {table:#x}, file is {len(r.data)} bytes"
+            )
+        self._parse_sections(table)
         self._parse_rich_header()
 
     def _parse_optional64(self, base: int) -> None:

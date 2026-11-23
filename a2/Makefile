@@ -55,6 +55,7 @@ evidence: fixtures
 	{ sh tools/evidence_header.sh $@; $(PY) tools/corpus_lint.py; } > docs/evidence/corpus-lint.txt
 	{ sh tools/evidence_header.sh $@; $(PY) tools/finding_report.py; } > docs/evidence/technical-findings.txt
 	{ sh tools/evidence_header.sh $@; $(PY) tools/negative_report.py; } > docs/evidence/negative-tests.txt
+	{ sh tools/evidence_header.sh $@; $(PY) tools/negative_report.py; } > docs/evidence/if-009-v1.1-negative-cases.txt
 	{ sh tools/evidence_header.sh $@; $(PY) tools/apiset.py --check-image build/console_hello.exe; } > docs/evidence/apiset.txt
 	{ sh tools/evidence_header.sh $@; $(PY) tools/build_fixtures.py --cc "$(ZIG)" --target $(TARGET) --check || true; } > docs/evidence/reproducibility.txt
 	{ sh tools/evidence_header.sh $@; $(PY) tools/docs_check.py || true; } > docs/evidence/docs-check.txt

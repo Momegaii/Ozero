@@ -290,6 +290,12 @@ class MutationTests(unittest.TestCase):
         ("build/console_hello.exe", "tls_callbacks_unmapped", "tls_callbacks_terminated"),
         (".cache/_speedups.cp311-win_amd64.pyd", "chain_flags", "chained_unwind_flags_clear"),
         (".cache/_speedups.cp311-win_amd64.pyd", "loadconfig_size", "load_config_size_sane"),
+        ("build/console_hello.exe", "truncate_dos_header", "parse"),
+        ("build/console_hello.exe", "truncate_nt_headers", "parse"),
+        ("build/console_hello.exe", "truncate_optional_header", "parse"),
+        ("build/console_hello.exe", "truncate_section_table", "parse"),
+        ("build/console_hello.exe", "import_name_rva_zero", "import_names_mapped"),
+        ("build/console_hello.exe", "import_name_rva_oob", "import_names_mapped"),
     ]
 
     def test_mutations_trigger_the_expected_failure(self) -> None:
@@ -305,10 +311,11 @@ class MutationTests(unittest.TestCase):
                 self.assertEqual(baseline.failures, [], "baseline must pass")
                 image = pe_inspect.PEImage(source)
                 data = bytearray(source.read_bytes())
-                pe_mutate.apply(image, data, mutation)
+                patch = pe_mutate.apply(image, data, mutation)
+                payload = bytes(data[:patch["truncate_to"]]) if "truncate_to" in patch else bytes(data)
                 with tempfile.TemporaryDirectory() as directory:
                     path = Path(directory) / source.name
-                    path.write_bytes(data)
+                    path.write_bytes(payload)
                     results = pe_structs_check.Results()
                     pe_structs_check.check_image(path, inventory, by_name, results)
                 failed = {row["check"] for row in results.failures}
