@@ -35,6 +35,11 @@ public root, and `tools/check-headers.sh` rejects `include/o0/`. `tools/check-he
 (D-010). A1 supplied the exact entries at `30ee4f0`; both files list A1 and A4. The specific
 `CODEOWNERS` entries override the `tools/` default.
 
+A3's IF-008 v1.1 proposes `include/ozero/platform.h` and `include/ozero/block.h`. Those two files
+sit under A1-owned `include/ozero/`, so A1 must approve them as part of the IF-008 review. A3's
+branch also vendors an identical snapshot of A1's other `include/ozero/` headers; that snapshot is
+not authoritative and must not replace A1's files when the branches merge (XB-017).
+
 `CODEOWNERS` is the enforced copy of this table. If the two disagree, `CODEOWNERS` wins at review
 time and this document is a bug.
 

@@ -18,16 +18,22 @@ does not merge. Breaking changes need an ADR and Director approval.
 | IF-003 | Boot image artifact contract (path, format, size, signature) | A4 | 1.0 | A1, A2, A3 | Implemented |
 | IF-004 | Build manifest schema (`build/manifest.json`) | A4 | 1.0 | A1–A3, CI | Implemented |
 | IF-005 | Test result schema (`result.json`) | A4 | 1.0 | CI, dashboard | Implemented |
-| IF-006 | Public kernel header surface (`include/ozero/`) | A1 | 0.2 draft | A2, A3 | Draft; A1 published `03f8883` |
+| IF-006 | Public kernel header surface (`include/ozero/`) | A1 | 0.2 draft | A2, A3 | Draft; A1 published `03f8883`; headers at `30ee4f0` |
 | IF-007 | Syscall / user-kernel ABI | A1 + A3 | — | A2 | Not started |
-| IF-008 | DMA and platform interface contract | A3 | 0.1 draft | A1, A2 | Blocked: A1 conditions issued; A3 not published |
-| IF-009 | PE fixture and static-analysis contract | A2 | 0.1 draft | A4 | Proposed |
+| IF-008 | DMA and platform interface contract | A3 | 1.1 | A1, A2 | Published by A3 at `b9a69d8` (branch head `15cd9ce`); A1 final approval pending; AHCI probe blocked |
+| IF-009 | PE fixture and static-analysis contract | A2 | 0.1 draft | A1, A3, A4 | Proposed; A2 `07-stage7-milestone.md` says Signed, `12-a1-contract-review.md` says Open; no raw sign-off |
 
 `IF-001` and `IF-002` are deliberately drafts. A4 owns the harness that consumes them, not the
 technical decision. A1 and A2 must confirm or replace them.
 
 `IF-008` carries a mandatory review gate: A1 must approve any A3 change to DMA or platform
-interfaces before a dependent implementation merges. See the integration checklist.
+interfaces before a dependent implementation merges. A3 published v1.1 at `b9a69d8`; A1's
+`30ee4f0` sign-off is conditional on that publication and is not the final approval. See the
+integration checklist.
+
+`IF-009` is not Signed. A2's milestone document says it is, but A2's own contract-review document
+says Open, and neither A1 nor A3 records an explicit decision. A4 keeps the registry row at
+Proposed until a named owner records the version and the decision.
 
 ## Versioning rules
 

@@ -26,6 +26,9 @@ Commit graph:
 `git fetch origin --prune` succeeded. `origin/main` is still `147cc86`. No A1, A2 or A3 branch,
 tag or commit exists in the remote or in the local clone. The full audit is in `repo-audit.txt`.
 
+This is the `4396155` snapshot. The current cross-agent refs are in §9 and in
+[`cross-agent-verification-2026-11-23-r3.md`](cross-agent-verification-2026-11-23-r3.md).
+
 Files changed in `4396155` (26 files, +474/−107):
 
 ```
@@ -136,11 +139,11 @@ exit=1
 
 | # | Action | Closed | Evidence |
 | --- | --- | --- | --- |
-| 1 | Verify A1/A2/A3/A4 commits; record graph and clean tree | Yes. A1–A3 absent; A4 imported. | `repo-audit.txt` |
+| 1 | Verify A1/A2/A3/A4 commits; record graph and clean tree | Yes at `4396155`; current refs in §9 | `repo-audit.txt` |
 | 2 | Rerun checks in a clean environment | Yes, at `4396155` | `ci.log`, `repro.log`, `clean-checkout.log` |
 | 3 | Separate target labels | Yes | `tests/targets.tsv`, `docs/process/test-targets.md` |
-| 4 | Decision register statuses and approver | Yes; all Proposed | `docs/decisions/decision-log.md` |
-| 5 | A1 review of A3 DMA/platform interfaces as a merge gate | Yes | IF-008, `CODEOWNERS`, integration checklist |
+| 4 | Decision register statuses and approver | Yes; all Proposed at this snapshot | `docs/decisions/decision-log.md` |
+| 5 | A1 review of A3 DMA/platform interfaces as a merge gate | Gate defined; A1 approval of IF-008 v1.1 pending | IF-008, `CODEOWNERS`, integration checklist |
 | 6 | Safe CI | Yes, enforced | `docs/process/ci-safety.md`, `scripts/check-ci-safety.sh` |
 
 ## 4. Decisions needed
@@ -211,27 +214,32 @@ from the existing branch; it did not restart Stage 0 and did not merge into `mai
 | `origin/main` | `147cc86` | unchanged |
 | `origin/a1/stage0-review` | `30ee4f0` | PR #1, open, draft; second-round response |
 | `origin/agent/a2-stage0` | `807c447` | PR #2, open, draft; evidence at `50b7853` |
-| A3 | none | no branch, commit or interface |
-| `origin/a4/stage0-review-followup` | `210653c` plus documentation and audit commits | published; PR #3 open |
+| `origin/a3/stage0-review-response` | `15cd9ce` | published; no PR; IF-008 v1.1 at `b9a69d8` |
+| `origin/a4/stage0-review-followup` | `245007d` plus documentation and audit commits | published; PR #3 open |
 
 ### Director A4 actions
 
 1. **Open the A4 Stage 0 review PR** — done: [#3](https://github.com/Momegaii/Ozero/pull/3).
-2. **Refresh the audit after A3 is published** — pending A3; the audit covers A1/A2/A4 and is
-   tracked as XB-011.
-3. **Verify A1/A2/A3 evidence and ancestry** — A1 at `30ee4f0`, A2 at `807c447`, A3 absent. A2
-   evidence is at code revision `50b7853`, and `807c447` adds only evidence. A1 reviewed A2 at the
-   older `f324b28` (XB-014) and keeps its command output inline rather than in `evidence/`
-   (XB-016). See
-   [`cross-agent-verification-2026-11-23-r2.md`](cross-agent-verification-2026-11-23-r2.md).
+2. **Refresh the audit after A3 is published** — done: A3 `a3/stage0-review-response` at `15cd9ce`
+   is included; XB-011 is Closed. A3 has no PR, and none is implied.
+3. **Verify A1/A2/A3 evidence and ancestry** — A1 at `30ee4f0`, A2 at `807c447` with evidence at
+   `50b7853`, A3 at `15cd9ce` with IF-008 v1.1 at `b9a69d8`. A1 reviewed A2 at the older `f324b28`
+   (XB-014) and keeps its command output inline rather than in `evidence/` (XB-016). A1 has not
+   reviewed A3's v1.1 (XB-001) or answered `A1-REV-01…12` (XB-002). A2's response still cites
+   `8bac650` and its contract review cites A1 `90b004f` / `include/o0/` (XB-013). A3 cites a stale
+   A4 head `076ed82` and a stale D-009 `include/o0/` (XB-018); its branch rewrites the shared root
+   `README.md` / `AGENTS.md` and adds `platform.h` / `block.h` under A1-owned `include/ozero/`
+   (XB-017). See
+   [`cross-agent-verification-2026-11-23-r3.md`](cross-agent-verification-2026-11-23-r3.md).
 4. **Resolve namespace and ownership** — D-009 adopts `include/ozero/`; A1's `03f8883` refactor
    makes it the only public root. D-010 assigns `tools/check-headers.sh` and
    `tests/abi_static_asserts.c` to A1, with A4 owning CI integration and A3 owning other `tools/`
    content. `CODEOWNERS` and the ownership map are updated.
 5. **Keep MBR harness and kernel boot separate** — the only executed boot test is
    `mbr-harness-smoke`; the Limine/kernel target remains not implemented.
-6. **Confirm branch protection and required checks** — `main` reports `"protected": false` and the
-   rulesets list is empty. Required checks are not enabled (D-031 / XB-012). See
+6. **Confirm branch protection and required checks** — `main` reports `"protected": false` and
+   `"protection.enabled": false`; the rulesets list is empty; `CODEOWNERS` is 404 on `main`.
+   Required checks are not enabled (D-031 / XB-012). See
    [`github-settings.txt`](github-settings.txt).
 
 ### Decision status
@@ -247,4 +255,5 @@ display, no default devices. The later round-2 commits are documentation and evi
 ### Still not tested
 
 UEFI, Limine loading an Ozero kernel, Ozero kernel entry, real hardware, PE loading, Windows
-compatibility, A3 code and branch-protection enforcement.
+compatibility, A3 driver code or DMA, and branch-protection enforcement. A3's `make check` and
+A1-header compile pass, but they are static checks; no AHCI probe or device test ran.

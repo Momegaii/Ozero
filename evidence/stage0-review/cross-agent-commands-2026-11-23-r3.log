@@ -1,0 +1,95 @@
+# Cross-agent commands — 2026-11-23 round 3
+# Run in /workspace/Ozero. Tokens are omitted; no secret is printed.
+
+$ date -u +%Y-%m-%dT%H:%M:%SZ
+2026-11-23T12:23:53Z
+
+$ git rev-parse HEAD
+245007d2b96bbc12de1e831c5275587ef56ee81f
+
+$ git ls-remote origin "refs/heads/*"
+30ee4f0da3c3d4263033680d39e7937fcb59f42f	refs/heads/a1/stage0-review
+15cd9ce990c98af385d056016312dc27f5fc0856	refs/heads/a3/stage0-review-response
+245007d2b96bbc12de1e831c5275587ef56ee81f	refs/heads/a4/stage0-review-followup
+807c447a175eba27624f9c50c9b2e676e95e1f20	refs/heads/agent/a2-stage0
+147cc86c027cef7cec42525024d26dcccf66d7db	refs/heads/main
+
+$ git rev-list --count origin/main..origin/a1/stage0-review
+15
+$ git diff --stat origin/main..origin/a1/stage0-review | tail -1
+ 27 files changed, 3529 insertions(+)
+$ git rev-list --count origin/main..origin/agent/a2-stage0
+4
+$ git diff --stat origin/main..origin/agent/a2-stage0 | tail -1
+ 48 files changed, 9967 insertions(+)
+$ git rev-list --count origin/main..origin/a3/stage0-review-response
+6
+$ git diff --stat origin/main..origin/a3/stage0-review-response | tail -1
+ 33 files changed, 5560 insertions(+), 2 deletions(-)
+$ git rev-list --count origin/main..origin/a4/stage0-review-followup
+19
+$ git diff --stat origin/main..origin/a4/stage0-review-followup | tail -1
+ 82 files changed, 4383 insertions(+), 2 deletions(-)
+
+$ git grep -n "A1-REV-" origin/a1/stage0-review -- || echo "(no matches)"
+(no matches)
+
+$ git grep -n "8bac650" origin/agent/a2-stage0 --
+origin/agent/a2-stage0:a2/docs/11-stage0-review-response.md:4:- Evidence: repository `Momegaii/Ozero`, branch `agent/a2-stage0`, package root `a2/`, code revision `8bac650`; the regenerated `a2/docs/evidence/*.txt` are in the commit immediately after it
+origin/agent/a2-stage0:a2/docs/11-stage0-review-response.md:34:| Code revision | `8bac650` |
+origin/agent/a2-stage0:a2/docs/11-stage0-review-response.md:37:The import commit `8bac650` adds 38 files (+8 273) under `a2/`:
+origin/agent/a2-stage0:a2/docs/11-stage0-review-response.md:50:`8bac650` on the same branch.
+origin/agent/a2-stage0:a2/docs/11-stage0-review-response.md:78:All commands were run in `a2/` at `8bac650`. The full outputs are
+
+$ git grep -n "50b7853" origin/agent/a2-stage0 -- a2/docs/evidence | head -3
+origin/agent/a2-stage0:a2/docs/evidence/apiset.txt:2:# git: 50b78534f6b52af414f4ae5bc6e190c4427beba9
+origin/agent/a2-stage0:a2/docs/evidence/corpus-lint.txt:2:# git: 50b78534f6b52af414f4ae5bc6e190c4427beba9
+origin/agent/a2-stage0:a2/docs/evidence/docs-check.txt:2:# git: 50b78534f6b52af414f4ae5bc6e190c4427beba9
+
+$ git diff --stat 50b7853..807c447 -- a2 | tail -1
+ 9 files changed, 42 insertions(+), 21 deletions(-)
+$ git diff --name-only 50b7853..807c447 -- ":!a2/docs/evidence"
+
+$ git grep -n "90b004f\|include/o0" origin/agent/a2-stage0 -- a2/docs/12-a1-contract-review.md
+origin/agent/a2-stage0:a2/docs/12-a1-contract-review.md:4:- Evidence: A1 branch `a1/stage0-review` at `90b004f`; files `docs/interface-draft.md` §6–§8, `docs/kernel-architecture.md` §4, `include/o0/{ipc,thread,mm}.h`
+origin/agent/a2-stage0:a2/docs/12-a1-contract-review.md:205:- A1 `docs/interface-draft.md` §5–§8, branch `a1/stage0-review`, commit `90b004f`.
+origin/agent/a2-stage0:a2/docs/12-a1-contract-review.md:206:- A1 `include/o0/ipc.h`, `include/o0/thread.h`, `include/o0/mm.h`, same commit.
+
+$ git grep -n "XB-003" origin/agent/a2-stage0 -- a2/docs/07-stage7-milestone.md a2/docs/12-a1-contract-review.md
+origin/agent/a2-stage0:a2/docs/07-stage7-milestone.md:20:- **XB-003** (A1/A3 review of the PE fixture contract, IF-009) is Signed;
+origin/agent/a2-stage0:a2/docs/12-a1-contract-review.md:218:| XB-003 | A2 → A1/A3 PE fixture contract (IF-009) | Open; separate review of the fixture contract |
+
+$ git grep -n "076ed82\|include/o0\|D-009" origin/a3/stage0-review-response -- docs/06-stage0-review-response.md docs/interfaces/IF-008-dma-platform.md AGENTS.md
+origin/a3/stage0-review-response:AGENTS.md:77:- D-009 is contradictory: A4's register says `include/o0/` is approved, while
+origin/a3/stage0-review-response:AGENTS.md:78:  A1 `30ee4f0` uses `include/ozero/` and proposes D-009 as `ozero`. A3
+origin/a3/stage0-review-response:AGENTS.md:80:  director must correct D-009 before merge.
+origin/a3/stage0-review-response:AGENTS.md:82:  D-007 and D-021. The AHCI probe is blocked until both are recorded and D-009
+origin/a3/stage0-review-response:docs/06-stage0-review-response.md:6:Review basis: director review plus direct inspection of `main`, `a1/stage0-review` @ `30ee4f0`, `agent/a2-stage0` @ `807c447` and `a4/stage0-review-followup` @ `076ed82`
+origin/a3/stage0-review-response:docs/06-stage0-review-response.md:97:- D-009 is contradictory: A4's register records `include/o0/` as approved,
+origin/a3/stage0-review-response:docs/06-stage0-review-response.md:99:  D-009 as `include/ozero/`. A3 provisionally follows A1's signed headers so it
+origin/a3/stage0-review-response:docs/06-stage0-review-response.md:100:  can compile; XB-007 must be reopened and A4/Director must correct D-009 before
+origin/a3/stage0-review-response:docs/06-stage0-review-response.md:191:| D-009 / XB-007 | Public header namespace | **Conflict** | A4 register records `include/o0/` as approved; A1 `30ee4f0` uses `include/ozero/` and proposes D-009 as `include/ozero/`. A3 provisionally uses `ozero` so it compiles against A1's signed headers; reopen XB-007 |
+origin/a3/stage0-review-response:docs/06-stage0-review-response.md:263:- Decisions needed: D-001, D-002, D-005, D-006, D-007, D-009, D-010, D-020 and D-021 in [`README.md`](../README.md); IF-008 v1.1 is the A1 approval request.
+origin/a3/stage0-review-response:docs/interfaces/IF-008-dma-platform.md:10:| Related | D-007, D-009, D-010, D-020, D-021; XB-001, XB-005, XB-007, XB-008, XB-011 |
+origin/a3/stage0-review-response:docs/interfaces/IF-008-dma-platform.md:193:- **D-009 / XB-007:** A4's register records `include/o0/` as approved, but A1
+origin/a3/stage0-review-response:docs/interfaces/IF-008-dma-platform.md:194:  `30ee4f0` moves the public root to `include/ozero/` and proposes D-009 as
+origin/a3/stage0-review-response:docs/interfaces/IF-008-dma-platform.md:197:  correct D-009 before merge. A3 does not claim D-009 is resolved.
+
+$ git diff --stat origin/main..origin/a3/stage0-review-response -- README.md AGENTS.md
+ AGENTS.md |  84 +++++++++++++++++++++
+ README.md | 245 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++-
+ 2 files changed, 327 insertions(+), 2 deletions(-)
+
+$ curl .../branches/main
+{'protected': False, 'protection.enabled': False, 'required_status_checks': {'enforcement_level': 'off', 'contexts': [], 'checks': []}}
+
+$ curl .../rulesets
+[]
+
+$ curl .../contents/CODEOWNERS?ref=main (HTTP status)
+404
+
+$ curl .../pulls?state=all
+3 open draft=False a4/stage0-review-followup 245007d A4: Stage 0 review follow-up and Director integration actions
+2 open draft=True agent/a2-stage0 807c447 A2 Stage 0: Windows compatibility research package (static-only, evidence attached)
+1 open draft=True a1/stage0-review 30ee4f0 A1: Stage 0 review response (boot contract, CPU baseline, interface sketch)

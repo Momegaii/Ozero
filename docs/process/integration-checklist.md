@@ -90,7 +90,8 @@ Stage 0 has no persistent state, so rollback is a revert. For later stages:
 ## Current branch integration order
 
 At the 2026-11-23 snapshot the open branches are `a4/stage0-review-followup` (PR #3),
-`a1/stage0-review` (PR #1) and `agent/a2-stage0` (PR #2). A3 has no branch. Merge in this order:
+`a1/stage0-review` (PR #1), `agent/a2-stage0` (PR #2) and `a3/stage0-review-response` (no PR). Merge
+in this order:
 
 1. A4 control plane: it defines `CODEOWNERS`, `Makefile`, `tests/targets.tsv`, `scripts/` and the
    process documents. Nothing else can be checked against the gates until this lands.
@@ -100,11 +101,15 @@ At the 2026-11-23 snapshot the open branches are `a4/stage0-review-followup` (PR
    A1-owned, with A4 owning CI integration (D-010). Register the ABI test in `tests/targets.tsv`.
 3. A2: rebase onto the same base. Keep the `a2/` package intact and add a root `test-pe-static`
    target; do not merge `a2/Makefile` into the root Makefile. Regenerate evidence at the final head
-   (XB-009).
-4. A3: only after it publishes IF-008 and A1 signs that version (XB-001).
+   (XB-009) and reconcile the response and contract-review sources (XB-013).
+4. A3: rebase onto the same base and keep its package in its own tree; it must not replace the root
+   `README.md` or `AGENTS.md` (XB-017). Correct the stale A4 head and D-009 citation (XB-018). Merge
+   only after A1 signs IF-008 v1.1 at `b9a69d8` or a later version (XB-001).
 
-A1's statement that the A3 interface review is "signed with one blocker" is not A3 acceptance.
-A3 has published no interface, so XB-001 stays Open.
+A1's statement that the A3 interface review is "signed with one blocker" is a conditional sign-off
+of A1's generic surface, not IF-008 approval. A3 has published v1.1, but A1 has not signed that
+exact version, so XB-001 stays Open. A3's `make check` and A1-header compile are static evidence, not
+an AHCI probe or DMA test.
 
 ## Stage acceptance handoff
 

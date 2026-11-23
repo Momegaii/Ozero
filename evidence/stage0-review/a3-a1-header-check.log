@@ -1,0 +1,2 @@
+cc -std=c11 -Wall -Wextra -Werror -I/tmp/a1-check/include -Iinclude -fsyntax-only tests/header_smoke.c tests/a1_header_smoke.c
+exit=0

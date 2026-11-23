@@ -1,16 +1,28 @@
-# GitHub branch protection and required checks
+# GitHub branch protection, rulesets and CODEOWNERS
 # Captured 2026-11-23 against Momegaii/Ozero. Tokens are redacted.
 
 $ curl -sS -H "Authorization: Bearer <redacted>" \
     https://api.github.com/repos/Momegaii/Ozero/branches/main
 {
   "name": "main",
-  "protected": false
+  "protected": false,
+  "protection": {
+    "enabled": false,
+    "required_status_checks": {
+      "enforcement_level": "off",
+      "contexts": [],
+      "checks": []
+    }
+  }
 }
 
 $ curl -sS -H "Authorization: Bearer <redacted>" \
     https://api.github.com/repos/Momegaii/Ozero/rulesets
-count: 0
+[]
+
+$ curl -sS -o /dev/null -w "%{http_code}" -H "Authorization: Bearer <redacted>" \
+    https://api.github.com/repos/Momegaii/Ozero/contents/CODEOWNERS?ref=main
+404
 
 $ curl -sS -o /dev/null -w "%{http_code}" -H "Authorization: Bearer <redacted>" \
     https://api.github.com/repos/Momegaii/Ozero/branches/main/protection
@@ -22,13 +34,17 @@ $ curl -sS -o /dev/null -w "%{http_code}" -H "Authorization: Bearer <redacted>" 
 403
 Resource not accessible by integration
 
-# The same protection endpoints return 403 with the fine-grained PAT:
+# The protection endpoints also return 403 with the fine-grained PAT:
 #   Resource not accessible by personal access token
 # The token does not have Administration: read. This is a token limit, not evidence of protection.
 
 Conclusion:
-- main is NOT protected: the public branch metadata reports "protected": false.
+- main is NOT protected: the public branch metadata reports "protected": false and
+  "protection.enabled": false.
 - There are NO repository rulesets: the rulesets endpoint returns an empty list.
-- Required status checks are therefore NOT enabled. They are part of branch protection or a ruleset,
-  and neither exists.
-- The A4 Stage 0 merge gate is advisory until the Director enables protection and required checks.
+- Required status checks are therefore NOT enabled. They are part of branch protection or a
+  ruleset, and neither exists.
+- CODEOWNERS does not exist on main (HTTP 404). The A4 branch has CODEOWNERS, but GitHub
+  does not enforce it on main until the file lands on the base branch and review is required.
+- D-031 / XB-012 remain Open. The A4 Stage 0 merge gate is advisory until the Director
+  enables protection, required checks and a base-branch CODEOWNERS file.

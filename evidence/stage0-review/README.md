@@ -5,8 +5,9 @@
 | Stage | 0 review follow-up |
 | Repository | `Momegaii/Ozero` |
 | Branch | `a4/stage0-review-followup` (published) |
-| Commit under test | `43961551442009aac8189e5edca3f5c7af43a2cd` |
-| Current head | `210653c` plus documentation and audit commits |
+| Commit under test | `43961551442009aac8189e5edca3f5c7af43a2cd` (harness baseline) |
+| Current head | `245007d` plus this review commit |
+| A1 / A2 / A3 refs | `30ee4f0` / `807c447` (`50b7853` evidence) / `15cd9ce` (`b9a69d8` IF-008 v1.1) |
 | Import commit | `5a50c0d28f323372cad5126baf6645df07407975` |
 | Base commit | `147cc86c027cef7cec42525024d26dcccf66d7db` (`origin/main`) |
 | Date | 2026-11-23 |
@@ -51,6 +52,11 @@ manifest records `commit: unknown` inside both reproducibility copies.
 | `REPORT.md` | Required report: commits, files, commands, decisions, risks, not-tested |
 | `cross-agent-verification-2026-11-23.md` | A1/A2 branch verification, A3 absence, merge order |
 | `cross-agent-verification-2026-11-23-r2.md` | Post-Director-review ancestry, evidence and settings check |
+| `cross-agent-verification-2026-11-23-r3.md` | A3 publication, A2 provenance, governance and round-3 blocker state |
+| `cross-agent-commands-2026-11-23-r3.log` | Raw commands for all four heads, stale references and GitHub settings |
+| `a1-check-headers.log`, `a1-abi-check.log` | A1 header and ABI checks at `30ee4f0` |
+| `a2-static-check.log` | A2 static checks at `807c447` |
+| `a3-check.log`, `a3-a1-header-check.log` | A3 package checks at `15cd9ce` |
 | `director-review-2026-11-23.md` | Director integration review and A4 disposition |
 | `github-settings.txt` | Branch protection, rulesets and required-check state |
 | `PR_BODY.md` | Submitted pull request body |
@@ -80,7 +86,7 @@ make verify-clean
 
 - QEMU TCG is not real hardware.
 - The image is the A4 MBR harness fixture, not the Ozero kernel.
-- A1 and A2 have review branches, but neither is integrated; A3 has no branch. No cross-agent
-  interface or driver test has run.
+- A1, A2 and A3 have review branches, but none is integrated. A3's package is static-only; no
+  AHCI probe, DMA transfer or device test ran. No cross-agent interface or driver test has run.
 - The branch is published and Stage 0 PR [#3](https://github.com/Momegaii/Ozero/pull/3) is open.
-  Stage 0 is still not accepted.
+  Stage 0 is still not accepted. A3 has no PR.
