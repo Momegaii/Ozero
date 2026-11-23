@@ -40,8 +40,14 @@ $(BUILD):
 $(BUILD)/main.o: kernel/src/main.c third_party/limine/limine.h | $(BUILD)
 	$(CC) $(CFLAGS) -Ithird_party/limine -c $< -o $@
 
-$(KERNEL): $(BUILD)/main.o kernel/linker.lds
-	$(LD) $(LDFLAGS) -o $@ $(BUILD)/main.o
+$(BUILD)/interrupts.o: kernel/arch/x86_64/interrupts.S | $(BUILD)
+	$(CC) -m64 -ffreestanding -fno-pic -fno-pie -c $< -o $@
+
+$(BUILD)/interrupts_c.o: kernel/arch/x86_64/interrupts.c | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(KERNEL): $(BUILD)/main.o $(BUILD)/interrupts.o $(BUILD)/interrupts_c.o kernel/linker.lds
+	$(LD) $(LDFLAGS) -o $@ $(BUILD)/main.o $(BUILD)/interrupts.o $(BUILD)/interrupts_c.o
 	@file $@
 
 $(LIMINE_ARCHIVE): | $(BUILD)

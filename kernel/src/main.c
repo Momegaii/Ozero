@@ -97,6 +97,31 @@ static const char *memmap_type(uint64_t type) {
     }
 }
 
+struct x86_64_exception_frame {
+    uint64_t r15, r14, r13, r12, r11, r10, r9, r8;
+    uint64_t rbp, rdi, rsi, rdx, rcx, rbx, rax;
+    uint64_t vector, error_code, rip, cs, rflags;
+};
+
+extern void x86_64_idt_init(void);
+
+void x86_exception_dispatch(struct x86_64_exception_frame *frame) {
+    serial_puts("\\nOZERO: EXCEPTION vector=");
+    serial_dec(frame->vector);
+    serial_puts(" error=");
+    serial_hex(frame->error_code);
+    serial_puts(" rip=");
+    serial_hex(frame->rip);
+    if (frame->vector == 14) {
+        uint64_t cr2;
+        __asm__ volatile ("mov %%cr2, %0" : "=r"(cr2));
+        serial_puts(" cr2=");
+        serial_hex(cr2);
+    }
+    serial_puts("\\n");
+    halt_forever();
+}
+
 static void report_memory_map(void) {
     struct limine_memmap_response *response = memmap_request.response;
     if (response == NULL || response->entries == NULL) {
