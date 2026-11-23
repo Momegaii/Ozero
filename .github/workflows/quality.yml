@@ -33,3 +33,13 @@ jobs:
         run: readelf -h build/kernel.elf
       - name: Boot kernel in QEMU and verify serial milestones
         run: bash tools/qemu-smoke.sh
+      - name: Upload QEMU diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ozero-qemu-diagnostics
+          path: |
+            build/qemu-serial.log
+            build/qemu-debug.log
+          if-no-files-found: warn
+          retention-days: 7
