@@ -2,7 +2,7 @@ name: Ozero kernel build and boot checks
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'kilo/**']
   pull_request:
   workflow_dispatch:
 
