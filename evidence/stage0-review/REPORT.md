@@ -295,7 +295,7 @@ A1/A2/A3 work from the existing branches and PRs, preserved authorship, and cont
 | `origin/main` | `147cc86` | unchanged |
 | `origin/a1/stage0-review` | `2693a34` | PR #1, open, draft; raw log recovered and re-verified |
 | `origin/agent/a2-stage0` | `d83cfbe` | PR #2, open, draft; code `f6ed1d8`, evidence `d83cfbe` |
-| `origin/a3/stage0-review-response` | `48d434f` | PR #4; integrated into A4 at `44d566e`; still open on GitHub |
+| `origin/a3/stage0-review-response` | `48d434f` | PR #4; integrated into A4 at `44d566e`; merged into A4, not `main` |
 | `origin/a4/stage0-review-followup` | `44d566e` plus this takeover commit | published; PR #3 open |
 
 ### Work completed

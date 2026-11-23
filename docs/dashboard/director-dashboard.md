@@ -189,7 +189,7 @@ Four rows are **Open** (XB-004, XB-005, XB-012, XB-021), sixteen are **Closed**,
 | XB-002 | A2 contracts match A1 process/address-space/handle/syscall | A1 → A2 | Signed; A1 answered all 12; A2 accepts all 12 at `6d305b8`; current pair `f6ed1d8` / `d83cfbe`; no ABI freeze |
 | XB-003 | A2 PE fixture contract (IF-009) before any PE test | A2 → A1/A3 | Closed; A1 ACCEPT with conditions at `74b1471` (`a17d126`); A3 ACCEPT at `307b919`; A2 signature at `6d305b8`; IF-009 v1.0 Signed |
 | XB-004 | A1 pins Limine and the kernel handoff | A1 → Director | Open; v12.11.1 / base 6 pinned, D-005 pending |
-| XB-005 | A3 names device tests and hardware requirements with evidence | A3 → A4 | Open; `make check` passes 19 tests at PR #4 `48d434f`, but no QEMU/hardware driver test |
+| XB-005 | A3 names device tests and hardware requirements with evidence | A3 → A4 | Open; `make check` passes 19 tests on the integrated tree `44d566e`, but no QEMU/hardware driver test |
 | XB-006 | A4 publishes the review branch | A4 → Director | Closed at `84fe81a` |
 | XB-007 | Public header namespace conflict | A1 → A4 | Closed by D-009: canonical `include/ozero/` |
 | XB-008 | A1's `tools/check-headers.sh` is in A3-owned `tools/` | A1 → A3 | Closed by D-010: A1 owns script and ABI asserts; A4 CI; A3 other tools |
@@ -204,7 +204,7 @@ Four rows are **Open** (XB-004, XB-005, XB-012, XB-021), sixteen are **Closed**,
 | XB-017 | A3 rewrites shared root files and adds interface headers under `include/ozero/` | A3 → A4 | Closed; A3 preserves A4 root docs and puts its package in `a3/`; root `include/ozero/` has A1's exact headers plus A3's two IF-008 headers |
 | XB-018 | A3 cites A4 `245007d` rather than the current A4 head | A3 → A4 | Closed; A3 `307b919` reviews against A4 `3ae7aca` |
 | XB-019 | A3 has not accepted A1's IF-008 §6 conditions or updated its status lines | A3 → A1/A4 | Closed; A3 accepted all eight conditions at `307b919` and updated its status lines |
-| XB-020 | A3's `a3/` package and root `include/ozero/` headers are not in A4 `eaca921` | A3 → A4 | Closed; merge `44d566e` adds 44 `a3/` files and 12 `include/ozero/` headers; no A4 control-plane change; PR #4 still open and not merged to `main` |
+| XB-020 | A3's `a3/` package and root `include/ozero/` headers are not in A4 `eaca921` | A3 → A4 | Closed; merge `44d566e` adds 44 `a3/` files and 12 `include/ozero/` headers; no A4 control-plane change; PR #4 merged into A4 at `44d566e`; not merged to `main` |
 | XB-021 | IF-009 v1.1 truncated-header and missing-DLL-name cases are not implemented | A2 → A1/A3 | Open; v1.0 remains Signed; disposition has six required cases and L0-only acceptance criteria |
 
 ## Decisions needed
@@ -281,7 +281,7 @@ Four rows are **Open** (XB-004, XB-005, XB-012, XB-021), sixteen are **Closed**,
 | --- | --- | --- | --- |
 | A1 | Third-round response; PR #1 draft at `2693a34` | Submitted; not integrated | D-005; IF-008 accepted, IF-009 signed with conditions, XB-002 Signed; raw log committed (XB-016 Closed) |
 | A2 | Static-only PE package; PR #2 draft at `d83cfbe` / code `f6ed1d8` | Submitted; not integrated; ledger reconciled in A4 | IF-009 v1.1 gaps (XB-021); v1.0 signed and XB-003 Closed |
-| A3 | Static hardware package; PR [#4](https://github.com/Momegaii/Ozero/pull/4) at `48d434f`; IF-008 v1.1 at `b9a69d8` | Integrated into A4 at `44d566e`; PR #4 still open | Hardware evidence (XB-005); D-007/D-021 |
+| A3 | Static hardware package; PR [#4](https://github.com/Momegaii/Ozero/pull/4) at `48d434f`; IF-008 v1.1 at `b9a69d8` | Integrated into A4 at `44d566e`; PR #4 merged into A4, not `main` | Hardware evidence (XB-005); D-007/D-021 |
 | A4 | Sole active agent; consolidated candidate at `44d566e`; PR [#3](https://github.com/Momegaii/Ozero/pull/3) | Submitted; awaiting review | Director review; D-031 protection |
 
 ## Change log

@@ -9,7 +9,7 @@ are in [`evidence/stage0-review/a3-integration-verification-2026-11-23.md`](../.
 and [`a3-integration-checks-2026-11-23.log`](../../evidence/stage0-review/a3-integration-checks-2026-11-23.log).
 A1 is at `2693a34`; A2 is at `d83cfbe` (code `f6ed1d8`, evidence `d83cfbe`); A3 PR #4 is at
 `48d434f`; A4 merged A3 into the candidate at `44d566e`. The A4 tree now has `a3/` and root
-`include/ozero/`; XB-020 is Closed. PR #4 is still open on GitHub. `main` remains `147cc86`.
+`include/ozero/`; XB-020 is Closed. PR #4 is merged into the A4 branch at `44d566e`. `main` remains `147cc86`.
 
 | ID | From → to | Dependency | State | Evidence or next action |
 | --- | --- | --- | --- | --- |
@@ -23,7 +23,7 @@ A1 is at `2693a34`; A2 is at `d83cfbe` (code `f6ed1d8`, evidence `d83cfbe`); A3 
 | XB-008 | A1 → A3 | A1's `tools/check-headers.sh` sits in the A3-owned `tools/` tree | **Closed** | D-010: A1 owns `tools/check-headers.sh` and `tests/abi_static_asserts.c`; A4 owns CI integration; A3 owns other `tools/`; `CODEOWNERS` lists A1 and A4 on both files |
 | XB-009 | A2 → A4 | A2 evidence headers cited an older revision than the branch head | **Closed** | A2 regenerated evidence at code revision `f6ed1d8`; evidence commit `d83cfbe`; all evidence headers name `f6ed1d8` |
 | XB-010 | A4 → Director | Open the A4 Stage 0 review pull request | **Closed** | Opened as [#3](https://github.com/Momegaii/Ozero/pull/3) at `076ed82` |
-| XB-011 | A3 → A4 | Publish A3 so A4 can refresh the repository audit | **Closed** | A3 branch `a3/stage0-review-response` is published; PR #4 head `48d434f` is open against the A4 branch. The r4/r5/r6 audits include it. This row is audit access only, not merge approval |
+| XB-011 | A3 → A4 | Publish A3 so A4 can refresh the repository audit | **Closed** | A3 branch `a3/stage0-review-response` is published; PR #4 head `48d434f` was merged into the A4 branch at `44d566e`. The r4/r5/r6 audits include it. This row is audit access only, not merge approval |
 | XB-012 | A4 → Director | Enable `main` branch protection and required CI checks | **Open** | Rechecked: `branches/main` reports `protected:false`; rulesets are `[]`; `CODEOWNERS` is 404 on `main`; the protection endpoint returns HTTP 403 for the supplied PAT, so the protection object is not readable; no required checks are visible (D-031) |
 | XB-013 | A2 → A4 | A2's review response and ledger lag the evidence revision | **Closed** | A4 reconciled the A2 ledger in the consolidated candidate: `docs/architecture/a2-review-ledger-reconciled.md` records code `f6ed1d8` / evidence `d83cfbe`, the `d02598a` signed contract, the unchanged manifest blob `f505cb4d…`, and all three signatures. A2's branch ledger at `d83cfbe` remains historical and is not rewritten. XB-003 stays Closed for IF-009 v1.0 |
 | XB-014 | A1 → A2 | A1 reviewed A2 at `f324b28`; A2 has since moved | **Closed** | A1 re-reviewed the added requirements at A2 `50b7853` / evidence `807c447` in `docs/a2-contract-review-response.md`; A2 accepted all 12 at `6d305b8`. Later A2 changes are docs, evidence and test-token updates, not new A1-REV requirements |
@@ -32,7 +32,7 @@ A1 is at `2693a34`; A2 is at `d83cfbe` (code `f6ed1d8`, evidence `d83cfbe`); A3 
 | XB-017 | A3 → A4 | A3's branch rewrites shared root files and adds interface headers under an A1-owned path | **Closed** | A3 `307b919` is based on A4 `3ae7aca`, moves its package into `a3/`, and preserves the root `README.md` / `AGENTS.md`. Root `include/ozero/` has A1's exact ten headers plus A3's two A1-approved IF-008 files. A4 integrated the package at `44d566e` without overwriting A1's headers; XB-020 is Closed |
 | XB-018 | A3 → A4 | A3's review basis cites a stale A4 head | **Closed** | A3 `307b919` reviews against A4 `3ae7aca` and records D-009 as `include/ozero/` with XB-007 Closed. The `245007d` basis is gone |
 | XB-019 | A3 → A1/A4 | A3 has not recorded acceptance of A1's IF-008 §6 conditions or updated its status lines | **Closed** | A3 `307b919` adds `a3/docs/interfaces/IF-008-v1.1-acceptance.md`, accepts all eight §6 conditions, and updates `a3/docs/06`, `a3/AGENTS.md`, `a3/README.md` and `a3/EVIDENCE.md` to "A1 ACCEPT at `b9a69d8`; Director D-007 pending" |
-| XB-020 | A3 → A4 | A3's published `a3/` package and root `include/ozero/` headers are not in the A4 candidate | **Closed** | A4 merged PR #4 `48d434f` into the candidate as merge commit `44d566e` (parent `8b71be1`). The actual tree now has 44 files under `a3/` and 12 under `include/ozero/`; no A4 control-plane file changed. A1's ten headers are byte-identical to `74b1471`; `platform.h`/`block.h` match `a3/include/ozero/`. Proof: `docs/architecture/a3-integration-map.md` and `evidence/stage0-review/a3-integration-verification-2026-11-23.md`. PR #4 is still open on GitHub and is not merged to `main` |
+| XB-020 | A3 → A4 | A3's published `a3/` package and root `include/ozero/` headers are not in the A4 candidate | **Closed** | A4 merged PR #4 `48d434f` into the candidate as merge commit `44d566e` (parent `8b71be1`). The actual tree now has 44 files under `a3/` and 12 under `include/ozero/`; no A4 control-plane file changed. A1's ten headers are byte-identical to `74b1471`; `platform.h`/`block.h` match `a3/include/ozero/`. Proof: `docs/architecture/a3-integration-map.md` and `evidence/stage0-review/a3-integration-verification-2026-11-23.md`. PR #4 is merged into the A4 branch at `44d566e` and is not merged to `main` |
 | XB-021 | A2 → A1/A3 | IF-009 v1.1 negative cases for truncated headers and missing DLL-name imports are not implemented | **Open** | A1 accepted IF-009 v1.0 with these two gaps explicitly deferred to v1.1. The disposition is `docs/architecture/if-009-v1.1-disposition.md`: six required cases, L0 static evidence, A1/A3 re-sign, no carry-forward of v1.0 signatures. No v1.1 implementation exists; v1.0 remains Signed and XB-003 stays Closed |
 
 ## Rules
@@ -47,7 +47,7 @@ A1 is at `2693a34`; A2 is at `d83cfbe` (code `f6ed1d8`, evidence `d83cfbe`); A3 
   driver test.
 - A3 has PR #4 against the A4 branch, not against `main`. A4 integrated PR #4 `48d434f` into the
   candidate as merge commit `44d566e`; the tree proof is in `docs/architecture/a3-integration-map.md`.
-  PR #4 is still open on GitHub and is not merged to `main`. The integration does not decide D-007
+  PR #4 is merged into the A4 branch at `44d566e` and is not merged to `main`. The integration does not decide D-007
   or D-021, and it does not authorize AHCI, DMA, GPU or hardware work.
 - A3 remains static-only. `make -C a3 check` and the A1-header compile pass, but no QEMU driver run,
   AHCI probe, DMA transfer or hardware test exists. XB-005 stays Open.

@@ -16,7 +16,7 @@ D-007, D-021 and D-031 also remain **Proposed**. No merge to `main` is performed
 | `main` | `147cc86` (unchanged) |
 | A1 | `a1/stage0-review` at `2693a34`; PR #1 draft |
 | A2 | `agent/a2-stage0` at `d83cfbe`; code `f6ed1d8`; PR #2 draft |
-| A3 | `a3/stage0-review-response` at `48d434f`; PR #4 open |
+| A3 | `a3/stage0-review-response` at `48d434f`; PR #4 merged into A4 |
 | A4 | `a4/stage0-review-followup`; PR #3 |
 | A4 before takeover | `a3a67ab` |
 | A3 integration merge | `44d566e` (parent `8b71be1`; A3 `48d434f`) |
@@ -57,7 +57,7 @@ control-plane file changed.
 - File-level map: `docs/architecture/a3-integration-map.md`.
 - Evidence: `evidence/stage0-review/a3-integration-verification-2026-11-23.md` and
   `evidence/stage0-review/a3-integration-checks-2026-11-23.log`.
-- XB-020 is **Closed**. PR #4 is still open on GitHub and is **not** merged to `main`.
+- XB-020 is **Closed**. PR #4 is merged into the A4 branch at `44d566e` and is **not** merged to `main`.
 
 Integration is not a hardware result. A3 remains static-only: no AHCI probe, DMA transfer, GPU
 execution or real-hardware test exists. XB-005 stays **Open**.

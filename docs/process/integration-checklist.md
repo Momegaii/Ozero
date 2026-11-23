@@ -114,7 +114,7 @@ At the 2026-11-23 sole-agent takeover snapshot the open branches are
    files: 44 under `a3/` and 12 under `include/ozero/`. A1's ten headers are byte-identical to
    `74b1471`; A3's `platform.h`/`block.h` match its package; no A4 control-plane file changed.
    `make -C a3 check` passes 19 tests, `check-a1-headers` exits 0, and `make ci` passes (XB-020
-   Closed). PR #4 is still open on GitHub and is not merged to `main`. D-007 and D-021 remain
+   Closed). PR #4 is merged into the A4 branch at `44d566e` and is not merged to `main`. D-007 and D-021 remain
    Proposed; integration does not authorize AHCI, DMA, GPU or hardware work.
 
 A1's `74b1471` review is a final interface ACCEPT for IF-008 v1.1, not hardware validation, not a

@@ -29,14 +29,14 @@ preserve safety gates.
 | main | 147cc86 (unchanged) |
 | A1 branch | a1/stage0-review at 2693a34; PR #1 draft |
 | A2 branch | agent/a2-stage0 at d83cfbe; code f6ed1d8; PR #2 draft |
-| A3 branch | a3/stage0-review-response at 48d434f; PR #4 open |
+| A3 branch | a3/stage0-review-response at 48d434f; PR #4 merged into A4 |
 | A4 before takeover | a3a67ab |
 | A3 integration merge | 44d566e; parents 8b71be1 and 48d434f |
 | A4 after takeover | 44d566e plus the takeover commit |
 | Stage 0 | NOT ACCEPTED |
 | D-006 | Proposed |
 
-PR #1 is open and draft. PR #2 is open and draft. PR #3 is open and non-draft. PR #4 is open and
+PR #1 is open and draft. PR #2 is open and draft. PR #3 is open and non-draft. PR #4 is merged into A4 and
 targets the A4 branch, not main.
 
 ## 3. Recovered A1 evidence
@@ -96,7 +96,7 @@ merge adds 56 files: 44 under a3/ and 12 under include/ozero/. No A4 control-pla
 | A1 root headers | 10 of 10 byte-identical to A1 74b1471 |
 | IF-008 headers | platform.h and block.h match a3/include/ozero/ |
 | A4 control-plane changes | none outside a3/ and include/ozero/ |
-| PR #4 on GitHub | still open; not merged to main |
+| PR #4 on GitHub | merged into A4 at 44d566e; not merged to main |
 | XB-020 | Closed |
 
 The file-level ownership map is docs/architecture/a3-integration-map.md. The evidence is
