@@ -2,18 +2,21 @@
 
 Ozero (o0) is an independent operating-system project: a native OS first, with a layered Windows compatibility environment as a long-term goal.
 
+## Mandatory architecture rule for every agent
+
+**Read [AGENTS.md](AGENTS.md) before doing any work in this repository.** It defines non-negotiable project-wide architecture constraints.
+
+Ozero must define its own native executable format, loader, runtime, process model, ABI and syscall interface. **Do not use Linux as the architectural model or foundation for any of these.** Windows compatibility is a first-class goal and must remain architecturally independent of Linux compatibility infrastructure. Linux may be used as a host development environment; that does not make Linux runtime or executable conventions Ozero design requirements.
+
 ## Current milestone
 
 **Stage 3: processes, threads and scheduler (kernel threads only).**
 
-The approved implementation uses Limine + ELF64 and a freestanding C kernel. The kernel now
-resolves its physical load address, builds and activates its own page tables (HHDM direct
-map + 2 MiB kernel mapping), runs a slab kernel heap, routes interrupts through a remapped
-PIC with a 100 Hz PIT tick, and preemptively schedules kernel threads with priorities,
-sleep, join, spinlocks and a blocking mutex. There is still no user mode, no syscall
-interface, no storage and no graphics, and the project is not a general-purpose OS.
+The approved implementation uses Limine + ELF64 for the current kernel boot image and a freestanding C kernel. The kernel resolves its physical load address, builds and activates its own page tables (HHDM direct map + 4 KiB kernel-image mappings), runs a slab kernel heap, routes interrupts through a remapped PIC with a 100 Hz PIT tick, and preemptively schedules kernel threads with priorities, sleep, join, spinlocks and a blocking mutex. The current kernel boot-image format does **not** decide or constrain Ozero's future native user-executable format. There is still no user mode, no syscall interface, no storage and no graphics, and the project is not a general-purpose OS.
 
 ## Build and run on Linux
+
+Linux is documented here only as one convenient host development environment. This does not establish Linux as a model for Ozero's runtime, executable format, ABI, process model or application environment.
 
 Install the required host packages (Debian/Ubuntu example):
 
@@ -45,8 +48,7 @@ For GDB debugging, run `make run-debug`, then connect GDB to `localhost:1234`.
 
 ## Serial / debug workflow
 
-The kernel writes all diagnostics to COM1 serial. QEMU forwards COM1 to the
-terminal (`-serial stdio`).
+The kernel writes all diagnostics to COM1 serial. QEMU forwards COM1 to the terminal (`-serial stdio`).
 
 Boot log markers (in order):
 
@@ -102,12 +104,8 @@ Press Ctrl+C to stop QEMU.
 - `third_party/limine/`: official protocol header and license.
 - `tools/`: host-side checks and QEMU smoke test.
 - `docs/`: architecture, roadmap, governance, and decisions.
+- `AGENTS.md`: mandatory project-wide instructions for every human and AI agent.
 
 ## Honest status
 
-A successful QEMU smoke test proves only that this kernel boots, initialises its memory
-manager, timer and scheduler, and runs its own self-tests under that emulated
-configuration. It does not prove physical hardware support, user-mode isolation, storage,
-graphics, or Windows compatibility. The Stage 3 change set was produced in an environment
-without QEMU, so its boot path is unverified until CI or a machine with an emulator runs
-it; see `docs/PROJECT_STATUS.md`.
+The latest Stage 3 commit reports successful BIOS-mode QEMU boot verification and a smoke test that checks paging, heap, scheduler, kernel-thread execution and worker exit. This is evidence for the tested emulated configuration only. It does not prove physical hardware support, UEFI/OVMF support, user-mode isolation, storage, graphics, or Windows compatibility. Check `docs/PROJECT_STATUS.md` and the current smoke-test script for the exact tested configuration; do not claim broader validation than the evidence supports.
