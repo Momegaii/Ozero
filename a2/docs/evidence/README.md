@@ -28,6 +28,13 @@ static-analysis, negative-test and document-validation results only. The
 `negative-tests.txt` failures are expected: each one is produced by a deliberately
 corrupted copy of a real image, not by a defect in the checker.
 
+## Revision history
+
+| Date | Code revision | Evidence commit | Note |
+| --- | --- | --- | --- |
+| 2026-11-23 | `8bac650` | `f324b28` | initial import; historical |
+| 2026-11-23 | `50b7853` | `807c447` | director review response; historical once superseded |
+
 ## Revision rule
 
 Evidence is generated from a code revision and committed in a pure-evidence

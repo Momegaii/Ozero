@@ -118,7 +118,7 @@ def build_one(root: Path, compiler: list[str], target: str, fixture: dict) -> di
     source = root / fixture["source"]
     output = root / fixture["output"]
     output.parent.mkdir(parents=True, exist_ok=True)
-    command = compiler + ["-target", target] + fixture["flags"] + [str(source), "-o", str(output)]
+    command = compiler + ["-target", target] + fixture["flags"] + [fixture["source"], "-o", fixture["output"]]
     completed = subprocess.run(command, capture_output=True, text=True, cwd=root)
     if completed.returncode != 0 or not output.exists():
         raise RuntimeError(

@@ -1,7 +1,7 @@
 # Stage 0 review response
 
 - Status: draft ready (Stage 0 review answered; director review 23 Nov 2026: **not accepted**; A2 actions tracked below)
-- Evidence: repository `Momegaii/Ozero`, branch `agent/a2-stage0`, package root `a2/`, code revision `8bac650`; the regenerated `a2/docs/evidence/*.txt` are in the commit immediately after it
+- Evidence: repository `Momegaii/Ozero`, branch `agent/a2-stage0`, package root `a2/`; the code revision is the one named in each `a2/docs/evidence/*.txt` header, and the evidence commit is the commit that contains them (see Revision history)
 - Decisions needed: Q1–Q4 (Windows baseline, 32-bit timing, syscall strategy, own `ntdll`) and the acceptance of M0 as a milestone distinct from running
 - Risks: static evidence is still L0; the API set schema is a test fixture; loader semantics remain unproven until M0/M1; see [05-risk-report.md](05-risk-report.md)
 - Next step: A1 reviews [03-a1-interface-requirements.md](03-a1-interface-requirements.md), then A2 implements the M0 trace and compares it with the offsets in [10-technical-findings.md](10-technical-findings.md)
@@ -20,6 +20,20 @@ Stage 0 remains **not accepted**. The director's four A2 actions are handled as 
 Global IDs used here: D-006 (Stage 0 acceptance), D-009…D-023 (A2 decisions),
 XB-002 (A1 contract review), XB-003 (PE fixture contract), XB-009 (evidence revision).
 
+## Revision history
+
+The declared pair is always **code revision = the hash in each evidence header**, and
+**evidence commit = the commit that contains those files**. Older pairs remain listed so a
+reader can tell a historical reference from the current one.
+
+| Date | Code revision | Evidence commit | Note |
+| --- | --- | --- | --- |
+| 2026-11-23 | `8bac650` | `f324b28` | initial import into Ozero; historical, superseded |
+| 2026-11-23 | `50b7853` | `807c447` | director review response; historical once a later evidence commit exists |
+
+References to `8bac650` elsewhere in this document describe the import and are labelled
+historical. No evidence file cites a revision older than the code it was generated from.
+
 ## Basis of this response
 
 The review was a desk review of a summary, not an inspection of the repository.
@@ -31,10 +45,10 @@ checked with the commands shown.
 | Repository | <https://github.com/Momegaii/Ozero> |
 | Branch | `agent/a2-stage0` |
 | Package root | `a2/` |
-| Code revision | `8bac650` |
+| Code revision | the parent of the evidence commit under review (see Revision history) |
 | Parent | `147cc86` (`main`) |
 
-The import commit `8bac650` adds 38 files (+8 273) under `a2/`:
+The historical import commit `8bac650` added 38 files (+8 273) under `a2/`:
 
 ```
 a2/README.md  a2/AGENTS.md  a2/Makefile  a2/.gitignore
@@ -46,8 +60,8 @@ a2/fixtures/src/*.c(pp)  a2/fixtures/build-manifest.json
 ```
 
 The director's briefing PDF and third-party binaries are not redistributed. This
-document and the regenerated evidence files are in the commit that follows
-`8bac650` on the same branch.
+document and the regenerated evidence files are in the evidence commit that
+follows the code revision on the same branch.
 
 ## Point-by-point response
 
@@ -75,7 +89,7 @@ document and the regenerated evidence files are in the commit that follows
 
 ## Commands and raw output
 
-All commands were run in `a2/` at `8bac650`. The full outputs are
+All commands were run in `a2/` at the code revision named in `docs/evidence/*.txt`. The full outputs are
 in `docs/evidence/`.
 
 ```

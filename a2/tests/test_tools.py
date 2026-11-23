@@ -405,6 +405,22 @@ class StageGateTests(unittest.TestCase):
         for number in range(9, 24):
             self.assertIn(f"D-{number:03d}", text)
 
+
+    def test_if_009_contract_is_specific(self) -> None:
+        text = (ROOT / "docs" / "13-if-009-pe-fixture-contract.md").read_text(encoding="utf-8")
+        for token in ("IF-009", "IF9-A1-1", "IF9-A3-2", "XB-003", "Not in scope"):
+            self.assertIn(token, text)
+
+    def test_fixture_manifest_has_no_host_paths(self) -> None:
+        text = MANIFEST.read_text(encoding="utf-8")
+        self.assertNotIn("/workspace/", text)
+        self.assertNotIn(str(ROOT), text)
+
+    def test_evidence_revision_history_is_labelled(self) -> None:
+        text = (ROOT / "docs" / "11-stage0-review-response.md").read_text(encoding="utf-8")
+        self.assertIn("## Revision history", text)
+        self.assertIn("historical, superseded", text)
+
     def test_a1_review_request_is_specific(self) -> None:
         text = (ROOT / "docs" / "12-a1-contract-review.md").read_text(encoding="utf-8")
         for token in ("XB-002", "A1-REV-01", "A1-REV-12", "A1-PROC-1", "A1-THR-4", "A1-EXC-2"):
