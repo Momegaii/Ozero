@@ -24,7 +24,7 @@ timeout "${TIMEOUT_SECONDS}s" "$QEMU" \
     -machine q35 -m 512M -cdrom "$ISO" -boot d \
     -display none -serial "file:$LOG" -monitor none \
     -no-reboot -no-shutdown \
-    -d guest_errors,cpu_reset -D "$DEBUG_LOG"
+    -d int,guest_errors,cpu_reset -D "$DEBUG_LOG"
 status=$?
 set -e
 
@@ -34,7 +34,7 @@ if [[ "$status" -ne 124 && "$status" -ne 0 ]]; then
     echo "--- guest serial output ---" >&2
     cat "$LOG" >&2 || true
     echo "--- QEMU diagnostic output ---" >&2
-    tail -n 100 "$DEBUG_LOG" >&2 || true
+    tail -n 160 "$DEBUG_LOG" >&2 || true
     exit "$status"
 fi
 
@@ -50,8 +50,8 @@ for marker in "${required_markers[@]}"; do
         echo "error: missing boot milestone: $marker" >&2
         echo "--- guest serial output ---" >&2
         cat "$LOG" >&2 || true
-        echo "--- QEMU diagnostic output (last 100 lines) ---" >&2
-        tail -n 100 "$DEBUG_LOG" >&2 || true
+        echo "--- QEMU diagnostic output (last 160 lines) ---" >&2
+        tail -n 160 "$DEBUG_LOG" >&2 || true
         exit 1
     fi
 done

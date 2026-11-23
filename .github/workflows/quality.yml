@@ -29,8 +29,10 @@ jobs:
         run: make doctor
       - name: Build ELF64 kernel and bootable ISO
         run: make check
-      - name: Verify ELF header
-        run: readelf -h build/kernel.elf
+      - name: Verify ELF header and save disassembly
+        run: |
+          readelf -h build/kernel.elf
+          objdump -d -Mintel build/kernel.elf > build/kernel.disasm.txt
       - name: Boot kernel in QEMU and verify serial milestones
         run: bash tools/qemu-smoke.sh
       - name: Upload QEMU diagnostics
@@ -41,5 +43,6 @@ jobs:
           path: |
             build/qemu-serial.log
             build/qemu-debug.log
+            build/kernel.disasm.txt
           if-no-files-found: warn
           retention-days: 7
