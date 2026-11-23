@@ -3,6 +3,10 @@
 #include <stdint.h>
 #include <limine.h>
 
+#include "ozero/boot.h"
+#include "ozero/mm.h"
+#include "ozero/status.h"
+
 #define COM1 0x3f8
 
 __attribute__((used, section(".limine_requests")))
@@ -149,6 +153,10 @@ static void report_memory_map(void) {
     }
 }
 
+extern o0_status o0_boot_populate(const struct limine_memmap_response *);
+extern o0_status o0_pmm_init(const struct o0_boot_info *);
+extern o0_status o0_paging_init(const struct o0_boot_info *);
+
 __attribute__((noreturn))
 void kmain(void) {
     serial_init();
@@ -163,6 +171,43 @@ void kmain(void) {
     serial_puts("OZERO: Limine base revision accepted\n");
     x86_64_idt_init();
     serial_puts("OZERO: IDT installed (CPU exceptions 0-31)\n");
+
+    /* Normalise the Limine memory map into the o0_boot_info contract. */
+    const struct limine_memmap_response *memmap_resp = memmap_request.response;
+    if (memmap_resp == NULL || memmap_resp->entries == NULL) {
+        panic("Limine did not provide a memory map");
+    }
+    if (o0_boot_populate(memmap_resp) != O0_OK) {
+        panic("failed to populate boot info");
+    }
+    serial_puts("OZERO: boot info populated\n");
+
+    /* Initialise the physical page-frame allocator. */
+    const struct o0_boot_info *bi = o0_boot_info();
+    if (bi == NULL || !o0_boot_contract_ok(bi)) {
+        panic("boot info contract check failed");
+    }
+    if (o0_pmm_init(bi) != O0_OK) {
+        panic("PMM initialisation failed");
+    }
+    serial_puts("OZERO: PMM initialised\n");
+    serial_puts("OZERO: total memory=");
+    serial_dec(o0_pmm_total_bytes());
+    serial_puts("\n");
+    serial_puts("OZERO: free memory=");
+    serial_dec(o0_pmm_free_bytes());
+    serial_puts("\n");
+
+    /* Build page tables (identity map low memory + kernel high-half).
+     * CR3 switch deferred to a follow-up once the kernel's physical load
+     * address is known; BSS-resident page tables cannot be referenced by
+     * physical address without that offset.
+     */
+    if (o0_paging_init(bi) != O0_OK) {
+        panic("paging initialisation failed");
+    }
+    serial_puts("OZERO: page tables built\n");
+
     report_memory_map();
     serial_puts("OZERO: boot success; entering idle halt loop\n");
     halt_forever();

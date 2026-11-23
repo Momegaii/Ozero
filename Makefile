@@ -37,8 +37,8 @@ kernel: $(KERNEL)
 $(BUILD):
 	mkdir -p $(BUILD)
 
-$(BUILD)/main.o: kernel/src/main.c third_party/limine/limine.h | $(BUILD)
-	$(CC) $(CFLAGS) -Ithird_party/limine -c $< -o $@
+$(BUILD)/main.o: kernel/src/main.c third_party/limine/limine.h include/ozero/boot.h include/ozero/mm.h include/ozero/status.h | $(BUILD)
+	$(CC) $(CFLAGS) -Ithird_party/limine -Iinclude -c $< -o $@
 
 $(BUILD)/interrupts.o: kernel/arch/x86_64/interrupts.S | $(BUILD)
 	$(CC) -m64 -ffreestanding -fno-pic -fno-pie -c $< -o $@
@@ -46,8 +46,17 @@ $(BUILD)/interrupts.o: kernel/arch/x86_64/interrupts.S | $(BUILD)
 $(BUILD)/interrupts_c.o: kernel/arch/x86_64/interrupts.c | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(KERNEL): $(BUILD)/main.o $(BUILD)/interrupts.o $(BUILD)/interrupts_c.o kernel/linker.lds
-	$(LD) $(LDFLAGS) -o $@ $(BUILD)/main.o $(BUILD)/interrupts.o $(BUILD)/interrupts_c.o
+$(BUILD)/pmm.o: kernel/src/pmm.c third_party/limine/limine.h include/ozero/boot.h include/ozero/mm.h include/ozero/status.h include/ozero/types.h | $(BUILD)
+	$(CC) $(CFLAGS) -Ithird_party/limine -Iinclude -c $< -o $@
+
+$(BUILD)/boot_info.o: kernel/src/boot_info.c third_party/limine/limine.h include/ozero/boot.h include/ozero/status.h include/ozero/types.h | $(BUILD)
+	$(CC) $(CFLAGS) -Ithird_party/limine -Iinclude -c $< -o $@
+
+$(BUILD)/paging.o: kernel/arch/x86_64/paging.c include/ozero/boot.h include/ozero/mm.h include/ozero/status.h include/ozero/types.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
+$(KERNEL): $(BUILD)/main.o $(BUILD)/interrupts.o $(BUILD)/interrupts_c.o $(BUILD)/pmm.o $(BUILD)/boot_info.o $(BUILD)/paging.o kernel/linker.lds
+	$(LD) $(LDFLAGS) -o $@ $(BUILD)/main.o $(BUILD)/interrupts.o $(BUILD)/interrupts_c.o $(BUILD)/pmm.o $(BUILD)/boot_info.o $(BUILD)/paging.o
 	@file $@
 
 $(LIMINE_ARCHIVE): | $(BUILD)

@@ -12,6 +12,12 @@ __pycache__/
 *.o
 *.map
 
+# Test binaries
+/tests/*
+!tests/*.c
+!tests/*.h
+!tests/*.md
+
 # Local editor / OS files
 .DS_Store
 .idea/
