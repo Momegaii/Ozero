@@ -226,6 +226,46 @@ static void test_no_usable_regions(void) {
     PASS();
 }
 
+
+static void test_order_validation_and_region_boundaries(void) {
+    TEST("large-order validation and region boundaries");
+    struct o0_mem_region regions[2] = {
+        { .base=0x400000, .length=0x1000, .type=O0_MEM_FREE, .flags=0 },
+        { .base=0x800000, .length=0x1000, .type=O0_MEM_FREE, .flags=0 }
+    };
+    struct o0_boot_info bi;
+    memset(&bi,0,sizeof(bi)); bi.memmap=regions; bi.memmap_count=2;
+    initialised=false; region_count=total_pages=free_pages=0;
+    memset(bitmap_storage,0,sizeof(bitmap_storage));
+    ASSERT(o0_pmm_init(&bi)==O0_OK,"two-region init failed");
+    ASSERT(o0_pmm_alloc_pages(32)==0,"order 32 must fail safely");
+    ASSERT(o0_pmm_alloc_pages(63)==0,"order 63 must fail safely");
+    o0_paddr_t first=o0_pmm_alloc_pages(0), second=o0_pmm_alloc_pages(0);
+    ASSERT(first==0x400000,"first region allocation mismatch");
+    ASSERT(second==0x800000,"second region allocation mismatch");
+    uint64_t before=o0_pmm_free_bytes();
+    o0_pmm_free_pages(first,1);
+    ASSERT(o0_pmm_free_bytes()==before,"cross-region free changed accounting");
+    o0_pmm_free_pages(first,0); o0_pmm_free_pages(second,0);
+    ASSERT(o0_pmm_free_bytes()==2u*O0_PAGE_SIZE,"valid frees did not restore pages");
+    before=o0_pmm_free_bytes(); o0_pmm_free_pages(first,64);
+    ASSERT(o0_pmm_free_bytes()==before,"order 64 free changed accounting");
+    PASS();
+}
+
+static void test_page_zero_is_never_allocated(void) {
+    TEST("physical page zero is reserved");
+    struct o0_mem_region region={.base=0,.length=2u*O0_PAGE_SIZE,
+        .type=O0_MEM_FREE,.flags=0};
+    struct o0_boot_info bi;
+    memset(&bi,0,sizeof(bi)); bi.memmap=&region; bi.memmap_count=1;
+    initialised=false; region_count=total_pages=free_pages=0;
+    memset(bitmap_storage,0,sizeof(bitmap_storage));
+    ASSERT(o0_pmm_init(&bi)==O0_OK,"page-zero test init failed");
+    ASSERT(o0_pmm_alloc_pages(0)==O0_PAGE_SIZE,"page zero was returned");
+    PASS();
+}
+
 int main(void) {
     printf("Ozero PMM unit tests\n\n");
 
@@ -233,6 +273,8 @@ int main(void) {
     test_allocation_exhaustion();
     test_invalid_inputs();
     test_no_usable_regions();
+    test_order_validation_and_region_boundaries();
+    test_page_zero_is_never_allocated();
 
     printf("\n%d test(s) run, %d failure(s)\n", tests_run, failures);
     return failures == 0 ? 0 : 1;
