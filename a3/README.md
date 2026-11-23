@@ -2,7 +2,7 @@
 
 Repository purpose: Ozero is a new OS kernel plus Windows compatibility libraries and executables. This branch adds the A3 Stage 0 hardware-engineering package.
 
-Status: **Stage 0 desk artifact; no implementation or hardware validation**
+Status: **Stage 0 desk artifact; Stage 0 NOT ACCEPTED; no implementation or hardware validation**
 
 Briefing: `Ozero_A3_Briefing.pdf` (23 Nov 2026, Stage 0, 3 pages)
 Scope: device model, storage, and Haswell Gen7.5
@@ -35,7 +35,8 @@ matrix validator, the deliverable checker, and the read-only inventory script.
 | Hardware test plan | [`docs/05-hardware-test-plan.md`](docs/05-hardware-test-plan.md), [`tools/collect_inventory.sh`](tools/collect_inventory.sh) | desk artifact | shell syntax check PASS |
 | Stage 0 review response | [`docs/06-stage0-review-response.md`](docs/06-stage0-review-response.md) | desk artifact | review action matrix; IF-008 v1.1 published, A1 ACCEPT at `b9a69d8`; Director D-007 pending |
 | Proceed-brief response | [`docs/09-proceed-brief-response.md`](docs/09-proceed-brief-response.md) | desk artifact | A3-1 through A3-6; IF-008 acceptance and IF-009 v1.0 confirmation |
-| Control-plane integration | [`docs/08-control-plane-integration.md`](docs/08-control-plane-integration.md) | desk artifact | A3 package under `a3/`; A4 root preserved; XB-017/XB-018 refresh requested |
+| Control-plane integration | [`docs/08-control-plane-integration.md`](docs/08-control-plane-integration.md) | desk artifact | A3 package under `a3/`; A4 root preserved; A4 candidate lacks `a3/`; PR #4 pending |
+| R2 proceed response | [`docs/10-proceed-brief-r2-response.md`](docs/10-proceed-brief-r2-response.md) | desk artifact | R2 integration gap; PR #4 into A4 candidate; Stage 0 not accepted |
 | IF-009 A3 review | [`docs/interfaces/IF-009-a3-review.md`](docs/interfaces/IF-009-a3-review.md) | desk artifact | A3 accepts v1.0 at A2 `d02598a` for the hardware boundary |
 
 Supporting files:
@@ -141,7 +142,7 @@ The 23 Nov 2026 review actions are tracked in
 
 | Review action | Status | Artifact |
 |---|---|---|
-| A1 written review before AHCI probe | **received; A3 published IF-008 v1.1; A1 ACCEPT at `b9a69d8`; Director D-007 pending** — AHCI probe blocked | A1 `a1/stage0-review` @ `30ee4f0`; `docs/a3-dma-contract.md`; `docs/interfaces/IF-008-dma-platform.md`; `docs/06` §2 |
+| A1 written review before AHCI probe | **received; A3 published IF-008 v1.1; A1 ACCEPT at `b9a69d8`; Director D-007 pending** — AHCI probe blocked | A1 `a1/stage0-review` @ `74b1471` (decision `85df005`; headers `30ee4f0`); `docs/interfaces/IF-008-dma-platform.md`; `docs/06` §2 |
 | Pin spec revision, status, emulator, hardware, test per row | done in matrix schema v2 | `matrix/hardware-support-matrix.csv` |
 | Separate media from transport; keep drivers distinct | done | `docs/01` §2–§3 |
 | Defer ZNS and port multiplier | done | matrix rows `deferred` |
@@ -155,12 +156,13 @@ The 23 Nov 2026 review actions are tracked in
 | D-001 | A1/A2/A3 domain split and GitHub team slugs | Keep the split; A3 owns storage/GPU device protocols | A4 |
 | D-002 | Branch isolation and review gate; protect `main` | Protect `main`; merge through PRs only | A4 |
 | D-005 | Boot protocol and kernel handoff | Limine is a candidate only; A3 consumes A1's boot/platform data | A1 |
-| D-006 | Accept Stage 0 | Not accepted; this package is desk evidence only | A4 |
-| D-007 | Approve IF-008 v1.1 and the A1 sign-off gate | A3 published v1.1; A1 ACCEPT at `b9a69d8`; Director D-007 pending | A1 + A3 |
-| D-009 | Public header namespace | **Approved** in A4 `3ae7aca`: canonical root is `include/ozero/` only; A1 `03f8883`; A3 is aligned; XB-007 is closed | A1 + A4 |
-| D-010 | `tools/check-headers.sh` ownership | **Approved** in A4 `3ae7aca`: A1 owns `tools/check-headers.sh` and `tests/abi_static_asserts.c`; A4 owns CI; XB-008 is closed | A1 + A4 |
+| D-006 | Accept Stage 0 | **Not accepted**; this package is desk evidence only | A4 |
+| D-007 | Approve IF-008 v1.1 and the A1 sign-off gate | A1 ACCEPT at `b9a69d8` (`85df005`); Director D-007 pending | A1 + A3 |
+| D-009 | Public header namespace | **Approved** in A4 `b4232a0`: canonical root is `include/ozero/` only; A1 `03f8883`; A3 is aligned; XB-007 is closed | A1 + A4 |
+| D-010 | `tools/check-headers.sh` ownership | **Approved** in A4 `b4232a0`: A1 owns `tools/check-headers.sh` and `tests/abi_static_asserts.c`; A4 owns CI; XB-008 is closed | A1 + A4 |
 | D-020 | DMA is constraint-driven, never device-class-driven | A3 supplies `o0_dma_constraint`; A1 does not infer it | A1 |
 | D-021 | IOMMU policy: trusted ring-0 only in Stage 1 | No DMA domain, no IOVA and no translated DMA type; director approval pending | A1 |
+| D-031 | Branch protection | **Proposed**; no merge to `main` until Director acts | A4 |
 
 A3 implementation choices (native AHCI/NVMe, NVMe 1.4 core, 4Kn/TRIM) are
 recorded in `docs/02` and `docs/05`; they are not global decisions until the
@@ -179,7 +181,8 @@ director adds them to A4's register.
 | No IOMMU in Stage 1 | A buggy or malicious driver can DMA anywhere; untrusted/userspace DMA is unsafe | Trusted ring-0 drivers only; escalate before untrusted DMA |
 | A1 acceptance is not Director approval | AHCI probe still lacks D-007 and D-021 | Director records D-007 and D-021 before the AHCI probe |
 | A4 audit does not cover the current head | A4 and CI evidence stops at `15cd9ce` | Request A4 refresh; XB-005 remains open until device evidence exists |
-| A4 blocker rows lag A3 publication | XB-001/005/011 still describe A3 as unpublished | A4 refresh from the current A3 branch head; D-009 and D-010 are already approved |
+| A4 candidate lacks A3 files | A4 `b4232a0` has 0 `a3/` and 0 root `include/ozero/` files | A4 merges PR #4; then verify A4 PR #3 diff |
+| A4 XB-017 closure is documentation-only | A4 says XB-017 closed, but its tree has no `a3/` | A4 merges PR #4 and verifies the candidate tree |
 | Vendored A1 headers can drift | A3's copy of A1 `include/ozero/*.h` may age | Re-sync from `a1/stage0-review` before final review; `make check-a1-headers` compares against an external A1 tree |
 | PRM links are archived/retired | References may rot | Keep archived links and local citation notes; verify before publication |
 
@@ -191,7 +194,7 @@ v1.1 at `b9a69d8`.** A3 has aligned `platform.h` and `block.h` to A1 `30ee4f0`: 
 inclusion of `include/ozero/*.h`, `struct o0_device_ops`, one contiguous buffer
 per `o0_io_request`, no SG pointer, and reset that does not free buffers or
 unmap BARs. The director must approve D-007 and D-021 and accept the no-IOMMU
-Stage 1 limitation. D-009 and D-010 are already approved in A4 `3ae7aca`:
+Stage 1 limitation. D-009 and D-010 are already approved in A4 `b4232a0`:
 `include/ozero/` is the only public root, and A1 owns the header checker. The
 AHCI probe remains blocked until the Director records D-007 and D-021.
 
@@ -205,6 +208,7 @@ A3 does not own the shared root README or AGENTS.
 ├── Ozero_A3_Briefing.pdf
 ├── Ozero_A3_Action_Brief_2026-11-23_v2.pdf
 ├── Ozero_A3_Proceed_Brief_2026-11-23.pdf
+├── Ozero_A3_Proceed_Brief_2026-11-23_R2.pdf
 ├── README.md
 ├── EVIDENCE.md
 ├── Makefile
@@ -220,6 +224,7 @@ A3 does not own the shared root README or AGENTS.
 │   ├── 07-a3-action-brief-response.md
 │   ├── 08-control-plane-integration.md
 │   ├── 09-proceed-brief-response.md
+│   ├── 10-proceed-brief-r2-response.md
 │   ├── decisions/
 │   │   └── a3-decision-requests.md
 │   └── interfaces/
@@ -251,10 +256,10 @@ A3 does not own the shared root README or AGENTS.
 
 ## Reporting format
 
-- **Status:** Stage 0 desk artifact; no implementation or hardware validation.
+- **Status:** Stage 0 desk artifact; Stage 0 NOT ACCEPTED; no implementation or hardware validation.
 - **Evidence:** `EVIDENCE.md` (commit hash, commands, outputs, source
   versions).
-- **Decisions needed:** D-001, D-002, D-005, D-006, D-007, D-020 and D-021 above.
+- **Decisions needed:** D-001, D-002, D-005, D-006, D-007, D-020, D-021 and D-031 above.
 - **Risks:** top three are unexecuted tests, Haswell firmware age, and the
   draft block API.
-- **Next step:** obtain Director approval of D-007/D-021, then start the AHCI probe. A1 accepted IF-008 v1.1 at `b9a69d8`; D-009 and D-010 are resolved in A4 `3ae7aca`.
+- **Next step:** A4 reviews and merges PR #4 into the A4 candidate, then verifies A4 PR #3 contains `a3/` and root `include/ozero/`. Director approval of D-006/D-007/D-021/D-031 remains required; the AHCI probe stays blocked. A1 accepted IF-008 v1.1 at `b9a69d8` (`85df005`); D-009 and D-010 are resolved in A4 `b4232a0`.

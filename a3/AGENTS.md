@@ -59,7 +59,7 @@ available.
 
 ## Current state
 
-- Deliverables: `docs/01`–`docs/09`, `docs/decisions/`, `docs/interfaces/`,
+- Deliverables: `docs/01`–`docs/10`, `docs/decisions/`, `docs/interfaces/`,
   `include/ozero/*.h` (A3 `platform.h` and `block.h`, plus an A1 public-header
   snapshot at `30ee4f0`), `matrix/*.csv`, `tools/*`.
 - Static checks pass: matrix validation, deliverable check, 19 semantics
@@ -69,24 +69,28 @@ available.
 - All rows are `not-started` or `deferred`; no row is `complete`.
 - No QEMU or real hardware was available in the authoring environment; L1–L4
   tests are planned but not executed.
-- A1 review received on `a1/stage0-review` @ `30ee4f0`: signed with an IOMMU
-  blocker and five conditions; A1 later recorded **ACCEPT** of IF-008 v1.1 at
-  `b9a69d8` (`4716e09`). A3 accepts the conditions for trusted ring-0 Stage 1.
+- A1 review received on `a1/stage0-review` @ `74b1471` (headers `30ee4f0`):
+  signed with an IOMMU blocker and five conditions; A1 recorded **ACCEPT** of
+  IF-008 v1.1 at `b9a69d8` in decision `85df005`. A3 accepts the conditions for
+  trusted ring-0 Stage 1.
 - A3 published `docs/interfaces/IF-008-dma-platform.md` v1.1. `platform.h`
   includes A1's `<ozero/*.h>` directly and does not redeclare A1 types.
   `block.h` embeds one `o0_io_request`, has no SG pointer, and splits large
   transfers into multiple buffers and requests. A3 implements
   `struct o0_device_ops`; reset does not free buffers or unmap BARs.
-- D-009 and D-010 are approved in A4 `3ae7aca`: `include/ozero/` is the only
+- D-009 and D-010 are approved in A4 `b4232a0`: `include/ozero/` is the only
   public root, A1 owns the header checker, and XB-007/XB-008 are closed.
 - A1 review packet: `docs/interfaces/IF-008-v1.1-a1-review-packet.md`; A1
-  recorded ACCEPT at `b9a69d8` in `4716e09`. A3 acceptance is in
+  recorded ACCEPT at `b9a69d8` in `85df005` (review head `74b1471`). A3 acceptance is in
   `docs/interfaces/IF-008-v1.1-acceptance.md`.
 - Decision wording for D-007 and D-021: `docs/decisions/a3-decision-requests.md`.
 - IF-009 hardware-boundary review: `docs/interfaces/IF-009-a3-review.md`; A3
-  accepts IF-009 v1.0 at A2 `d02598a` with no hardware-type leakage. A1 review
-  and A2 signature recording remain open.
-- Next decision: Director approval of D-007 and D-021. A1 accepted IF-008 v1.1
-  at `b9a69d8`; the AHCI probe stays blocked until the Director records both.
-  The A3 package is under `a3/`; the A4 control plane owns the shared root.
-  XB-011 is pushed as `origin/a3/stage0-review-response`.
+  accepts IF-009 v1.0 at A2 `d02598a` with no hardware-type leakage. A1 recorded
+  **ACCEPT (A1 side) with conditions** at `a17d126`; A2 signature recording
+  remains open at `6d305b8` / `64b3458`.
+- Stage 0 is **NOT ACCEPTED**; D-006, D-007, D-021 and D-031 remain Proposed.
+  A1 accepted IF-008 v1.1 at `b9a69d8`; the AHCI probe stays blocked until the
+  Director records D-007 and D-021. The A3 package is under `a3/`; the A4
+  control plane owns the shared root. A4 candidate `b4232a0` does not contain
+  `a3/` or root `include/ozero/`; PR #4 is open into the A4 candidate. A3 is a
+  separate branch until A4 merges it.

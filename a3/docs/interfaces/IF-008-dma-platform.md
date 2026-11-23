@@ -4,7 +4,7 @@
 |---|---|
 | Owner | A3 |
 | Version | 1.1 |
-| Status | Published; A1 **ACCEPT** at `b9a69d8`; A3 accepted A1 conditions; Director D-007 pending |
+| Status | Published; A1 **ACCEPT** at `b9a69d8` (`85df005`, review head `74b1471`); A3 accepted A1 conditions at `307b919`; Director D-007 pending |
 | Consumers | A1, A2, A4 |
 | Since | Stage 0 / Stage 1 |
 | Related | D-007, D-009, D-010, D-020, D-021; XB-001, XB-005, XB-007, XB-008, XB-011 |
@@ -190,20 +190,22 @@ and director approval.
 
 Open cross-agent dependencies:
 
-- **D-009 / XB-007:** **Approved; XB-007 closed** in A4 `3ae7aca`.
+- **D-009 / XB-007:** **Approved; XB-007 closed** in A4 `b4232a0`.
   `include/ozero/` is the only public root; A1 `03f8883` implements it; A3 is
   aligned and claims no remaining namespace conflict.
-- **D-010 / XB-008:** **Approved; XB-008 closed** in A4 `3ae7aca`. A1 owns
+- **D-010 / XB-008:** **Approved; XB-008 closed** in A4 `b4232a0`. A1 owns
   `tools/check-headers.sh` and `tests/abi_static_asserts.c`; A4 owns CI
   integration.
 - **D-020:** DMA is constraint-driven, never device-class-driven. A3 supplies
   `o0_dma_constraint`; A1 does not infer it.
 - **D-021:** no IOMMU in Stage 1; trusted ring-0 drivers only. Director approval
   is pending.
-- **D-007 / XB-001:** A1 **ACCEPT**ed this exact version at `b9a69d8`; Director
-  approval of D-007 and D-021 is still required before the AHCI probe.
-- **XB-011:** `origin/a3/stage0-review-response` is pushed; A4 can refresh the
-  repository audit. No pull request is open.
+- **D-007 / XB-001:** A1 **ACCEPT**ed this exact version at `b9a69d8`
+  (`85df005`, review head `74b1471`); Director approval of D-007 and D-021 is
+  still required before the AHCI probe. XB-001 is closed in A4 `b4232a0`.
+- **XB-011:** `origin/a3/stage0-review-response` is pushed. A4 `b4232a0`
+  records XB-011 closed, but the A4 candidate lacks `a3/` and root
+  `include/ozero/`; A3 PR #4 is open into the A4 candidate.
 
 ## Version history
 

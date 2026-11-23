@@ -2,14 +2,16 @@
 
 | Field | Value |
 |---|---|
-| Purpose | Record the A3 response to XB-017/XB-018 and the A4 control-plane merge |
+| Purpose | Record the A3 response to XB-017/XB-018 and the A4 candidate integration gap |
 | A3 package tree | `a3/` |
-| A4 base merged | `origin/a4/stage0-review-followup` @ `3ae7aca` |
+| A4 base merged | `origin/a4/stage0-review-followup` @ `b4232a0` |
 | A3 package move commit | `a16a99b` |
-| Merge commit | `f0be3c5` |
+| Latest A4 merge commit | `fcce71e` |
+| A3 integration PR | [#4](https://github.com/Momegaii/Ozero/pull/4) |
 | Shared root README/AGENTS | A4 versions, not A3 |
 | A3 interface headers | `include/ozero/platform.h`, `include/ozero/block.h` |
-| A1 IF-008 decision | **ACCEPT** at `b9a69d8`; A1 `4716e09` |
+| A1 IF-008 decision | **ACCEPT** at `b9a69d8`; A1 `74b1471`, decision `85df005` |
+| Stage 0 | **NOT ACCEPTED** |
 | AHCI | **Blocked** |
 
 This document records the shared-root and ownership cleanup requested by A4's
@@ -45,42 +47,52 @@ A1's headers at `30ee4f0` or later win.
 
 ## 3. A4 actions still required
 
-A4 owns the control plane. A3 requests:
+A4 owns the control plane. At `b4232a0` it has already:
 
-1. Update `docs/architecture/interfaces.md` IF-008 from `A1 final approval
-   pending` to `1.1; A1 accepted at b9a69d8; director D-007 pending`.
-2. Update XB-001 evidence to the A1 decision commit `4716e09` and
-   `docs/if008-v1.1-review.md`.
-3. Add file-level `CODEOWNERS` entries for
-   `include/ozero/platform.h` and `include/ozero/block.h` with A1 review and A3
-   ownership, per A1's `docs/if008-v1.1-review.md` §5.
-4. Refresh XB-005 and XB-011 evidence to the current A3 branch head; both are
-   already pushed, but A4's audit text still cites `15cd9ce`.
-5. Close XB-017 and XB-018 after reviewing this merge and the corrected A3
-   basis.
+- recorded IF-008 as A1-accepted and A3-accepted;
+- recorded IF-009 v1.0 with A1 and A3 acceptance;
+- added file-level `CODEOWNERS` entries for `include/ozero/platform.h` and
+  `include/ozero/block.h`;
+- marked XB-001, XB-017, XB-018 and XB-019 closed.
+
+The remaining integration action is:
+
+1. Review and merge A3 PR #4 into `a4/stage0-review-followup`.
+2. Verify A4 PR #3's diff then contains `a3/` paths and the exact root
+   `include/ozero/` headers. At `b4232a0` it contains **0** `a3/` files and
+   **0** root `include/ozero/` files, so XB-017's closure is documentation-only
+   until the merge.
+3. Keep XB-005 open: no device-specific or hardware test exists.
+4. Do not merge any branch to `main`; Stage 0 remains not accepted.
 
 A3 does not edit A4's decision register, blockers, interface registry or
 `CODEOWNERS`.
 
 ## 4. Status
 
-- Shared-root overwrite: **resolved** in this merge.
+- Shared-root overwrite: **resolved** on the A3 branch.
 - A3 content isolation: **resolved** under `a3/`.
 - A1 header authority: **preserved**; A1 accepted `platform.h` and `block.h`.
-- A4 `CODEOWNERS` entries: **requested**, not yet applied.
-- XB-017: **ready for A4 review**.
-- XB-018: **ready for A4 review**; A3 basis is `3ae7aca` and D-009 is approved.
+- A4 `CODEOWNERS` entries: **present** at `b4232a0`.
+- A4 IF-008/IF-009 registry: **updated** at `b4232a0`.
+- A3 package in A4 candidate: **pending PR #4 merge**.
+- A4 PR #3 diff: **0 `a3/` files, 0 root `include/ozero/` files**.
+- XB-017: **A4 says Closed; tree integration pending**.
+- XB-018: **Closed**; A3 basis is `b4232a0` and D-009 is approved.
+- XB-005: **Open**; static checks only.
 - AHCI: **blocked** pending Director D-007/D-021.
 
 ## 5. References
 
 - A4 interface registry:
-  <https://github.com/Momegaii/Ozero/blob/a4/stage0-review-followup/docs/architecture/interfaces.md>
+  <https://github.com/Momegaii/Ozero/blob/b4232a0/docs/architecture/interfaces.md>
 - A4 blockers:
-  <https://github.com/Momegaii/Ozero/blob/a4/stage0-review-followup/docs/process/cross-agent-blockers.md>
+  <https://github.com/Momegaii/Ozero/blob/b4232a0/docs/process/cross-agent-blockers.md>
 - A4 ownership map:
-  <https://github.com/Momegaii/Ozero/blob/a4/stage0-review-followup/docs/architecture/ownership.md>
+  <https://github.com/Momegaii/Ozero/blob/b4232a0/docs/architecture/ownership.md>
 - A1 IF-008 decision:
-  <https://github.com/Momegaii/Ozero/blob/a1/stage0-review/docs/if008-v1.1-review.md>
+  <https://github.com/Momegaii/Ozero/blob/74b1471/docs/if008-v1.1-review.md>
 - A3 IF-008 acceptance:
   [`interfaces/IF-008-v1.1-acceptance.md`](interfaces/IF-008-v1.1-acceptance.md)
+- A3 integration PR: <https://github.com/Momegaii/Ozero/pull/4>
+- A4 PR #3: <https://github.com/Momegaii/Ozero/pull/3>

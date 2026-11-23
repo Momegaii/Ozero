@@ -1,8 +1,8 @@
 # A3 response to the 23 November 2026 action brief
 
 > Historical response. A1 has since recorded **ACCEPT** of IF-008 v1.1 at
-> `b9a69d8` (`4716e09`). The current response is
-> [`09-proceed-brief-response.md`](09-proceed-brief-response.md).
+> `b9a69d8` (`85df005`). The current response is
+> [`10-proceed-brief-r2-response.md`](10-proceed-brief-r2-response.md).
 
 | Field | Value |
 |---|---|
@@ -33,7 +33,7 @@ The packet requests an explicit **ACCEPT** or **CHANGE REQUIRED** on that exact
 commit. A3 will answer every CHANGE REQUIRED item in a new commit with a new
 hash.
 
-A1 accepted `b9a69d8` at `4716e09`. Its `docs/a3-dma-contract.md` still describes
+A1 accepted `b9a69d8` at `85df005`. Its `docs/a3-dma-contract.md` still describes
 A3 as unpublished; that statement is stale.
 
 ## A3-2 — Maintain IF-008 contract invariants
@@ -75,12 +75,13 @@ A3 published concise decision text and exact impact in
   headers. Without it, AHCI remains blocked.
 - **D-021:** Approve trusted ring-0-only DMA with no IOMMU in Stage 1. Without it,
   the DMA safety model remains unresolved and AHCI remains blocked.
-- **D-009:** Already **Approved** in A4 `3ae7aca`; canonical namespace is
+- **D-009:** Already **Approved** in A4 `b4232a0`; canonical namespace is
   `include/ozero/` only, and XB-007 is **Closed**. A3 needs no new decision.
-- **D-010:** Already **Approved** in A4 `3ae7aca`; XB-008 is **Closed**.
+- **D-010:** Already **Approved** in A4 `b4232a0`; XB-008 is **Closed**.
 
-A4's blocker rows XB-001, XB-005 and XB-011 still describe A3 as unpublished.
-A3 requested an evidence refresh in the decision document; A3 cannot edit A4's
+A4 `b4232a0` closes XB-001 and XB-011; XB-005 remains Open because no device
+test exists. The A4 candidate still lacks `a3/` and root `include/ozero/`; A3
+PR #4 is open. A3 cannot edit A4's
 register directly.
 
 ## A3-5 — IF-009 PE fixture contract review
@@ -101,7 +102,8 @@ A3 recommends **ACCEPT WITH COMMENTS** for A1/A2/A4:
    platform-neutral and contain no A3 hardware types.
 2. A2 should normalize absolute `/workspace/project/Ozero/...` manifest paths or
    document the fixed build root.
-3. A4 should keep XB-003 Open until A1's review and A2's revision are recorded.
+3. A4 has added A1/A3 as reviewers at `b4232a0`; XB-003 stays Open until A2
+   records both signatures at `6d305b8` / `64b3458`.
 
 ## A3-6 — Hardware roadmap distinctions
 
@@ -127,11 +129,11 @@ multiplier remain deferred unless a separate requirement is approved.
 
 | Criterion | Status |
 |---|---|
-| A1 IF-008 v1.1 decision closed | **Done**; A1 recorded ACCEPT at `b9a69d8` (`4716e09`); A3 acceptance in `IF-008-v1.1-acceptance.md` |
+| A1 IF-008 v1.1 decision closed | **Done**; A1 recorded ACCEPT at `b9a69d8` (`85df005`); A3 acceptance in `IF-008-v1.1-acceptance.md` |
 | Required corrections committed and pushed | **Done** in the proceed-brief response |
 | D-007 / D-021 disposition recorded | **Pending**; decision-ready text published, Director has not recorded approval |
-| D-009 disposition recorded | **Done**; A4 `3ae7aca` approved `include/ozero/` only; A4 audit text needs refresh |
-| IF-009 reviewed | **Done for A3 hardware boundary**; A3 accepts v1.0 at A2 `d02598a`; A1/A4 review still pending |
+| D-009 disposition recorded | **Done**; A4 `b4232a0` approved `include/ozero/` only and closed XB-007 |
+| IF-009 reviewed | **Done for A3 hardware boundary**; A3 accepts v1.0 at A2 `d02598a`; A1 accepted with conditions at `a17d126`; A2 signature pending |
 | AHCI gated until explicit approval | **Held**; no AHCI probe work started |
 
 ## Evidence and limits

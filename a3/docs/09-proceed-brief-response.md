@@ -1,17 +1,23 @@
 # A3 response to the 23 November 2026 proceed brief
 
+> Historical response to Revision 1. Revision 2
+> ([`10-proceed-brief-r2-response.md`](10-proceed-brief-r2-response.md))
+> supersedes it: A4 candidate `b4232a0` does not contain `a3/` or root
+> `include/ozero/`; A3 opened PR #4 into the A4 candidate; Stage 0 remains not
+> accepted.
+
 | Field | Value |
 |---|---|
 | Brief | `Ozero_A3_Proceed_Brief_2026-11-23.pdf` |
 | Branch | `a3/stage0-review-response` |
 | A3 package | `a3/` |
 | IF-008 accepted version | 1.1 at `b9a69d8` |
-| A1 decision | **ACCEPT** at `4716e09` |
-| A4 control-plane base | `3ae7aca` |
-| A2 IF-009 v1.0 | `d02598a`; evidence head `3f78477` |
+| A1 decision | **ACCEPT** at A1 `74b1471` (decision `85df005`) |
+| A4 control-plane base | `b4232a0` |
+| A2 IF-009 v1.0 | contract `d02598a`; evidence head `64b3458` (code `6d305b8`) |
 | A3 acceptance record | [`interfaces/IF-008-v1.1-acceptance.md`](interfaces/IF-008-v1.1-acceptance.md) |
 | AHCI probe | **Blocked** |
-| Pull request | **None** |
+| Pull request | [#4](https://github.com/Momegaii/Ozero/pull/4) into `a4/stage0-review-followup`; no merge to `main` |
 | Runtime evidence | **None**; static and compile-time checks only |
 
 This response follows A3-1 through A3-6 of the proceed brief. It does not claim
@@ -49,21 +55,22 @@ Updated in this response:
 - `a3/docs/interfaces/IF-008-dma-platform.md`: status and D-007/XB-001 row.
 - `a3/docs/interfaces/IF-008-v1.1-a1-review-packet.md`: A1 decision recorded.
 - `a3/docs/decisions/a3-decision-requests.md`: D-007/D-021 status and A4 refresh.
-- A4 basis references now use `3ae7aca`; D-009 is approved and XB-007 is closed.
+- A4 basis references now use `b4232a0`; D-009 is approved and XB-007 is closed.
 
-A4's `3ae7aca` still lists IF-008 as `A1 final approval pending` and XB-001 as
-unreviewed. A3 cannot edit A4's register; the refresh request is in
-[`08-control-plane-integration.md`](08-control-plane-integration.md).
+A4's `b4232a0` records IF-008 as A1-accepted and A3-accepted and marks XB-001
+closed. Its candidate tree still lacks `a3/` and root `include/ozero/`; PR #4
+supplies them. See [`08-control-plane-integration.md`](08-control-plane-integration.md).
 
 ## A3-3 — Resolve shared-root conflicts
 
 The A3 package is now under `a3/`. The branch merges the A4 control-plane base
-`3ae7aca` and keeps A4's root `README.md`, `AGENTS.md`, `Makefile`, `docs/`,
+`b4232a0` and keeps A4's root `README.md`, `AGENTS.md`, `Makefile`, `docs/`,
 `tests/`, `scripts/`, `harness/`, `toolchain/`, `evidence/`, `.github/` and
 `CODEOWNERS`. A3 no longer overwrites the shared root.
 
-The integration record is [`08-control-plane-integration.md`](08-control-plane-integration.md).
-It requests that A4 close XB-017 and XB-018 after review.
+The A4 candidate itself does not yet contain `a3/` or root `include/ozero/`;
+A3 remains a separate branch until A4 merges PR #4. The integration record is
+[`08-control-plane-integration.md`](08-control-plane-integration.md).
 
 ## A3-4 — Respect header ownership
 
@@ -72,20 +79,21 @@ reviewed and ACCEPTed those exact paths at `b9a69d8`. A3 does not modify A1's
 ten public headers. `a3/include/ozero/` is a package snapshot, not a second
 authoritative surface.
 
-A4 still needs file-level `CODEOWNERS` entries for `platform.h` and `block.h`;
-A3 has requested them in the integration record and does not edit A4's file.
+A4 `b4232a0` now has file-level `CODEOWNERS` entries for `platform.h` and
+`block.h`; A3 verified them and does not edit A4's file.
 
 ## A3-5 — Confirm IF-009 v1.0
 
-A3 reviewed A2 IF-009 v1.0 at `d02598a`, with evidence head `3f78477`, and
+A3 reviewed A2 IF-009 v1.0 at `d02598a`, with evidence head `64b3458`, and
 answers both questions:
 
 - **IF9-A3-1:** IF-009 requires no platform, DMA or block interface from A3.
 - **IF9-A3-2:** A3 will not cite an IF-009 pass as a driver, AHCI or graphics
   result.
 
-A3 **accepts IF-009 v1.0 for the hardware boundary**. A1's kernel-interface
-review and A2's signature recording remain open. See
+A3 **accepts IF-009 v1.0 for the hardware boundary**. A1 recorded **ACCEPT (A1
+side) with conditions** at `a17d126`; A2's signature recording remains open at
+`6d305b8` / `64b3458`. See
 [`interfaces/IF-009-a3-review.md`](interfaces/IF-009-a3-review.md).
 
 ## A3-6 — Keep AHCI blocked
@@ -102,10 +110,10 @@ compile-time checks. The AHCI probe remains blocked until:
 
 | Criterion | Status |
 |---|---|
-| Written A3 acceptance at the exact IF-008 hash | **Done**: `b9a69d8`; A1 `4716e09` |
-| Stale documents and decision references corrected | **Done**; A4 `3ae7aca` basis |
-| Shared-root/header ownership conflicts resolved in a reviewable commit | **Done** for shared root and A3 tree; A4 `CODEOWNERS` refresh requested |
-| IF-009 v1.0 disposition published | **Done for A3** at A2 `d02598a`; A1/A2 still open |
+| Written A3 acceptance at the exact IF-008 hash | **Done**: `b9a69d8`; A1 `85df005` |
+| Stale documents and decision references corrected | **Done**; A4 `b4232a0` basis |
+| Shared-root/header ownership conflicts resolved in a reviewable commit | **Done** on the A3 branch; A4 `CODEOWNERS` present; A4 candidate integration pending PR #4 |
+| IF-009 v1.0 disposition published | **Done for A3** at A2 `d02598a`; A1 accepted with conditions at `a17d126`; A2 signature pending |
 | AHCI remains gated until Director decisions | **Held**; no probe work started |
 
 ## Verification
@@ -121,6 +129,7 @@ make -C a3 check-a1-headers A1_INCLUDE=/tmp/a1include
 ## Handoff
 
 A3 publishes these corrections on `a3/stage0-review-response`. The branch head
-is this commit. There is no pull request. A1 and A4 should review the exact
-commit hash and the records above; A4 should refresh IF-008, XB-001, XB-005,
-XB-011, XB-017 and XB-018.
+is this commit. PR #4 is open against `a4/stage0-review-followup`; there is no
+request to merge to `main`. A4 should review and merge PR #4, then verify A4 PR
+#3's diff contains `a3/` and root `include/ozero/`. XB-005 stays open; Stage 0
+and D-006/D-007/D-021/D-031 remain unresolved.
