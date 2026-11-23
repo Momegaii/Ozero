@@ -29,6 +29,7 @@ o0_status o0_cpu_detect(void) {
     if (features_detected) return O0_EBUSY;
 
     uint32_t eax, ebx, ecx, edx;
+    bool avx_hw = false, avx2_hw = false, avx512f_hw = false;
     cpuid(0, 0, &eax, &ebx, &ecx, &edx);
     features.max_basic_leaf = eax;
     boot_cpu.vendor[0]=(char)ebx; boot_cpu.vendor[1]=(char)(ebx>>8);
@@ -66,7 +67,7 @@ o0_status o0_cpu_detect(void) {
         features.aesni=((ecx>>25)&1u)!=0;
         features.xsave=((ecx>>26)&1u)!=0;
         bool osxsave=((ecx>>27)&1u)!=0;
-        features.avx=((ecx>>28)&1u)!=0;
+        avx_hw=((ecx>>28)&1u)!=0;
         features.rdrand=((ecx>>30)&1u)!=0;
         features.pcid=((ecx>>17)&1u)!=0;
         features.x2apic=((ecx>>21)&1u)!=0;
@@ -83,10 +84,10 @@ o0_status o0_cpu_detect(void) {
     if (features.max_basic_leaf >= 7) {
         cpuid(7, 0, &eax, &ebx, &ecx, &edx);
         features.fsgsbase=((ebx>>0)&1u)!=0;
-        features.avx2=((ebx>>5)&1u)!=0;
+        avx2_hw=((ebx>>5)&1u)!=0;
         features.smep=((ebx>>7)&1u)!=0;
         features.invpcid=((ebx>>10)&1u)!=0;
-        features.avx512f=((ebx>>16)&1u)!=0;
+        avx512f_hw=((ebx>>16)&1u)!=0;
         features.rdseed=((ebx>>18)&1u)!=0;
         features.smap=((ebx>>20)&1u)!=0;
         features.umip=((ecx>>2)&1u)!=0;
@@ -117,6 +118,15 @@ o0_status o0_cpu_detect(void) {
         features.phys_addr_bits=(uint8_t)(eax&0xffu);
         features.virt_addr_bits=(uint8_t)((eax>>8)&0xffu);
     }
+    /* Report AVX-family instructions only when the OS has enabled and
+     * configured the corresponding extended register state in XCR0. */
+    bool avx_state = features.xsave && features.xcr0_supported != 0 &&
+                     (features.xcr0_supported & 0x6u) == 0x6u;
+    bool avx512_state = (features.xcr0_supported & 0xe6u) == 0xe6u;
+    features.avx = avx_hw && avx_state;
+    features.avx2 = avx2_hw && features.avx;
+    features.avx512f = avx512f_hw && avx512_state;
+
     if (features.clfsh && features.clflush_size==0) features.clflush_size=64;
 
     boot_cpu.index=0; boot_cpu.apic_id=0; boot_cpu.acpi_uid=0;
