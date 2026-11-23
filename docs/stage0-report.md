@@ -15,10 +15,12 @@ acceptance certificate. Nothing below claims runtime behaviour that was not exec
 | Source index and pins | complete for this review | `docs/sources.md` |
 | Stage 0 report | this document | `docs/stage0-report.md` |
 
-Overall: **not accepted**. The director's second review asked A1 for four actions; all four
-are answered in this branch. No kernel implementation has started. D1–D4 (global D-005,
-D-012 through D-014) and the review-specific decisions remain pending director approval.
-The A3 interface review is conditional because A3's headers are not published.
+Overall: **not accepted**. The director's second review and the action brief v2 asked A1
+for nine actions; all are answered in this branch. No kernel implementation has started.
+D1–D4 (global D-005, D-012 through D-014) and the review-specific decisions remain
+pending director approval. IF-008 v1.1 is **accepted by A1** at A3 `b9a69d8`; AHCI
+remains blocked on D-007 and A3's acceptance. IF-009 is **not published**; A1 recorded
+CHANGE REQUIRED.
 
 ## 2. Review response (23 November 2026)
 
@@ -61,8 +63,32 @@ Second-round definition-of-done:
 | Script ownership explicit | Met | D-010; `AGENTS.md`; script header |
 | A2 requirements reviewed with dispositions | Met | `docs/a2-interface-review.md`, 14 groups and 7 open items |
 | A3 DMA callbacks exact | Met on the A1 side | `struct o0_device_ops` in `include/ozero/driver.h`; `docs/a3-dma-contract.md` §4 |
-| A3 headers reviewed | **Not met: not published** | A3 has a push-permission problem; final IF-008 approval is pending |
+| A3 headers reviewed | **Superseded by §2.2** | A3 published at `b9a69d8`; A1 accepted IF-008 v1.1 |
 | No implementation started | Met | No `kernel/`, `arch/` or driver code in the branch |
+
+## 2.2 Director action brief v2 — 23 November 2026
+
+Stage 0 remains **not accepted**. A1 was asked to do five things in the action brief v2;
+all are answered.
+
+| # | Action | A1 result | Evidence |
+|---|---|---|---|
+| A1-1 | Final IF-008 v1.1 review at A3 `b9a69d8` | **ACCEPT.** A3's `platform.h` and `block.h` conform; A3's ten copies of A1 headers are byte-identical to A1 `30ee4f0`; A1's checks pass on A3's tree | `docs/if008-v1.1-review.md`; D-032 |
+| A1-2 | Answer A1-REV-01…12 at A2 `50b7853` / evidence `807c447` | **Answered.** 4 Accept, 6 Change, 2 Defer. A2 must update its stale `include/o0/`/`90b004f` references and rename its colliding local D-011/D-012/D-020 | `docs/a2-contract-review-response.md` |
+| A1-3 | IF-009 review | **CHANGE REQUIRED.** No IF-009 document exists; A2's fixture manifest is evidence, not a contract. A1/A2/A3 split and required contents are recorded | `docs/if009-review.md`; D-033 |
+| A1-4 | Preserve the DMA boundary | Contract-level validation of `o0_device_ops`, one contiguous buffer, `max_segment` splitting, completion timing, reset semantics and BAR UC/NX. No A3 driver code exists to inspect | `docs/if008-v1.1-review.md` §4 |
+| A1-5 | Keep AHCI blocked | A1 sign-off is granted for IF-008 v1.1, but AHCI remains blocked on director D-007 and A3's acceptance. No runtime or DMA proof exists | `docs/if008-v1.1-review.md` §1, §7 |
+
+Third-round definition-of-done:
+
+| Item | Status | Evidence |
+|---|---|---|
+| IF-008 v1.1 explicit review decision published | Met: ACCEPT | `docs/if008-v1.1-review.md`; D-032 |
+| A1-REV-01…12 answered against current A2 revision | Met | `docs/a2-contract-review-response.md`; A2 `50b7853`/`807c447` |
+| IF-009 reviewed | Met: CHANGE REQUIRED | `docs/if009-review.md`; D-033 |
+| All decisions tied to exact immutable hashes | Met | A3 `b9a69d8`/`15cd9ce`; A1 `30ee4f0`; A2 `50b7853`/`807c447`; A4 `245007d` |
+| AHCI probe blocked | Met | `docs/if008-v1.1-review.md` §1; no driver code or runtime test |
+| No implementation started | Met | No `kernel/`, `arch/` or driver code |
 
 ## 3. Evidence
 
@@ -89,11 +115,26 @@ Second-round definition-of-done:
 | `c50e385` | `docs: answer the director's second Stage 0 review` | decisions D-009..D-030, A2 review, A3 DMA contract, interface and architecture updates |
 | this report commit | records the second-round evidence and exact hashes | `docs/stage0-report.md` |
 
+Third round (action brief v2):
+
+| Commit | Purpose | Scope |
+|---|---|---|
+| `85df00573e338db903b030d5ddcbfb4dac009ee7` | `docs: accept IF-008 v1.1 at A3 b9a69d8 (D-032)` | IF-008 review, interface draft, decisions, AGENTS, README |
+| `d9cdec1ea85159e140b67190111f2c18597fa459` | `docs: answer A2 A1-REV-01..12 and review IF-009 (D-033)` | A2 response, IF-009 review, action brief v2 PDF |
+| this report commit | records the action brief v2 evidence and exact hashes | `docs/stage0-report.md` |
+
 Reviewed inputs, not A1 commits:
 
-- A2 branch `agent/a2-stage0` at `f324b28d943c34adc27a307f44c4e4b248fe3410`.
-- A4 branch `a4/stage0-review-followup` at `5642c16d9d03da1e58146eea40135377175b381a`.
-- A3 `platform.h` and `block.h`: **not published**, so not reviewed.
+- A2 branch `agent/a2-stage0` at `f324b28d943c34adc27a307f44c4e4b248fe3410` (second
+  review) and `50b78534f6b52af414f4ae5bc6e190c4427beba9` / evidence
+  `807c447a175eba27624f9c50c9b2e676e95e1f20` (third review).
+- A3 branch `a3/stage0-review-response` at
+  `b9a69d855360df28ad7503f3ba748dcde0910471`; branch head
+  `15cd9ce990c98af385d056016312dc27f5fc0856` is documentation-only.
+- A4 branch `a4/stage0-review-followup` at
+  `245007d2b96bbc12de1e831c5275587ef56ee81f`.
+- A3 `platform.h` and `block.h` were not published at the second review; they were
+  published and reviewed at the third review.
 
 ### 3.2 Commands and raw output
 
@@ -143,11 +184,49 @@ $ diff -q PROTOCOL_pinned.md limine-12.11.1/limine-protocol/PROTOCOL.md
 (no output; both files identical to the pinned protocol revision)
 ```
 
+A3 IF-008 v1.1 verification at `b9a69d8` (A1 conformance script run in A3's tree):
+
+```
+$ ./tools/check-headers.sh
+PASS  block.h
+PASS  platform.h
+... (all ten A1 headers also PASS)
+PASS  ozero/o0.h (C11)
+PASS  ozero/o0.h (C++17)
+PASS  tests/abi_static_asserts.c
+PASS  no device-class or GPU-generation terms in include/ozero
+PASS  no hosted libc headers in include/ozero
+PASS  no include/o0
+PASS  no legacy o0/ includes
+RESULT: PASS
+```
+
+A3's own package checks:
+
+```
+$ make check
+PASS: matrix validation
+  rows: 10
+  deferred: nvme-zns, sata-port-multiplier
+PASS: deliverable check
+  files: 24
+  documents checked: 7
+...................
+Ran 19 tests in 0.005s
+OK
+
+$ make check-a1-headers A1_INCLUDE=/workspace/Ozero/include
+cc -std=c11 -Wall -Wextra -Werror -I/workspace/Ozero/include -Iinclude -fsyntax-only tests/header_smoke.c tests/a1_header_smoke.c
+exit 0
+```
+
 What this evidence shows:
 
 - Headers are self-consistent, compile freestanding as C11 and C++17, documented ABI facts
   hold, generic interfaces contain no device-class or GPU-generation terms, no hosted
   libc leaks into public headers, and the only public root is `include/ozero/`.
+- A3's `platform.h` and `block.h` compile standalone and against A1's actual headers, and
+  A3's ten copies of A1's headers are byte-identical to A1 `30ee4f0`.
 - The pinned Limine release (`v12.11.1`) supports base revision 6 and vendors exactly the
   pinned protocol revision.
 
@@ -156,7 +235,8 @@ What it does **not** show: any runtime behaviour. See §7.
 ## 4. Decisions needed
 
 Global IDs are authoritative. Local IDs remain for cross-reference in the architecture note.
-D-005 and D-007 already exist in A4's register; D-009 through D-030 are A1 proposals in
+D-005 and D-007 already exist in A4's register; D-009 and D-010 are approved by A4 at
+`245007d`; D-011 through D-033 are A1 proposals or interface records in
 `docs/decisions/a1-global-decisions.md`. D-005, D-012, D-013 and D-014 unblock Stage 1.
 
 | Global | Local | Decision | Options | Recommendation |
@@ -180,9 +260,9 @@ Second-review decisions:
 
 | Global | Decision | Recommendation |
 |---|---|---|
-| D-009 | Public header namespace | **`include/ozero/` only**; `include/o0/` removed; symbols keep `o0_` |
-| D-010 | Conformance tooling ownership | **A1 owns** `tools/check-headers.sh` and `tests/abi_static_asserts.c`; **A4 owns CI integration**; A3 owns other `tools/` content |
-| D-011 | A2 kernel-facing contract | **Accept A2 requirements as input**; A1 provides primitives; no ABI freeze |
+| D-009 | Public header namespace | **Approved** (A4 `245007d`): `include/ozero/` only; `include/o0/` removed; symbols keep `o0_` |
+| D-010 | Conformance tooling ownership | **Approved** (A4 `245007d`): A1 owns `tools/check-headers.sh` and `tests/abi_static_asserts.c`; A4 owns CI integration; A3 owns other `tools/` content |
+| D-011 | A2 kernel-facing contract | **Accept A2 requirements as input**; A1 provides primitives; no ABI freeze; A1-REV-01…12 answered in `docs/a2-contract-review-response.md` |
 | D-024 | Exception record shape | **Neutral kernel record**; A2 translates to Windows |
 | D-025 | TEB ownership | **A2 owns layout/allocation**; A1 provides user pointer and GS/FS base |
 | D-026 | Address-space layout/ASLR | **A2 owns policy**; A1 provides address-space primitives |
@@ -190,6 +270,13 @@ Second-review decisions:
 | D-028 | Handle inheritance | **A1 provides inherit flag and explicit list**; A2 chooses policy |
 | D-029 | Clock resolution | **A1 provides monotonic nanoseconds**, measured not promised |
 | D-030 | 32-bit and WOW64 | **Deferred**; outside A1 Stage 1 scope |
+
+Third-review interface decisions:
+
+| Global | Decision | Status |
+|---|---|---|
+| D-032 | IF-008 v1.1 **accepted by A1** at A3 `b9a69d8`; A3's `platform.h`/`block.h` conform; A1's ten headers are byte-identical. AHCI remains blocked on D-007 and A3 acceptance. | Recorded by A1; A4 to register |
+| D-033 | IF-009 v0.1 is **not published**; A2's fixture manifest is evidence, not a contract. A2 must publish IF-009 v0.1 with exact hashes, static-only scope and the A1/A2/A3 split. | Change required |
 
 ## 5. Unresolved risks
 
@@ -204,7 +291,12 @@ Second-review decisions:
 | No MBR harness exists | A4 must not conflate MBR boot with Limine boot | Labelled in Stage 1 plan §1 |
 | QEMU success is not hardware support | Paging/APIC/AP bugs can hide in emulation | Hardware bring-up gate before any release claim |
 | Secure Boot disabled in test | Production boot blocked | Signing is a release requirement, not a Stage 1 task |
-| A3 `platform.h` and `block.h` are unpublished | A1 cannot sign IF-008; A3 cannot start AHCI | A1 conditions issued in `docs/a3-dma-contract.md`; final sign-off only after publication |
+| A3's IF-008 document is stale on D-009/XB-007 | A3 says A4 records `include/o0/`; A4 `245007d` approves `include/ozero/` | A3 must correct the note; A4 must update the IF-008 registry row |
+| A4's IF-008 registry row is stale | It says 0.1 draft and blocked; A3 published and A1 accepted v1.1 | A4 must update to 1.1, A1 accepted, D-007 pending |
+| IF-009 has no contract | A1 cannot accept the fixture manifest as an interface; XB-003 stays open | A2 publishes IF-009 v0.1; A4 adds A1/A3 consumers (D-033) |
+| A2's review references are stale | A2 cites A1 `90b004f` / `include/o0/` and collides on D-011/D-012/D-020 | A2 updates to A1 `30ee4f0` / `include/ozero/` and renames its local IDs |
+| A3 vendors A1's headers | Future drift could overwrite A1's headers on merge | Byte-identical at `b9a69d8`; A3 must not modify them; A1's headers win |
+| No runtime proof of IF-008 | Compile checks do not prove DMA, IRQ routing, reset or BAR mapping | A1 sign-off is interface-only; AHCI stays blocked on D-007 and runtime tests |
 | A2's contract conditions are unconfirmed | Exception, TEB, ASLR, APC and inheritance decisions could drift | D-024 through D-030; A2 must reply before any ABI freeze |
 | `CODEOWNERS` overrides are not yet applied | A4's `/tools/` and `/tests/` rules would otherwise assign A1 artifacts to the wrong owner | A4 must add file-level overrides for `tools/check-headers.sh` and `tests/abi_static_asserts.c` (D-010) |
 | A branch still using `include/o0/` will fail the build | Namespace drift after the rename | `tools/check-headers.sh` rejects the old root; A2/A3/A4 must include `<ozero/...>` |
@@ -213,17 +305,22 @@ Second-review decisions:
 
 | Agent | Dependency | State |
 |---|---|---|
-| Director | Approve D-005, D-007 and D-009 through D-030 | Open; Stage 0 is not accepted |
-| A2 | Reply to `docs/a2-interface-review.md`; confirm D-024 through D-030; switch to `<ozero/...>` includes; do not freeze the ABI | Requested; no ABI freeze before A2 reply |
-| A3 | Resolve push permission; publish `platform.h` and `block.h`; accept the D-007 conditions and implement `struct o0_device_ops`; no AHCI probe before A1's IF-008 sign-off | Blocked on A3 publication |
-| A4 | Add `CODEOWNERS` overrides for `tools/check-headers.sh` and `tests/abi_static_asserts.c`; merge A1's decision rows into the canonical register; invoke the conformance script from CI unmodified; refresh the repository audit after A3 publishes | Open |
+| Director | Approve D-005, D-007 and D-011 through D-033; D-009/D-010 are already approved | Open; Stage 0 is not accepted |
+| A2 | Reply to `docs/a2-contract-review-response.md`; update stale `include/o0/`/`90b004f` references; rename local D-011/D-012/D-020; publish IF-009 v0.1; confirm D-024 through D-030 | Requested; no ABI freeze before A2 reply |
+| A3 | A1 accepted IF-008 v1.1 at `b9a69d8`; A3 must accept the conditions, correct the stale D-009/XB-007 note, and not modify A1's vendored headers. No AHCI probe before D-007 and A3 acceptance. | A1 sign-off granted; AHCI blocked on D-007 |
+| A4 | Add `CODEOWNERS` overrides for the A1 artifacts and A3's `platform.h`/`block.h`; update IF-008 to 1.1/A1 accepted; add A1/A3 to IF-009; merge D-032/D-033; invoke the conformance script from CI unmodified; refresh the repository audit | Open |
 | A4 | Ratify build/toolchain; build the Limine host tool from the pinned source; verify repository history and evidence; distinguish the MBR harness from UEFI/Limine kernel boot | Open |
 | A4 | Provide QEMU + OVMF CI so B1–B14 can actually run | Open; no boot test exists yet |
 
 Cross-agent blockers carried in this report:
 
-- A3 has not published `platform.h` or `block.h`; A1 cannot sign IF-008 and A3 must not
-  start the AHCI probe.
+- A3 published IF-008 v1.1 at `b9a69d8`; A1 accepted it. AHCI remains blocked on D-007
+  and A3's acceptance of the conditions. A3's IF-008 doc still says A4 records
+  `include/o0/`; that is stale after A4 `245007d`.
+- IF-009 has no contract document. A2's fixture manifest is evidence, not an interface;
+  A1 recorded CHANGE REQUIRED (D-033).
+- A2's review doc cites A1 `90b004f` and `include/o0/`, and uses D-011/D-012/D-020 with
+  meanings that collide with the canonical register. A2 must update and rename.
 - IOMMU absence blocks untrusted or userspace DMA. A1 recommends trusted ring-0 drivers
   for Stage 1; the director and A3 must accept or reject that (D-021).
 - `o0_dma_buffer` cannot represent a transfer larger than `max_segment`; A3 must split the
@@ -247,17 +344,20 @@ Explicitly **not** done or not executed:
 - No 5-level paging test; the 2018 SDM mirror predates it.
 - No IOMMU test; Stage 1 has no IOMMU.
 - No physical hardware test.
-- No A2, A3 or A4 sign-off has been received. A1's A3 review is conditional: the A1 side
-  is fixed, but A3's `platform.h` and `block.h` are not published and were not reviewed.
+- No A2, A3 or A4 sign-off has been received. A1 accepted IF-008 v1.1 at A3 `b9a69d8`;
+  that is an interface sign-off, not A3 acceptance or runtime proof.
+- No A3 driver code exists. No AHCI probe, DMA transfer, IRQ routing, reset or BAR mapping
+  was executed.
+- No IF-009 contract exists. A2's fixtures were not rebuilt by A1 and no fixture was
+  executed; A1 copied the manifest hashes from A2's evidence.
 - No A2 requirement was exercised. A2's evidence is static L0; this review accepts
   requirements, not runtime compatibility.
-- No A3 DMA callback was compiled against a driver or executed.
 - The namespace check is compile-time only; no build or link of a kernel image exists.
 - No Windows compatibility layer, syscall ABI or handle ABI was tested or frozen.
 - No Secure Boot or signed-image test.
 
-The only executed checks are the compile-time header/ABI checks in §3.2 and the Limine
-pin verification. Neither is a boot test.
+The executed checks are the compile-time header/ABI checks in §3.2, A3's package checks
+at `b9a69d8`, and the Limine pin verification. None is a boot or DMA test.
 
 Tool availability at report time (so the absence of a boot test is auditable):
 
@@ -284,21 +384,25 @@ Host `gcc` compiled the headers. No kernel image, ISO or boot test was produced.
 | Source-to-contract traceability for critical boot claims | Met | Boot contract §14; CPU baseline §4.1 |
 | One public namespace, enforced | Met and automated | `include/ozero/`; namespace check in `tools/check-headers.sh` |
 | Conformance tool ownership explicit | Met; A4 override pending | D-010; `AGENTS.md` |
-| A2 process/AS/handle/syscall requirements reviewed | Met with conditions | `docs/a2-interface-review.md`; D-011, D-024 through D-030 |
-| A3 DMA interface exact on the A1 side | Met; A3 headers pending | `struct o0_device_ops`; `docs/a3-dma-contract.md` |
+| A2 process/AS/handle/syscall requirements reviewed | Met with conditions | `docs/a2-interface-review.md`; `docs/a2-contract-review-response.md`; D-011, D-024 through D-030 |
+| A3 DMA interface exact on the A1 side | Met: IF-008 v1.1 accepted at `b9a69d8` | `docs/if008-v1.1-review.md`; `struct o0_device_ops`; D-032 |
+| IF-009 PE fixture contract reviewed | Change required: no contract published | `docs/if009-review.md`; D-033 |
+| Every third-round decision tied to an exact hash | Met | A3 `b9a69d8`/`15cd9ce`; A1 `30ee4f0`; A2 `50b7853`/`807c447`; A4 `245007d` |
+| AHCI probe blocked | Met | `docs/if008-v1.1-review.md` §1, §7; no driver code or runtime test |
 | Global decision IDs used | Met | `docs/decisions/a1-global-decisions.md`; report §4 |
 | No implementation started | Met | No `kernel/`, `arch/` or driver code |
 
 ## 9. Next step
 
-Director review of D-005, D-007 and D-009 through D-030. A3 must resolve push permission,
-publish `platform.h` and `block.h`, and pass the `docs/a3-dma-contract.md` §5 checklist;
-only then does A1 record IF-008 approval. A2 must reply to `docs/a2-interface-review.md`
-and confirm D-024 through D-030. A4 must add the `CODEOWNERS` overrides, merge the
-decision rows into the canonical register, and invoke `tools/check-headers.sh` from CI.
-After those approvals, A4 ratifies the build layout and toolchain (including the Limine
-host tool), then M0 (bootable image and serial banner) starts. Until then, no kernel
-implementation.
+Director review of D-005, D-007 and D-011 through D-033. D-009 and D-010 are already
+approved. A1 accepted IF-008 v1.1 at A3 `b9a69d8`; A3 must accept the conditions, correct
+its stale D-009/XB-007 note, and not modify A1's vendored headers. AHCI remains blocked on
+D-007 and A3 acceptance. A2 must reply to `docs/a2-contract-review-response.md`, update
+its stale references and ID collisions, and publish IF-009 v0.1. A4 must add the
+`CODEOWNERS` overrides, update IF-008 to 1.1/A1 accepted, add A1/A3 to IF-009, merge
+D-032/D-033, and invoke `tools/check-headers.sh` from CI. After those approvals, A4
+ratifies the build layout and toolchain (including the Limine host tool), then M0
+(bootable image and serial banner) starts. Until then, no kernel implementation.
 
 Integration: the A1 branch `a1/stage0-review` is proposed in pull request #1
 (<https://github.com/Momegaii/Ozero/pull/1>). Stage 0 is **not** accepted by this report;
