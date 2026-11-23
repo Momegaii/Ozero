@@ -1,0 +1,17 @@
+$ TIMEOUT=0 scripts/test-qemu.sh
+qemu boot smoke test
+status:   timeout
+image:    build/ozero-stage0.img
+sha256:   37ad8227720cd7f40b1393a8ad554a78f76d08b09ff97be68b1d2579f5e15319
+qemu:     QEMU emulator version 10.0.13 (Debian 1:10.0.13+ds-0+deb13u1)
+timeout:  0s
+duration: 12ms
+serial:   build/qemu/serial.log
+missing:  OZERO-STAGE0-BOOT
+
+test: FAIL (timeout)
+  missing markers: OZERO-STAGE0-BOOT
+  serial log:      /workspace/Ozero/build/qemu/serial.log
+  qemu stderr:     /workspace/Ozero/build/qemu/qemu.stderr
+  last serial lines:
+exit=1

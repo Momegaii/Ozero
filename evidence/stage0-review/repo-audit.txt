@@ -1,0 +1,77 @@
+$ git fetch origin --prune
+exit=0
+
+$ scripts/audit-repos.sh /workspace/project
+==================================================================
+repository: /workspace/Ozero
+head:       43961551442009aac8189e5edca3f5c7af43a2cd
+branch:     a4/stage0-review-followup
+remotes:
+  origin	https://github.com/Momegaii/Ozero.git (fetch)
+  origin	https://github.com/Momegaii/Ozero.git (push)
+branches:
+  a4/stage0-review-followup 4396155 
+  main 147cc86 origin/main
+  origin 147cc86 
+  origin/main 147cc86 
+tags:
+commit graph (all refs):
+  * 4396155 (HEAD -> a4/stage0-review-followup) docs: implement Stage 0 review actions
+  * 5a50c0d docs: import A4 Stage 0 control plane
+  * 147cc86 (origin/main, origin/HEAD, main) Initial commit
+commit count (all refs): 3
+tracked files: 59
+top-level tracked entries:
+  .editorconfig
+  .github
+  .gitignore
+  AGENTS.md
+  CODEOWNERS
+  Makefile
+  Ozero_A4_Briefing.pdf
+  README.md
+  docs
+  evidence
+  harness
+  scripts
+  tests
+  toolchain
+working tree: clean
+A1/A2/A3 refs:
+  none
+A1/A2/A3 commit subjects:
+  none
+==================================================================
+repository: /workspace/project
+head:       d6b7af0e2bc92466b1aa3d12983044417efca906
+branch:     master
+remotes:
+branches:
+  master d6b7af0 
+tags:
+commit graph (all refs):
+  * d6b7af0 (HEAD -> master) docs: record Stage 0 evidence and add interface template
+  * e12983e docs: add Stage 0 architecture, integration and QA control plane
+commit count (all refs): 2
+tracked files: 53
+top-level tracked entries:
+  .editorconfig
+  .github
+  .gitignore
+  AGENTS.md
+  CODEOWNERS
+  Makefile
+  Ozero_A4_Briefing.pdf
+  README.md
+  docs
+  evidence
+  harness
+  scripts
+  tests
+  toolchain
+working tree: clean
+A1/A2/A3 refs:
+  none
+A1/A2/A3 commit subjects:
+  none
+exit=0
