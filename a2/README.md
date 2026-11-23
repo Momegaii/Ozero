@@ -31,7 +31,7 @@ manifest and its linter.
 | Technical findings (hashes, offsets, raw bytes) | [docs/10-technical-findings.md](docs/10-technical-findings.md) | draft ready |
 | Stage 0 review response | [docs/11-stage0-review-response.md](docs/11-stage0-review-response.md) | draft ready |
 | A1 contract review request | [docs/12-a1-contract-review.md](docs/12-a1-contract-review.md) | review requested (XB-002) |
-| PE fixture contract (IF-009) | [docs/13-if-009-pe-fixture-contract.md](docs/13-if-009-pe-fixture-contract.md) | submitted for review (XB-003) |
+| PE fixture contract (IF-009) | [docs/13-if-009-pe-fixture-contract.md](docs/13-if-009-pe-fixture-contract.md) | A3 accepted with comments; A1 pending (XB-003) |
 
 Machine readable data:
 

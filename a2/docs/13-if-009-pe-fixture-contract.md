@@ -1,6 +1,6 @@
 # IF-009: PE fixture contract (v1.0)
 
-- Status: submitted for review (A1 and A3 signatures pending; XB-003 Open)
+- Status: submitted for review (A3 accepted an earlier revision with comments; A1 pending; v1.0 confirmation pending; XB-003 Open)
 - Evidence: `fixtures/build-manifest.json` and `docs/evidence/*.txt` at the code revision named in each evidence header
 - Decisions needed: IF-009 v1.0 sign-off by A1 and A3
 - Risks: a fixture change after sign-off silently invalidates A1/A3 review; an unlabelled fixture result is read as compatibility; see [05-risk-report.md](05-risk-report.md)
@@ -18,6 +18,10 @@
 | Not in scope | loader, API set schema, import resolution against Windows DLLs, execution |
 | Global dependency | XB-003 (A2 → A1/A3) |
 | Compiler pin | zig 0.17.1, `python3 -m ziglang cc`, target `x86_64-windows-gnu` |
+
+Fixtures and the manifest are platform-neutral; no `o0_*` hardware or A3 device type
+appears in the loader contract. The fixtures use Windows APIs only, and the manifest
+records relative paths and content hashes.
 
 ## Why this contract exists
 
@@ -104,6 +108,11 @@ Questions for A3:
 - **IF9-A3-2** — confirm that A3 will not cite an IF-009 pass as a driver, AHCI or
   graphics result.
 
+A3 answered both in its review of `807c447` (branch `a3/stage0-review-response`,
+commit `2dcc0fc`): no hardware-platform leakage, and A3 does not review loader runtime.
+A3 also asked for the platform-neutrality sentence above and for relative manifest paths;
+both are in v1.0. A3 confirmation of the v1.0 wording is pending.
+
 ## Change control
 
 - Any change to a fixture source, flag, target or compiler version bumps IF-009 to 1.1,
@@ -114,12 +123,19 @@ Questions for A3:
 - Adding a corpus entry that is not a fixture does not change IF-009, but it must stay
   `not-run` until the execution gate allows a run.
 
+## Review record
+
+| Reviewer | Revision reviewed | Verdict | Disposition |
+| --- | --- | --- | --- |
+| A3 | `807c447` | Accept with comments: no hardware-platform leakage; normalize absolute manifest paths; add a platform-neutrality sentence | Both comments applied in v1.0 (`0522f11`): paths are relative, sentence added. A3 confirmation of v1.0 pending |
+| A1 | — | Pending | A1-REV-04/05/08/09 and IF9-A1-1…3 remain open |
+
 ## Sign-off
 
 | Reviewer | Decision (Accept / Change / Defer) | Commit reviewed | Date |
 | --- | --- | --- | --- |
 | A1 | pending | — | — |
-| A3 | pending | — | — |
+| A3 | Accept with comments (earlier revision); v1.0 confirmation pending | `807c447` | 2026-11-23 |
 
 A signature names the IF-009 version, the A2 commit and the reviewer's commit. A general
 approval comment does not close XB-003.
