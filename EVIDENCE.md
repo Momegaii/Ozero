@@ -4,8 +4,8 @@ Status: **Stage 0 desk artifact; no implementation or hardware validation**
 Review date: 2026-11-23 (UTC)
 Base commit on main: `147cc86c027cef7cec42525024d26dcccf66d7db`
 Branch: `a3/stage0-review-response`
-Stage 0 package commit: the commit that adds this file and the Stage 0 package
-Evidence update commit: the commit that records the package commit hash
+Stage 0 package commit: `a2890b5e3c070fb8a13fa64030a0a6e6a6e80714`
+Evidence update commit: this commit (HEAD)
 
 Use `git rev-parse HEAD` and `git log -1 -- EVIDENCE.md` for the exact values.
 The Stage 0 package commit contains the matrix schema v2, the review response,
@@ -209,8 +209,8 @@ Exact values at evidence-write time:
 ```
 branch: a3/stage0-review-response
 base commit on main: 147cc86c027cef7cec42525024d26dcccf66d7db
-stage 0 package commit: <fill after first commit>
-evidence update commit: <fill after second commit>
+stage 0 package commit: a2890b5e3c070fb8a13fa64030a0a6e6a6e80714
+evidence update commit: this commit (HEAD)
 ```
 
 Get the exact commits with:
