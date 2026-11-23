@@ -6,6 +6,8 @@ Base commit on main: `147cc86c027cef7cec42525024d26dcccf66d7db`
 Branch: `a3/stage0-review-response`
 Stage 0 package commit: `a2890b5e3c070fb8a13fa64030a0a6e6a6e80714`
 A1 review source: `origin/a1/stage0-review` @ `30ee4f0`
+A4 register basis: `origin/a4/stage0-review-followup` @ `245007d`
+A3 action brief reviewed: `Ozero_A3_Action_Brief_2026-11-23_v2.pdf`
 A1 review response commit: this commit (HEAD)
 IF-008 version: 1.1
 IF-008 reconciliation commit: this commit (HEAD); A1 header snapshot: `30ee4f0`
@@ -191,8 +193,8 @@ and protocol, not by a hard-coded VID/PID list.
 | D-005 | Boot protocol and kernel handoff | Limine is a candidate only; A3 consumes A1's boot/platform data | A1 |
 | D-006 | Accept Stage 0 | Not accepted; this package is desk evidence only | A4 |
 | D-007 | Approve IF-008 v1.1 and the A1 sign-off gate | A3 published v1.1; A1 final approval and director approval pending | A1 + A3 |
-| D-009 | Public header namespace | **Conflict:** A4's register says `include/o0/` approved; A1 `30ee4f0` uses `include/ozero/` and proposes D-009 as `ozero`. A3 provisionally uses `ozero`; XB-007 must reopen | A1 + A4 |
-| D-010 | `tools/check-headers.sh` ownership | A1 owns; A3 reviews; A4 invokes in CI. A4 must record the exact `CODEOWNERS` lines | A1 + A4 |
+| D-009 | Public header namespace | **Approved** in A4 `245007d`: canonical root is `include/ozero/` only; A1 `03f8883`; A3 aligned; XB-007 closed | A1 + A4 |
+| D-010 | `tools/check-headers.sh` ownership | **Approved** in A4 `245007d`: A1 owns checker and static asserts; A4 owns CI; XB-008 closed | A1 + A4 |
 | D-020 | DMA is constraint-driven, never device-class-driven | A3 supplies `o0_dma_constraint`; A1 does not infer it | A1 |
 | D-021 | IOMMU policy: trusted ring-0 only in Stage 1 | No DMA domain, no IOVA and no translated DMA type; director approval pending | A1 |
 
@@ -218,12 +220,10 @@ approves D-007 and D-021.
 - A1 has not finally approved IF-008 v1.1; its review imposes conditions on
   A3's published headers and defers final approval until after publication.
 - Director approval of D-007 and D-021 is pending.
-- D-009 is contradictory: A4's register says `include/o0/` is approved, while
-  A1 `30ee4f0` uses `include/ozero/` and proposes D-009 as `ozero`. A3
-  provisionally uses `ozero`; XB-007 must reopen and A4/the director must
-  correct D-009 before merge.
-- D-010 (`tools/check-headers.sh` ownership) is proposed by A1 but A4 must
-  approve and record the exact `CODEOWNERS` lines.
+- D-009 and D-010 are approved in A4 `245007d`: `include/ozero/` is the only
+  public root and A1 owns the header checker. XB-007 and XB-008 are closed.
+- A4's XB-001, XB-005 and XB-011 evidence still describes A3 as unpublished;
+  A4 should refresh from A3 `b9a69d8` and `origin/a3/stage0-review-response`.
 - The branch is pushed, but no pull request is open; A4 has not refreshed its
   audit under XB-005.
 - Archived PRM and specification links may rot.
@@ -264,7 +264,11 @@ M  docs/02-storage-architecture.md
 M  docs/04-driver-interface-draft.md
 M  docs/05-hardware-test-plan.md
 M  docs/06-stage0-review-response.md
+A  docs/07-a3-action-brief-response.md
+A  docs/decisions/a3-decision-requests.md
 A  docs/interfaces/IF-008-dma-platform.md
+A  docs/interfaces/IF-008-v1.1-a1-review-packet.md
+A  docs/interfaces/IF-009-a3-review.md
 M  include/ozero/block.h
 M  include/ozero/platform.h
 A  include/ozero/boot.h
@@ -292,6 +296,7 @@ A  AGENTS.md
 A  EVIDENCE.md
 A  Makefile
 A  Ozero_A3_Briefing.pdf
+A  Ozero_A3_Action_Brief_2026-11-23_v2.pdf
 M  README.md
 A  docs/01-hardware-support-matrix.md
 A  docs/02-storage-architecture.md

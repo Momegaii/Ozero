@@ -56,9 +56,9 @@ available.
 
 ## Current state
 
-- Deliverables: `docs/01`–`docs/06`, `include/ozero/*.h` (A3 `platform.h` and
-  `block.h`, plus an A1 public-header snapshot at `30ee4f0`), `matrix/*.csv`,
-  `tools/*`.
+- Deliverables: `docs/01`–`docs/07`, `docs/decisions/`, `docs/interfaces/`,
+  `include/ozero/*.h` (A3 `platform.h` and `block.h`, plus an A1 public-header
+  snapshot at `30ee4f0`), `matrix/*.csv`, `tools/*`.
 - Static checks pass: matrix validation, deliverable check, 19 semantics
   tests, header compile, inventory syntax.
 - Matrix schema v2 records pinned spec revision, implementation status,
@@ -74,11 +74,14 @@ available.
   `block.h` embeds one `o0_io_request`, has no SG pointer, and splits large
   transfers into multiple buffers and requests. A3 implements
   `struct o0_device_ops`; reset does not free buffers or unmap BARs.
-- D-009 is contradictory: A4's register says `include/o0/` is approved, while
-  A1 `30ee4f0` uses `include/ozero/` and proposes D-009 as `ozero`. A3
-  provisionally uses `ozero` so it compiles; XB-007 must reopen and A4/the
-  director must correct D-009 before merge.
+- D-009 and D-010 are approved in A4 `245007d`: `include/ozero/` is the only
+  public root, A1 owns the header checker, and XB-007/XB-008 are closed.
+- A1 review packet: `docs/interfaces/IF-008-v1.1-a1-review-packet.md` requests
+  ACCEPT or CHANGE REQUIRED on exact commit `b9a69d8`.
+- Decision wording for D-007 and D-021: `docs/decisions/a3-decision-requests.md`.
+- IF-009 hardware-boundary review: `docs/interfaces/IF-009-a3-review.md`; no
+  A3 hardware types leak into A2's PE fixture contract. A3 recommends ACCEPT
+  WITH COMMENTS.
 - Next decision: A1 final approval of IF-008 v1.1 and director approval of
-  D-007 and D-021. The AHCI probe is blocked until both are recorded and D-009
-  is resolved. D-010 ownership is proposed by A1; A4 must record it. XB-011 is
+  D-007 and D-021. The AHCI probe is blocked until both are recorded. XB-011 is
   pushed as `origin/a3/stage0-review-response`; A4 can refresh its audit.

@@ -143,7 +143,7 @@ The 23 Nov 2026 review actions are tracked in
 | Split Stage 5 into objects, VA, residency, submission, fences | done | `docs/03` §13 |
 | No GPU support claim without real tests | done | matrix and `docs/03` §14 |
 
-## Decisions needed
+## Decisions and dependencies
 
 | ID | Decision | Recommendation | Owner |
 |---|---|---|---|
@@ -152,8 +152,8 @@ The 23 Nov 2026 review actions are tracked in
 | D-005 | Boot protocol and kernel handoff | Limine is a candidate only; A3 consumes A1's boot/platform data | A1 |
 | D-006 | Accept Stage 0 | Not accepted; this package is desk evidence only | A4 |
 | D-007 | Approve IF-008 v1.1 and the A1 sign-off gate | A3 published v1.1; A1 final approval and director approval pending | A1 + A3 |
-| D-009 | Public header namespace | **Conflict:** A4's register says `include/o0/` approved; A1 `30ee4f0` uses `include/ozero/` and proposes D-009 as `ozero`. A3 provisionally uses `ozero` to compile; XB-007 must reopen | A1 + A4 |
-| D-010 | `tools/check-headers.sh` ownership | A1 owns; A3 reviews; A4 invokes in CI. A4 must record the exact `CODEOWNERS` lines | A1 + A4 |
+| D-009 | Public header namespace | **Approved** in A4 `245007d`: canonical root is `include/ozero/` only; A1 `03f8883`; A3 is aligned; XB-007 is closed | A1 + A4 |
+| D-010 | `tools/check-headers.sh` ownership | **Approved** in A4 `245007d`: A1 owns `tools/check-headers.sh` and `tests/abi_static_asserts.c`; A4 owns CI; XB-008 is closed | A1 + A4 |
 | D-020 | DMA is constraint-driven, never device-class-driven | A3 supplies `o0_dma_constraint`; A1 does not infer it | A1 |
 | D-021 | IOMMU policy: trusted ring-0 only in Stage 1 | No DMA domain, no IOVA and no translated DMA type; director approval pending | A1 |
 
@@ -174,7 +174,7 @@ director adds them to A4's register.
 | No IOMMU in Stage 1 | A buggy or malicious driver can DMA anywhere; untrusted/userspace DMA is unsafe | Trusted ring-0 drivers only; escalate before untrusted DMA |
 | A1 has not finally approved IF-008 v1.1 | The AHCI probe could still target an unapproved contract | A1 must approve this exact version before any AHCI probe |
 | Remote branch is not yet reviewed | A4 audit and CI have not run on the pushed branch | Open a PR or request A4 audit; XB-005 remains open |
-| D-009 namespace conflict is live | A1 headers use `ozero`; A4 register says `o0`; a merge may mix paths | A3 provisionally uses `ozero`; reopen XB-007 and correct D-009 before merge |
+| A4 blocker rows lag A3 publication | XB-001/005/011 still describe A3 as unpublished | A4 refresh from A3 `b9a69d8`; D-009 and D-010 are already approved |
 | Vendored A1 headers can drift | A3's copy of A1 `include/ozero/*.h` may age | Re-sync from `a1/stage0-review` before final review; `make check-a1-headers` compares against an external A1 tree |
 | PRM links are archived/retired | References may rot | Keep archived links and local citation notes; verify before publication |
 
@@ -186,16 +186,16 @@ v1.1.** A3 has aligned `platform.h` and `block.h` to A1 `30ee4f0`: direct
 inclusion of `include/ozero/*.h`, `struct o0_device_ops`, one contiguous buffer
 per `o0_io_request`, no SG pointer, and reset that does not free buffers or
 unmap BARs. The director must approve D-007 and D-021 and accept the no-IOMMU
-Stage 1 limitation. D-009 remains contradictory: A4's register says
-`include/o0/`, A1 uses `include/ozero/`; A3 provisionally follows A1's signed
-headers. The AHCI probe remains blocked until A1 and the director record
-approval.
+Stage 1 limitation. D-009 and D-010 are already approved in A4 `245007d`:
+`include/ozero/` is the only public root, and A1 owns the header checker. The
+AHCI probe remains blocked until A1 and the director record approval.
 
 ## Repository layout
 
 ```
 .
 ├── Ozero_A3_Briefing.pdf
+├── Ozero_A3_Action_Brief_2026-11-23_v2.pdf
 ├── README.md
 ├── EVIDENCE.md
 ├── Makefile
@@ -208,8 +208,13 @@ approval.
 │   ├── 04-driver-interface-draft.md
 │   ├── 05-hardware-test-plan.md
 │   ├── 06-stage0-review-response.md
+│   ├── 07-a3-action-brief-response.md
+│   ├── decisions/
+│   │   └── a3-decision-requests.md
 │   └── interfaces/
-│       └── IF-008-dma-platform.md
+│       ├── IF-008-dma-platform.md
+│       ├── IF-008-v1.1-a1-review-packet.md
+│       └── IF-009-a3-review.md
 ├── include/ozero/
 │   ├── platform.h        # A3
 │   ├── block.h           # A3
@@ -237,7 +242,7 @@ approval.
 - **Status:** Stage 0 desk artifact; no implementation or hardware validation.
 - **Evidence:** `EVIDENCE.md` (commit hash, commands, outputs, source
   versions).
-- **Decisions needed:** D-001, D-002, D-005, D-006 and D-007 above.
+- **Decisions needed:** D-001, D-002, D-005, D-006, D-007, D-020 and D-021 above.
 - **Risks:** top three are unexecuted tests, Haswell firmware age, and the
   draft block API.
-- **Next step:** obtain A1 final approval of IF-008 v1.1 and director approval of D-007/D-021, resolve the D-009 namespace contradiction, then start the AHCI probe.
+- **Next step:** obtain A1 final approval of IF-008 v1.1 and director approval of D-007/D-021, then start the AHCI probe. D-009 and D-010 are already resolved in A4 `245007d`.

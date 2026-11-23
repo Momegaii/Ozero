@@ -409,8 +409,8 @@ Global decision register: A4's
 | D-005 | Boot protocol and kernel handoff | A1 | Proposed |
 | D-006 | Accept Stage 0 | A4 | Proposed |
 | D-007 | Approve IF-008 and the A1 sign-off gate | A1 + A3 | Proposed; A3 published v1.1, A1 final approval pending |
-| D-009 | Public header namespace | A1 + A4 | Conflict: A4 register says `include/o0/`; A1 `30ee4f0` uses `include/ozero/`; A3 provisionally uses `ozero`; XB-007 must reopen |
-| D-010 | `tools/check-headers.sh` ownership | A1 + A4 | Proposed by A1; A4 must approve and record `CODEOWNERS` |
+| D-009 | Public header namespace | A1 + A4 | **Approved** in A4 `245007d`: `include/ozero/` only; A1 `03f8883`; XB-007 closed |
+| D-010 | `tools/check-headers.sh` ownership | A1 + A4 | **Approved** in A4 `245007d`: A1 owns checker and static asserts; A4 owns CI; XB-008 closed |
 | D-020 | DMA is constraint-driven, never device-class-driven | A1 | Proposed |
 | D-021 | IOMMU policy: trusted ring-0 only in Stage 1 | A1 | Proposed; director approval pending |
 

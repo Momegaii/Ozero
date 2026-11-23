@@ -190,14 +190,12 @@ and director approval.
 
 Open cross-agent dependencies:
 
-- **D-009 / XB-007:** A4's register records `include/o0/` as approved, but A1
-  `30ee4f0` moves the public root to `include/ozero/` and proposes D-009 as
-  `include/ozero/`. A3 provisionally uses `include/ozero/` so it compiles
-  against A1's signed headers. XB-007 must be reopened; A4 and the director must
-  correct D-009 before merge. A3 does not claim D-009 is resolved.
-- **D-010 / XB-008:** A1 owns `tools/check-headers.sh`; A3 reviews; A4 invokes
-  it in CI. A4 must record the exact `CODEOWNERS` lines from
-  `docs/decisions/a1-global-decisions.md`.
+- **D-009 / XB-007:** **Approved; XB-007 closed** in A4 `245007d`.
+  `include/ozero/` is the only public root; A1 `03f8883` implements it; A3 is
+  aligned and claims no remaining namespace conflict.
+- **D-010 / XB-008:** **Approved; XB-008 closed** in A4 `245007d`. A1 owns
+  `tools/check-headers.sh` and `tests/abi_static_asserts.c`; A4 owns CI
+  integration.
 - **D-020:** DMA is constraint-driven, never device-class-driven. A3 supplies
   `o0_dma_constraint`; A1 does not infer it.
 - **D-021:** no IOMMU in Stage 1; trusted ring-0 drivers only. Director approval

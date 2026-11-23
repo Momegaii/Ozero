@@ -3,7 +3,7 @@
 Status: **desk response; no implementation or hardware validation**
 
 Review date: 23 November 2026
-Review basis: director review plus direct inspection of `main`, `a1/stage0-review` @ `30ee4f0`, `agent/a2-stage0` @ `807c447` and `a4/stage0-review-followup` @ `076ed82`
+Review basis: director review plus direct inspection of `main`, `a1/stage0-review` @ `30ee4f0`, `agent/a2-stage0` @ `807c447` and `a4/stage0-review-followup` @ `245007d`
 Artifact commit: see [`EVIDENCE.md`](../EVIDENCE.md) §7 and `git log --oneline`
 
 This is a response to the 23 November 2026 Stage 0 review. It is not an
@@ -94,14 +94,11 @@ Remaining before the AHCI probe:
 - A1 must give final approval of IF-008 v1.1 after reviewing this published version.
 - The director must approve global D-007 and D-021, and accept the no-IOMMU
   Stage 1 limitation for trusted ring-0 drivers.
-- D-009 is contradictory: A4's register records `include/o0/` as approved,
-  while A1 `30ee4f0` moves the public root to `include/ozero/` and proposes
-  D-009 as `include/ozero/`. A3 provisionally follows A1's signed headers so it
-  can compile; XB-007 must be reopened and A4/Director must correct D-009 before
-  merge.
-- D-010 (`tools/check-headers.sh` ownership) is proposed by A1 but must be
-  approved and recorded consistently by A4.
-- XB-011 is addressed: `origin/a3/stage0-review-response` is pushed, so A4 can refresh its audit. No PR is open.
+- D-009 is **Approved** in A4 `245007d`: `include/ozero/` is the only public
+  root, A1 `03f8883` implements it, and XB-007 is closed. A3 is aligned.
+- D-010 is **Approved** in A4 `245007d`: A1 owns `tools/check-headers.sh` and
+  `tests/abi_static_asserts.c`; A4 owns CI integration; XB-008 is closed.
+- XB-011 is pushed: `origin/a3/stage0-review-response` exists, so A4 can refresh its audit. A4 still lists XB-011 Open until that refresh is recorded. No PR is open.
 
 The questions in §2.1-§2.5 are the original A3 request, kept for audit. A1's
 answers are in §2.0 and IF-008 v1.1. Symbols in those questions that are absent
@@ -183,18 +180,18 @@ Global IDs come from A4's decision register and cross-agent blocker register.
 
 | ID | Dependency | State | A3 note |
 |---|---|---|---|
-| D-001 | A1/A2/A3 domain split and team slugs | Open | A3 owns storage/GPU device protocols; no change requested |
-| D-002 | Branch isolation, review gate and `main` protection | Open | A3 has not pushed to `main`; branch protection is A4's check |
-| D-005 | Boot protocol and kernel handoff | Open | A3 consumes A1's boot/platform data; Limine is a candidate only |
-| D-006 | Accept Stage 0 | Open | Director did not accept Stage 0; this package is desk evidence |
-| D-007 | Approve IF-008 and the A1 sign-off gate | Open | A3 published v1.1; A1 final sign-off and director approval pending |
-| D-009 / XB-007 | Public header namespace | **Conflict** | A4 register records `include/o0/` as approved; A1 `30ee4f0` uses `include/ozero/` and proposes D-009 as `include/ozero/`. A3 provisionally uses `ozero` so it compiles against A1's signed headers; reopen XB-007 |
-| D-010 / XB-008 | `tools/check-headers.sh` ownership | Proposed; A4 must record | A1 owns; A3 reviews; A4 invokes in CI. A4 must record the exact `CODEOWNERS` lines |
+| D-001 | A1/A2/A3 domain split and team slugs | Proposed | A3 owns storage/GPU device protocols; no change requested |
+| D-002 | Branch isolation, review gate and `main` protection | Proposed | A3 has not pushed to `main`; branch protection is A4's check |
+| D-005 | Boot protocol and kernel handoff | Proposed | A3 consumes A1's boot/platform data; Limine is a candidate only |
+| D-006 | Accept Stage 0 | Proposed | Director did not accept Stage 0; this package is desk evidence |
+| D-007 | Approve IF-008 and the A1 sign-off gate | Proposed | A3 published v1.1; A1 final sign-off and director approval pending |
+| D-009 / XB-007 | Public header namespace | **Approved; XB-007 Closed** | A4 `245007d`: `include/ozero/` only; A1 `03f8883`; A3 aligned |
+| D-010 / XB-008 | `tools/check-headers.sh` ownership | **Approved; XB-008 Closed** | A4 `245007d`: A1 owns checker and static asserts; A4 owns CI |
 | D-020 | DMA is constraint-driven, never device-class-driven | Proposed | A3 supplies `o0_dma_constraint`; A1 never infers it from a storage class |
 | D-021 | IOMMU policy: trusted ring-0 only in Stage 1 | Proposed | A3 accepts no IOMMU domain, no IOVA and no translated DMA type in Stage 1 |
 | XB-001 | A1 reviews A3 IF-008 before AHCI probe | Open | A3 published v1.1; A1 final review pending |
 | XB-005 | A3 device tests and hardware requirements have evidence | Open | Static checks only; no QEMU or hardware run |
-| XB-011 | Publish A3 so A4 can refresh the audit | Pushed | `origin/a3/stage0-review-response`; A4 can refresh the audit. No PR is open |
+| XB-011 | Publish A3 so A4 can refresh the audit | Open | A3 pushed `origin/a3/stage0-review-response`; A4 still lists the row Open until it records the refresh. No PR is open |
 | XB-004 | Limine pin and boot protocol | Open | A3 consumes A1's boot/platform data; the MBR harness is not Limine evidence |
 
 A3 does not start AHCI probe work while XB-001 is Open.
@@ -260,7 +257,7 @@ No row is `complete`. A successful compile is not evidence for any row.
   this file and the matrix schema v2.
 - Commands and raw output: `make check` output is recorded in
   [`EVIDENCE.md`](../EVIDENCE.md) §2.
-- Decisions needed: D-001, D-002, D-005, D-006, D-007, D-009, D-010, D-020 and D-021 in [`README.md`](../README.md); IF-008 v1.1 is the A1 approval request.
+- Decisions needed: D-001, D-002, D-005, D-006, D-007, D-020 and D-021 in [`README.md`](../README.md); IF-008 v1.1 is the A1 approval request. D-009 and D-010 are already approved in A4 `245007d`.
 - Unresolved risks: see [`README.md`](../README.md) risks table and §6 below.
 - Explicit not-tested list: §6 below.
 
