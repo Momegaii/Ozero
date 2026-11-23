@@ -140,6 +140,22 @@ def build_one(root: Path, compiler: list[str], target: str, fixture: dict) -> di
     }
 
 
+def write_manifest(path: Path, manifest: dict) -> bool:
+    """Write the manifest unless only its timestamp would change."""
+    if path.exists():
+        try:
+            existing = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            existing = None
+        if existing is not None:
+            old = {key: value for key, value in existing.items() if key != "generated_at"}
+            new = {key: value for key, value in manifest.items() if key != "generated_at"}
+            if old == new:
+                return False
+    path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    return True
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path("."))
@@ -193,10 +209,11 @@ def main(argv: list[str]) -> int:
 
     manifest_path = root / args.manifest
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    changed = write_manifest(manifest_path, manifest)
     for entry in entries:
         print(f"{entry['id']:<16} {entry['output_size']:>7} bytes  {entry['output_sha256'][:16]}…")
-    print(f"compiler {version}; manifest written to {manifest_path}")
+    state = "written to" if changed else "unchanged at"
+    print(f"compiler {version}; manifest {state} {manifest_path}")
     return 0
 
 

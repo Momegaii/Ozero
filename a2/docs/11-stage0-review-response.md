@@ -1,7 +1,7 @@
 # Stage 0 review response
 
 - Status: draft ready (review answered; no Windows application executed)
-- Evidence: branch `stage0/review-response`; code revision `3d23a68`; this document and the regenerated `docs/evidence/*.txt` are the commit immediately after it
+- Evidence: repository `Momegaii/Ozero`, branch `agent/a2-stage0`, package root `a2/`, code revision `8bac650`; the regenerated `a2/docs/evidence/*.txt` are in the commit immediately after it
 - Decisions needed: Q1–Q4 (Windows baseline, 32-bit timing, syscall strategy, own `ntdll`) and the acceptance of M0 as a milestone distinct from running
 - Risks: static evidence is still L0; the API set schema is a test fixture; loader semantics remain unproven until M0/M1; see [05-risk-report.md](05-risk-report.md)
 - Next step: A1 reviews [03-a1-interface-requirements.md](03-a1-interface-requirements.md), then A2 implements the M0 trace and compares it with the offsets in [10-technical-findings.md](10-technical-findings.md)
@@ -14,30 +14,26 @@ checked with the commands shown.
 
 | Item | Value |
 | --- | --- |
-| Branch | `stage0/review-response` |
-| Code revision | `3d23a68` |
-| Parent | `b4015ef` (`master`) |
-| Repository | `/workspace/project` (local Stage 0 repository) |
-| Upstream clone | `/workspace/project/Ozero`, branch `main`, `147cc86`, untouched |
+| Repository | <https://github.com/Momegaii/Ozero> |
+| Branch | `agent/a2-stage0` |
+| Package root | `a2/` |
+| Code revision | `8bac650` |
+| Parent | `147cc86` (`main`) |
 
-Files changed in `3d23a68` (21 files, +1 908 / −74):
+The import commit `8bac650` adds 38 files (+8 273) under `a2/`:
 
 ```
-Makefile                           README.md
-data/apiset-schema.json            data/test-corpus.json
-docs/00-compatibility-scope.md     docs/01-pe-loader-requirements.md
-docs/02-nt-win32-dependency-map.md docs/04-test-corpus.md
-docs/07-stage7-milestone.md        docs/10-technical-findings.md
-fixtures/build-manifest.json       tests/test_tools.py
-tools/apiset.py                    tools/build_fixtures.py
-tools/corpus_lint.py               tools/docs_check.py
-tools/finding_report.py            tools/negative_report.py
-tools/pe_inspect.py                tools/pe_mutate.py
-tools/pe_structs_check.py
+a2/README.md  a2/AGENTS.md  a2/Makefile  a2/.gitignore
+a2/docs/00..11 and a2/docs/evidence/README.md
+a2/data/{pe32plus-structures,test-corpus,apiset-schema}.json
+a2/tools/*.py  a2/tools/evidence_header.sh
+a2/tests/test_tools.py
+a2/fixtures/src/*.c(pp)  a2/fixtures/build-manifest.json
 ```
 
-This document (`docs/11-stage0-review-response.md`) and the regenerated evidence
-files are in the commit that follows `3d23a68` on the same branch.
+The director's briefing PDF and third-party binaries are not redistributed. This
+document and the regenerated evidence files are in the commit that follows
+`8bac650` on the same branch.
 
 ## Point-by-point response
 
@@ -65,7 +61,7 @@ files are in the commit that follows `3d23a68` on the same branch.
 
 ## Commands and raw output
 
-All commands were run in `/workspace/project` at `3d23a68`. The full outputs are
+All commands were run in `a2/` at `8bac650`. The full outputs are
 in `docs/evidence/`.
 
 ```
