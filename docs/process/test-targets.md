@@ -14,7 +14,7 @@ property, one owner and one dependency. The machine-readable source is
 
 | Target | Status | Owner | Command | Proves |
 | --- | --- | --- | --- | --- |
-| `mbr-harness-smoke` | Implemented | A4 | `make test-mbr-harness` | A 512-byte BIOS MBR fixture boots in QEMU, emits serial markers in order, and the harness fails on missing markers, corrupt images and timeouts. |
+| `mbr-harness-smoke` | Implemented | A4 | `make test-mbr-harness` | A 512-byte BIOS MBR fixture executes in QEMU, emits serial markers in order, and the harness fails on missing markers, corrupt images and timeouts. The CI job is named `build-and-boot`; it is an MBR fixture/harness smoke, not kernel boot. |
 | `future-limine-kernel-boot` | Not implemented | A1 | `make test-limine` (future) | Nothing yet. Will prove Limine loads the Ozero kernel and reaches the documented handoff state. |
 | `header-contract` | Not started | A1 | `make test-headers` (future) | Nothing yet. Will prove the public headers compile for every consumer and match the registry. |
 | `pe-static-analysis` | Not started | A2 | `make test-pe-static` (future) | Nothing yet. Will inspect PE fixtures statically. It must not execute them in normal CI. |

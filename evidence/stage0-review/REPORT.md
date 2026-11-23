@@ -143,7 +143,7 @@ exit=1
 | 2 | Rerun checks in a clean environment | Yes, at `4396155` | `ci.log`, `repro.log`, `clean-checkout.log` |
 | 3 | Separate target labels | Yes | `tests/targets.tsv`, `docs/process/test-targets.md` |
 | 4 | Decision register statuses and approver | Yes; all Proposed at this snapshot | `docs/decisions/decision-log.md` |
-| 5 | A1 review of A3 DMA/platform interfaces as a merge gate | Gate defined; A1 approval of IF-008 v1.1 pending | IF-008, `CODEOWNERS`, integration checklist |
+| 5 | A1 review of A3 DMA/platform interfaces as a merge gate | A1 ACCEPT at `b9a69d8`; A3 accepted §6; D-007/D-021 Proposed | IF-008, `CODEOWNERS`, integration checklist |
 | 6 | Safe CI | Yes, enforced | `docs/process/ci-safety.md`, `scripts/check-ci-safety.sh` |
 
 ## 4. Decisions needed
@@ -199,8 +199,8 @@ All are **Proposed**. None is approved.
 1. Director decides D-001 to D-008.
 2. On D-008 approval, push `a4/stage0-review-followup` and open a PR against `main`.
 3. A1 records the Limine handoff in IF-001 and answers D-005.
-4. A2 records the PE fixture contract in IF-009 before any PE test.
-5. A3 records the DMA/platform contract in IF-008 and requests A1 sign-off.
+4. A2 records A1's and A3's IF-009 v1.0 signatures and the current evidence pair before any PE test.
+5. A3's IF-008 sign-off is complete; the Director decides D-007 and D-021 before the AHCI probe.
 
 ## 9. Post-review addendum — 2026-11-23
 
@@ -212,25 +212,24 @@ from the existing branch; it did not restart Stage 0 and did not merge into `mai
 | Ref | Commit | State |
 | --- | --- | --- |
 | `origin/main` | `147cc86` | unchanged |
-| `origin/a1/stage0-review` | `30ee4f0` | PR #1, open, draft; second-round response |
-| `origin/agent/a2-stage0` | `807c447` | PR #2, open, draft; evidence at `50b7853` |
-| `origin/a3/stage0-review-response` | `15cd9ce` | published; no PR; IF-008 v1.1 at `b9a69d8` |
-| `origin/a4/stage0-review-followup` | `245007d` plus documentation and audit commits | published; PR #3 open |
+| `origin/a1/stage0-review` | `74b1471` | PR #1, open, draft; IF-008 ACCEPT and IF-009 review |
+| `origin/agent/a2-stage0` | `64b3458` | PR #2, open, draft; code `6d305b8` |
+| `origin/a3/stage0-review-response` | `307b919` | published; no PR; integrated on A4; IF-008 §6 accepted |
+| `origin/a4/stage0-review-followup` | `3ae7aca` plus this commit | published; PR #3 open |
 
 ### Director A4 actions
 
 1. **Open the A4 Stage 0 review PR** — done: [#3](https://github.com/Momegaii/Ozero/pull/3).
-2. **Refresh the audit after A3 is published** — done: A3 `a3/stage0-review-response` at `15cd9ce`
+2. **Refresh the audit after A3 is published** — done: A3 `a3/stage0-review-response` at `307b919`
    is included; XB-011 is Closed. A3 has no PR, and none is implied.
-3. **Verify A1/A2/A3 evidence and ancestry** — A1 at `30ee4f0`, A2 at `807c447` with evidence at
-   `50b7853`, A3 at `15cd9ce` with IF-008 v1.1 at `b9a69d8`. A1 reviewed A2 at the older `f324b28`
-   (XB-014) and keeps its command output inline rather than in `evidence/` (XB-016). A1 has not
-   reviewed A3's v1.1 (XB-001) or answered `A1-REV-01…12` (XB-002). A2's response still cites
-   `8bac650` and its contract review cites A1 `90b004f` / `include/o0/` (XB-013). A3 cites a stale
-   A4 head `076ed82` and a stale D-009 `include/o0/` (XB-018); its branch rewrites the shared root
-   `README.md` / `AGENTS.md` and adds `platform.h` / `block.h` under A1-owned `include/ozero/`
-   (XB-017). See
-   [`cross-agent-verification-2026-11-23-r3.md`](cross-agent-verification-2026-11-23-r3.md).
+3. **Verify A1/A2/A3 evidence and ancestry** — A1 at `74b1471`, A2 at `64b3458` / code `6d305b8`,
+   A3 at `307b919` with IF-008 v1.1 at `b9a69d8`. A1 recorded ACCEPT for IF-008 (XB-001 Closed),
+   answered `A1-REV-01…12` (XB-002 Signed), and accepted IF-009 v1.0 with conditions (XB-003 Open
+   until A2 records both signatures). A3 integrated on the A4 control plane, moved its package into
+   `a3/`, and accepted A1's §6 conditions (XB-017/XB-018/XB-019 Closed). A1 still keeps command
+   output inline rather than in `evidence/` (XB-016). A2's response and ledger still lag the
+   evidence pair and both IF-009 signatures (XB-013). See
+   [`cross-agent-verification-2026-11-23-r4.md`](cross-agent-verification-2026-11-23-r4.md).
 4. **Resolve namespace and ownership** — D-009 adopts `include/ozero/`; A1's `03f8883` refactor
    makes it the only public root. D-010 assigns `tools/check-headers.sh` and
    `tests/abi_static_asserts.c` to A1, with A4 owning CI integration and A3 owning other `tools/`
@@ -250,7 +249,8 @@ D-011–D-031 remain **Proposed**. D-006 (accept Stage 0) is explicitly **not** 
 ### Tests at the published head
 
 `make ci` passes at the published head: 5 serial markers in order, QEMU 10.0.13, no network, no
-display, no default devices. The later round-2 commits are documentation and evidence only.
+display, no default devices. The later A4 commits are documentation and evidence only. A3's
+`307b919` adds its package under `a3/` and is not merged to `main`.
 
 ### Still not tested
 

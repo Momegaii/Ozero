@@ -6,8 +6,8 @@
 | Repository | `Momegaii/Ozero` |
 | Branch | `a4/stage0-review-followup` (published) |
 | Commit under test | `43961551442009aac8189e5edca3f5c7af43a2cd` (harness baseline) |
-| Current head | `245007d` plus this review commit |
-| A1 / A2 / A3 refs | `30ee4f0` / `807c447` (`50b7853` evidence) / `15cd9ce` (`b9a69d8` IF-008 v1.1) |
+| Current head | `3ae7aca` plus this proceed-brief commit |
+| A1 / A2 / A3 refs | `74b1471` / `64b3458` (`6d305b8` code) / `307b919` (`b9a69d8` IF-008 v1.1) |
 | Import commit | `5a50c0d28f323372cad5126baf6645df07407975` |
 | Base commit | `147cc86c027cef7cec42525024d26dcccf66d7db` (`origin/main`) |
 | Date | 2026-11-23 |
@@ -23,7 +23,7 @@ The report required by the review is [`REPORT.md`](REPORT.md). This file indexes
 | Toolchain | `scripts/check-toolchain.sh --strict` | 0 | exact reference versions | `toolchain.txt` |
 | Targets | `make targets` | 0 | five targets, one implemented | `targets.txt` |
 | CI safety | `make check-ci-safety` | 0 | 8 files scanned, no findings | `ci-safety.log` |
-| Build and boot | `make clean && make ci` | 0 | 5/5 markers, 224 ms | `ci.log`, `qemu/` |
+| Build and MBR harness smoke | `make clean && make ci` | 0 | 5/5 markers, 224 ms; not kernel boot | `ci.log`, `qemu/` |
 | Reproducibility | `make verify-repro` | 0 | image, ELF and manifest identical | `repro.log` |
 | Clean checkout | `make verify-clean` | 0 | fresh clone at `4396155` passed | `clean-checkout.log` |
 | Missing marker | `scripts/test-qemu.sh` with an extra marker | 1 | failed as required | `negative-missing-marker.log` |
@@ -53,10 +53,12 @@ manifest records `commit: unknown` inside both reproducibility copies.
 | `cross-agent-verification-2026-11-23.md` | A1/A2 branch verification, A3 absence, merge order |
 | `cross-agent-verification-2026-11-23-r2.md` | Post-Director-review ancestry, evidence and settings check |
 | `cross-agent-verification-2026-11-23-r3.md` | A3 publication, A2 provenance, governance and round-3 blocker state |
-| `cross-agent-commands-2026-11-23-r3.log` | Raw commands for all four heads, stale references and GitHub settings |
-| `a1-check-headers.log`, `a1-abi-check.log` | A1 header and ABI checks at `30ee4f0` |
-| `a2-static-check.log` | A2 static checks at `807c447` |
-| `a3-check.log`, `a3-a1-header-check.log` | A3 package checks at `15cd9ce` |
+| `cross-agent-verification-2026-11-23-r4.md` | Proceed-brief refs, A1/A3 IF-008 and IF-009 decisions, A3 integration, blocker snapshot |
+| `cross-agent-commands-2026-11-23-r3.log` | Raw commands for round-3 heads, stale references and GitHub settings |
+| `cross-agent-commands-2026-11-23-r4.log` | Raw commands for round-4 heads, ancestry, checks and governance |
+| `a1-check-headers-74b1471.log`, `a1-abi-check.log` | A1 header check at `74b1471`; ABI check at `30ee4f0` |
+| `a2-static-check-64b3458.log` | A2 static checks at `64b3458` / code `6d305b8` |
+| `a3-check-307b919.log`, `a3-a1-header-check-307b919.log` | A3 package checks at `307b919`; A1 headers at `74b1471` |
 | `director-review-2026-11-23.md` | Director integration review and A4 disposition |
 | `github-settings.txt` | Branch protection, rulesets and required-check state |
 | `PR_BODY.md` | Submitted pull request body |

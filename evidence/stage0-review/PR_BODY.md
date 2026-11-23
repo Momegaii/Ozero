@@ -3,9 +3,9 @@ This PR was created by an AI agent (OpenHands) on behalf of A4.
 ## Summary
 
 Stage 0 review follow-up for A4, against `main` (`147cc86`). This PR publishes the A4 control plane,
-the review evidence, the cross-agent verification and the Director's 23 Nov A4 actions. It also
-records A3's published static package at `15cd9ce` (IF-008 v1.1 at `b9a69d8`) without treating
-publication as approval.
+the review evidence, the cross-agent verification and the Director's 23 Nov A4 actions. It records
+A1's IF-008 ACCEPT at `b9a69d8`, A3's acceptance of the §6 conditions at `307b919`, A3's integration
+on the A4 control plane, and the A1/A3 IF-009 v1.0 reviews at `d02598a`. Publication is not approval.
 
 **Stage 0 is not accepted.** This PR does not request a stage promotion. D-006 remains Proposed.
 
@@ -14,8 +14,8 @@ publication as approval.
 | # | Action | Result |
 | --- | --- | --- |
 | 1 | Open the A4 Stage 0 review PR | This PR |
-| 2 | Refresh the audit after A3 is published | Done: A3 at `15cd9ce` included; XB-011 Closed |
-| 3 | Verify A1/A2/A3 evidence and ancestry | A1 `30ee4f0`, A2 `50b7853` / `807c447`, A3 `b9a69d8` / `15cd9ce`; A1 reviewed A2 at older `f324b28` (XB-014); A2 and A3 provenance issues recorded |
+| 2 | Refresh the audit after A3 is published | Done: A3 `307b919` integrated on the A4 control plane; XB-011 Closed |
+| 3 | Verify A1/A2/A3 evidence and ancestry | A1 `74b1471`, A2 `64b3458` / `6d305b8`, A3 `307b919`; all descend from `main`; XB-001/014/017/018/019 Closed |
 | 4 | Resolve namespace and ownership | D-009: `include/ozero/` only, A1 `03f8883`; D-010: A1 owns `tools/check-headers.sh` and `tests/abi_static_asserts.c`, A4 owns CI integration, A3 owns other `tools/` |
 | 5 | Keep MBR harness separate from kernel boot | Only `mbr-harness-smoke` ran; Limine/kernel target not implemented |
 | 6 | Confirm branch protection and checks | Not enabled: `protected:false`, `protection.enabled:false`, rulesets `[]`, `CODEOWNERS` 404 on `main` |
@@ -39,7 +39,8 @@ publication as approval.
 | `313138c` | Refresh the audit for the PR body update and add XB-016 |
 | `56bcff0` | Apply A1's exact `CODEOWNERS` overrides from `30ee4f0` |
 | `245007d` | Refresh the audit after A1's second-round commits |
-| this review commit | A3 publication audit, A2 provenance, governance recheck, round-3 verification |
+| `3ae7aca` | Round-3 verification and A3 publication audit |
+| this proceed-brief commit | A1 IF-008 ACCEPT, A3 integration and §6 acceptance, A1/A3 IF-009 reviews, round-4 verification |
 
 ## Tests run at the published head
 
@@ -59,10 +60,10 @@ Cross-agent static checks, raw logs in `evidence/stage0-review/`:
 
 | Agent | Command | Result |
 | --- | --- | --- |
-| A1 | `tools/check-headers.sh`; ABI static asserts | PASS at `30ee4f0` |
-| A2 | `make check-static` | exit 0; 61 checks, 0 failed at `807c447` |
-| A3 | `make check` | exit 0; 19 tests at `15cd9ce` |
-| A3 | `make check-a1-headers A1_INCLUDE=...` | exit 0 against A1 `30ee4f0` |
+| A1 | `tools/check-headers.sh`; ABI static asserts | PASS at `74b1471`; ABI log at `30ee4f0` |
+| A2 | `make check-static` | exit 0; 61 checks, 0 failed at `64b3458` / code `6d305b8` |
+| A3 | `make -C a3 check` | exit 0; 19 tests at `307b919` |
+| A3 | `make -C a3 check-a1-headers A1_INCLUDE=...` | exit 0 against A1 `74b1471` |
 
 ## Tests not run
 
@@ -78,27 +79,29 @@ Cross-agent static checks, raw logs in `evidence/stage0-review/`:
 
 | ID | Dependency | State |
 | --- | --- | --- |
-| XB-001 | A1 reviews A3 DMA/platform/block interface before AHCI probe | Open; A3 published IF-008 v1.1 at `b9a69d8`; A1 final review pending |
-| XB-002 | A2 contracts match A1 process/address-space/handle/syscall | Open; A1 reviewed `f324b28`; `A1-REV-01…12` unanswered against `50b7853` / `807c447` |
-| XB-003 | A2 PE fixture contract (IF-009) before any PE test | Open; A2 `07` says Signed, `12` says Open; no explicit sign-off |
+| XB-001 | A1 reviews A3 DMA/platform/block interface before AHCI probe | Closed; A1 ACCEPT at `b9a69d8` (`74b1471`); A3 accepts §6 |
+| XB-002 | A2 contracts match A1 process/address-space/handle/syscall | Signed; A1 answered all 12; A2 accepts all 12 at `6d305b8`; no ABI freeze |
+| XB-003 | A2 PE fixture contract (IF-009) before any PE test | Open; A1 ACCEPT at `d02598a`; A3 ACCEPT at `307b919`; A2 signature record pending |
 | XB-004 | A1 pins Limine and kernel handoff | Open; D-005 pending |
-| XB-005 | A3 names device tests and hardware requirements with evidence | Open; static checks pass, but no QEMU/hardware driver test |
+| XB-005 | A3 names device tests and hardware requirements with evidence | Open; static checks pass at `307b919`, but no QEMU/hardware driver test |
 | XB-006 | A4 publishes the review branch | Closed at `84fe81a` |
 | XB-007 | Header namespace | Closed by D-009: `include/ozero/` only |
 | XB-008 | `tools/check-headers.sh` ownership | Closed by D-010: A1 owns script and ABI asserts; A4 CI; A3 other tools |
-| XB-009 | A2 evidence revision mismatch | Closed: evidence at `50b7853`; `807c447` evidence-only |
+| XB-009 | A2 evidence revision mismatch | Closed: evidence headers at `6d305b8`; `64b3458` evidence-only |
 | XB-010 | A4 opens the Stage 0 PR | Closed by this PR |
-| XB-011 | A3 publishes so A4 can refresh the audit | Closed: A3 at `15cd9ce`; audit refreshed; no PR implied |
+| XB-011 | A3 publishes so A4 can refresh the audit | Closed: A3 at `307b919`; audit refreshed; no PR implied |
 | XB-012 | Enable `main` protection and required checks | Open; `protected:false`, rulesets `[]`, `CODEOWNERS` 404 on `main` (D-031) |
-| XB-013 | A2 response cites `8bac650`; contract review cites A1 `90b004f` / `include/o0/` | Open; reconcile with `50b7853` / `807c447` |
-| XB-014 | A1 review of A2 is at `f324b28`; A2 moved | Open; A1 re-review or no-change confirmation |
+| XB-013 | A2 response and ledger lag the evidence pair and both signatures | Open; record `6d305b8` / `64b3458`, A1 `a17d126`, A3 `307b919` |
+| XB-014 | A1 review of A2 is at `f324b28`; A2 moved | Closed; A1 re-reviewed `50b7853` / `807c447`; A2 accepts all 12 |
 | XB-015 | A1 decision block collided with A4 IDs | Closed: D-009/D-010 merged; A1 D-011 kept; A4 protection renumbered D-031 |
 | XB-016 | A1 command output is inline, not a raw log | Open; copy to `evidence/a1-stage0/` before merge |
-| XB-017 | A3 rewrites root files and adds `platform.h` / `block.h` under A1-owned `include/ozero/` | Open; rebase on A4, keep A3 content in its own tree, A1 approves the two interface files |
-| XB-018 | A3 cites A4 `076ed82` and stale D-009 `include/o0/` | Open; update to A4 `245007d` and D-009 `include/ozero/` |
+| XB-017 | A3 rewrites root files and adds `platform.h` / `block.h` under A1-owned `include/ozero/` | Closed; A3 `307b919` integrates on A4, package in `a3/`, root docs preserved |
+| XB-018 | A3 cites a stale A4 head | Closed; A3 `307b919` reviews against A4 `3ae7aca` |
+| XB-019 | A3 has not accepted A1's IF-008 §6 conditions | Closed; A3 accepted all eight at `307b919` |
 
-Snapshot: **11 Open, 7 Closed, 0 Signed.** A3 is published but not approved; the AHCI probe remains
-blocked. A3's package checks pass, but no driver or hardware test ran.
+Snapshot: **6 Open, 12 Closed, 1 Signed.** A3 is integrated on the A4 control plane but has no PR;
+the AHCI probe remains blocked by D-007/D-021. A3's package checks pass, but no driver or hardware
+test ran.
 
 ## Decisions
 
@@ -110,9 +113,9 @@ D-011–D-030 are recorded as Proposed; A4's branch-protection row is D-031.
 ## Evidence
 
 - `evidence/stage0-review/REPORT.md` — required report and post-review addendum.
-- `evidence/stage0-review/cross-agent-verification-2026-11-23-r3.md` — current refs, A3 publication, A2 provenance and governance.
-- `evidence/stage0-review/cross-agent-commands-2026-11-23-r3.log` — raw commands for heads, stale references and GitHub settings.
-- `evidence/stage0-review/a1-check-headers.log`, `a1-abi-check.log`, `a2-static-check.log`, `a3-check.log`, `a3-a1-header-check.log` — cross-agent static checks.
+- `evidence/stage0-review/cross-agent-verification-2026-11-23-r4.md` — current refs, A1/A3 decisions, A3 integration, blocker snapshot.
+- `evidence/stage0-review/cross-agent-commands-2026-11-23-r4.log` — raw commands for heads, ancestry, checks and GitHub settings.
+- `evidence/stage0-review/a1-check-headers-74b1471.log`, `a1-abi-check.log`, `a2-static-check-64b3458.log`, `a3-check-307b919.log`, `a3-a1-header-check-307b919.log` — cross-agent static checks.
 - `evidence/stage0-review/director-review-2026-11-23.md` — Director review and A4 disposition.
 - `evidence/stage0-review/github-settings.txt` — protection, rulesets and CODEOWNERS state.
 - `evidence/stage0-review/repo-audit.txt` — refs and commit graph.

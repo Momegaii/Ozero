@@ -28,7 +28,7 @@ Exact and minimum versions are in [`toolchain/toolchain.lock`](toolchain/toolcha
 ```sh
 make check-toolchain     # verify local tools against the lock file
 make build               # build the Stage 0 MBR fixture into build/
-make test-mbr-harness    # boot it in QEMU and check serial markers
+make test-mbr-harness    # run the MBR fixture in QEMU and check serial markers
 make targets             # list test targets and their status
 make check-ci-safety     # reject privileged, raw-disk or Windows-binary CI steps
 make ci                  # check + safety + build + test-mbr-harness

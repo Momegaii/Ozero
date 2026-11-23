@@ -18,6 +18,9 @@
 
 # Shared interface surface: A1 owns, A4 reviews, consumers read.
 /include/ozero/                     @ozero/a1-kernel @ozero/a4-integration
+# A3-owned IF-008 interface files; A1 review is the merge gate.
+/include/ozero/platform.h           @ozero/a3-userland @ozero/a1-kernel
+/include/ozero/block.h              @ozero/a3-userland @ozero/a1-kernel
 
 # Proposed domain trees.
 /kernel/                            @ozero/a1-kernel

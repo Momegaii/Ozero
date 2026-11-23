@@ -15,6 +15,8 @@ integration authority. The Director approves architecture and stage acceptance.
 | Path | Owner | Required reviewers | Notes |
 | --- | --- | --- | --- |
 | `include/ozero/` | A1 | A1, A4 | Shared interface surface. Versioned. |
+| `include/ozero/platform.h` | A3 | A3, A1 | IF-008 platform interface. A1 review is the merge gate. |
+| `include/ozero/block.h` | A3 | A3, A1 | IF-008 block interface. A1 review is the merge gate. |
 | `kernel/` | A1 | A1 | Kernel core. |
 | `arch/` | A1 | A1 | Architecture-specific code and boot path. |
 | `drivers/` | A2 | A2 | Device drivers. |
@@ -35,10 +37,13 @@ public root, and `tools/check-headers.sh` rejects `include/o0/`. `tools/check-he
 (D-010). A1 supplied the exact entries at `30ee4f0`; both files list A1 and A4. The specific
 `CODEOWNERS` entries override the `tools/` default.
 
-A3's IF-008 v1.1 proposes `include/ozero/platform.h` and `include/ozero/block.h`. Those two files
-sit under A1-owned `include/ozero/`, so A1 must approve them as part of the IF-008 review. A3's
-branch also vendors an identical snapshot of A1's other `include/ozero/` headers; that snapshot is
-not authoritative and must not replace A1's files when the branches merge (XB-017).
+A3 owns `include/ozero/platform.h` and `include/ozero/block.h` for IF-008, with A1 as the required
+reviewer. A1 recorded **ACCEPT** for IF-008 v1.1 at A3 `b9a69d8` in A1 `74b1471`; A3 accepted all
+eight §6 conditions at `307b919` (XB-019 Closed). A3 `307b919` integrates on the A4 control plane
+and keeps its package under `a3/`. It also vendors an identical snapshot of A1's other
+`include/ozero/` headers at the root and under `a3/include/ozero/`; those snapshots are not
+authoritative and must not replace A1's files when the branches merge (XB-017 Closed). The
+file-level `CODEOWNERS` entries for the two A3-owned interface files override the directory rule.
 
 `CODEOWNERS` is the enforced copy of this table. If the two disagree, `CODEOWNERS` wins at review
 time and this document is a bug.
