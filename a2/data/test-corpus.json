@@ -19,7 +19,8 @@
       "L2": "process runs to exit with recorded stdout and exit code",
       "L3": "interactive or graphical behaviour verified against a reference",
       "L4": "corpus measured at L2/L3 with published per-entry results"
-    }
+    },
+    "execution_gate": "No entry may leave not-run until a sandboxed run is approved by the Project Director (D-006) and records environment, command, date, artifacts and an approval ID (D-xxx or XB-xxx)."
   },
   "required_categories": [
     "console",

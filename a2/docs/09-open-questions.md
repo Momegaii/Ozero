@@ -312,11 +312,45 @@ and always publish the raw per-entry numbers. B invites cherry-picking.
 
 **Owner:** A2 + A4. **Needed by:** before the first public report.
 
+## Global decision IDs
+
+A4 owns the decision register in `docs/decisions/decision-log.md`. The IDs below are
+proposed for that register and are stable in A2 text until A4 records them; if A4 has
+already allocated an ID, the Q-number remains the A2 key and the register wins.
+
+| A2 key | Proposed global ID | Decision | Status |
+| --- | --- | --- | --- |
+| Q1 | D-009 | Windows baseline | Proposed |
+| Q2 | D-010 | 32-bit timing | Proposed |
+| Q3 | D-011 | Syscall/upcall strategy | Proposed |
+| Q4 | D-012 | Own vs Windows ntdll | Proposed |
+| Q5 | D-013 | .NET hosting | Proposed |
+| Q6 | D-014 | Graphics approach | Proposed |
+| Q7 | D-015 | Signature policy | Proposed |
+| Q8 | D-016 | ReactOS/Wine use | Proposed |
+| Q9 | D-017 | Windowing strategy | Proposed |
+| Q10 | D-018 | Anti-cheat stance | Proposed |
+| Q11 | D-019 | Application classes | Proposed |
+| Q12 | D-020 | Security model | Proposed |
+| Q13 | D-021 | Registry/filesystem virtualisation | Proposed |
+| Q14 | D-022 | Kernel drivers | Proposed |
+| Q15 | D-023 | Claim threshold | Proposed |
+
+Decisions that already have a global ID are referenced directly:
+
+- D-001 — A1/A2/A3 domain split.
+- D-005 — boot protocol (A1).
+- D-006 — Stage 0 acceptance.
+- D-007 — A3 DMA/platform interface (A1 + A3).
+- XB-002 — A1 review of the A2 process/address-space/handle/syscall contract.
+- XB-003 — A1/A3 review of the A2 PE fixture contract.
+- XB-009 — A2 evidence must cite the branch head that is under review.
+
 ## Decision log
 
-| Question | Decision | Date | Owner | Notes |
-| --- | --- | --- | --- | --- |
-| — | none recorded | — | — | this table stays empty until decisions are made |
+| Question | Global ID | Decision | Date | Owner | Notes |
+| --- | --- | --- | --- | --- | --- |
+| — | — | none recorded | — | — | this table stays empty until decisions are made |
 
 ## Sources
 

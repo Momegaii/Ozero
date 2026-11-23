@@ -5,6 +5,10 @@ environment. This repository contains the required deliverables, the machine
 readable data behind them, and the tools that check both. The director's briefing
 is held internally and is not redistributed in this repository.
 
+**Director review 23 November 2026: Stage 0 is not accepted.** See
+[docs/11-stage0-review-response.md](docs/11-stage0-review-response.md) and the A1
+review request in [docs/12-a1-contract-review.md](docs/12-a1-contract-review.md).
+
 **Nothing here runs Windows applications.** No loader exists, no API is
 implemented, and no application has been executed. The only measured results are
 static analyses of eight PE images. That distinction is enforced by the corpus
@@ -26,6 +30,7 @@ manifest and its linter.
 | Open questions | [docs/09-open-questions.md](docs/09-open-questions.md) | draft ready |
 | Technical findings (hashes, offsets, raw bytes) | [docs/10-technical-findings.md](docs/10-technical-findings.md) | draft ready |
 | Stage 0 review response | [docs/11-stage0-review-response.md](docs/11-stage0-review-response.md) | draft ready |
+| A1 contract review request | [docs/12-a1-contract-review.md](docs/12-a1-contract-review.md) | review requested (XB-002) |
 
 Machine readable data:
 
@@ -87,9 +92,9 @@ material; third-party binaries are never redistributed from this repository.
 | --- | --- | --- |
 | 8 PE images parsed (5 fixtures, 3 third-party) | `make inspect` | [docs/evidence/pe-inspect.txt](docs/evidence/pe-inspect.txt) |
 | 263 structure and layout checks | `python3 tools/pe_structs_check.py ...` | [docs/evidence/pe-structure-checks.txt](docs/evidence/pe-structure-checks.txt) |
-| 558 corpus manifest checks | `python3 tools/corpus_lint.py` | [docs/evidence/corpus-lint.txt](docs/evidence/corpus-lint.txt) |
+| 559 corpus manifest checks | `python3 tools/corpus_lint.py` | [docs/evidence/corpus-lint.txt](docs/evidence/corpus-lint.txt) |
 | Deliverable structure and citation checks | `python3 tools/docs_check.py` | [docs/evidence/docs-check.txt](docs/evidence/docs-check.txt) |
-| 35 unit tests, including negative cases | `python3 -m unittest discover -s tests -v` | [docs/evidence/unit-tests.txt](docs/evidence/unit-tests.txt) |
+| 40 unit tests, including negative cases | `python3 -m unittest discover -s tests -v` | [docs/evidence/unit-tests.txt](docs/evidence/unit-tests.txt) |
 | 8 malformed-image cases, each with an expected failure | `python3 tools/negative_report.py` | [docs/evidence/negative-tests.txt](docs/evidence/negative-tests.txt) |
 | API set contracts resolved for a fixture | `python3 tools/apiset.py --check-image build/console_hello.exe` | [docs/evidence/apiset.txt](docs/evidence/apiset.txt) |
 | Fixture rebuild matches the committed manifest | `python3 tools/build_fixtures.py --check` | [docs/evidence/reproducibility.txt](docs/evidence/reproducibility.txt) |

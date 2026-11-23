@@ -6,6 +6,23 @@
 - Risks: a GUI or .NET first milestone would hide loader defects behind two more layers; a "dry run" could be mistaken for running; see [05-risk-report.md](05-risk-report.md)
 - Next step: A1 confirms the P0 interface list, then A2 writes the M0 test harness and the loader trace format
 
+## Implementation gate (director review, 23 November 2026)
+
+**M0 and M1 are unimplemented.** No loader, trace harness, `ntdll`-equivalent or
+process-creation code exists in this repository. The milestone definitions below are
+specifications, not status.
+
+They stay unimplemented until all of the following hold:
+
+- **D-006** (Stage 0 acceptance) is approved by the Project Director;
+- **XB-002** (A1 review of the process, address-space, handle and syscall contracts)
+  is Signed;
+- **XB-003** (A1/A3 review of the PE fixture contract, IF-009) is Signed;
+- the corpus execution gate allows a sandboxed run; every entry is currently `not-run`.
+
+Writing M0 code before these gates would freeze an interface A1 has not reviewed and
+would make static evidence look like a loader result.
+
 ## Recommendation
 
 **The earliest testable milestone is M1: load and run the console fixture to
@@ -29,7 +46,7 @@ attributed.
 | Format | PE32+ amd64, subsystem 3 | exercises the primary format |
 | Optional header | 240 bytes, 16 directories | validates header parsing |
 | Sections | 7, including `.pdata`, `.tls`, `.reloc` | forces relocation and TLS handling |
-| Imports | 7 DLLs / 38 symbols, including 5 `api-ms-win-crt-*` contracts | forces API set resolution |
+| Imports | 7 DLLs / 38 symbols, including 6 `api-ms-win-crt-*` contracts | forces API set resolution |
 | Relocations | 32 `DIR64` | forces base relocation if ASLR is on |
 | TLS | 8-byte template, 2 callbacks | forces TLS before entry |
 | `.pdata` | 31 entries, unwind version 1 | forces table registration even for C code |

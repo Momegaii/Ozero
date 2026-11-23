@@ -61,7 +61,7 @@ class Linter:
     def run(self) -> None:
         manifest = self.manifest
         policy = manifest.get("policy", {})
-        for key in ("honesty", "redistribution", "claims", "sandbox"):
+        for key in ("honesty", "redistribution", "claims", "sandbox", "execution_gate"):
             self.add("manifest", f"policy.{key}", bool(policy.get(key)), "present" if policy.get(key) else "missing")
 
         categories = manifest.get("categories", {})
@@ -231,6 +231,9 @@ class Linter:
                 self.add(entry_id, f"evidence_{field}",
                          bool(value) and (len(value) > 0 if isinstance(value, list) else True),
                          str(value)[:60])
+            approval = str(execution.get("approval", ""))
+            self.add(entry_id, "execution_requires_approval",
+                     bool(re.fullmatch(r"(D|XB)-\d{3}", approval)), approval or "missing")
 
     def _check_claims(self, entry: dict, entry_id: str) -> None:
         text = " ".join(str(entry.get(field, "")) for field in ("name", "notes", "expected_behavior")).lower()

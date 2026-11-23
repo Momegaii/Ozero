@@ -1,10 +1,24 @@
 # Stage 0 review response
 
-- Status: draft ready (review answered; no Windows application executed)
+- Status: draft ready (Stage 0 review answered; director review 23 Nov 2026: **not accepted**; A2 actions tracked below)
 - Evidence: repository `Momegaii/Ozero`, branch `agent/a2-stage0`, package root `a2/`, code revision `8bac650`; the regenerated `a2/docs/evidence/*.txt` are in the commit immediately after it
 - Decisions needed: Q1–Q4 (Windows baseline, 32-bit timing, syscall strategy, own `ntdll`) and the acceptance of M0 as a milestone distinct from running
 - Risks: static evidence is still L0; the API set schema is a test fixture; loader semantics remain unproven until M0/M1; see [05-risk-report.md](05-risk-report.md)
 - Next step: A1 reviews [03-a1-interface-requirements.md](03-a1-interface-requirements.md), then A2 implements the M0 trace and compares it with the offsets in [10-technical-findings.md](10-technical-findings.md)
+
+## Director review, 23 November 2026
+
+Stage 0 remains **not accepted**. The director's four A2 actions are handled as follows:
+
+| Director action | Status in this branch |
+| --- | --- |
+| Regenerate evidence at the final branch HEAD | Evidence is regenerated in the pure-evidence commit that follows the code commit; its header names the code revision, and `git diff <code>..HEAD -- ':!a2/docs/evidence'` is empty (XB-009) |
+| Request A1's review of the process/address-space/handle/syscall contract | [12-a1-contract-review.md](12-a1-contract-review.md) lists A1-REV-01…12 with Accept/Change/Defer answers requested; a review request is posted on PR #1; XB-002 stays Open until A1 signs |
+| Keep unexecuted Windows corpus entries not-run | All 17 entries are `not-run`; the lint policy and `test_corpus_entries_remain_not_run` fail if that changes without an approval record |
+| Keep M0 and M1 unimplemented | No loader or harness code exists; the implementation gate in [07](07-stage7-milestone.md) requires D-006, XB-002 and XB-003 before any code |
+
+Global IDs used here: D-006 (Stage 0 acceptance), D-009…D-023 (A2 decisions),
+XB-002 (A1 contract review), XB-003 (PE fixture contract), XB-009 (evidence revision).
 
 ## Basis of this response
 
@@ -102,10 +116,10 @@ api-ms-win-crt-environment-l1-1-0.dll        -> ucrtbase.dll [versioned]
 api-ms-win-crt-math-l1-1-0.dll               -> ucrtbase.dll [versioned]
 
 $ python3 tools/corpus_lint.py
-558 checks, 0 failed
+559 checks, 0 failed
 
 $ python3 -m unittest discover -s tests -v
-Ran 35 tests in 0.455s
+Ran 40 tests in 0.472s
 OK
 ```
 

@@ -1,7 +1,7 @@
 # Test corpus proposal
 
 - Status: draft ready (manifest complete; no execution)
-- Evidence: [data/test-corpus.json](../data/test-corpus.json); `python3 tools/corpus_lint.py` reports 558 checks, 0 failed ([evidence/corpus-lint.txt](evidence/corpus-lint.txt)); static analysis results in [evidence/pe-inspect.txt](evidence/pe-inspect.txt)
+- Evidence: [data/test-corpus.json](../data/test-corpus.json); `python3 tools/corpus_lint.py` reports 559 checks, 0 failed ([evidence/corpus-lint.txt](evidence/corpus-lint.txt)); static analysis results in [evidence/pe-inspect.txt](evidence/pe-inspect.txt)
 - Decisions needed: how many entries per category are required before any compatibility statement (Q15); whether proprietary entries are allowed in the corpus at all; which baseline Windows build defines "expected" behaviour (Q1)
 - Risks: corpus legality and redistribution; overfitting to five applications; games and anti-cheat cannot be included lawfully or technically; see [05-risk-report.md](05-risk-report.md)
 - Next step: pin hashes for the eight pending entries, then run L2 on the console fixture as the Stage 7 exit test

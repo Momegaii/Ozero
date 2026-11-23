@@ -30,6 +30,7 @@ REQUIRED_DOCS = [
     "docs/09-open-questions.md",
     "docs/10-technical-findings.md",
     "docs/11-stage0-review-response.md",
+    "docs/12-a1-contract-review.md",
 ]
 REPORTING_FIELDS = ("Status", "Evidence", "Decisions needed", "Risks", "Next step")
 LINK_PATTERN = re.compile(r"\[[^\]]+\]\(([^)]+)\)")

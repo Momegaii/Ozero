@@ -374,5 +374,42 @@ class CorpusEvidenceRuleTests(unittest.TestCase):
                                  record["output_sha256"], record["output"])
 
 
+
+
+class StageGateTests(unittest.TestCase):
+    def test_corpus_entries_remain_not_run(self) -> None:
+        manifest = load_json(MANIFEST)
+        for entry in manifest["entries"]:
+            self.assertEqual(entry["execution"]["status"], "not-run", entry["id"])
+            self.assertIn(entry["evidence_level"], {"none", "L0"}, entry["id"])
+
+    def test_execution_requires_an_approval_id(self) -> None:
+        manifest = copy.deepcopy(load_json(MANIFEST))
+        entry = manifest["entries"][0]
+        entry["execution"].update({
+            "status": "pass", "environment": "sandbox", "command": "fixture",
+            "date": "2026-11-23", "artifacts": ["stdout.txt"],
+        })
+        entry["evidence_level"] = "L2"
+        linter = corpus_lint.Linter(manifest, ROOT)
+        linter.run()
+        self.assertIn("execution_requires_approval", {row["check"] for row in linter.failures})
+
+    def test_milestones_are_gated(self) -> None:
+        text = (ROOT / "docs" / "07-stage7-milestone.md").read_text(encoding="utf-8")
+        for token in ("M0 and M1 are unimplemented", "D-006", "XB-002", "XB-003"):
+            self.assertIn(token, text)
+
+    def test_open_questions_have_global_ids(self) -> None:
+        text = (ROOT / "docs" / "09-open-questions.md").read_text(encoding="utf-8")
+        for number in range(9, 24):
+            self.assertIn(f"D-{number:03d}", text)
+
+    def test_a1_review_request_is_specific(self) -> None:
+        text = (ROOT / "docs" / "12-a1-contract-review.md").read_text(encoding="utf-8")
+        for token in ("XB-002", "A1-REV-01", "A1-REV-12", "A1-PROC-1", "A1-THR-4", "A1-EXC-2"):
+            self.assertIn(token, text)
+
+
 if __name__ == "__main__":
     unittest.main()
