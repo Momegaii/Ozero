@@ -15,9 +15,9 @@
 - The A4 control plane is published on `a4/stage0-review-followup`. The Stage 0 review actions and
   the Director's 23 Nov A4 actions are implemented; evidence is in `evidence/stage0-review/`.
 - A1 published `a1/stage0-review` at `90b004f` (PR #1, draft). A2 published `agent/a2-stage0` at
-  `f324b28` (PR #2, draft). A3 has no branch.
-- A1's evidence is an inline report, not raw logs. A2's evidence is static-only and tied to
-  `8bac650`, not the branch head. Neither branch is integrated.
+  `807c447` (PR #2, draft); its evidence was regenerated at code revision `50b7853`. A3 has no branch.
+- A1's evidence is an inline report, not raw logs. A2's evidence is static-only and now current, but
+  its review-response document still cites `8bac650` (XB-013). Neither branch is integrated.
 - The build and QEMU MBR harness are **Tested**. The 512-byte MBR fixture is not the Ozero kernel
   and is never described as kernel boot.
 - D-008, D-009 and D-010 are **Approved** by the 23 Nov Director instruction. The remaining
@@ -112,14 +112,14 @@
 | 4 | Branch protection and required CI checks are not enabled | Project Director (XB-012 / D-011) | The merge gate is advisory until enabled | Before Stage 1 |
 | 5 | A4 Stage 0 PR is open; Director review pending | Project Director (XB-010) | Review is in progress; no acceptance is implied | Stage 0 review |
 | 6 | A1 and A2 branches are not integrated; A3 has no branch | A1, A2, A3, A4 | Cross-agent gates are defined but untested; merge conflicts are known | Stage 1 |
-| 7 | Eight cross-agent dependencies are Open | A1, A2, A3, A4 | Dependent work cannot merge without owner sign-off | Stage 1 |
+| 7 | Nine cross-agent dependencies are Open | A1, A2, A3, A4 | Dependent work cannot merge without owner sign-off | Stage 1 |
 | 8 | A3 has not published; audit refresh is pending | A3 → A4 (XB-011) | The audit covers A1/A2/A4 only | After A3 publication |
-| 9 | A2 evidence cites `8bac650`, head is `f324b28` | A2 → A4 (XB-009) | Provenance mismatch until A2 regenerates | Before A2 merge |
+| 9 | A2's review response cites `8bac650`; evidence is at `50b7853` | A2 → A4 (XB-013) | Response provenance is stale until A2 updates the header | Before A2 merge |
 
 ## Cross-agent dependencies
 
 The live register is [`docs/process/cross-agent-blockers.md`](../process/cross-agent-blockers.md).
-Eight rows are **Open**; XB-006, XB-007, XB-008 and XB-010 are **Closed**. None is **Signed**.
+Nine rows are **Open**; XB-006, XB-007, XB-008 and XB-009 are **Closed**. None is **Signed**.
 
 | ID | Dependency | Owner | State |
 | --- | --- | --- | --- |
@@ -131,10 +131,11 @@ Eight rows are **Open**; XB-006, XB-007, XB-008 and XB-010 are **Closed**. None 
 | XB-006 | A4 publishes the review branch | A4 → Director | Closed at `84fe81a` |
 | XB-007 | Public header namespace conflict | A1 → A4 | Closed by D-009: canonical `include/o0/` |
 | XB-008 | A1's `tools/check-headers.sh` is in A3-owned `tools/` | A1 → A3 | Closed by D-010: A1 owns, A3 reviews |
-| XB-009 | A2 evidence cites `8bac650`, head is `f324b28` | A2 → A4 | Open |
+| XB-009 | A2 evidence revision mismatch | A2 → A4 | Closed: evidence regenerated at `50b7853`; `807c447` is evidence-only |
 | XB-010 | A4 opens the Stage 0 review PR | A4 → Director | Closed: PR open |
 | XB-011 | A3 publishes so A4 can refresh the audit | A3 → A4 | Open; A3 has no branch |
 | XB-012 | Enable `main` protection and required checks | A4 → Director | Open; `protected:false`, rulesets 0 |
+| XB-013 | A2 response still cites `8bac650` | A2 → A4 | Open; update response header to `50b7853` / `807c447` |
 
 ## Decisions needed
 
@@ -160,7 +161,7 @@ Eight rows are **Open**; XB-006, XB-007, XB-008 and XB-010 are **Closed**. None 
 | A1 and A2 branches are not integrated; A3 is absent | High | Cross-agent gates are untested; merge conflicts are known | A4 merge order; A1 reviews A2 and confirms DMA; A3 publishes IF-008 | Director, A1, A3 |
 | A1's "A3 review signed" is read as A3 acceptance | Medium | False cross-agent sign-off | A4 record: A3 has no branch; XB-001 stays Open | A4 |
 | A1 evidence is inline, not raw logs | Medium | Claims are harder to audit | Copy A1 output to `evidence/a1-stage0/` before merge | A1, A4 |
-| A2 evidence and branch head differ | Medium | Provenance mismatch | Regenerate at final head; XB-009 | A2 |
+| A2 response and evidence revisions differ | Medium | Provenance mismatch | Evidence is at `50b7853`; update the response header; XB-013 | A2 |
 | A3 has not published; audit refresh is pending | Medium | The audit is incomplete | XB-011; refresh immediately after A3 publishes | A3, A4 |
 | MBR fixture is mistaken for kernel boot | Medium | False boot claim | Naming rule; explicit not-tested list | A4 |
 | Domain split does not match real work | Medium | Overlapping trees, merge conflicts | Director confirms before Stage 1 | Director |
@@ -193,7 +194,7 @@ Eight rows are **Open**; XB-006, XB-007, XB-008 and XB-010 are **Closed**. None 
 | Agent | Current task | Status | Blocked by |
 | --- | --- | --- | --- |
 | A1 | Stage 0 review response; PR #1 draft at `90b004f` | Submitted; not integrated | D-005, XB-001, XB-002 |
-| A2 | Static-only PE package; PR #2 draft at `f324b28` | Submitted; not integrated | A1 review (XB-002), XB-009 |
+| A2 | Static-only PE package; PR #2 draft at `807c447`; evidence at `50b7853` | Submitted; not integrated | A1 review (XB-002), XB-013 |
 | A3 | — | No branch, commit or interface | D-001; must publish IF-008; XB-005, XB-011 |
 | A4 | Stage 0 review follow-up; PR open; head `5642c16` + round-2 commits | Submitted; awaiting review | Director review (XB-010 closed) |
 

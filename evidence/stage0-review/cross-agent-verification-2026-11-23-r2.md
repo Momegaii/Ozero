@@ -7,7 +7,7 @@ first note stays as the earlier snapshot.
 | --- | --- | --- |
 | `origin/main` | `147cc86` | unchanged |
 | `origin/a1/stage0-review` | `90b004f` | PR #1, open, draft |
-| `origin/agent/a2-stage0` | `f324b28` | PR #2, open, draft |
+| `origin/agent/a2-stage0` | `807c447` | PR #2, open, draft; evidence-only commit after code `50b7853` |
 | A3 | none | no branch, commit or interface |
 | `origin/a4/stage0-review-followup` | `5642c16` at snapshot | published; PR opened after this snapshot |
 
@@ -26,9 +26,9 @@ $ git diff --stat origin/main..origin/a1/stage0-review | tail -1
 $ git merge-base --is-ancestor origin/main origin/agent/a2-stage0
 exit=0
 $ git rev-list --count origin/main..origin/agent/a2-stage0
-2
+4
 $ git diff --stat origin/main..origin/agent/a2-stage0 | tail -1
- 47 files changed, 9600 insertions(+)
+ 48 files changed, 9967 insertions(+)
 
 $ git merge-base --is-ancestor origin/main origin/a4/stage0-review-followup
 exit=0
@@ -50,7 +50,7 @@ exists.
 | Agent | Evidence present | Finding |
 | --- | --- | --- |
 | A1 | No `evidence/` directory | Command output is inline in `docs/stage0-report.md`. It is readable but not a raw log tied to a commit. A1 states no kernel, ISO or QEMU boot. |
-| A2 | 10 files under `a2/docs/evidence/` | Unit tests, corpus lint, PE structure checks, negative cases, findings, API set and reproducibility. Headers cite `8bac650`; branch head is `f324b28`. |
+| A2 | 10 files under `a2/docs/evidence/` | Evidence was regenerated at code revision `50b7853`; `807c447` adds only the evidence files. `git diff 50b7853..807c447 -- ':!a2/docs/evidence'` is empty. The response document `11-stage0-review-response.md` still cites the import revision `8bac650`, so that document's provenance is stale (XB-013). |
 | A3 | None | No branch, so no evidence to verify. |
 | A4 | `evidence/stage0-review/` | Review logs, audit, negative tests, CI safety, cross-agent notes and this file. |
 
@@ -61,8 +61,8 @@ A4 verification.
 A2's evidence counts, read from the committed logs:
 
 ```text
-unit-tests.txt:        Ran 35 tests ... OK
-corpus-lint.txt:       558 checks, 0 failed
+unit-tests.txt:        Ran 40 tests ... OK
+corpus-lint.txt:       559 checks, 0 failed
 pe-structure-checks:   263 checks, 0 failed
 negative-tests.txt:    8 negative cases produced the expected failure
 reproducibility.txt:   manifest matches: 5 fixtures
@@ -70,12 +70,16 @@ reproducibility.txt:   manifest matches: 5 fixtures
 
 All 17 A2 corpus entries remain `not-run`; no Windows application was executed.
 
+A2 also posted an A1 review request on PR #1 under XB-002. The request lists A1-REV-01 to
+A1-REV-12 and points at `a2/docs/12-a1-contract-review.md`. XB-002 remains Open until A1 answers
+and signs the contract.
+
 ## Pull requests
 
 | PR | Head | Base | Draft |
 | --- | --- | --- | --- |
 | #1 | `a1/stage0-review` | `main` | yes |
-| #2 | `agent/a2-stage0` | `main` | yes |
+| #2 | `agent/a2-stage0` at `807c447` | `main` | yes |
 | A4 | `a4/stage0-review-followup` | `main` | opened after this snapshot |
 
 ## Namespace and ownership resolution

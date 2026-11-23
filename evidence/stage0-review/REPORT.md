@@ -210,7 +210,7 @@ from the existing branch; it did not restart Stage 0 and did not merge into `mai
 | --- | --- | --- |
 | `origin/main` | `147cc86` | unchanged |
 | `origin/a1/stage0-review` | `90b004f` | PR #1, open, draft |
-| `origin/agent/a2-stage0` | `f324b28` | PR #2, open, draft |
+| `origin/agent/a2-stage0` | `807c447` | PR #2, open, draft; evidence at `50b7853` |
 | A3 | none | no branch, commit or interface |
 | `origin/a4/stage0-review-followup` | `5642c16` plus round-2 commits | published; Stage 0 PR open |
 

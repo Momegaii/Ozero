@@ -68,10 +68,11 @@ exit=0
 | XB-006 | A4 publishes the review branch | Closed at `84fe81a` |
 | XB-007 | Header namespace | Closed by D-009: `include/o0/` |
 | XB-008 | `tools/check-headers.sh` ownership | Closed by D-010: A1 owns, A3 reviews |
-| XB-009 | A2 evidence cites `8bac650`, head `f324b28` | Open; regenerate at head |
+| XB-009 | A2 evidence revision mismatch | Closed: evidence at `50b7853`; `807c447` evidence-only |
 | XB-010 | A4 opens the Stage 0 PR | Closed by this PR |
 | XB-011 | A3 publishes so A4 can refresh the audit | Open; A3 absent |
 | XB-012 | Enable `main` protection and required checks | Open; D-011 |
+| XB-013 | A2 response still cites `8bac650` | Open; update header to `50b7853` / `807c447` |
 
 ## Decisions
 
