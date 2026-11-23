@@ -316,7 +316,9 @@ A1/A2/A3 work from the existing branches and PRs, preserved authorship, and cont
    `docs/architecture/a3-integration-map.md`.
 5. **Checks** — `make -C a3 check` passes 19 tests; `make -C a3 check-a1-headers A1_INCLUDE=include`
    exits 0; `make clean && make ci` ends `ci: ok` with 5 markers and image SHA-256 `37ad8227…`.
-   Raw output is in `evidence/stage0-review/a3-integration-checks-2026-11-23.log`.
+   Raw output is in `evidence/stage0-review/a3-integration-checks-2026-11-23.log`. GitHub Actions
+   `build-and-boot` passed at `bc3f566` in 4m55s (run `45195798408`), recorded in
+   `evidence/stage0-review/ci-run-bc3f566.txt`.
 
 ### Blocker snapshot
 

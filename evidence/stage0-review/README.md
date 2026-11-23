@@ -27,6 +27,7 @@ The report required by the review is [`REPORT.md`](REPORT.md). This file indexes
 | A3 package checks | `make -C a3 check` | 0 | 19 tests, `OK`; matrix and deliverables pass | `a3-integration-checks-2026-11-23.log` |
 | A3 A1-header check | `make -C a3 check-a1-headers A1_INCLUDE=include` | 0 | A1 headers compile against A3 | `a3-integration-checks-2026-11-23.log` |
 | A1 re-verification | `./tools/check-headers.sh` at A1 `2693a34` | 0 | `RESULT: PASS`; static only | `../a1-stage0/a4-verification-2026-11-23.txt` |
+| GitHub Actions | `stage0 / build-and-boot` at `bc3f566` | 0 | success in 4m55s; run `45195798408` | `ci-run-bc3f566.txt` |
 | Reproducibility | `make verify-repro` | 0 | image, ELF and manifest identical | `repro.log` |
 | Clean checkout | `make verify-clean` | 0 | fresh clone at `4396155` passed | `clean-checkout.log` |
 | Missing marker | `scripts/test-qemu.sh` with an extra marker | 1 | failed as required | `negative-missing-marker.log` |
@@ -63,6 +64,7 @@ manifest records `commit: unknown` inside both reproducibility copies.
 | `a3-integration-verification-2026-11-23.md` | Sole-agent takeover: A3 merge `44d566e`, tree/header proof and checks |
 | `a3-integration-checks-2026-11-23.log` | Raw `make -C a3 check`, `check-a1-headers` and `make ci` output on the integrated tree |
 | `final-takeover-checks-2026-11-23.log` | Final `make check-ci-safety` and `make ci` at the takeover tree |
+| `ci-run-bc3f566.txt` | GitHub Actions `build-and-boot` success at `bc3f566` (run `45195798408`) |
 | `../../docs/architecture/a3-integration-map.md` | File-level ownership map for all 56 A3 files |
 | `../../docs/architecture/a2-review-ledger-reconciled.md` | A2 ledger reconciliation at `f6ed1d8` / `d83cfbe` |
 | `../../docs/architecture/if-009-v1.1-disposition.md` | IF-009 v1.1 negative-case disposition (XB-021) |

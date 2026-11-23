@@ -133,7 +133,8 @@ The CI job named build-and-boot runs the MBR fixture/harness smoke test. It is n
 Ozero kernel boot. The 512-byte MBR fixture is not the Ozero kernel.
 
 The final takeover check is in evidence/stage0-review/final-takeover-checks-2026-11-23.log:
-check-ci-safety: ok, ci: ok, 5 markers in order, exit 0.
+check-ci-safety: ok, ci: ok, 5 markers in order, exit 0. GitHub Actions build-and-boot passed at
+bc3f566 in 4m55s (run 45195798408); evidence/stage0-review/ci-run-bc3f566.txt.
 
 ## 7. Blocker snapshot
 

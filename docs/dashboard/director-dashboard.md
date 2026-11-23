@@ -266,6 +266,7 @@ Four rows are **Open** (XB-004, XB-005, XB-012, XB-021), sixteen are **Closed**,
 | IF-009 v1.1 disposition | `docs/architecture/if-009-v1.1-disposition.md` | Not implemented; XB-021 Open; L0 scope preserved |
 | A3 package checks | `evidence/stage0-review/a3-integration-checks-2026-11-23.log` | PASS on integrated tree; 19 tests; `check-a1-headers` exit 0 |
 | Final takeover checks | `evidence/stage0-review/final-takeover-checks-2026-11-23.log` | `check-ci-safety: ok`; `ci: ok`; 5 markers; exit 0 |
+| CI at takeover commit | `evidence/stage0-review/ci-run-bc3f566.txt` | `build-and-boot` success, run `45195798408`, 4m55s |
 | A3 integration proof | `docs/architecture/a3-integration-map.md`, `evidence/stage0-review/a3-integration-verification-2026-11-23.md` | Merge `44d566e`; 44 `a3/` + 12 `include/ozero/`; XB-020 Closed |
 | Takeover baseline | `evidence/stage0-review/takeover-baseline-2026-11-23.txt` | Live refs, PRs, runs and local state at takeover |
 | Director review and A4 disposition | `evidence/stage0-review/director-review-2026-11-23.md` | Recorded |
