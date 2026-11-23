@@ -74,7 +74,7 @@ all are answered.
 | # | Action | A1 result | Evidence |
 |---|---|---|---|
 | A1-1 | Final IF-008 v1.1 review at A3 `b9a69d8` | **ACCEPT.** A3's `platform.h` and `block.h` conform; A3's ten copies of A1 headers are byte-identical to A1 `30ee4f0`; A1's checks pass on A3's tree | `docs/if008-v1.1-review.md`; D-032 |
-| A1-2 | Answer A1-REV-01…12 at A2 `50b7853` / evidence `807c447` | **Answered.** 4 Accept, 6 Change, 2 Defer. A2 must update its stale `include/o0/`/`90b004f` references and rename its colliding local D-011/D-012/D-020 | `docs/a2-contract-review-response.md` |
+| A1-2 | Answer A1-REV-01…12 at A2 `50b7853` / evidence `807c447` | **Answered.** 4 Accept, 6 Change required, 2 Defer. A2 must update its stale `include/o0/`/`90b004f` references and rename its colliding local D-011/D-012/D-020 | `docs/a2-contract-review-response.md` |
 | A1-3 | IF-009 review | **CHANGE REQUIRED.** No IF-009 document exists; A2's fixture manifest is evidence, not a contract. A1/A2/A3 split and required contents are recorded | `docs/if009-review.md`; D-033 |
 | A1-4 | Preserve the DMA boundary | Contract-level validation of `o0_device_ops`, one contiguous buffer, `max_segment` splitting, completion timing, reset semantics and BAR UC/NX. No A3 driver code exists to inspect | `docs/if008-v1.1-review.md` §4 |
 | A1-5 | Keep AHCI blocked | A1 sign-off is granted for IF-008 v1.1, but AHCI remains blocked on director D-007 and A3's acceptance. No runtime or DMA proof exists | `docs/if008-v1.1-review.md` §1, §7 |

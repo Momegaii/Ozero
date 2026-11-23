@@ -36,31 +36,31 @@ colliding ID space.
 Decision vocabulary:
 
 - **Accept** — A1's current draft already satisfies the requirement.
-- **Change** — A1 will add or change a primitive; the header and milestone are named.
+- **Change required** — A1 will add or change a primitive; the header and milestone are named.
 - **Defer** — A2 builds it above the kernel, or it moves to a later milestone.
 
 ## 2. Summary
 
 | ID | Topic | Decision | Owner | Exact consequence | Milestone |
 |---|---|---|---|---|---|
-| A1-REV-01 | Process from an image section | **Change** | A1 primitive; A2 PEB/TEB and loader policy | Add `o0_process_create_from_section` to `include/ozero/thread.h` (or a future `process.h`) | Stage 7 |
-| A1-REV-02 | User APCs | **Change** | A1 queue/return hook; A2 dispatch and wait policy | Add per-thread APC queue and alertable-wait hooks to `thread.h` | Stage 7 |
+| A1-REV-01 | Process from an image section | **Change required** | A1 primitive; A2 PEB/TEB and loader policy | Add `o0_process_create_from_section` to `include/ozero/thread.h` (or a future `process.h`) | Stage 7 |
+| A1-REV-02 | User APCs | **Change required** | A1 queue/return hook; A2 dispatch and wait policy | Add per-thread APC queue and alertable-wait hooks to `thread.h` | Stage 7 |
 | A1-REV-03 | TEB and segment base | **Accept** | A2 TEB; A1 GS/FS programming | No change; `thread.h` at `30ee4f0` already has the four functions | Now |
-| A1-REV-04 | Section objects and image mapping | **Change** | A1 section object; A2 image policy | Add section create/map-view to `mm.h`/`ipc.h` | Stage 7 |
+| A1-REV-04 | Section objects and image mapping | **Change required** | A1 section object; A2 image policy | Add section create/map-view to `mm.h`/`ipc.h` | Stage 7 |
 | A1-REV-05 | Address-space layout and ASLR | **Defer** | A2 policy; A1 kernel half | A2 publishes the layout; A1 may add `O0_USER_*` constants later | Stage 7 |
 | A1-REV-06 | Handle table and NT access masks | **Accept** | A2 NT table and masks; A1 handle rights | No change; `ipc.h` handles stay opaque | Now |
-| A1-REV-07 | Wait-for-multiple and alertable waits | **Change** | A1 primitive; A2 semantics | Add `o0_handle_wait_many` and alertable wait to `ipc.h` | Stage 7 |
-| A1-REV-08 | Exception delivery format | **Change** | A1 neutral record; A2 Windows translation and dispatch | Add a neutral `include/ozero/exception.h` | Stage 7 |
+| A1-REV-07 | Wait-for-multiple and alertable waits | **Change required** | A1 primitive; A2 semantics | Add `o0_handle_wait_many` and alertable wait to `ipc.h` | Stage 7 |
+| A1-REV-08 | Exception delivery format | **Change required** | A1 neutral record; A2 Windows translation and dispatch | Add a neutral `include/ozero/exception.h` | Stage 7 |
 | A1-REV-09 | Unwind data access | **Defer** | A2 implements unwind; A1 mapping lifetime | No A1 unwind API; A2 keeps `.pdata` mapped | Stage 7 |
 | A1-REV-10 | Syscall boundary ownership | **Accept** | A1 entry/table; A2 `ntdll` and user ABI | No change now; A1 publishes a table version | Stage 7 |
-| A1-REV-11 | Clock and timeout semantics | **Change** | A1 clock and absolute timers; A2 mapping | Add `o0_clock_now_ns` and absolute wait/timer API | Stage 7 |
+| A1-REV-11 | Clock and timeout semantics | **Change required** | A1 clock and absolute timers; A2 mapping | Add `o0_clock_now_ns` and absolute wait/timer API | Stage 7 |
 | A1-REV-12 | Security model split | **Accept** | A2 tokens/SIDs; A1 handle rights and metadata | No kernel token enforcement; opaque cookie only if requested | Stage 7 |
 
-Counts: **4 Accept, 6 Change, 2 Defer.**
+Counts: **4 Accept, 6 Change required, 2 Defer.**
 
 ## 3. Item-by-item answers
 
-### A1-REV-01 — Process from an image section: Change
+### A1-REV-01 — Process from an image section: Change required
 
 Current A1 (`thread.h` at `30ee4f0`) has:
 
@@ -80,7 +80,7 @@ at Stage 7, with the section handle and parameter block defined then. No
 `30ee4f0` header changes. Owner: A1 for the primitive; A2 for PEB/TEB
 allocation and loader policy. See D-011 and D-025.
 
-### A1-REV-02 — User APCs: Change
+### A1-REV-02 — User APCs: Change required
 
 A1's draft excludes an APC model. D-027 assigns A1 the per-thread user APC queue
 and the delivery points (return-to-user and alertable wait); A2 owns the wait and
@@ -106,7 +106,7 @@ A2 allocates the TEB and supplies the base; A1 stores the user pointer and
 programs GS/FS on context switch. The kernel never parses the TEB. No header
 change. Owner: A2 TEB; A1 segment-base programming. See D-025.
 
-### A1-REV-04 — Section objects and image mapping: Change
+### A1-REV-04 — Section objects and image mapping: Change required
 
 `ipc.h` defines `O0_OBJ_SECTION` as an object type, but `mm.h` has only
 `o0_as_map`/`o0_as_unmap` over physical ranges. There is no file-backed section,
@@ -139,7 +139,7 @@ status to NTSTATUS/Win32.
 No `30ee4f0` header change. Owner: A2 NT handle table, masks and error
 translation; A1 A1-handle rights. See D-019.
 
-### A1-REV-07 — Wait-for-multiple and alertable waits: Change
+### A1-REV-07 — Wait-for-multiple and alertable waits: Change required
 
 `ipc.h` at `30ee4f0` has only `o0_handle_wait(handle, timeout_ns)`. D-011 lists
 wait-multiple as a later addition. A1 will add wait-any/wait-all and an
@@ -149,7 +149,7 @@ lowest-index return and fairness are A2's responsibility.
 Exact consequence: add `o0_handle_wait_many` and an alertable flag/entry to
 `ipc.h`; not in `30ee4f0`. Owner: A1 primitive; A2 semantics.
 
-### A1-REV-08 — Exception delivery format: Change
+### A1-REV-08 — Exception delivery format: Change required
 
 D-024 is explicit: A1 delivers a neutral `o0_exception_record` and
 `o0_context`; A2 translates them into the Windows `EXCEPTION_RECORD` and
@@ -180,7 +180,7 @@ version; A2 owns the user-side stub and its versioning.
 No `30ee4f0` header change; the syscall ABI is deliberately unfrozen. Owner: A1
 kernel entry/table; A2 user ABI/`ntdll`.
 
-### A1-REV-11 — Clock and timeout semantics: Change
+### A1-REV-11 — Clock and timeout semantics: Change required
 
 D-029: A1 provides a monotonic nanosecond clock; resolution is measured, not
 promised. `o0_handle_wait(timeout_ns)` is relative only. A2 needs absolute
