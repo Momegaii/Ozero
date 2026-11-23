@@ -1,0 +1,60 @@
+/* Ozero kernel - processes, threads and address spaces.
+ *
+ * A2 needs stable concepts, not a final Windows ABI. Handle and syscall details are in
+ * ipc.h and are explicitly unfrozen.
+ */
+#ifndef O0_THREAD_H
+#define O0_THREAD_H
+
+#include "ozero/mm.h"
+#include "ozero/status.h"
+#include "ozero/types.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+struct o0_thread_attr {
+    const char *name;
+    void (*entry)(void *arg);
+    void *arg;
+    size_t stack_size; /* 0 selects the kernel default */
+    int32_t priority;  /* 0 is normal; larger is higher priority */
+    uint32_t flags;
+};
+
+/* ---- Processes ---- */
+
+O0_NODISCARD o0_status o0_process_create(const char *name, o0_as_t *as,
+                                         o0_process_t **out);
+void o0_process_destroy(o0_process_t *proc);
+o0_process_t *o0_process_current(void);
+o0_as_t *o0_process_as(o0_process_t *proc);
+const char *o0_process_name(const o0_process_t *proc);
+
+/* ---- Threads ---- */
+
+O0_NODISCARD o0_status o0_thread_create(o0_process_t *proc,
+                                        const struct o0_thread_attr *attr,
+                                        o0_thread_t **out);
+O0_NORETURN void o0_thread_exit(int status);
+o0_status o0_thread_join(o0_thread_t *thread, int *status);
+o0_thread_t *o0_thread_self(void);
+o0_process_t *o0_thread_process(const o0_thread_t *thread);
+const char *o0_thread_name(const o0_thread_t *thread);
+
+void o0_thread_yield(void);
+void o0_thread_sleep_ns(uint64_t ns);
+
+/* Per-thread user pointer and segment bases. A2 owns the TEB layout and allocation; the
+ * kernel stores only the pointer and programs GS/FS on context switch. See D-025. */
+O0_NODISCARD o0_status o0_thread_set_user_pointer(o0_thread_t *thread, void *ptr);
+void *o0_thread_user_pointer(const o0_thread_t *thread);
+O0_NODISCARD o0_status o0_thread_set_gs_base(o0_thread_t *thread, uint64_t base);
+O0_NODISCARD o0_status o0_thread_set_fs_base(o0_thread_t *thread, uint64_t base);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* O0_THREAD_H */
