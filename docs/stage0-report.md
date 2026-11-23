@@ -43,6 +43,7 @@ Definition-of-done check:
 
 - Repository: <https://github.com/Momegaii/Ozero> (shared source of truth)
 - Branch: `a1/stage0-review` (integration through a pull request; `main` is not pushed to)
+- Pull request: <https://github.com/Momegaii/Ozero/pull/1>
 - Staging repository before integration: `/workspace/project`, branch `master`
 - Commit containing all deliverables: `4943538609c25dbcaf57d60016a61f1e58c56341`
   ("Stage 0 review response: pin boot stack, correct revision claim, tighten
@@ -216,5 +217,6 @@ build layout and toolchain (including the Limine host tool), then M0 (bootable i
 serial banner) starts. A3 must accept the interface conditions in
 `docs/interface-draft.md` §11 before any real DMA. Until then, no kernel implementation.
 
-Integration: the A1 branch `a1/stage0-review` is proposed through a pull request. Stage 0
-is **not** accepted by this report; it is evidence for director review.
+Integration: the A1 branch `a1/stage0-review` is proposed in pull request #1
+(<https://github.com/Momegaii/Ozero/pull/1>). Stage 0 is **not** accepted by this report;
+it is evidence for director review.
