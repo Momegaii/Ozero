@@ -4,23 +4,24 @@ exit=0
 $ scripts/audit-repos.sh /workspace/project
 ==================================================================
 repository: /workspace/Ozero
-head:       43961551442009aac8189e5edca3f5c7af43a2cd
+head:       f990bf7b9d548b59e391d680bb51d1db315355fe
 branch:     a4/stage0-review-followup
 remotes:
   origin	https://github.com/Momegaii/Ozero.git (fetch)
   origin	https://github.com/Momegaii/Ozero.git (push)
 branches:
-  a4/stage0-review-followup 4396155 
+  a4/stage0-review-followup f990bf7 
   main 147cc86 origin/main
   origin 147cc86 
   origin/main 147cc86 
 tags:
 commit graph (all refs):
-  * 4396155 (HEAD -> a4/stage0-review-followup) docs: implement Stage 0 review actions
+  * f990bf7 (HEAD -> a4/stage0-review-followup) docs: record Stage 0 review evidence
+  * 4396155 docs: implement Stage 0 review actions
   * 5a50c0d docs: import A4 Stage 0 control plane
   * 147cc86 (origin/main, origin/HEAD, main) Initial commit
-commit count (all refs): 3
-tracked files: 59
+commit count (all refs): 4
+tracked files: 76
 top-level tracked entries:
   .editorconfig
   .github
