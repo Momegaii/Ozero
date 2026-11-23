@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "note": "Small test schema used to exercise API set name parsing and resolution. It is NOT the Windows schema: it covers the contracts imported by the fixtures plus a few core contracts, and the host DLL names are illustrative.",
+  "contracts": {
+    "api-ms-win-crt-runtime-l1-1-0": {"host": "ucrtbase.dll", "kind": "versioned"},
+    "api-ms-win-crt-stdio-l1-1-0": {"host": "ucrtbase.dll", "kind": "versioned"},
+    "api-ms-win-crt-heap-l1-1-0": {"host": "ucrtbase.dll", "kind": "versioned"},
+    "api-ms-win-crt-locale-l1-1-0": {"host": "ucrtbase.dll", "kind": "versioned"},
+    "api-ms-win-crt-environment-l1-1-0": {"host": "ucrtbase.dll", "kind": "versioned"},
+    "api-ms-win-crt-math-l1-1-0": {"host": "ucrtbase.dll", "kind": "versioned"},
+    "api-ms-win-crt-string-l1-1-0": {"host": "ucrtbase.dll", "kind": "versioned"},
+    "api-ms-win-crt-private-l1-1-0": {"host": "ucrtbase.dll", "kind": "private"},
+    "api-ms-win-core-file-l1-2-0": {"host": "kernelbase.dll", "kind": "versioned"},
+    "api-ms-win-core-synch-l1-2-0": {"host": "kernelbase.dll", "kind": "versioned"},
+    "api-ms-win-core-libraryloader-l1-2-0": {"host": "kernelbase.dll", "kind": "versioned"},
+    "api-ms-win-core-heap-l1-2-0": {"host": "kernelbase.dll", "kind": "versioned"},
+    "api-ms-win-core-processenvironment-l1-2-0": {"host": "kernelbase.dll", "kind": "versioned"},
+    "api-ms-win-core-errorhandling-l1-1-0": {"host": "kernelbase.dll", "kind": "versioned"}
+  },
+  "aliases": {
+    "api-ms-win-crt-runtime-l1": "api-ms-win-crt-runtime-l1-1-0",
+    "api-ms-win-crt-stdio-l1": "api-ms-win-crt-stdio-l1-1-0",
+    "api-ms-win-core-file-l1": "api-ms-win-core-file-l1-2-0",
+    "api-ms-win-core-synch-l1": "api-ms-win-core-synch-l1-2-0"
+  }
+}

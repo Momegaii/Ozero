@@ -1,0 +1,1100 @@
+{
+  "corpus_version": 1,
+  "updated": "2026-11-23",
+  "policy": {
+    "honesty": "An entry may only carry status=pass or status=fail when the execution record names the environment, the command, the date and the artifacts. Nothing in this file has been executed; every executable entry is not-run.",
+    "redistribution": "Third-party binaries are never committed. They are downloaded from the listed URL into .cache/ and verified against the recorded SHA-256. Proprietary entries are analysis-only and must be obtained by the operator.",
+    "claims": "No compatibility claim is derived from this file until a category has measured results. Static analysis is recorded separately from execution.",
+    "levels": {
+      "L0": "file is parsed by tools/pe_inspect.py (headers and directories read, no code run)",
+      "L1": "image is mapped and its imports resolved, entry point not reached",
+      "L2": "process starts, runs to exit, expected stdout/exit code observed",
+      "L3": "interactive or graphical behaviour verified against screenshots and logs"
+    },
+    "sandbox": "Third-party binaries run only in a disposable sandbox with no credentials or host mounts; analysis here is static only.",
+    "evidence_levels": {
+      "none": "no analysis performed",
+      "L0": "file parsed by tools/pe_inspect.py; no code run",
+      "L1": "image mapped and imports resolved; entry point not reached",
+      "L2": "process runs to exit with recorded stdout and exit code",
+      "L3": "interactive or graphical behaviour verified against a reference",
+      "L4": "corpus measured at L2/L3 with published per-entry results"
+    },
+    "execution_gate": "No entry may leave not-run until a sandboxed run is approved by the Project Director (D-006) and records environment, command, date, artifacts and an approval ID (D-xxx or XB-xxx)."
+  },
+  "required_categories": [
+    "console",
+    "gui",
+    "file-process",
+    "dotnet",
+    "directx"
+  ],
+  "categories": {
+    "console": "Character-mode executable with no window; exercises process startup, stdio and basic file APIs.",
+    "gui": "Subsystem 2 image that creates windows; exercises USER/GDI or a higher-level toolkit.",
+    "file-process": "Exercises files, directories, pipes, process creation, waiting and memory APIs.",
+    "dotnet": "Managed image with a CLR header; exercises mscoree/CLR hosting and managed libraries.",
+    "directx": "Exercises a graphics API stack: D3D/DXGI user-mode runtime plus a device driver boundary.",
+    "native-library": "Supporting entry: a DLL or extension module that exercises exports, TLS or loader features rather than an application workflow."
+  },
+  "entries": [
+    {
+      "id": "a2-console-hello",
+      "category": "console",
+      "tier": "fixture",
+      "supporting": false,
+      "name": "A2 console hello",
+      "version": "built from fixtures/src/console_hello.c",
+      "license": "repository license",
+      "source": {
+        "type": "repo",
+        "path": "fixtures/src/console_hello.c",
+        "build": "make fixtures"
+      },
+      "sha256": null,
+      "prerequisites": [
+        "PE32+ x86-64 loader",
+        "kernel32 import resolution for the mingw runtime",
+        "static TLS allocation",
+        "console write path"
+      ],
+      "apis_exercised": [
+        "GetModuleHandleW",
+        "CRT startup",
+        "WriteFile via stdout",
+        "ExitProcess"
+      ],
+      "expected_behavior": "Prints 'a2 console fixture: compute=22 module=<non-null>' and exits with code 0.",
+      "pass_criteria": [
+        "process starts",
+        "stdout matches the expected line",
+        "exit code 0",
+        "no loader error dialog"
+      ],
+      "fail_signals": [
+        "loader rejects the image",
+        "import resolution failure",
+        "TLS callback not invoked",
+        "exit code other than 0"
+      ],
+      "static_analysis": {
+        "status": "done",
+        "tool": "tools/pe_inspect.py",
+        "command": "python3 tools/pe_inspect.py build/console_hello.exe",
+        "date": "2026-11-23",
+        "observed": {
+          "format": "PE32+ amd64 windows-cui",
+          "imports": "7 DLLs / 38 symbols",
+          "relocations": "32 DIR64",
+          "tls": "8-byte template, 2 callbacks",
+          "exception_table": "31 entries, unwind version 1",
+          "clr": "absent"
+        }
+      },
+      "execution": {
+        "status": "not-run",
+        "reason": "no Windows-compatible runtime exists yet (A1 loader primitives not available)"
+      },
+      "notes": "Smallest useful loader target: it still needs imports, relocations, TLS and .pdata to reach main.",
+      "evidence_level": "L0",
+      "sandbox_required": false,
+      "fixture_id": "console_hello",
+      "build_manifest": "fixtures/build-manifest.json"
+    },
+    {
+      "id": "a2-cpp-exceptions",
+      "category": "console",
+      "tier": "fixture",
+      "supporting": false,
+      "name": "A2 C++ exception unwind",
+      "version": "built from fixtures/src/cpp_throw.cpp",
+      "license": "repository license",
+      "source": {
+        "type": "repo",
+        "path": "fixtures/src/cpp_throw.cpp",
+        "build": "make fixtures"
+      },
+      "sha256": null,
+      "prerequisites": [
+        "PE32+ loader",
+        "RUNTIME_FUNCTION/UNWIND_INFO parsing",
+        "SEH dispatch",
+        "C++ runtime (libc++/libc++abi) import resolution"
+      ],
+      "apis_exercised": [
+        "throw/catch",
+        "unwind",
+        "printf",
+        "ExitProcess"
+      ],
+      "expected_behavior": "Prints 'a2 c++ fixture: caught=42' and exits with code 0.",
+      "pass_criteria": [
+        "exception is raised and caught",
+        "stdout matches",
+        "exit code 0",
+        "no unhandled exception exit"
+      ],
+      "fail_signals": [
+        "unwind tables ignored",
+        "terminate called",
+        "stack corruption",
+        "silent exit"
+      ],
+      "static_analysis": {
+        "status": "done",
+        "tool": "tools/pe_inspect.py",
+        "command": "python3 tools/pe_inspect.py build/cpp_throw.exe",
+        "date": "2026-11-23",
+        "observed": {
+          "format": "PE32+ amd64 windows-cui",
+          "imports": "9 DLLs / 52 symbols",
+          "relocations": "1410 entries (1404 DIR64, 6 ABSOLUTE)",
+          "exception_table": "470 entries, unwind version 1",
+          "tls": "24-byte template, 2 callbacks"
+        }
+      },
+      "execution": {
+        "status": "not-run",
+        "reason": "requires SEH dispatch and C++ runtime"
+      },
+      "notes": "Deliberately heavy: static libc++ produces many unwind entries, which stresses table handling.",
+      "evidence_level": "L0",
+      "sandbox_required": false,
+      "fixture_id": "cpp_throw",
+      "build_manifest": "fixtures/build-manifest.json"
+    },
+    {
+      "id": "a2-gui-messagebox",
+      "category": "gui",
+      "tier": "fixture",
+      "supporting": false,
+      "name": "A2 GUI message box",
+      "version": "built from fixtures/src/gui_messagebox.c",
+      "license": "repository license",
+      "source": {
+        "type": "repo",
+        "path": "fixtures/src/gui_messagebox.c",
+        "build": "make fixtures"
+      },
+      "sha256": null,
+      "prerequisites": [
+        "PE32+ loader",
+        "subsystem 2 handling",
+        "user32 MessageBoxW",
+        "window station/desktop",
+        "event loop"
+      ],
+      "apis_exercised": [
+        "WinMain",
+        "MessageBoxW",
+        "user32 import resolution",
+        "process exit"
+      ],
+      "expected_behavior": "Shows a message box titled 'Ozero A2' and exits with code 0 after it is dismissed.",
+      "pass_criteria": [
+        "window appears",
+        "title and text match",
+        "dismiss returns 0",
+        "no modal error dialog"
+      ],
+      "fail_signals": [
+        "subsystem mismatch",
+        "user32 missing",
+        "message box never appears",
+        "hang"
+      ],
+      "static_analysis": {
+        "status": "done",
+        "tool": "tools/pe_inspect.py",
+        "command": "python3 tools/pe_inspect.py build/gui_messagebox.exe",
+        "date": "2026-11-23",
+        "observed": {
+          "format": "PE32+ amd64 windows-gui",
+          "imports": "8 DLLs / 41 symbols",
+          "relocations": "32 DIR64",
+          "exception_table": "31 entries"
+        }
+      },
+      "execution": {
+        "status": "not-run",
+        "reason": "requires a windowing subsystem"
+      },
+      "notes": "Cheapest GUI milestone; still requires USER32 semantics, not just a windowing shim.",
+      "evidence_level": "L0",
+      "sandbox_required": false,
+      "fixture_id": "gui_messagebox",
+      "build_manifest": "fixtures/build-manifest.json"
+    },
+    {
+      "id": "a2-fileproc",
+      "category": "file-process",
+      "tier": "fixture",
+      "supporting": false,
+      "name": "A2 file and process APIs",
+      "version": "built from fixtures/src/fileproc.c",
+      "license": "repository license",
+      "source": {
+        "type": "repo",
+        "path": "fixtures/src/fileproc.c",
+        "build": "make fixtures"
+      },
+      "sha256": null,
+      "prerequisites": [
+        "PE32+ loader",
+        "file I/O and handle table",
+        "pipe objects",
+        "process creation and wait",
+        "virtual memory",
+        "directory enumeration"
+      ],
+      "apis_exercised": [
+        "CreatePipe",
+        "ReadFile",
+        "WriteFile",
+        "CloseHandle",
+        "CreateFileW",
+        "FindFirstFileW",
+        "FindClose",
+        "CreateProcessW",
+        "WaitForSingleObject",
+        "VirtualAlloc",
+        "VirtualFree",
+        "GetModuleFileNameW"
+      ],
+      "expected_behavior": "Creates a pipe, writes and reads 4 bytes, creates and deletes a temporary file, enumerates the directory, spawns 'cmd.exe /c exit 0' and waits, then prints 'a2 file/process fixture: read=4 written=4'.",
+      "pass_criteria": [
+        "read=4",
+        "written=4",
+        "child process created and reaped",
+        "exit code 0"
+      ],
+      "fail_signals": [
+        "handle table gaps",
+        "wait never returns",
+        "CreateProcess unsupported",
+        "path translation errors"
+      ],
+      "static_analysis": {
+        "status": "done",
+        "tool": "tools/pe_inspect.py",
+        "command": "python3 tools/pe_inspect.py build/fileproc.exe",
+        "date": "2026-11-23",
+        "observed": {
+          "format": "PE32+ amd64 windows-cui",
+          "imports": "7 DLLs / 49 symbols",
+          "relocations": "32 DIR64",
+          "exception_table": "31 entries"
+        }
+      },
+      "execution": {
+        "status": "not-run",
+        "reason": "requires A1 process, handle and I/O primitives"
+      },
+      "notes": "This fixture defines the minimum A1 contract for anything beyond hello world.",
+      "evidence_level": "L0",
+      "sandbox_required": false,
+      "fixture_id": "fileproc",
+      "build_manifest": "fixtures/build-manifest.json"
+    },
+    {
+      "id": "a2-tls-dll",
+      "category": "native-library",
+      "tier": "fixture",
+      "supporting": true,
+      "name": "A2 TLS callback DLL",
+      "version": "built from fixtures/src/tls_dll.c",
+      "license": "repository license",
+      "source": {
+        "type": "repo",
+        "path": "fixtures/src/tls_dll.c",
+        "build": "make fixtures"
+      },
+      "sha256": null,
+      "prerequisites": [
+        "DLL loading",
+        "export table",
+        "static TLS template",
+        "TLS callback invocation",
+        "DllMain"
+      ],
+      "apis_exercised": [
+        "DllMain",
+        "TLS callback",
+        "a2_add export",
+        "a2_get_counter export"
+      ],
+      "expected_behavior": "A host process loads the DLL, calls a2_add(2,3)=5 and a2_get_counter()=8 because the TLS callback increments the initial value 7.",
+      "pass_criteria": [
+        "DLL maps",
+        "exports resolve by name",
+        "TLS callback runs before DllMain",
+        "counter equals 8"
+      ],
+      "fail_signals": [
+        "export lookup failure",
+        "TLS template not copied",
+        "callback skipped",
+        "DllMain not called"
+      ],
+      "static_analysis": {
+        "status": "done",
+        "tool": "tools/pe_inspect.py",
+        "command": "python3 tools/pe_inspect.py build/tls_dll.dll",
+        "date": "2026-11-23",
+        "observed": {
+          "format": "PE32+ amd64 windows-gui dll",
+          "exports": "2 named",
+          "tls": "16-byte template, 3 callbacks",
+          "relocations": "26 entries (23 DIR64, 3 ABSOLUTE)"
+        }
+      },
+      "execution": {
+        "status": "not-run",
+        "reason": "requires a host process and LoadLibrary semantics"
+      },
+      "notes": "Proves the difference between parsing TLS structures and actually implementing TLS.",
+      "evidence_level": "L0",
+      "sandbox_required": false,
+      "fixture_id": "tls_dll",
+      "build_manifest": "fixtures/build-manifest.json"
+    },
+    {
+      "id": "7zr-standalone",
+      "category": "console",
+      "tier": "open-source",
+      "supporting": false,
+      "name": "7-Zip standalone console (7zr.exe)",
+      "version": "as published on 7-zip.org (recorded by SHA-256)",
+      "license": "LGPL-2.1-or-later with unRAR restriction",
+      "source": {
+        "type": "download",
+        "url": "https://www.7-zip.org/a/7zr.exe",
+        "fetcher": "make corpus-fetch",
+        "fetch": {
+          "method": "http",
+          "filename": "7zr.exe"
+        }
+      },
+      "sha256": "256feca8e274e5da655e2a284fabafd9f554365eb164862089dacd4e8276d282",
+      "prerequisites": [
+        "PE32 (i386) support or WOW64 equivalent",
+        "kernel32/advapi32 file APIs",
+        "console output",
+        "cryptographic APIs for hashes"
+      ],
+      "apis_exercised": [
+        "CreateFileW",
+        "ReadFile",
+        "WriteFile",
+        "FindFirstFileW",
+        "GetFileAttributesW",
+        "heap APIs",
+        "console APIs"
+      ],
+      "expected_behavior": "`7zr.exe i` prints its version banner and the list of supported formats, then exits 0.",
+      "pass_criteria": [
+        "banner printed",
+        "format list contains 7z/zip",
+        "exit code 0"
+      ],
+      "fail_signals": [
+        "32-bit image rejected",
+        "missing advapi32 export",
+        "crash in heap",
+        "locale error"
+      ],
+      "static_analysis": {
+        "status": "done",
+        "tool": "tools/pe_inspect.py",
+        "command": "python3 tools/pe_inspect.py .cache/7zr.exe",
+        "date": "2026-11-23",
+        "observed": {
+          "format": "PE32 i386 windows-cui",
+          "imports": "5 DLLs / 139 symbols",
+          "relocations": "9546 entries (9484 HIGHLOW, 62 ABSOLUTE)",
+          "resources": "present",
+          "exception_table": "absent (32-bit images use runtime SEH registration)"
+        }
+      },
+      "execution": {
+        "status": "not-run",
+        "reason": "requires 32-bit user-mode support"
+      },
+      "notes": "Real-world PE32: forces the 32-bit decision early and shows that x64-only is not sufficient for a compatibility story.",
+      "evidence_level": "L0",
+      "sandbox_required": true,
+      "provenance": {
+        "retrieved": "2026-11-23",
+        "method": "https download with SHA-256 verification",
+        "redistribute": false,
+        "verify": "sha256"
+      }
+    },
+    {
+      "id": "notepad-plus-plus",
+      "category": "gui",
+      "tier": "open-source",
+      "supporting": false,
+      "name": "Notepad++ (portable)",
+      "version": "8.x portable x64",
+      "license": "GPL-3.0-or-later",
+      "source": {
+        "type": "download",
+        "url": "https://notepad-plus-plus.org/downloads/",
+        "fetcher": "manual, operator selects the portable zip"
+      },
+      "sha256": null,
+      "prerequisites": [
+        "PE32+ loader",
+        "user32/gdi32/comctl32",
+        "common controls v6 activation context",
+        "file dialogs",
+        "Unicode APIs"
+      ],
+      "apis_exercised": [
+        "RegisterClassExW",
+        "CreateWindowExW",
+        "comctl32",
+        "shell32",
+        "file I/O",
+        "registry"
+      ],
+      "expected_behavior": "Window opens, a file can be opened, edited and saved with the expected bytes on disk.",
+      "pass_criteria": [
+        "main window renders",
+        "menu bar and toolbar usable",
+        "open/save round-trip is byte exact",
+        "no missing-DLL dialog"
+      ],
+      "fail_signals": [
+        "common controls activation failure",
+        "GDI drawing gaps",
+        "crash on theme",
+        "file dialog hang"
+      ],
+      "static_analysis": {
+        "status": "not-run",
+        "reason": "not downloaded in this environment"
+      },
+      "execution": {
+        "status": "not-run",
+        "reason": "requires USER/GDI implementation"
+      },
+      "notes": "SxS activation contexts are a known source of hard failures; this entry exists to expose them.",
+      "hash_pending": true,
+      "hash_pending_reason": "binary not downloaded in this environment; pin the SHA-256 before any execution",
+      "evidence_level": "none",
+      "sandbox_required": true,
+      "provenance": {
+        "retrieved": null,
+        "method": "operator-supplied; hash not yet pinned",
+        "redistribute": false,
+        "verify": "sha256"
+      }
+    },
+    {
+      "id": "paint-dotnet",
+      "category": "dotnet",
+      "tier": "commercial",
+      "supporting": false,
+      "name": "Paint.NET",
+      "version": "5.x",
+      "license": "freeware, proprietary (no redistribution)",
+      "source": {
+        "type": "download",
+        "url": "https://www.getpaint.net/download.html",
+        "fetcher": "operator only"
+      },
+      "sha256": null,
+      "prerequisites": [
+        "CLR hosting",
+        "WinForms",
+        "GDI+",
+        "D3D/GPU composition path",
+        "file dialogs"
+      ],
+      "apis_exercised": [
+        "WinForms",
+        "System.Drawing",
+        "P/Invoke to user32/gdi32",
+        "file I/O"
+      ],
+      "expected_behavior": "Application starts, opens an image, applies a fixed effect and saves a file with a reproducible hash.",
+      "pass_criteria": [
+        "main window renders",
+        "image opens",
+        "effect output hash matches the reference run",
+        "save completes"
+      ],
+      "fail_signals": [
+        "CLR host missing",
+        "GDI+ failure",
+        "GPU path crash",
+        "DPI/layout breakage"
+      ],
+      "static_analysis": {
+        "status": "not-run",
+        "reason": "proprietary binary not downloaded"
+      },
+      "execution": {
+        "status": "not-run",
+        "reason": "requires CLR plus GDI+ and a GPU path"
+      },
+      "notes": "Uses both managed and native graphics; a good stress case, but not redistributable.",
+      "hash_pending": true,
+      "hash_pending_reason": "binary not downloaded in this environment; pin the SHA-256 before any execution",
+      "evidence_level": "none",
+      "sandbox_required": true,
+      "provenance": {
+        "retrieved": null,
+        "method": "operator-supplied; hash not yet pinned",
+        "redistribute": false,
+        "verify": "sha256"
+      }
+    },
+    {
+      "id": "7zip-file-ops",
+      "category": "file-process",
+      "tier": "open-source",
+      "supporting": false,
+      "name": "7-Zip console (7z.exe) archive round-trip",
+      "version": "24.x x64",
+      "license": "LGPL-2.1-or-later",
+      "source": {
+        "type": "download",
+        "url": "https://www.7-zip.org/download.html",
+        "fetcher": "operator selects the x64 extra package"
+      },
+      "sha256": null,
+      "prerequisites": [
+        "PE32+ loader",
+        "file and directory APIs",
+        "memory-mapped or streaming I/O",
+        "multi-threading"
+      ],
+      "apis_exercised": [
+        "CreateFileW",
+        "SetFilePointerEx",
+        "ReadFile",
+        "WriteFile",
+        "FindFirstFileW",
+        "thread creation",
+        "synchronization"
+      ],
+      "expected_behavior": "`7z a -t7z out.7z <dir>` then `7z x` reproduces the input tree byte for byte.",
+      "pass_criteria": [
+        "archive created",
+        "extraction byte exact",
+        "exit code 0",
+        "no leaked handles"
+      ],
+      "fail_signals": [
+        "thread creation failure",
+        "file timestamp semantics",
+        "long path handling",
+        "handle leak"
+      ],
+      "static_analysis": {
+        "status": "not-run",
+        "reason": "x64 package not downloaded in this environment"
+      },
+      "execution": {
+        "status": "not-run",
+        "reason": "requires threading and file semantics"
+      },
+      "notes": "Byte-exact extraction is a much stronger signal than 'it started'.",
+      "hash_pending": true,
+      "hash_pending_reason": "binary not downloaded in this environment; pin the SHA-256 before any execution",
+      "evidence_level": "none",
+      "sandbox_required": true,
+      "provenance": {
+        "retrieved": null,
+        "method": "operator-supplied; hash not yet pinned",
+        "redistribute": false,
+        "verify": "sha256"
+      }
+    },
+    {
+      "id": "curl-windows",
+      "category": "file-process",
+      "tier": "open-source",
+      "supporting": false,
+      "name": "curl for Windows",
+      "version": "8.x win64",
+      "license": "curl license (MIT-like)",
+      "source": {
+        "type": "download",
+        "url": "https://curl.se/windows/",
+        "fetcher": "operator"
+      },
+      "sha256": null,
+      "prerequisites": [
+        "PE32+ loader",
+        "Winsock2",
+        "schannel or OpenSSL",
+        "DNS resolution",
+        "file APIs"
+      ],
+      "apis_exercised": [
+        "WSAStartup",
+        "socket",
+        "connect",
+        "getaddrinfo",
+        "CreateFileW",
+        "console output"
+      ],
+      "expected_behavior": "`curl --version` prints the version and protocol list; `curl -o file <url>` writes the expected bytes.",
+      "pass_criteria": [
+        "version banner",
+        "TLS handshake succeeds",
+        "downloaded file hash matches",
+        "exit code 0"
+      ],
+      "fail_signals": [
+        "Winsock missing",
+        "schannel unavailable",
+        "certificate store gap",
+        "DNS failure"
+      ],
+      "static_analysis": {
+        "status": "not-run",
+        "reason": "not downloaded in this environment"
+      },
+      "execution": {
+        "status": "not-run",
+        "reason": "requires Winsock and a TLS provider"
+      },
+      "notes": "Separates networking stack gaps from loader gaps quickly.",
+      "hash_pending": true,
+      "hash_pending_reason": "binary not downloaded in this environment; pin the SHA-256 before any execution",
+      "evidence_level": "none",
+      "sandbox_required": true,
+      "provenance": {
+        "retrieved": null,
+        "method": "operator-supplied; hash not yet pinned",
+        "redistribute": false,
+        "verify": "sha256"
+      }
+    },
+    {
+      "id": "a2-dotnet-hello",
+      "category": "dotnet",
+      "tier": "fixture",
+      "supporting": false,
+      "name": "A2 managed hello (framework-dependent and self-contained)",
+      "version": "planned; .NET 8",
+      "license": "repository license",
+      "source": {
+        "type": "planned",
+        "path": "fixtures/src/dotnet_hello/",
+        "build": "dotnet publish -c Release -r win-x64"
+      },
+      "sha256": null,
+      "prerequisites": [
+        ".NET SDK on the build host",
+        "CLR host in the compatibility layer",
+        "mscoree/_CorExeMain equivalent",
+        "PE32 IL-only image support"
+      ],
+      "apis_exercised": [
+        "Console.WriteLine",
+        "Environment.Exit",
+        "assembly loading",
+        "JIT"
+      ],
+      "expected_behavior": "Prints 'a2 dotnet fixture' and exits 0, both framework-dependent and self-contained.",
+      "pass_criteria": [
+        "both variants run",
+        "stdout matches",
+        "exit code 0"
+      ],
+      "fail_signals": [
+        "CLR header ignored",
+        "mscoree stub missing",
+        "runtime not found"
+      ],
+      "static_analysis": {
+        "status": "not-run",
+        "reason": "no .NET SDK in this environment"
+      },
+      "execution": {
+        "status": "not-run",
+        "reason": "no CLR host exists"
+      },
+      "notes": "Blocked on toolchain, not on the loader: the PE format is already understood.",
+      "evidence_level": "none",
+      "sandbox_required": false,
+      "fixture_id": null,
+      "build_manifest": null
+    },
+    {
+      "id": "newtonsoft-json",
+      "category": "dotnet",
+      "tier": "open-source",
+      "supporting": true,
+      "name": "Newtonsoft.Json 13.0.3 (net20 assembly)",
+      "version": "13.0.3",
+      "license": "MIT",
+      "source": {
+        "type": "download",
+        "url": "https://www.nuget.org/api/v2/package/Newtonsoft.Json/13.0.3",
+        "fetcher": "make corpus-fetch",
+        "fetch": {
+          "method": "http",
+          "filename": "Newtonsoft.Json.13.0.3.nupkg",
+          "member": "lib/net20/Newtonsoft.Json.dll",
+          "output": "Newtonsoft.Json.dll"
+        }
+      },
+      "sha256": "0f89b82c6b76816b17286951ba83201c71b6611f3e75e907552247dfc72034f2",
+      "prerequisites": [
+        "CLR header parsing",
+        "metadata root and streams",
+        "strong-name validation policy"
+      ],
+      "apis_exercised": [
+        "managed metadata",
+        "IL-only image",
+        "Authenticode signature"
+      ],
+      "expected_behavior": "Used as a library, not an application: a host can load the assembly and serialize a fixed object to the expected JSON.",
+      "pass_criteria": [
+        "assembly loads",
+        "serialization output matches",
+        "no metadata parse error"
+      ],
+      "fail_signals": [
+        "COR20 header misread",
+        "metadata stream offset error",
+        "strong-name rejection"
+      ],
+      "static_analysis": {
+        "status": "done",
+        "tool": "tools/pe_inspect.py",
+        "command": "python3 tools/pe_inspect.py .cache/Newtonsoft.Json.dll",
+        "date": "2026-11-23",
+        "observed": {
+          "format": "PE32 i386 windows-cui dll",
+          "clr": "cb=72, runtime 2.5, IL-only, strong-name signed",
+          "imports": "1 DLL / 1 symbol (mscoree)",
+          "authenticode": "present",
+          "sections": 3
+        }
+      },
+      "execution": {
+        "status": "not-run",
+        "reason": "requires a CLR host"
+      },
+      "notes": "Shows why the CLR header cannot be treated as an afterthought: the PE image is only a container for metadata.",
+      "evidence_level": "L0",
+      "sandbox_required": true,
+      "provenance": {
+        "retrieved": "2026-11-23",
+        "method": "https download with SHA-256 verification",
+        "redistribute": false,
+        "verify": "sha256"
+      }
+    },
+    {
+      "id": "powershell-7",
+      "category": "dotnet",
+      "tier": "open-source",
+      "supporting": false,
+      "name": "PowerShell 7 (win-x64, self-contained)",
+      "version": "7.4.x",
+      "license": "MIT",
+      "source": {
+        "type": "download",
+        "url": "https://github.com/PowerShell/PowerShell/releases",
+        "fetcher": "operator selects PowerShell-7.4.x-win-x64.zip"
+      },
+      "sha256": null,
+      "prerequisites": [
+        "self-contained .NET runtime",
+        "console host",
+        "filesystem provider",
+        "native interop",
+        "many managed dependencies"
+      ],
+      "apis_exercised": [
+        "CLR hosting",
+        "console APIs",
+        "file system",
+        "process creation",
+        "registry"
+      ],
+      "expected_behavior": "`pwsh -NoLogo -Command \"1+1\"` prints 2 and exits 0.",
+      "pass_criteria": [
+        "starts",
+        "prints 2",
+        "exit code 0",
+        "no assembly load failures"
+      ],
+      "fail_signals": [
+        "runtimeconfig resolution failure",
+        "native shim missing",
+        "assembly load errors"
+      ],
+      "static_analysis": {
+        "status": "not-run",
+        "reason": "not downloaded in this environment"
+      },
+      "execution": {
+        "status": "not-run",
+        "reason": "requires a CLR host"
+      },
+      "notes": "Self-contained deployment avoids the 'install .NET first' confounder.",
+      "hash_pending": true,
+      "hash_pending_reason": "binary not downloaded in this environment; pin the SHA-256 before any execution",
+      "evidence_level": "none",
+      "sandbox_required": true,
+      "provenance": {
+        "retrieved": null,
+        "method": "operator-supplied; hash not yet pinned",
+        "redistribute": false,
+        "verify": "sha256"
+      }
+    },
+    {
+      "id": "markupsafe-pyd",
+      "category": "native-library",
+      "tier": "open-source",
+      "supporting": true,
+      "name": "MarkupSafe 3.0.4 native extension (win_amd64)",
+      "version": "3.0.4",
+      "license": "BSD-3-Clause",
+      "source": {
+        "type": "download",
+        "url": "https://pypi.org/project/MarkupSafe/3.0.4/#files",
+        "fetcher": "pip download --platform win_amd64",
+        "fetch": {
+          "method": "pip",
+          "command": "python3 -m pip download --no-deps --only-binary=:all: --platform win_amd64 --python-version 3.11 markupsafe -d .cache/wheel",
+          "then": "unzip the wheel and copy markupsafe/_speedups.cp311-win_amd64.pyd to .cache/_speedups.cp311-win_amd64.pyd"
+        }
+      },
+      "sha256": "79d6891d23e7bb5acfae0ab87b2c8d59431450724999e9cfc3deb8877e1f4cb9",
+      "prerequisites": [
+        "PE32+ loader",
+        "export resolution by name",
+        "Control Flow Guard metadata tolerance",
+        "DLL entry point"
+      ],
+      "apis_exercised": [
+        "PyInit__speedups export",
+        "load config",
+        "CFG",
+        ".pdata"
+      ],
+      "expected_behavior": "A host can load the module and call PyInit__speedups when a Python runtime is present.",
+      "pass_criteria": [
+        "image maps",
+        "export found",
+        "CFG metadata ignored or honoured without crash"
+      ],
+      "fail_signals": [
+        "load config misparse",
+        "export ordinal error",
+        "relocation failure"
+      ],
+      "static_analysis": {
+        "status": "done",
+        "tool": "tools/pe_inspect.py",
+        "command": "python3 tools/pe_inspect.py .cache/_speedups.cp311-win_amd64.pyd",
+        "date": "2026-11-23",
+        "observed": {
+          "format": "PE32+ amd64 windows-gui dll",
+          "imports": "4 DLLs / 20 symbols",
+          "exception_table": "40 entries (8 chained, 2 EHANDLER, 2 UHANDLER)",
+          "load_config": "declared size 320, GuardFlags 0x100 (CF instrumented)",
+          "relocations": "22 entries (20 DIR64)"
+        }
+      },
+      "execution": {
+        "status": "not-run",
+        "reason": "requires a Python host"
+      },
+      "notes": "Real-world PE32+ with CFG and chained unwind info, both easy to get wrong.",
+      "evidence_level": "L0",
+      "sandbox_required": true,
+      "provenance": {
+        "retrieved": "2026-11-23",
+        "method": "https download with SHA-256 verification",
+        "redistribute": false,
+        "verify": "sha256"
+      }
+    },
+    {
+      "id": "imgui-d3d11",
+      "category": "directx",
+      "tier": "open-source",
+      "supporting": false,
+      "name": "Dear ImGui example_win32_directx11",
+      "version": "1.90.x",
+      "license": "MIT",
+      "source": {
+        "type": "external-repo",
+        "path": "examples/example_win32_directx11",
+        "url": "https://github.com/ocornut/imgui",
+        "build": "MSVC or clang-cl with the Windows SDK"
+      },
+      "sha256": null,
+      "prerequisites": [
+        "PE32+ loader",
+        "d3d11.dll and dxgi.dll user-mode runtime",
+        "D3D11 device creation over a graphics driver",
+        "swapchain presentation",
+        "user32 window"
+      ],
+      "apis_exercised": [
+        "D3D11CreateDeviceAndSwapChain",
+        "IDXGISwapChain::Present",
+        "CreateWindowExW",
+        "WM_PAINT loop"
+      ],
+      "expected_behavior": "A window with the ImGui demo renders continuously and exits cleanly on close.",
+      "pass_criteria": [
+        "device created",
+        "frames presented",
+        "no device-removed error",
+        "clean exit"
+      ],
+      "fail_signals": [
+        "no D3D11 runtime",
+        "no GPU driver path",
+        "swapchain failure",
+        "black window"
+      ],
+      "static_analysis": {
+        "status": "not-run",
+        "reason": "not built in this environment (needs MSVC and Windows SDK)"
+      },
+      "execution": {
+        "status": "not-run",
+        "reason": "requires A3 graphics stack"
+      },
+      "notes": "The smallest honest DirectX target; it still needs a full D3D11 implementation plus a presentable surface.",
+      "hash_pending": true,
+      "hash_pending_reason": "binary not downloaded in this environment; pin the SHA-256 before any execution",
+      "evidence_level": "none",
+      "sandbox_required": true,
+      "provenance": {
+        "retrieved": null,
+        "method": "operator-supplied; hash not yet pinned",
+        "redistribute": false,
+        "verify": "sha256"
+      }
+    },
+    {
+      "id": "d3d12-miniengine",
+      "category": "directx",
+      "tier": "open-source",
+      "supporting": false,
+      "name": "DirectX-Graphics-Samples MiniEngine",
+      "version": "current main",
+      "license": "MIT",
+      "source": {
+        "type": "external-repo",
+        "url": "https://github.com/microsoft/DirectX-Graphics-Samples",
+        "build": "MSVC with the Windows SDK"
+      },
+      "sha256": null,
+      "prerequisites": [
+        "D3D12 runtime",
+        "DXGI 1.4+",
+        "descriptor heaps",
+        "command queues",
+        "shader compiler"
+      ],
+      "apis_exercised": [
+        "D3D12CreateDevice",
+        "command lists",
+        "fences",
+        "descriptor tables",
+        "DXGI swapchain"
+      ],
+      "expected_behavior": "Renders the sample scene at a stable frame rate and exits on escape.",
+      "pass_criteria": [
+        "device created",
+        "frames presented",
+        "no validation errors",
+        "clean exit"
+      ],
+      "fail_signals": [
+        "D3D12 unsupported",
+        "descriptor heap mismatch",
+        "GPU hang/TDR"
+      ],
+      "static_analysis": {
+        "status": "not-run",
+        "reason": "not built in this environment"
+      },
+      "execution": {
+        "status": "not-run",
+        "reason": "requires D3D12 plus a WDDM-equivalent driver model"
+      },
+      "notes": "Explicitly out of scope until D3D11 works; recorded to keep the scope map honest.",
+      "hash_pending": true,
+      "hash_pending_reason": "binary not downloaded in this environment; pin the SHA-256 before any execution",
+      "evidence_level": "none",
+      "sandbox_required": true,
+      "provenance": {
+        "retrieved": null,
+        "method": "operator-supplied; hash not yet pinned",
+        "redistribute": false,
+        "verify": "sha256"
+      }
+    },
+    {
+      "id": "vkd3d-proton-tests",
+      "category": "directx",
+      "tier": "open-source",
+      "supporting": true,
+      "name": "vkd3d-proton test suite (conformance reference)",
+      "version": "current main",
+      "license": "LGPL-2.1",
+      "source": {
+        "type": "external-repo",
+        "url": "https://github.com/HansKristian-Work/vkd3d-proton",
+        "build": "Meson, runs on Linux with Vulkan"
+      },
+      "sha256": null,
+      "prerequisites": [
+        "Vulkan driver",
+        "D3D12-to-Vulkan translation layer",
+        "test harness"
+      ],
+      "apis_exercised": [
+        "D3D12 API surface",
+        "DXGI",
+        "shader translation"
+      ],
+      "expected_behavior": "Serves as a reference for what a D3D12 implementation must do, not as an Ozero test.",
+      "pass_criteria": [
+        "not applicable to Ozero until a D3D12 layer exists"
+      ],
+      "fail_signals": [
+        "using pass counts as an Ozero compatibility claim"
+      ],
+      "static_analysis": {
+        "status": "not-run",
+        "reason": "reference only"
+      },
+      "execution": {
+        "status": "not-run",
+        "reason": "not an Ozero target"
+      },
+      "notes": "Recorded as prior art for A3: a translation layer is a different architecture from a driver model.",
+      "hash_pending": true,
+      "hash_pending_reason": "binary not downloaded in this environment; pin the SHA-256 before any execution",
+      "evidence_level": "none",
+      "sandbox_required": true,
+      "provenance": {
+        "retrieved": null,
+        "method": "operator-supplied; hash not yet pinned",
+        "redistribute": false,
+        "verify": "sha256"
+      }
+    }
+  ]
+}

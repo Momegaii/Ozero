@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-11-23T12:23:30Z",
+  "compiler": {
+    "command": "python3 -m ziglang cc",
+    "version": "0.17.1"
+  },
+  "target": "x86_64-windows-gnu",
+  "fixtures": [
+    {
+      "id": "console_hello",
+      "source": "fixtures/src/console_hello.c",
+      "source_sha256": "63ccdb77707949a62b78c3143fa127d783a0bc35a4d575649a587d19930cbec4",
+      "language": "c",
+      "command": "python3 -m ziglang cc -target x86_64-windows-gnu -O2 -s fixtures/src/console_hello.c -o build/console_hello.exe",
+      "target": "x86_64-windows-gnu",
+      "output": "build/console_hello.exe",
+      "output_sha256": "1e604cb5e651c27b4cc154225223217e98b3131e24602ed291bee2c7113e2f7c",
+      "output_size": 73216,
+      "expected": {
+        "level": "L2",
+        "stdout": "a2 console fixture: compute=22 module=<non-null pointer>",
+        "stdout_match": "prefix:a2 console fixture: compute=22 module=0x",
+        "exit_code": 0
+      },
+      "build_warnings": []
+    },
+    {
+      "id": "fileproc",
+      "source": "fixtures/src/fileproc.c",
+      "source_sha256": "3e34988ee52a295314e1e99a7d8293c656d4cd329918db37b5f72a784033f41d",
+      "language": "c",
+      "command": "python3 -m ziglang cc -target x86_64-windows-gnu -O2 -s fixtures/src/fileproc.c -o build/fileproc.exe",
+      "target": "x86_64-windows-gnu",
+      "output": "build/fileproc.exe",
+      "output_sha256": "2d6a6fbe6327ffc730c8a36368ee30a17560ad5c00a6f110815a9e1a4f71dbfd",
+      "output_size": 74240,
+      "expected": {
+        "level": "L2",
+        "stdout": "a2 file/process fixture: read=4 written=4",
+        "stdout_match": "exact:a2 file/process fixture: read=4 written=4",
+        "exit_code": 0
+      },
+      "build_warnings": []
+    },
+    {
+      "id": "gui_messagebox",
+      "source": "fixtures/src/gui_messagebox.c",
+      "source_sha256": "65074a6321e83e100f9948f1e1dd467f955cdde39271d556af923575628e5545",
+      "language": "c",
+      "command": "python3 -m ziglang cc -target x86_64-windows-gnu -O2 -s -Wl,--subsystem,windows fixtures/src/gui_messagebox.c -o build/gui_messagebox.exe",
+      "target": "x86_64-windows-gnu",
+      "output": "build/gui_messagebox.exe",
+      "output_sha256": "61e763139e670ff842efe10cfc78298bb6e5f1f8bca3e5d96026a33ef6c38fc5",
+      "output_size": 73216,
+      "expected": {
+        "level": "L3",
+        "stdout": null,
+        "stdout_match": null,
+        "exit_code": 0,
+        "notes": "A message box titled 'Ozero A2' must appear and dismiss with OK."
+      },
+      "build_warnings": []
+    },
+    {
+      "id": "tls_dll",
+      "source": "fixtures/src/tls_dll.c",
+      "source_sha256": "d560b6fb4b3f3d89c29912e56858f4ec79f5c9cf48460d6d0c5af4b452a1285e",
+      "language": "c",
+      "command": "python3 -m ziglang cc -target x86_64-windows-gnu -O2 -s -shared fixtures/src/tls_dll.c -o build/tls_dll.dll",
+      "target": "x86_64-windows-gnu",
+      "output": "build/tls_dll.dll",
+      "output_sha256": "13bf410e9522732b73041f2ae3784509a28742a173c2469e997452a43055f9f6",
+      "output_size": 70656,
+      "expected": {
+        "level": "L2",
+        "stdout": null,
+        "stdout_match": null,
+        "exit_code": 0,
+        "notes": "Host process calls a2_add(2,3)=5 and a2_get_counter()=8 after the TLS callback runs."
+      },
+      "build_warnings": []
+    },
+    {
+      "id": "cpp_throw",
+      "source": "fixtures/src/cpp_throw.cpp",
+      "source_sha256": "10d50c5be2e7a97df8c1044c011522d853c1ffe31386e7c1b21612ca9e94600f",
+      "language": "cpp",
+      "command": "python3 -m ziglang cc -target x86_64-windows-gnu -O2 -s -fexceptions -lc++ -lc++abi fixtures/src/cpp_throw.cpp -o build/cpp_throw.exe",
+      "target": "x86_64-windows-gnu",
+      "output": "build/cpp_throw.exe",
+      "output_sha256": "70403ee7002e94023f609e8d902f844f35f6bb7bcc47e1c8c9beca91eb653b9f",
+      "output_size": 225280,
+      "expected": {
+        "level": "L2",
+        "stdout": "a2 c++ fixture: caught=42",
+        "stdout_match": "exact:a2 c++ fixture: caught=42",
+        "exit_code": 0
+      },
+      "build_warnings": []
+    }
+  ]
+}
