@@ -37,6 +37,27 @@ hosted libc headers.
   unfrozen (A2/A4).
 - A4 owns repository, build and CI. `tools/check-headers.sh` is a developer aid, not CI.
 
+## Pinned facts
+
+- Limine base revision 6 is requested, but revision 6 changes only aarch64, riscv64 and
+  loongarch64. Every x86-64 entry-state guarantee is a revision-5 guarantee. Do not claim
+  otherwise.
+- Pinned Limine protocol commit `877c2d4c`, `PROTOCOL.md` SHA-256 `3e702cd9…`, `limine.h`
+  SHA-256 `bd2fa78d…`, bootloader `v12.11.1`. Full hashes and retrieval date are in
+  `docs/sources.md`.
+- The HHDM is partial and may overshoot region boundaries. Use `o0_hhdm_to_virt`; never
+  treat `phys + hhdm_offset` as valid for arbitrary physical memory.
+- Parked APs run bootloader trampoline code on bootloader stacks. `goto_address` must be
+  the original `limine_mp_info`, and reclaim requires AP proof records.
+
+## Repository integration
+
+- Shared source of truth: <https://github.com/Momegaii/Ozero>. A1 works on branch
+  `a1/stage0-review` and integrates through a pull request. Never push to `main`.
+- Reports must name commit hashes, changed files, commands actually run, raw results,
+  unresolved risks and cross-agent dependencies. Never claim Stage 0 acceptance; that is
+  the director's decision.
+
 ## Reporting
 
 Use the briefing's fields: Status, Evidence (commit, files, command, raw output),
