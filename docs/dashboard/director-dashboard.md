@@ -205,7 +205,7 @@ Ten rows are **Open**; XB-006, XB-007, XB-008, XB-009, XB-010 and XB-015 are **C
 | A1 | Second-round response; PR #1 draft at `115a7f4` | Submitted; not integrated | D-005, XB-001, XB-002, XB-014, XB-016 |
 | A2 | Static-only PE package; PR #2 draft at `807c447`; evidence at `50b7853` | Submitted; not integrated | A1 review (XB-002/XB-014), XB-013 |
 | A3 | — | No branch, commit or interface | D-001; must publish IF-008; XB-005, XB-011 |
-| A4 | Stage 0 review follow-up; PR [#3](https://github.com/Momegaii/Ozero/pull/3); head `9ef13bd` + audit commit | Submitted; awaiting review | Director review |
+| A4 | Stage 0 review follow-up; PR [#3](https://github.com/Momegaii/Ozero/pull/3); head `210653c` + audit commit | Submitted; awaiting review | Director review |
 
 ## Change log
 
@@ -220,4 +220,5 @@ Ten rows are **Open**; XB-006, XB-007, XB-008, XB-009, XB-010 and XB-015 are **C
 | 2026-11-23 | Director round 2: namespace D-009, ownership D-010, settings D-031, cross-agent r2 | `19dac9d` |
 | 2026-11-23 | A2 evidence re-verified at `807c447`; XB-009 closed, XB-013 opened | `076ed82` |
 | 2026-11-23 | A4 Stage 0 review PR [#3](https://github.com/Momegaii/Ozero/pull/3) opened against `main` | `9ef13bd` |
-| 2026-11-23 | A1 second-round response verified at `115a7f4`; namespace aligned to `include/ozero/`; D-009/D-010 merged; D-031 renumber | this audit commit |
+| 2026-11-23 | A1 second-round response verified at `115a7f4`; namespace aligned to `include/ozero/`; D-009/D-010 merged; D-031 renumber | `210653c` |
+| 2026-11-23 | Repository audit refreshed after A1's second-round commits | this audit commit |

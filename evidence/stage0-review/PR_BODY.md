@@ -33,7 +33,8 @@ the review evidence, the cross-agent verification and the Director's 23 Nov A4 a
 | `19dac9d` | Director round 2: namespace, ownership, settings, r2 verification |
 | `076ed82` | Verify updated A2 evidence and ancestry |
 | `9ef13bd` | Record Stage 0 PR #3 and close XB-010 |
-| audit commit | Record A1 second-round head, namespace alignment and ID mapping |
+| `210653c` | Align A4 with A1's second-round response and merge the decision IDs |
+| audit commit | Refresh the repository audit after A1's second-round commits |
 
 ## Tests run at the published head
 
