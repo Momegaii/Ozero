@@ -10,7 +10,7 @@ foundational decisions (see `docs/kernel-architecture.md` §6).
 
 - `docs/` — architecture note, boot contract, CPU matrix, interface draft, Stage 1 plan,
   Stage 0 report, source index.
-- `include/o0/` — public interface sketch (freestanding C11).
+- `include/ozero/` — public interface sketch (freestanding C11).
 - `tests/abi_static_asserts.c` — compile-time ABI checks.
 - `tools/check-headers.sh` — the only runnable check today.
 
@@ -30,7 +30,7 @@ hosted libc headers.
   [ACPI-*], [LIMINE-*]). Do not invent section numbers; cite by volume and chapter title
   when unsure.
 - Generic kernel interfaces must stay device-neutral. No GPU generation, vendor or
-  device-class assumptions in `include/o0/mm.h`, `irq.h`, `driver.h` or `thread.h`.
+  device-class assumptions in `include/ozero/mm.h`, `irq.h`, `driver.h` or `thread.h`.
 - Headers: `o0_` prefix, include guard `O0_<NAME>_H`, `extern "C"`, fixed-width types,
   `o0_status` returns, no errno/NTSTATUS, no hosted libc.
 - The syscall ABI, handle encoding and user-visible error mapping are deliberately

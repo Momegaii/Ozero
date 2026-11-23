@@ -10,7 +10,7 @@ acceptance certificate. Nothing below claims runtime behaviour that was not exec
 | Kernel architecture note | draft, review response applied | `docs/kernel-architecture.md` |
 | Boot contract | draft, review response applied | `docs/boot-contract.md` |
 | CPU baseline matrix | draft, review response applied | `docs/cpu-baseline.md` |
-| Interface draft | draft (sketch) | `docs/interface-draft.md`, `include/o0/` |
+| Interface draft | draft (sketch) | `docs/interface-draft.md`, `include/ozero/` |
 | Stage 1 plan | draft | `docs/stage1-plan.md` |
 | Source index and pins | complete for this review | `docs/sources.md` |
 | Stage 0 report | this document | `docs/stage0-report.md` |
@@ -25,8 +25,8 @@ pending director approval. A3 interface review is signed with one recorded block
 | 1 | Pin exact Limine protocol commit, binary hash, header hash and base revision; refuse unsupported revision | Done | `docs/sources.md` "Pinned artefacts"; `docs/boot-contract.md` §2.2, §11 |
 | 2 | Correct base-revision explanation, separating current revision from x86-specific changes | Done | `docs/boot-contract.md` §3; `docs/kernel-architecture.md` D1; `docs/sources.md` |
 | 3 | Document AP lifecycle: parked stack, trampoline, MP response lifetime, AP switch, proof before reclaim | Done | `docs/boot-contract.md` §9.1–§9.4; `docs/stage1-plan.md` M7 |
-| 4 | Define HHDM mapping predicates, checked arithmetic, MMIO distinction | Done | `docs/boot-contract.md` §5.1; `include/o0/mm.h`; `docs/stage1-plan.md` M1 |
-| 5 | Review A3 platform/DMA/block APIs: address width, IOMMU, coherency, lifetimes, reset, in-flight DMA | Done, with blocker | `docs/interface-draft.md` §11; `include/o0/mm.h`, `include/o0/driver.h` |
+| 4 | Define HHDM mapping predicates, checked arithmetic, MMIO distinction | Done | `docs/boot-contract.md` §5.1; `include/ozero/mm.h`; `docs/stage1-plan.md` M1 |
+| 5 | Review A3 platform/DMA/block APIs: address width, IOMMU, coherency, lifetimes, reset, in-flight DMA | Done, with blocker | `docs/interface-draft.md` §11; `include/ozero/mm.h`, `include/ozero/driver.h` |
 | 6 | Return a source-to-contract table for critical boot claims | Done | `docs/boot-contract.md` §14 (21 rows); `docs/cpu-baseline.md` §4.1 |
 
 Definition-of-done check:
@@ -36,7 +36,7 @@ Definition-of-done check:
 | No ambiguous claim that revision 6 adds new x86 state | Met | `docs/boot-contract.md` §3, `docs/kernel-architecture.md` D1, `docs/sources.md` |
 | Every entry-state register claim cites pinned source and Intel SDM section | Met | Per-row Source columns in §3.1–§3.4, §14 table, `docs/cpu-baseline.md` §4.1 |
 | AP and bootloader-memory lifetime is explicit | Met | `docs/boot-contract.md` §8, §9.1–§9.4 |
-| HHDM conversion checks mapped type, range and overflow | Met | `docs/boot-contract.md` §5.1; `o0_hhdm_to_virt` in `include/o0/mm.h` |
+| HHDM conversion checks mapped type, range and overflow | Met | `docs/boot-contract.md` §5.1; `o0_hhdm_to_virt` in `include/ozero/mm.h` |
 | A1 signs A3 interface review or records blockers | Met, with one blocker | `docs/interface-draft.md` §11 |
 
 ## 3. Evidence
@@ -51,7 +51,7 @@ Definition-of-done check:
 - Files in that commit:
   - `docs/boot-contract.md`, `docs/cpu-baseline.md`, `docs/interface-draft.md`,
     `docs/kernel-architecture.md`, `docs/sources.md`, `docs/stage1-plan.md`
-  - `include/o0/boot.h`, `include/o0/driver.h`, `include/o0/mm.h`, `include/o0/status.h`
+  - `include/ozero/boot.h`, `include/ozero/driver.h`, `include/ozero/mm.h`, `include/ozero/status.h`
   - `tests/abi_static_asserts.c`
 - Full repository file list: `git ls-files`.
 
@@ -73,14 +73,14 @@ PASS  status.h
 PASS  thread.h
 PASS  types.h
 == umbrella header, C and C++ ==
-PASS  o0/o0.h (C11)
-PASS  o0/o0.h (C++17)
+PASS  ozero/o0.h (C11)
+PASS  ozero/o0.h (C++17)
 == ABI static assertions ==
 PASS  tests/abi_static_asserts.c
 == generic-interface device neutrality ==
-PASS  no device-class or GPU-generation terms in include/o0
+PASS  no device-class or GPU-generation terms in include/ozero
 == freestanding headers only ==
-PASS  no hosted libc headers in include/o0
+PASS  no hosted libc headers in include/ozero
 RESULT: PASS
 ```
 

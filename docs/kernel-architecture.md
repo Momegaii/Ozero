@@ -51,7 +51,7 @@ a single ring-3 test thread.
 
 ## 3. Subsystem map
 
-Interfaces are sketches in `include/o0/`. Header names are stable; function signatures
+Interfaces are sketches in `include/ozero/`. Header names are stable; function signatures
 are not frozen.
 
 | Subsystem | Responsibility | Public header |
@@ -80,7 +80,7 @@ declared in generic headers and implemented under `arch/`.
 ## 4. Repository layout (proposal; A4 owns build integration)
 
 ```
-include/o0/        public kernel headers (this Stage 0 deliverable)
+include/ozero/        public kernel headers (this Stage 0 deliverable)
 arch/x86_64/       entry, cpu, gdt, idt, apic, paging, msr, tsc, serial
 kernel/            mm, sched, obj, ipc, irq, drivers, time, lib
 boot/              limine configuration and image assembly

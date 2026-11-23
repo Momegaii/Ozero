@@ -5,7 +5,7 @@
 #ifndef O0_CPU_H
 #define O0_CPU_H
 
-#include "o0/types.h"
+#include "ozero/types.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -7,10 +7,10 @@
 #ifndef O0_DRIVER_H
 #define O0_DRIVER_H
 
-#include "o0/irq.h"
-#include "o0/mm.h"
-#include "o0/status.h"
-#include "o0/types.h"
+#include "ozero/irq.h"
+#include "ozero/mm.h"
+#include "ozero/status.h"
+#include "ozero/types.h"
 
 #ifdef __cplusplus
 extern "C" {

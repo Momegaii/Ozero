@@ -142,7 +142,7 @@ stacks, or reclaims the bootloader GDT.
 ## 4. Boot information
 
 The kernel copies everything it needs into kernel-owned memory during early init. The
-canonical structure is `struct o0_boot_info` in `include/o0/boot.h`.
+canonical structure is `struct o0_boot_info` in `include/ozero/boot.h`.
 
 | Field group | Contents | Source | Lifetime requirement |
 |---|---|---|---|

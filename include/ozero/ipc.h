@@ -7,8 +7,8 @@
 #ifndef O0_IPC_H
 #define O0_IPC_H
 
-#include "o0/status.h"
-#include "o0/types.h"
+#include "ozero/status.h"
+#include "ozero/types.h"
 
 #ifdef __cplusplus
 extern "C" {

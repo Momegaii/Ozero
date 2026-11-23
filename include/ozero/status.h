@@ -6,7 +6,7 @@
 #ifndef O0_STATUS_H
 #define O0_STATUS_H
 
-#include "o0/types.h"
+#include "ozero/types.h"
 
 #ifdef __cplusplus
 extern "C" {

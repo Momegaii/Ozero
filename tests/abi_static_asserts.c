@@ -4,7 +4,7 @@
  * headers are self-consistent, freestanding, and that the documented ABI facts hold on
  * x86-64.
  */
-#include "o0/o0.h"
+#include "ozero/o0.h"
 
 _Static_assert(O0_PAGE_SIZE == 4096u, "page size");
 _Static_assert(sizeof(o0_paddr_t) == 8u, "physical address width");

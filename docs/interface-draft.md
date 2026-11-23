@@ -163,14 +163,14 @@ PASS  status.h
 PASS  thread.h
 PASS  types.h
 == umbrella header, C and C++ ==
-PASS  o0/o0.h (C11)
-PASS  o0/o0.h (C++17)
+PASS  ozero/o0.h (C11)
+PASS  ozero/o0.h (C++17)
 == ABI static assertions ==
 PASS  tests/abi_static_asserts.c
 == generic-interface device neutrality ==
-PASS  no device-class or GPU-generation terms in include/o0
+PASS  no device-class or GPU-generation terms in include/ozero
 == freestanding headers only ==
-PASS  no hosted libc headers in include/o0
+PASS  no hosted libc headers in include/ozero
 RESULT: PASS
 ```
 

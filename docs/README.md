@@ -18,7 +18,7 @@ implementation; decisions marked *pending* need director sign-off.
 
 ## Interface sketch
 
-`include/o0/` contains the headers: `types.h`, `status.h`, `boot.h`, `cpu.h`, `mm.h`,
+`include/ozero/` contains the headers: `types.h`, `status.h`, `boot.h`, `cpu.h`, `mm.h`,
 `irq.h`, `thread.h`, `ipc.h`, `driver.h`, plus the `o0.h` umbrella. They are sketches, not
 a frozen ABI. Signatures may change in review.
 
