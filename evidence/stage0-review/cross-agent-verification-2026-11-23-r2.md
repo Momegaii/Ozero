@@ -9,7 +9,7 @@ first note stays as the earlier snapshot.
 | `origin/a1/stage0-review` | `90b004f` | PR #1, open, draft |
 | `origin/agent/a2-stage0` | `807c447` | PR #2, open, draft; evidence-only commit after code `50b7853` |
 | A3 | none | no branch, commit or interface |
-| `origin/a4/stage0-review-followup` | `5642c16` at snapshot | published; PR opened after this snapshot |
+| `origin/a4/stage0-review-followup` | `076ed82` at this revision | published; PR #3 open |
 
 ## Commit ancestry
 
@@ -80,7 +80,7 @@ and signs the contract.
 | --- | --- | --- | --- |
 | #1 | `a1/stage0-review` | `main` | yes |
 | #2 | `agent/a2-stage0` at `807c447` | `main` | yes |
-| A4 | `a4/stage0-review-followup` | `main` | opened after this snapshot |
+| #3 | `a4/stage0-review-followup` at `076ed82` | `main` | no |
 
 ## Namespace and ownership resolution
 

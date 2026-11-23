@@ -46,9 +46,9 @@ promotion is implied by this instruction.
 
 | Action | Disposition | Evidence |
 | --- | --- | --- |
-| 1. Open the A4 Stage 0 review PR | Done | PR link recorded in the dashboard and blocker register |
+| 1. Open the A4 Stage 0 review PR | Done | [#3](https://github.com/Momegaii/Ozero/pull/3) |
 | 2. Refresh audit after A3 is published | Pending A3 | A3 has no branch at this snapshot; XB-011 tracks the refresh |
-| 3. Verify A1/A2/A3 evidence and ancestry | Done for A1/A2; A3 absent | `cross-agent-verification-2026-11-23-r2.md` |
+| 3. Verify A1/A2/A3 evidence and ancestry | Done for A1/A2; A3 absent | `cross-agent-verification-2026-11-23-r2.md`; A2 evidence at `50b7853`, head `807c447` |
 | 4. Resolve namespace and ownership | Done | D-009, D-010, `CODEOWNERS`, `ownership.md` |
 | 5. Keep MBR and kernel boot separate | Done | `tests/targets.tsv`, dashboard, PR body |
 | 6. Confirm branch protection and checks | Done: not enabled | `github-settings.txt`, D-011 |

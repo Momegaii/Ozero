@@ -6,7 +6,7 @@
 | Repository | `Momegaii/Ozero` |
 | Branch | `a4/stage0-review-followup` (published) |
 | Commit under test | `43961551442009aac8189e5edca3f5c7af43a2cd` |
-| Current head | `5642c16` plus round-2 documentation commits |
+| Current head | `076ed82` plus the audit commit |
 | Import commit | `5a50c0d28f323372cad5126baf6645df07407975` |
 | Base commit | `147cc86c027cef7cec42525024d26dcccf66d7db` (`origin/main`) |
 | Date | 2026-11-23 |
@@ -82,4 +82,5 @@ make verify-clean
 - The image is the A4 MBR harness fixture, not the Ozero kernel.
 - A1 and A2 have review branches, but neither is integrated; A3 has no branch. No cross-agent
   interface or driver test has run.
-- The branch is published and the Stage 0 PR is open. Stage 0 is still not accepted.
+- The branch is published and Stage 0 PR [#3](https://github.com/Momegaii/Ozero/pull/3) is open.
+  Stage 0 is still not accepted.

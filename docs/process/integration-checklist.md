@@ -89,7 +89,7 @@ Stage 0 has no persistent state, so rollback is a revert. For later stages:
 
 ## Current branch integration order
 
-At the 2026-11-23 snapshot the open branches are `a4/stage0-review-followup`,
+At the 2026-11-23 snapshot the open branches are `a4/stage0-review-followup` (PR #3),
 `a1/stage0-review` (PR #1) and `agent/a2-stage0` (PR #2). A3 has no branch. Merge in this order:
 
 1. A4 control plane: it defines `CODEOWNERS`, `Makefile`, `tests/targets.tsv`, `scripts/` and the

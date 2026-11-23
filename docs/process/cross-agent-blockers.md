@@ -14,8 +14,8 @@ signs the interface and the evidence is linked here. Status words are **Open**, 
 | XB-006 | A4 → Director | Publish the A4 branch (D-008) | **Closed** | Published at `84fe81a`; upstream set to `origin/a4/stage0-review-followup` |
 | XB-007 | A1 → A4 | Public header namespace conflict | **Closed** | D-009: canonical namespace is `include/o0/`; A1 keeps its headers; map, `CODEOWNERS`, ADR and interfaces updated |
 | XB-008 | A1 → A3 | A1's `tools/check-headers.sh` sits in the A3-owned `tools/` tree | **Closed** | D-010: A1 owns `tools/check-headers.sh` with A3 review; specific `CODEOWNERS` entry added |
-| XB-009 | A2 → A4 | A2 evidence headers cite `8bac650`, but the branch head is `f324b28` | **Closed** | A2 regenerated evidence at code revision `50b7853`; `807c447` adds only evidence files and headers cite `50b7853` |
-| XB-010 | A4 → Director | Open the A4 Stage 0 review pull request | **Open** | Branch is on the remote; PR creation is in progress in this round |
+| XB-009 | A2 → A4 | A2 evidence headers cited an older revision than the branch head | **Closed** | A2 regenerated evidence at code revision `50b7853`; `807c447` adds only evidence files and headers cite `50b7853` |
+| XB-010 | A4 → Director | Open the A4 Stage 0 review pull request | **Closed** | Opened as [#3](https://github.com/Momegaii/Ozero/pull/3) at `076ed82` |
 | XB-011 | A3 → A4 | Publish A3 so A4 can refresh the repository audit | **Open** | A3 has no branch; the audit is refreshed for A1/A2/A4 and must be refreshed again after A3 publishes |
 | XB-012 | A4 → Director | Enable `main` branch protection and required CI checks | **Open** | `protected:false`; rulesets count 0; required checks are not enabled (D-011) |
 | XB-013 | A2 → A4 | A2's review response still cites import revision `8bac650` | **Open** | A2 updates the response header to code revision `50b7853` and evidence commit `807c447` |

@@ -22,8 +22,8 @@
   and is never described as kernel boot.
 - D-008, D-009 and D-010 are **Approved** by the 23 Nov Director instruction. The remaining
   decisions are **Proposed**. Stage 0 is **not accepted** (D-006).
-- The A4 Stage 0 PR is open. `main` is **not protected** and has **no required status checks**
-  (XB-012 / D-011).
+- The A4 Stage 0 PR is open: [#3](https://github.com/Momegaii/Ozero/pull/3). `main` is **not
+  protected** and has **no required status checks** (XB-012 / D-011).
 
 ## Stage 0 review actions
 
@@ -40,7 +40,7 @@
 
 | # | Action | Status | Evidence |
 | --- | --- | --- | --- |
-| 1 | Open the A4 Stage 0 review PR | Done | A4 PR against `main` |
+| 1 | Open the A4 Stage 0 review PR | Done: [#3](https://github.com/Momegaii/Ozero/pull/3) | A4 PR against `main` |
 | 2 | Refresh the repository audit after A3 is published | Pending A3 | XB-011; audit refreshed for A1/A2/A4 |
 | 3 | Verify A1/A2/A3 evidence and commit ancestry | Done for A1/A2; A3 absent | `cross-agent-verification-2026-11-23-r2.md` |
 | 4 | Resolve the shared namespace and ownership conflicts | Done | D-009, D-010, `CODEOWNERS`, `ownership.md` |
@@ -110,16 +110,16 @@
 | 2 | GitHub team slugs in `CODEOWNERS` are placeholders | Project Director | Review enforcement is not active | Before Stage 1 |
 | 3 | Boot protocol is proposed as Limine v12.11.1, base revision 6; Director D-005 is open | A1 → Director | A1 cannot finalise the boot path; the MBR harness is protocol-neutral | Stage 1 design |
 | 4 | Branch protection and required CI checks are not enabled | Project Director (XB-012 / D-011) | The merge gate is advisory until enabled | Before Stage 1 |
-| 5 | A4 Stage 0 PR is open; Director review pending | Project Director (XB-010) | Review is in progress; no acceptance is implied | Stage 0 review |
+| 5 | A4 Stage 0 PR [#3](https://github.com/Momegaii/Ozero/pull/3) is open; Director review pending | Project Director (XB-010) | Review is in progress; no acceptance is implied | Stage 0 review |
 | 6 | A1 and A2 branches are not integrated; A3 has no branch | A1, A2, A3, A4 | Cross-agent gates are defined but untested; merge conflicts are known | Stage 1 |
-| 7 | Nine cross-agent dependencies are Open | A1, A2, A3, A4 | Dependent work cannot merge without owner sign-off | Stage 1 |
+| 7 | Eight cross-agent dependencies are Open | A1, A2, A3, A4 | Dependent work cannot merge without owner sign-off | Stage 1 |
 | 8 | A3 has not published; audit refresh is pending | A3 → A4 (XB-011) | The audit covers A1/A2/A4 only | After A3 publication |
 | 9 | A2's review response cites `8bac650`; evidence is at `50b7853` | A2 → A4 (XB-013) | Response provenance is stale until A2 updates the header | Before A2 merge |
 
 ## Cross-agent dependencies
 
 The live register is [`docs/process/cross-agent-blockers.md`](../process/cross-agent-blockers.md).
-Nine rows are **Open**; XB-006, XB-007, XB-008 and XB-009 are **Closed**. None is **Signed**.
+Eight rows are **Open**; XB-006, XB-007, XB-008, XB-009 and XB-010 are **Closed**. None is **Signed**.
 
 | ID | Dependency | Owner | State |
 | --- | --- | --- | --- |
@@ -132,7 +132,7 @@ Nine rows are **Open**; XB-006, XB-007, XB-008 and XB-009 are **Closed**. None i
 | XB-007 | Public header namespace conflict | A1 → A4 | Closed by D-009: canonical `include/o0/` |
 | XB-008 | A1's `tools/check-headers.sh` is in A3-owned `tools/` | A1 → A3 | Closed by D-010: A1 owns, A3 reviews |
 | XB-009 | A2 evidence revision mismatch | A2 → A4 | Closed: evidence regenerated at `50b7853`; `807c447` is evidence-only |
-| XB-010 | A4 opens the Stage 0 review PR | A4 → Director | Closed: PR open |
+| XB-010 | A4 opens the Stage 0 review PR | A4 → Director | Closed: [#3](https://github.com/Momegaii/Ozero/pull/3) |
 | XB-011 | A3 publishes so A4 can refresh the audit | A3 → A4 | Open; A3 has no branch |
 | XB-012 | Enable `main` protection and required checks | A4 → Director | Open; `protected:false`, rulesets 0 |
 | XB-013 | A2 response still cites `8bac650` | A2 → A4 | Open; update response header to `50b7853` / `807c447` |
@@ -188,6 +188,7 @@ Nine rows are **Open**; XB-006, XB-007, XB-008 and XB-009 are **Closed**. None i
 | Director review and A4 disposition | `evidence/stage0-review/director-review-2026-11-23.md` | Recorded |
 | GitHub branch protection and checks | `evidence/stage0-review/github-settings.txt` | Recorded; protection not enabled |
 | PR body | `evidence/stage0-review/PR_BODY.md` | Recorded |
+| Stage 0 review PR | <https://github.com/Momegaii/Ozero/pull/3> | Open; not accepted |
 
 ## Agent status
 
@@ -196,7 +197,7 @@ Nine rows are **Open**; XB-006, XB-007, XB-008 and XB-009 are **Closed**. None i
 | A1 | Stage 0 review response; PR #1 draft at `90b004f` | Submitted; not integrated | D-005, XB-001, XB-002 |
 | A2 | Static-only PE package; PR #2 draft at `807c447`; evidence at `50b7853` | Submitted; not integrated | A1 review (XB-002), XB-013 |
 | A3 | — | No branch, commit or interface | D-001; must publish IF-008; XB-005, XB-011 |
-| A4 | Stage 0 review follow-up; PR open; head `5642c16` + round-2 commits | Submitted; awaiting review | Director review (XB-010 closed) |
+| A4 | Stage 0 review follow-up; PR [#3](https://github.com/Momegaii/Ozero/pull/3); head `076ed82` + audit commit | Submitted; awaiting review | Director review |
 
 ## Change log
 
@@ -208,5 +209,6 @@ Nine rows are **Open**; XB-006, XB-007, XB-008 and XB-009 are **Closed**. None i
 | 2026-11-23 | Cross-agent blocker register; refreshed audit | `596fc6f` |
 | 2026-11-23 | A1/A2 branch verification; A3 absence; namespace and ownership findings | `84fe81a` |
 | 2026-11-23 | A4 branch published to `origin`; upstream set | `84fe81a` |
-| 2026-11-23 | Director round 2: namespace D-009, ownership D-010, settings D-011, cross-agent r2 | this commit |
-| 2026-11-23 | A4 Stage 0 review PR opened against `main` | this commit |
+| 2026-11-23 | Director round 2: namespace D-009, ownership D-010, settings D-011, cross-agent r2 | `19dac9d` |
+| 2026-11-23 | A2 evidence re-verified at `807c447`; XB-009 closed, XB-013 opened | `076ed82` |
+| 2026-11-23 | A4 Stage 0 review PR [#3](https://github.com/Momegaii/Ozero/pull/3) opened against `main` | this commit |
