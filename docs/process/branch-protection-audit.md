@@ -20,12 +20,11 @@
 | `CODEOWNERS` on the A4 branch | Exists, but every rule uses `@ozero/...` team slugs | The repository is owned by a **User**, not an organization; those teams do not exist, so the rules cannot resolve |
 | Collaborators | Only `Momegaii` with admin permission | A rule requiring one approval would block the sole author from merging their own PR |
 | Workflow | `.github/workflows/stage0.yml` runs on `pull_request` and on `push` to `main` | The check exists, but it is not required by protection |
-| Check context | `gh pr checks 3` reports `build-and-boot` as passing | The exact required-check context should be `build-and-boot` |
-| PR #3 | Open, non-draft, head `7208a28` at audit time, `MERGEABLE` / `CLEAN` | The PR gate is advisory until protection is enabled |
+| Check context | `gh pr checks 3` reports `build-and-boot` pass in 4m40s (run `45202583407`) | The exact required-check context should be `build-and-boot` |
+| PR #3 | Open, non-draft, head `a5fbbf9`, `MERGEABLE` / `CLEAN` | The PR gate is advisory until protection is enabled |
 
-The protection read endpoint returns HTTP 403 for the supplied token, but the public branch
-metadata is sufficient for the `protected: false` finding. The 403 is a token-permission limit,
-not evidence that protection exists.
+`main` is still `147cc86`. The audit head is `a5fbbf9`. No branch-protection, ruleset or
+`CODEOWNERS` setting was changed.
 
 ## 2. Recommended settings
 

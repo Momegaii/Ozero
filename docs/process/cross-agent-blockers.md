@@ -5,13 +5,15 @@ signs the interface and the evidence is linked here. Status words are **Open**, 
 **Closed**; only the named owner can move a row to Signed.
 
 Snapshot 2026-11-23 after the Director execution directive: **3 Open, 17 Closed, 1 Signed.** Raw
-checks are in [`evidence/stage0-review/a3-integration-verification-2026-11-23.md`](../../evidence/stage0-review/a3-integration-verification-2026-11-23.md)
+checks are in [`directive-checks-2026-11-23.log`](../../evidence/stage0-review/directive-checks-2026-11-23.log),
+[`a3-integration-verification-2026-11-23.md`](../../evidence/stage0-review/a3-integration-verification-2026-11-23.md)
 and [`a3-integration-checks-2026-11-23.log`](../../evidence/stage0-review/a3-integration-checks-2026-11-23.log).
 A1 is at `2693a34`; A2 is at `d83cfbe` (code `f6ed1d8`, evidence `d83cfbe`) and is integrated into
 the A4 candidate at `f0c64a9`; A3 PR #4 is at `48d434f`; A4 merged A3 into the candidate at
-`44d566e`. The A4 tree now has `a2/`, `a3/` and root `include/ozero/`; XB-020 is Closed. PR #4 is
-merged into the A4 branch at `44d566e`. `main` remains `147cc86`. The IF-009 v1.1 six negative cases
-are implemented at `31e6825`, with evidence at `37e9bf0`; XB-021 is Closed for implementation.
+`44d566e`. A4 head is `a5fbbf9`. The A4 tree now has `a2/`, `a3/` and root `include/ozero/`;
+XB-020 is Closed. PR #4 is merged into the A4 branch at `44d566e`. `main` remains `147cc86`. The
+IF-009 v1.1 six negative cases are implemented at `31e6825`, with evidence at `37e9bf0`; XB-021 is
+Closed for implementation.
 
 | ID | From → to | Dependency | State | Evidence or next action |
 | --- | --- | --- | --- | --- |
@@ -26,7 +28,7 @@ are implemented at `31e6825`, with evidence at `37e9bf0`; XB-021 is Closed for i
 | XB-009 | A2 → A4 | A2 evidence headers cited an older revision than the branch head | **Closed** | A2 regenerated evidence at code revision `f6ed1d8`; evidence commit `d83cfbe`; all evidence headers name `f6ed1d8` |
 | XB-010 | A4 → Director | Open the A4 Stage 0 review pull request | **Closed** | Opened as [#3](https://github.com/Momegaii/Ozero/pull/3) at `076ed82` |
 | XB-011 | A3 → A4 | Publish A3 so A4 can refresh the repository audit | **Closed** | A3 branch `a3/stage0-review-response` is published; PR #4 head `48d434f` was merged into the A4 branch at `44d566e`. The r4/r5/r6 audits include it. This row is audit access only, not merge approval |
-| XB-012 | A4 → Director | Enable `main` branch protection and required CI checks | **Open** | Rechecked: `branches/main` reports `protected:false`; rulesets are `[]`; `CODEOWNERS` is 404 on `main`; the protection endpoint returns HTTP 403 for the supplied PAT, so the protection object is not readable; no required checks are visible (D-031). The exact payloads and the user-vs-organization `CODEOWNERS` problem are in [`branch-protection-audit.md`](../process/branch-protection-audit.md) and [`github-settings-a4-2026-11-23.txt`](../../evidence/stage0-review/github-settings-a4-2026-11-23.txt) |
+| XB-012 | A4 → Director | Enable `main` branch protection and required CI checks | **Open** | Rechecked at A4 `a5fbbf9`: `branches/main` reports `protected:false` and required checks `[]`; rulesets are `[]`; `CODEOWNERS` is 404 on `main`; PR #3 `build-and-boot` passes in 4m40s but is not required. No setting was changed (D-031). The exact payloads and the user-vs-organization `CODEOWNERS` problem are in [`branch-protection-audit.md`](../process/branch-protection-audit.md) and [`github-settings-a4-2026-11-23.txt`](../../evidence/stage0-review/github-settings-a4-2026-11-23.txt) |
 | XB-013 | A2 → A4 | A2's review response and ledger lag the evidence revision | **Closed** | A4 reconciled the A2 ledger in the consolidated candidate: `docs/architecture/a2-review-ledger-reconciled.md` records code `f6ed1d8` / evidence `d83cfbe`, the `d02598a` signed contract, the unchanged manifest blob `f505cb4d…`, and all three signatures. A2's branch ledger at `d83cfbe` remains historical and is not rewritten. XB-003 stays Closed for IF-009 v1.0 |
 | XB-014 | A1 → A2 | A1 reviewed A2 at `f324b28`; A2 has since moved | **Closed** | A1 re-reviewed the added requirements at A2 `50b7853` / evidence `807c447` in `docs/a2-contract-review-response.md`; A2 accepted all 12 at `6d305b8`. Later A2 changes are docs, evidence and test-token updates, not new A1-REV requirements |
 | XB-015 | A4 → Director | A1's D-009–D-030 block collided with A4's D-009–D-011 | **Closed** | D-009 and D-010 merged on the same topics; A1's D-011 retained; A4 branch protection renumbered D-031; D-012–D-030 recorded as Proposed |

@@ -83,7 +83,7 @@ manifest records `commit: unknown` inside both reproducibility copies.
 | `a3-check-307b919.log`, `a3-a1-header-check-307b919.log` | A3 package checks at `307b919`; A1 headers at `74b1471` |
 | `director-review-2026-11-23.md` | Director integration review and A4 disposition |
 | `github-settings.txt` | Branch protection, rulesets and required-check state (earlier capture) |
-| `github-settings-a4-2026-11-23.txt` | Live A4 audit: branch metadata, rulesets, `CODEOWNERS`, owner type, collaborators, PR #3 check |
+| `github-settings-a4-2026-11-23.txt` | Live A4 audit at `a5fbbf9`: branch metadata, rulesets, `CODEOWNERS`, owner type, collaborators, PR #3 `build-and-boot` pass |
 | `directive-checks-2026-11-23.log` | A2 check, A3 check, CI safety and full CI at `6a934a0`; all exit 0 |
 | `../../docs/decisions/D-005-boot-protocol-package.md` | D-005 alternatives, recommendation, compatibility and approvals |
 | `../../docs/process/branch-protection-audit.md` | XB-012 audit and exact recommended protection payloads |
