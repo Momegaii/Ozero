@@ -79,6 +79,7 @@ exit=0
 | XB-013 | A2 response still cites `8bac650` | Open; update header to `50b7853` / `807c447` |
 | XB-014 | A1 review of A2 is at `f324b28`; A2 moved | Open; A1 re-review or no-change confirmation |
 | XB-015 | A1 decision block collided with A4 IDs | Closed: D-009/D-010 merged; A1 D-011 kept; A4 protection renumbered D-031 |
+| XB-016 | A1 command output is inline, not a raw log | Open; copy to `evidence/a1-stage0/` before merge |
 
 ## Decisions
 
