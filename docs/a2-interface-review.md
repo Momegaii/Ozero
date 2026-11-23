@@ -12,8 +12,8 @@
 | Global decisions | D-011, D-018, D-019, D-024 through D-030 |
 
 > **Superseded for A1-REV-01…12.** A2's current review request is answered in
-> `docs/a2-contract-review-response.md` against A2 `50b7853` and evidence head
-> `807c447`, with A1 headers at `30ee4f0`. This document remains the
+> `docs/a2-contract-review-response.md` against A2 `d02598a` and evidence head
+> `3f78477`, with A1 headers at `30ee4f0`. This document remains the
 > requirements-group review from A2 `f324b28`; its A2 revision is stale.
 
 ## 1. Scope and method

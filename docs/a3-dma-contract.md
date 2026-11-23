@@ -6,13 +6,14 @@
 | Global decisions | D-007 (interface), D-020 (constraint model), D-021 (IOMMU policy) |
 | Owner | A3 |
 | A1 role | Required sign-off gate before dependent implementation |
-| Version reviewed | 0.1 draft, A1 conditions issued 23 November 2026 |
-| Status | **Conditional. A3's `platform.h` and `block.h` are not published, so final sign-off is pending.** |
+| Version reviewed | 1.1, A3 `b9a69d8` (A1 headers `30ee4f0`) |
+| Status | **ACCEPTED by A1 at A3 `b9a69d8`.** A3 must accept §6; D-007 and D-021 remain pending; AHCI remains blocked. Interface sign-off only, not runtime proof. |
 
-A3 has a push-permission problem. Its `platform.h` and `block.h` are not on any shared
-branch, so A1 cannot inspect the actual headers. This document fixes the A1 side of the
-contract now. A3 must reconcile its headers to it, publish them, and request the final
-IF-008 sign-off. No AHCI probe or real DMA work starts before that sign-off.
+A3 has since published `platform.h` and `block.h` at `b9a69d8`. A1 reviewed the actual
+headers and accepted IF-008 v1.1; the detailed decision is in
+`docs/if008-v1.1-review.md`. This document remains the A1-side condition set. A3 must
+accept §6, and no AHCI probe or real DMA work starts before D-007/D-021 and A3's
+acceptance.
 
 ## 1. Stage 1 restriction
 
@@ -137,16 +138,17 @@ A3 must make both headers satisfy all of these before requesting sign-off:
 
 ## 8. Approval status
 
-A1 has issued the conditions above. A1 has **not** signed IF-008 v0.1 because A3's
-`platform.h` and `block.h` are not published. When A3 publishes them:
+A1 reviewed A3's published headers at `b9a69d8` and **accepted IF-008 v1.1**; the record
+is `docs/if008-v1.1-review.md` (D-032). A3 must still:
 
-1. A3 replies with the commit hash and a point-by-point checklist against §5.
-2. A1 reviews the actual headers, not a summary.
-3. A1 records `IF-008 v0.1 approved by A1` in the PR and in the global register.
-4. Only then may A3 start the AHCI probe and real DMA work.
+1. Accept the §6 conditions at its current head (`2dcc0fc`).
+2. Keep the reviewed `platform.h`/`block.h` unchanged; any change needs a new IF-008
+   version and a new A1 review.
+3. Record the acceptance in its branch and the global register.
 
-Until then, the Stage 1 restriction stands: trusted ring-0 drivers only, no DMA domain, no
-IOMMU assumptions, no reset assumptions.
+D-007 and D-021 remain pending, and AHCI remains blocked. A1's sign-off is interface-only:
+no DMA, IRQ, reset or BAR runtime test exists. The Stage 1 restriction stands: trusted
+ring-0 drivers only, no DMA domain, no IOMMU assumptions, no reset assumptions.
 
 ## 9. Sources
 

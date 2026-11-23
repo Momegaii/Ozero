@@ -4,11 +4,13 @@
 |---|---|
 | Reviewer | A1 (kernel engineering) |
 | Subject | A2, `a2/docs/12-a1-contract-review.md`, questions A1-REV-01…12 |
-| A2 code revision | `50b78534f6b52af414f4ae5bc6e190c4427beba9` |
-| A2 evidence head | `807c447a175eba27624f9c50c9b2e676e95e1f20` |
+| A2 code revision | `d02598afe42ea0036a130a69801b3041f4b4cf9f` (reconciled; previously `50b7853`) |
+| A2 evidence head | `3f7847756f256761a4da0ed393d2762111af22db` (reconciled; previously `807c447`) |
+| A2 review-document blob | `f5d08487837e7141e9845a2c6602f604711a2e8e` (same at `50b7853` and `d02598a`) |
+| A2 requirements blob | `490924d2c84a3d497e3c0a33ed992a8d110c35ae` (same at `50b7853` and `d02598a`) |
 | A1 header commit | `30ee4f0da3c3d4263033680d39e7937fcb59f42f` |
 | Date | 23 November 2026 |
-| Status | **Answered. A2 acceptance pending. XB-002 is not closed by A1 alone.** |
+| Status | **Answered and reconciled at A2 `d02598a`/`3f78477`. A2 acceptance pending. XB-002 is not closed by A1 alone.** |
 | Related | D-011, D-018, D-019, D-024 through D-030 |
 
 ## 1. Basis and stale references
@@ -38,6 +40,35 @@ Decision vocabulary:
 - **Accept** — A1's current draft already satisfies the requirement.
 - **Change required** — A1 will add or change a primitive; the header and milestone are named.
 - **Defer** — A2 builds it above the kernel, or it moves to a later milestone.
+
+## 1.1 Reconciliation at A2 `d02598a` / `3f78477`
+
+A2 advanced from `50b7853`/`807c447` to `d02598a`/`3f78477`. The twelve
+questions and the requirements table did not change:
+
+- `a2/docs/12-a1-contract-review.md` is blob
+  `f5d08487837e7141e9845a2c6602f604711a2e8e` at both `50b7853` and `d02598a`.
+- `a2/docs/03-a1-interface-requirements.md` is blob
+  `490924d2c84a3d497e3c0a33ed992a8d110c35ae` at both.
+
+A2's new commits add IF-009 v1.0, normalize the fixture manifest paths to
+relative paths, regenerate evidence at `d02598a`, and add negative tests. None
+of those changes answers a different kernel question. The dispositions remain
+**4 Accept, 6 Change required, 2 Defer**.
+
+Still-open A2 actions:
+
+- `a2/docs/12-a1-contract-review.md` still cites A1 `90b004f` and `include/o0/`;
+  its blob is unchanged, so the stale references persist.
+- `a2/docs/11-stage0-review-response.md` still says "D-009…D-023 (A2 decisions)"
+  and uses A2-local IDs that collide with the canonical register. The current
+  canonical D-009…D-023 mean namespace, tooling, A2 contract, paging, placement,
+  interrupts, SMP, ACPI, EFI, syscall entry, handles, DMA and IOMMU policy.
+- A2's revision history now records `50b7853`/`807c447` as historical and
+  `d02598a`/`3f78477` as current.
+
+IF-009 v1.0 overlaps A1-REV-04/05/09; the answers are in
+`docs/if009-review.md` and do not change the dispositions below.
 
 ## 2. Summary
 
@@ -113,7 +144,8 @@ change. Owner: A2 TEB; A1 segment-base programming. See D-025.
 named section or map-view primitive.
 
 A1 will add section objects (file-backed and pagefile-backed) and a map-view
-operation at Stage 7. A2 owns image mapping policy, naming and copy-on-write
+operation at Stage 7. IF9-A1-1 in `docs/if009-review.md` records the same gap:
+no file-backed section exists at `30ee4f0`. A2 owns image mapping policy, naming and copy-on-write
 semantics. A2 can use `o0_as_map` over a shared physical range today. Exact
 consequence: new section create/map-view declarations in `mm.h` and `ipc.h`;
 not in `30ee4f0`. Owner: A1 kernel section object; A2 image policy.
@@ -126,7 +158,9 @@ must publish the layout it expects (kernel/user split, image range, stack, heap,
 TEB/PEB placement) before A1 freezes any user address-space constant.
 
 A1 may add `O0_USER_MIN`/`O0_USER_MAX` or a layout query at Stage 7, after A2's
-layout is published. No `30ee4f0` header change. Owner: A2 policy; A1 kernel
+layout is published. IF9-A1-1/IF9-A1-2 in `docs/if009-review.md` confirm that a
+chosen-base mapping is possible over physical pages, but not as a file-backed
+section. No `30ee4f0` header change. Owner: A2 policy; A1 kernel
 half.
 
 ### A1-REV-06 — Handle table and NT access masks: Accept
@@ -167,8 +201,10 @@ image. A1 provides no unwind service. A1 does not unmap pages behind A2's back;
 the address-space owner controls mapping lifetime. A2 must keep `.pdata` mapped
 and readable for as long as it needs unwind data.
 
-No A1 header change. Owner: A2 unwind implementation and `.pdata` lifetime;
-A1 `mm.h` mapping primitives.
+No A1 header change. IF9-A1-2 in `docs/if009-review.md` records the same
+condition: A1 does not evict or unmap behind A2, and A2 must keep `.pdata`
+mapped. Owner: A2 unwind implementation and `.pdata` lifetime; A1 `mm.h`
+mapping primitives.
 
 ### A1-REV-10 — Syscall boundary ownership: Accept
 
@@ -211,7 +247,8 @@ handle rights and object metadata.
    constants.
 5. Confirm the APC delivery points (D-027), handle inheritance policy (D-028),
    clock resolution (D-029) and 32-bit deferral (D-030).
-6. Publish IF-009 (see `docs/if009-review.md`).
+6. A2 has published IF-009 v1.0 at `d02598a`; A1 accepted the A1 side in
+   `docs/if009-review.md`. A3 v1.0 confirmation and A4 registry update remain.
 
 A1 does not close XB-002 on its own. XB-002 closes when A2 accepts these answers
 and records the A2 revision that does so.
@@ -219,9 +256,11 @@ and records the A2 revision that does so.
 ## 5. Sources
 
 - A2, `a2/docs/12-a1-contract-review.md`, `a2/docs/03-a1-interface-requirements.md`,
-  `a2/docs/09-open-questions.md`, branch `agent/a2-stage0`, commit `50b7853`;
-  evidence `807c447`.
+  `a2/docs/09-open-questions.md`, branch `agent/a2-stage0`, commit `d02598a`;
+  evidence `3f78477`; `a2/docs/13-if-009-pe-fixture-contract.md`.
 - A1, `include/ozero/thread.h`, `ipc.h`, `mm.h`, `driver.h`,
   `docs/interface-draft.md` §5–§8, `docs/kernel-architecture.md` §6, commit
   `30ee4f0`.
-- A4, `docs/decisions/decision-log.md`, commit `245007d`.
+- A3, `docs/interfaces/IF-009-a3-review.md`, commit `2dcc0fc`.
+- A4, `docs/decisions/decision-log.md`, `docs/architecture/interfaces.md`,
+  commit `3ae7aca`.

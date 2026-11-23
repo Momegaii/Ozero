@@ -1,45 +1,80 @@
-# IF-009 PE fixture contract — A1 review decision
+# IF-009 v1.0 — A1 review decision
 
 | Field | Value |
 |---|---|
 | Interface | IF-009, PE fixture and static-analysis contract |
-| Version in registry | 0.1 draft (registry row only; no interface document) |
+| Version reviewed | 1.0 |
 | Owner | A2 |
 | Reviewers | A1, A3, A4 |
-| Decision | **CHANGE REQUIRED** |
+| Decision | **ACCEPT (A1 side) with conditions** |
 | Date | 23 November 2026 |
-| A2 code revision | `50b78534f6b52af414f4ae5bc6e190c4427beba9` |
-| A2 evidence head | `807c447a175eba27624f9c50c9b2e676e95e1f20` |
+| A2 code revision | `d02598afe42ea0036a130a69801b3041f4b4cf9f` |
+| A2 evidence head | `3f7847756f256761a4da0ed393d2762111af22db` |
+| IF-009 contract blob | `9be6c8b02d20ac1cbdd5c27e62d0ae94a264fc2f` |
+| Fixture manifest blob | `f505cb4d9403b65d860c92d574bd736270db446a` |
 | A1 header commit | `30ee4f0da3c3d4263033680d39e7937fcb59f42f` |
-| A4 registry reviewed | `245007d2b96bbc12de1e831c5275587ef56ee81f` |
+| A3 review commit | `2dcc0fcc6371aa6167ca773321e76ca9d5a587c0` (reviewed `807c447`; v1.0 confirmation pending) |
+| A4 registry reviewed | `3ae7acaf4d81d103063a33ca49c1739bdee316f8` (IF-009 row still 0.1 draft; update required) |
 | Related | XB-003, D-011, D-024, D-025, D-026, D-033 |
 
 ## 1. Finding
 
-A4's registry at `245007d` lists IF-009 as `0.1 draft`, owner A2, consumer A4,
-status `Proposed`. A2's branch at `50b7853` / evidence head `807c447` has no
-IF-009 interface document. It has a fixture corpus and a build manifest:
+A2 published IF-009 v1.0 at code revision `d02598a`, with evidence at
+`3f78477`. The contract is now a real artifact, not a registry row:
 
-- `a2/fixtures/build-manifest.json`
-- `a2/data/test-corpus.json`
-- `a2/docs/evidence/pe-inspect.txt`
-- `a2/docs/evidence/pe-structure-checks.txt`
-- `a2/docs/evidence/reproducibility.txt`
+- `a2/docs/13-if-009-pe-fixture-contract.md` (blob `9be6c8b0…`)
+- `a2/fixtures/build-manifest.json` (blob `f505cb4d…`)
 
-That is evidence, not a contract. A1 cannot ACCEPT a versioned interface that
-has not been published. A1 therefore records **CHANGE REQUIRED**: A2 must
-publish IF-009 v0.1 with the contents in §4.
+A1's earlier review of IF-009 (`docs/if009-review.md` before this version) was
+**CHANGE REQUIRED** because no contract existed. That finding is superseded. A1
+now **accepts IF-009 v1.0 as the fixture and static-analysis contract**, subject
+to the conditions in §5.
 
-A1 does accept the fixture corpus and manifest as **input** and as static
-evidence. A1 does not accept them as runtime proof, Windows compatibility proof,
-or a frozen PE contract.
+A1 does not accept a runtime claim. The contract itself says a pass is evidence
+level **L0** and does not mean the image loads, imports resolve, TLS callbacks
+run, exceptions dispatch or any Windows application is compatible. A1 agrees.
 
-## 2. Ownership split A1 will sign
+## 2. A1 answers — IF9-A1-1…3
+
+| ID | Question | Decision | Exact consequence |
+|---|---|---|---|
+| IF9-A1-1 | Do `o0_as_create`, map and protect support a file-backed image at a chosen base, or is a section object required first? | **Change required at the kernel-primitive level; not an IF-009 version change** | `o0_as_create` + `o0_as_map` can map physical pages at a chosen `vaddr`; `o0_as_protect` sets per-range protections. There is no file-backed section object at `30ee4f0`. For M0, A2 can read the file bytes into A1-provided memory and map those pages. A true file-backed section (page cache, copy-on-write, demand paging) is A1-REV-04 at Stage 7. IF-009 explicitly does not freeze a kernel ABI, so this is a loader dependency, not an IF-009 defect. |
+| IF9-A1-2 | Is the mapped image guaranteed to stay resident and readable, including `.pdata`, until the process exits? | **Accept with condition** | A1 does not evict or unmap a mapping behind the address-space owner. The mapping persists until `o0_as_unmap`, `o0_as_destroy` or process exit. Stage 1 has no demand paging or swap. A2 must keep `.pdata` mapped and must not unmap it while unwind data is needed. A1 does not guarantee against A2's own unmap or a driver bug. No `30ee4f0` header change. |
+| IF9-A1-3 | Does A1 accept these five fixtures as M0 inputs without implying an ABI freeze or a Windows loader commitment? | **Accept** | A1 accepts the five fixtures as static M0 inputs. This is not an ABI freeze, not a Windows loader commitment, and not a runtime compatibility claim. A1 remains responsible for kernel primitives only; A2 owns PE parsing and loader policy. |
+
+The IF9-A1-1 answer overlaps A1-REV-04 (section objects) and A1-REV-05
+(address-space layout). The IF9-A1-2 answer overlaps A1-REV-09 (`.pdata`
+lifetime). The dispositions in `docs/a2-contract-review-response.md` are
+unchanged: 4 Accept, 6 Change required, 2 Defer.
+
+## 3. Fixture inventory accepted as input
+
+Manifest generated `2026-11-23T12:23:30Z`; compiler `python3 -m ziglang cc`
+0.17.1; target `x86_64-windows-gnu`. Paths are relative to `a2/`.
+
+| Fixture | Output | Output SHA-256 | Size | Source SHA-256 |
+|---|---|---|---|---|
+| `console_hello` | `build/console_hello.exe` | `1e604cb5e651c27b4cc154225223217e98b3131e24602ed291bee2c7113e2f7c` | 73216 | `63ccdb77707949a62b78c3143fa127d783a0bc35a4d575649a587d19930cbec4` |
+| `fileproc` | `build/fileproc.exe` | `2d6a6fbe6327ffc730c8a36368ee30a17560ad5c00a6f110815a9e1a4f71dbfd` | 74240 | `3e34988ee52a295314e1e99a7d8293c656d4cd329918db37b5f72a784033f41d` |
+| `gui_messagebox` | `build/gui_messagebox.exe` | `61e763139e670ff842efe10cfc78298bb6e5f1f8bca3e5d96026a33ef6c38fc5` | 73216 | `65074a6321e83e100f9948f1e1dd467f955cdde39271d556af923575628e5545` |
+| `tls_dll` | `build/tls_dll.dll` | `13bf410e9522732b73041f2ae3784509a28742a173c2469e997452a43055f9f6` | 70656 | `d560b6fb4b3f3d89c29912e56858f4ec79f5c9cf48460d6d0c5af4b452a1285e` |
+| `cpp_throw` | `build/cpp_throw.exe` | `70403ee7002e94023f609e8d902f844f35f6bb7bcc47e1c8c9beca91eb653b9f` | 225280 | `10d50c5be2e7a97df8c1044c011522d853c1ffe31386e7c1b21612ca9e94600f` |
+
+A2's reproducibility evidence at `3f78477` says:
+
+```
+manifest matches: 5 fixtures, compiler 0.17.1
+```
+
+A1 has not rebuilt these fixtures. The hashes are copied from A2's manifest at
+`d02598a`/`3f78477`; they are not independently verified by A1.
+
+## 4. Ownership split A1 signs
 
 | Area | A1 | A2 | A3 | A4 |
 |---|---|---|---|---|
 | Process, thread, address space | Kernel primitives | PEB/TEB allocation, layout policy | — | — |
-| Image mapping | `o0_as_map`/`o0_as_unmap` and later section objects | PE section mapping policy, relocations, imports | — | — |
+| Image mapping | `o0_as_map`/`o0_as_unmap`; section objects later | PE section mapping policy, relocations, imports | — | — |
 | Handles and syscalls | Opaque handles, syscall entry/table, return path | NT handle table, `ntdll`-equivalent, NTSTATUS/Win32 mapping | — | — |
 | Exceptions | Neutral `o0_exception_record`/`o0_context` delivery | Windows `EXCEPTION_RECORD`/`CONTEXT`, SEH dispatch | — | — |
 | Unwind | Mapping lifetime only | `RtlVirtualUnwind`-equivalent, `.pdata` parsing | — | — |
@@ -52,91 +87,46 @@ syscall number, handle encoding, TEB/PEB layout or exception shape. A3 must not
 parse PE; it supplies bytes through the block interface. A4 owns the harness and
 the registry.
 
-## 3. Fixture inventory accepted as input
+## 5. Conditions
 
-Manifest generated `2026-11-23T11:07:13Z`; compiler `python3 -m ziglang cc`
-0.17.1; target `x86_64-windows-gnu`.
+1. **Static-only, L0.** A2 must keep IF-009 at evidence level L0 and must not
+   claim load, import, TLS, exception, API-set or Windows compatibility results.
+2. **Version discipline.** Any change to a fixture source, flag, target,
+   compiler version or output hash bumps IF-009 to 1.1, 1.2, and so on. A1 and
+   A3 re-sign; an old signature does not carry forward.
+3. **A2 review-record corrections.** `a2/docs/12-a1-contract-review.md` still
+   cites A1 `90b004f` and `include/o0/`; `a2/docs/11-stage0-review-response.md`
+   still uses A2-local D-009…D-023 IDs that collide with the canonical register.
+   A2 must update the references and rename the local IDs. These are review
+   records, not IF-009 content changes.
+4. **A3 v1.0 confirmation.** A3 reviewed `807c447` and accepted with comments;
+   both comments are applied in v1.0. A3 must confirm the v1.0 wording at
+   `d02598a`/`3f78477`. A3's review commit is `2dcc0fc`.
+5. **A4 registry update.** A4 must change the IF-009 row from `0.1 draft` to
+   `1.0`, add A1 and A3 as consumers/reviewers, and record the A1/A3 signatures.
+   A4's audit at `3ae7aca` still shows the old row.
+6. **No file-backed section claim.** A1 does not claim a file-backed section
+   object exists at `30ee4f0`. IF9-A1-1 is tracked under A1-REV-04 at Stage 7.
 
-| Fixture | Output | Output SHA-256 | Size | Source SHA-256 | Evidence level |
-|---|---|---|---|---|---|
-| `console_hello` | `build/console_hello.exe` | `1e604cb5e651c27b4cc154225223217e98b3131e24602ed291bee2c7113e2f7c` | 73216 | `63ccdb77707949a62b78c3143fa127d783a0bc35a4d575649a587d19930cbec4` | L2 |
-| `fileproc` | `build/fileproc.exe` | `2d6a6fbe6327ffc730c8a36368ee30a17560ad5c00a6f110815a9e1a4f71dbfd` | 74240 | `3e34988ee52a295314e1e99a7d8293c656d4cd329918db37b5f72a784033f41d` | L2 |
-| `gui_messagebox` | `build/gui_messagebox.exe` | `61e763139e670ff842efe10cfc78298bb6e5f1f8bca3e5d96026a33ef6c38fc5` | 73216 | `65074a6321e83e100f9948f1e1dd467f955cdde39271d556af923575628e5545` | L3 |
-| `tls_dll` | `build/tls_dll.dll` | `13bf410e9522732b73041f2ae3784509a28742a173c2469e997452a43055f9f6` | 70656 | `d560b6fb4b3f3d89c29912e56858f4ec79f5c9cf48460d6d0c5af4b452a1285e` | L2 |
-| `cpp_throw` | `build/cpp_throw.exe` | `70403ee7002e94023f609e8d902f844f35f6bb7bcc47e1c8c9beca91eb653b9f` | 225280 | `10d50c5be2e7a97df8c1044c011522d853c1ffe31386e7c1b21612ca9e94600f` | L2 |
+## 6. Sign-off record
 
-A2's reproducibility evidence at `807c447` says:
+| Reviewer | Decision | Revision reviewed | Date |
+|---|---|---|---|
+| A1 | **Accept (fixture contract) with IF9-A1-1 kernel-primitive condition** | A2 `d02598a`; contract blob `9be6c8b0…`; A1 `30ee4f0` | 2026-11-23 |
+| A3 | Accept with comments at `807c447`; v1.0 confirmation pending | `807c447`; review `2dcc0fc` | 2026-11-23 |
+| A4 | Registry update pending | `245007d`/`3ae7aca` | 2026-11-23 |
 
-```
-manifest matches: 5 fixtures, compiler 0.17.1
-```
+A1's signature names IF-009 v1.0, the A2 code revision `d02598a`, the contract
+blob `9be6c8b0…` and A1 `30ee4f0`. It does not close XB-003 alone; A3 and A4
+must record their side.
 
-A1 has not rebuilt these fixtures. The hashes above are copied from A2's
-manifest at `807c447`; they are not independently verified by A1.
+## 7. Sources
 
-## 4. Required contents of IF-009 v0.1
-
-A2 must publish an interface document (path chosen with A4) containing:
-
-1. **Identity** — interface ID, version, owner, status, date, consumers and
-   reviewers.
-2. **Scope** — Stage 0 is static-only. No fixture is executed. No Windows
-   compatibility claim is made. Runtime execution is a later milestone with a
-   separate evidence level.
-3. **Fixture inventory** — the table in §3, with source and output SHA-256,
-   compiler version, target triple, build command, size and expected evidence
-   level.
-4. **Ownership split** — the table in §2. A1 owns kernel primitives, not PE
-   parsing; A2 owns PE/loader policy; A3 owns storage delivery; A4 owns the
-   harness.
-5. **A1 contract references** — the exact A1 header commit (`30ee4f0` or later)
-   and the specific A1 primitives the fixtures exercise: address-space map,
-   thread create, handle operations, exception delivery (when available).
-6. **A2 contract references** — the exact A2 revision (`50b7853`) and evidence
-   head (`807c447`), plus the PE structures and loader stages covered.
-7. **Delivery path** — fixture bytes reach the loader through A3's block layer
-   (IF-008), not through a kernel PE parser or a hard-coded in-kernel blob.
-8. **Negative tests** — malformed PE, truncated headers, bad relocations, missing
-   imports, invalid TLS, and the expected error/evidence for each.
-9. **Hash drift policy** — rebuilding a fixture requires a new manifest and a
-   review note; a hash change without a manifest change fails the harness.
-10. **Open items** — 32-bit/WOW64 fixtures, managed/COR20 fixtures, graphics
-    fixtures and any fixture that requires a Windows runtime remain explicitly
-    deferred.
-
-## 5. Required registry changes (A4)
-
-A4's IF-009 row at `245007d` has only A4 as a consumer. A1 and A3 are affected:
-
-- A1 provides the primitives the fixtures exercise.
-- A3 provides the block/storage path for fixture bytes.
-
-A4 must add A1 and A3 as consumers/reviewers, set the version to `0.1` when the
-document is published, and keep the status `Proposed` until A1 and A3 record
-their review. A4 must not mark IF-009 accepted on the basis of the manifest
-alone.
-
-## 6. A2-local ID collision
-
-A2's review document uses D-011, D-012 and D-020 for A2-local questions. Those
-IDs are taken in the canonical register (D-011 A2 contract, D-012 paging,
-D-020 DMA model). A2 must rename them (`A2-Q3`, `A2-Q4`, `A2-Q12`) or use
-canonical IDs before IF-009 is merged. This is the same collision noted in
-`docs/a2-contract-review-response.md` §1.
-
-## 7. Decision
-
-**CHANGE REQUIRED.** A1 will review IF-009 v0.1 when A2 publishes it with the
-contents in §4. A1 does not accept the current manifest as IF-009, and does not
-claim the fixtures are runtime-compatible.
-
-## 8. Sources
-
+- A2, `a2/docs/13-if-009-pe-fixture-contract.md`,
+  `a2/fixtures/build-manifest.json`, `a2/docs/evidence/*`, commit `d02598a`;
+  evidence `3f78477`.
+- A3, `docs/interfaces/IF-009-a3-review.md`, commit `2dcc0fc`.
 - A4, `docs/architecture/interfaces.md`, `docs/process/cross-agent-blockers.md`,
-  `docs/decisions/decision-log.md`, commit `245007d`.
-- A2, `a2/fixtures/build-manifest.json`, `a2/data/test-corpus.json`,
-  `a2/docs/evidence/*`, `a2/docs/12-a1-contract-review.md`, commit `50b7853`;
-  evidence `807c447`.
-- A1, `include/ozero/mm.h`, `thread.h`, `ipc.h`, `docs/a2-contract-review-response.md`,
-  commit `30ee4f0`.
-- A3, IF-008 v1.1, `docs/if008-v1.1-review.md`.
+  commit `3ae7aca`.
+- A1, `include/ozero/mm.h`, `thread.h`, `ipc.h`,
+  `docs/a2-contract-review-response.md`, commit `30ee4f0`.

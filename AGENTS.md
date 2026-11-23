@@ -17,19 +17,25 @@ foundational decisions (see `docs/kernel-architecture.md` §6).
 - `tools/check-headers.sh` — conformance script, owned by A1; A4 invokes it from CI
   unmodified (D-010).
 
-## Interface review state (23 November 2026, action brief v2)
+## Interface review state (23 November 2026, action brief v2 and proceed brief)
 
 - **IF-008 v1.1: ACCEPT.** A3 published at `b9a69d8`; A1 headers at `30ee4f0`.
   A3's `include/ozero/platform.h` and `block.h` conform; A3's copies of the ten
   A1 headers are byte-identical. Record: `docs/if008-v1.1-review.md` (D-032).
-  AHCI remains blocked on director D-007 and A3's acceptance of the conditions.
-- **A2 A1-REV-01…12: answered.** A2 code `50b7853`, evidence `807c447`; A1
-  headers `30ee4f0`. Four Accept, six Change, two Defer. Record:
-  `docs/a2-contract-review-response.md`. A2 must update its stale
-  `include/o0/`/`90b004f` references and its colliding local D-011/D-012/D-020.
-- **IF-009: CHANGE REQUIRED.** No IF-009 document exists; A2's fixture manifest
-  at `807c447` is evidence, not a contract. Record: `docs/if009-review.md`
-  (D-033).
+  A3's latest head is `2dcc0fc`; AHCI remains blocked on director D-007, D-021 and
+  A3's acceptance of the conditions.
+- **A2 A1-REV-01…12: answered and reconciled.** A2 code `d02598a`, evidence
+  `3f78477`; A1 headers `30ee4f0`. Four Accept, six Change required, two Defer.
+  The 12-question and requirements blobs are unchanged from `50b7853`, so the
+  dispositions stand. Record: `docs/a2-contract-review-response.md`. A2 must
+  still update its stale `include/o0/`/`90b004f` references and its colliding
+  local D-009…D-023.
+- **IF-009 v1.0: ACCEPT (A1 side).** A2 published at `d02598a`/`3f78477`;
+  contract blob `9be6c8b0…`, manifest blob `f505cb4d…`. IF9-A1-1 is change
+  required at the kernel-primitive level (no file-backed section at `30ee4f0`);
+  IF9-A1-2 accepted with a mapping-lifetime condition; IF9-A1-3 accepted. A3
+  v1.0 confirmation at `2dcc0fc` and A4 registry update at `3ae7aca` remain.
+  Record: `docs/if009-review.md` (D-033).
 
 ## Commands
 
