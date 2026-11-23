@@ -105,6 +105,10 @@ A2 needs stable *concepts*, not final numbers:
 - The syscall boundary exposes object operations, not Windows NT semantics. Final syscall
   numbers, calling convention and NT-compatible status codes are deferred to A2 and A4.
 
+A2 review requested: confirm that these concepts cover the future process, thread,
+address-space and handle requirements without freezing kernel internals. No ABI freeze
+before A2 sign-off.
+
 ### A3 (driver-facing services)
 
 A3 needs, and this note commits to providing:
@@ -120,6 +124,10 @@ Device-class protocols (storage, network, display, input) live in A3, not in the
 headers. No GPU or Gen8+ assumptions appear in generic memory interfaces; the check is
 automated in `tools/check-headers.sh`.
 
+A1 interface review: signed with one recorded blocker — the DMA API has no IOMMU domain
+because Stage 1 has no IOMMU. Details and per-item disposition are in
+`docs/interface-draft.md` §11.
+
 ### A4 (repository, build, test)
 
 - Header layout and include guards are stable so A4 can wire the build once.
@@ -131,7 +139,10 @@ automated in `tools/check-headers.sh`.
 
 Each decision lists the source that constrains it. All are pending director approval.
 
-### D1. Boot path: UEFI firmware + Limine (base revision 6) + kernel
+### D1. Boot path: UEFI firmware + Limine (base revision 6 requested) + kernel
+
+Base revision 6 is requested, but its changes over revision 5 are non-x86 only; the x86-64
+entry-state guarantees used here are revision-5 guarantees. [LIMINE-BASE]
 
 Recommended over a custom UEFI loader. Limine already performs `ExitBootServices`, builds
 the higher-half mappings and HHDM, normalises the firmware memory map into reclaimable
@@ -160,14 +171,15 @@ The HHDM offset is discovered at boot and stored in boot info; it is never hard-
 because the bootloader may choose or randomise it. [LIMINE-LAYOUT] [LIMINE-HHDM]
 
 The kernel never assumes that a physical address is reachable through the HHDM unless the
-region type is one Limine maps (see boot contract §6).
+region type is one Limine maps and the checked range predicate in boot contract §5.1
+passes.
 
 ### D4. Interrupt model: APIC, no legacy PIC
 
-Use the local APIC (x2APIC when requested and available) and the IOAPIC. Limine masks the
-legacy PIC and IOAPIC redirections before handoff, so the kernel must program routing
-before unmasking anything. [LIMINE-STATE] [SDM-3A] "Advanced Programmable Interrupt
-Controller (APIC)".
+Use the local APIC (x2APIC when the bootloader reports it enabled and the CPU supports it)
+and the IOAPIC. Limine masks the legacy PIC and IOAPIC redirections before handoff, so the
+kernel must program routing before unmasking anything. [LIMINE-STATE] [SDM-3A] "Advanced
+Programmable Interrupt Controller (APIC)".
 
 The IDT uses dedicated IST stacks for double fault, NMI and machine check. A double fault
 that cannot use its IST stack is a guaranteed triple fault and loses all diagnostics.
@@ -179,9 +191,10 @@ Publish each AP's kernel entry with a release store to `goto_address` only after
 per-CPU state and kernel stack exist. Do not write an INIT-SIPI-SIPI trampoline in
 Stage 1. [LIMINE-MP]
 
-Consequence: parked APs execute bootloader code on bootloader stacks in
+Consequence: parked APs execute bootloader trampoline code on bootloader stacks in
 bootloader-reclaimable memory, so that memory cannot be reclaimed until takeover is
-complete. This is a hard precondition in the boot contract.
+complete. This is a hard precondition in the boot contract §9.1–§9.3. Stage 1 has no AP
+hotplug; after reclaim the bootloader trampoline is gone.
 
 ### D6. ACPI: RSDP → XSDT → MADT/FADT only
 

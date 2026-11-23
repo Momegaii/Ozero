@@ -46,11 +46,15 @@ checked by `tools/check-headers.sh` (see §9).
 - Physical address 0 is never returned as a valid allocation, so `0` is an unambiguous
   failure value even though page 0 may be usable at revision ≥ 3. [LIMINE-BASE]
 - `o0_pmm_release_bootloader_memory` is the only path that frees reclaimable memory, and
-  it refuses until the boot contract's checklist passes (boot contract §8). This makes the
-  unsafe transition a single auditable call.
-- HHDM conversion (`o0_phys_to_virt`) is valid only for region types Limine maps. The
-  implementation must assert the region type in debug builds; there is no mapping to fault
-  on for reserved or bad memory, so a wrong call is a silent wild access. [LIMINE-LAYOUT]
+  it refuses until the boot contract's checklist passes (boot contract §8, §9.3). This
+  makes the unsafe transition a single auditable call.
+- HHDM conversion is **checked**: `o0_hhdm_to_virt(phys, len, &out)` requires every byte
+  of the range to lie in an HHDM-mapped region and all arithmetic to be overflow-free
+  (boot contract §5.1). `o0_phys_to_virt` is only a fast path for a single page already
+  validated by the allocator or by the checked call; it is not a general mapper.
+  [LIMINE-LAYOUT]
+- Device MMIO is never reached through the HHDM. `o0_device_map_bar` creates a dedicated
+  uncached, non-executable mapping; the driver unmaps it after quiescing DMA.
 
 ## 4. Virtual memory
 
@@ -114,17 +118,31 @@ checked by `tools/check-headers.sh` (see §9).
 
 - `o0_device_enumerate` is bus-neutral. `struct o0_device_id` carries vendor/device/class
   fields; classification is A3's job, not the kernel's.
-- `o0_device_map_bar` returns a virtual address for a memory BAR. I/O-port BARs are not
-  covered by this sketch; if needed, they get a separate interface with explicit
-  permission checks.
+- `o0_device_map_bar` returns a dedicated uncached (`O0_MAP_UC`), non-executable mapping
+  for a memory BAR; it is never served from the HHDM. I/O-port BARs are not covered by
+  this sketch; if needed, they get a separate interface with explicit permission checks.
 - `o0_device_irq` resolves the GSI and, where the device supports it, allocates an
   MSI/MSI-X vector. The driver registers its handler through `irq.h`.
 - `o0_device_dma_constraints` returns the device's addressing limits. The kernel never
-  infers them from a device class. `o0_dma_alloc` then allocates against those limits,
-  including an address mask, alignment, maximum segment size and coherency.
-- `struct o0_io_request` is a generic asynchronous request with a completion callback. It
-  deliberately does not encode block sizes, SCSI CDBs, NVMe queues or network descriptors;
-  those are A3 extensions.
+  infers them from a device class. `o0_dma_alloc` validates the constraint: `addr_mask`
+  must be a contiguous low-bit mask, `alignment` a power of two or zero, and every
+  returned address must satisfy both. The CPU's physical width is an upper bound, not a
+  device constraint.
+- Coherency is explicit. A non-coherent buffer requires `o0_dma_sync` before a to-device
+  transfer and after a from-device transfer. The kernel performs no implicit cache
+  maintenance.
+- Lifetimes are explicit. A BAR mapping is valid until `o0_device_unmap_bar`; a DMA buffer
+  until `o0_dma_free`. Both require `o0_device_dma_quiesce` first. A reset invalidates
+  every mapping and buffer association.
+- `o0_device_dma_quiesce` stops new DMA and waits for in-flight requests.
+  `o0_device_reset` requires a quiesced device with all requests completed or cancelled.
+  `o0_io_cancel` is best-effort: `O0_EBUSY` means the completion callback will still run.
+- `o0_device_io_limits` reports `max_transfer`, `max_queue_depth` and `alignment`.
+  `struct o0_io_request` stays generic; block size, queue model, SCSI CDBs and NVMe
+  descriptors are A3 extensions.
+- `struct o0_dma_buffer` describes one physically contiguous buffer. If
+  `max_segment < size`, `o0_dma_alloc` returns `O0_ENOTSUP`; A3 builds scatter-gather
+  lists from multiple buffers. There is no segment-list object in this sketch.
 - There is no display, GPU or graphics interface in this header set. Generic memory and
   driver services contain no device-generation assumptions; the acceptance check is
   automated.
@@ -169,7 +187,36 @@ runtime behaviour; that is Stage 1.
 - Adding a field to a public struct is a versioned change; the kernel must not reinterpret
   an older structure.
 
-## 11. Open questions
+## 11. A3 interface review (A1 sign-off)
+
+Scope: the DMA and MMIO surface in `mm.h` and `driver.h`. A1 signs the generic services
+for Stage 1 **subject to the IOMMU blocker below**.
+
+| Item | Disposition | Note |
+|---|---|---|
+| Address width | Signed | `addr_mask` + `max_segment`, validated; CPU physical width is only an upper bound |
+| IOMMU assumptions | **Blocker** | No IOMMU in Stage 1 (Limine disables VT-d/AMD-Vi). Returned addresses are physical and untranslated; the API has no domain handle. Limine's Keep IOMMU feature exists, but using it would require the kernel to own a VT-d/AMD-Vi driver |
+| Coherency | Signed | Explicit `coherent` flag plus `o0_dma_sync`; no implicit maintenance |
+| Map/unmap lifetime | Signed | BAR until unmap, DMA buffer until free, both after quiesce; reset invalidates both |
+| Reset and in-flight DMA | Signed | `o0_device_dma_quiesce` → `o0_device_reset`; `o0_io_cancel` best-effort with completion still possible |
+| Block I/O shape | Signed | `o0_io_limits` for transfer size, queue depth and alignment; block semantics stay in A3 |
+| Interrupt routing | Signed | GSI vs vector split; MSI/MSI-X vector allocation; handler context rules |
+| Device-class neutrality | Signed and automated | `tools/check-headers.sh` neutrality check |
+
+Conditions attached to the sign-off:
+
+1. No untrusted or userspace driver receives DMA before an IOMMU domain exists. The
+   Stage 1 model is trusted ring-0 drivers only.
+2. A3 must not assume a single `o0_dma_buffer` covers a transfer larger than
+   `max_segment`; it builds a scatter-gather list from multiple buffers.
+3. A3 must not assume BAR mappings come from the HHDM; they are dedicated UC mappings.
+4. Any change to these semantics is a versioned interface change, not a driver-local
+   decision.
+
+If A3 rejects condition 1 or 2, the blocker is escalated before the AHCI probe or any
+real DMA, not worked around in a driver.
+
+## 12. Open questions
 
 - Is a single `o0_status` enum sufficient for A2's compatibility layer, or is a mapping
   table to NTSTATUS needed at the boundary? (A2)

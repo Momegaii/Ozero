@@ -42,6 +42,12 @@ _Static_assert(O0_VECTOR_NONE == UINT32_MAX, "no vector");
 
 _Static_assert((O0_MAP_READ | O0_MAP_WRITE | O0_MAP_EXEC | O0_MAP_USER) == 0x0fu,
                "map flag values");
+_Static_assert(O0_ENOTSUP == 13, "status not supported value");
+_Static_assert(O0_MAP_NX == 0x80u, "map flag nx");
+_Static_assert(O0_DMA_TO_DEVICE == 0 && O0_DMA_FROM_DEVICE == 1 &&
+                   O0_DMA_BIDIRECTIONAL == 2,
+               "dma direction values");
+_Static_assert(sizeof(struct o0_io_limits) == 12u, "io limits size");
 
 /* Taking the address of each API forces the compiler to check the prototype. */
 static o0_status (*const check_pmm_init)(const struct o0_boot_info *) = o0_pmm_init;
@@ -57,6 +63,13 @@ static o0_status (*const check_handle_open)(o0_process_t *, o0_object_t *, uint3
 static o0_status (*const check_dma_alloc)(const struct o0_dma_constraint *, size_t,
                                           struct o0_dma_buffer *) = o0_dma_alloc;
 static o0_status (*const check_io_submit)(o0_device_t *, struct o0_io_request *) = o0_io_submit;
+static o0_status (*const check_hhdm_to_virt)(o0_paddr_t, size_t, void **) = o0_hhdm_to_virt;
+static o0_status (*const check_dma_sync)(struct o0_dma_buffer *, size_t, size_t,
+                                         enum o0_dma_dir) = o0_dma_sync;
+static o0_status (*const check_dma_quiesce)(o0_device_t *) = o0_device_dma_quiesce;
+static o0_status (*const check_device_reset)(o0_device_t *) = o0_device_reset;
+static o0_status (*const check_io_limits)(o0_device_t *, struct o0_io_limits *) =
+    o0_device_io_limits;
 
 void o0_stage0_header_check_anchor(void);
 
@@ -70,4 +83,9 @@ void o0_stage0_header_check_anchor(void)
     (void)check_handle_open;
     (void)check_dma_alloc;
     (void)check_io_submit;
+    (void)check_hhdm_to_virt;
+    (void)check_dma_sync;
+    (void)check_dma_quiesce;
+    (void)check_device_reset;
+    (void)check_io_limits;
 }

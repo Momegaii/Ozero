@@ -128,6 +128,25 @@ Per-CPU consistency:
 | Whole kernel | `-mno-red-zone`, `-mcmodel=kernel`, 16-byte stack alignment | Interrupts use the current stack; the red zone would be clobbered |
 | Kernel image | Non-PIE at `0xffffffff80000000` | Limine requirement [LIMINE-LAYOUT] |
 
+### 4.1 Source traceability for entry-state register claims
+
+Numbers are from the 2018 combined Vol. 3A edition (see `docs/sources.md`); the current
+edition inserts a separate "Paging" chapter and shifts later chapter numbers, so the
+section title is the stable anchor.
+
+| Claim | Intel SDM section | Limine source |
+|---|---|---|
+| `CR0.PE`, `PG`, `WP`, `ET`; `MP`, `NE`, `EM`, `TS` clear | Vol. 3A §2.5 "Control Registers" | [LIMINE-STATE] |
+| `CR4.PAE`; `LA57` only if requested; `OSFXSR`, `OSXMMEXCPT`, `OSXSAVE`, `SMEP`, `SMAP`, `PGE`, `PCIDE` clear | Vol. 3A §2.5; 5-level only in the current "Paging" chapter | [LIMINE-STATE] [LIMINE-PAGING] |
+| `EFER.LME`, `LMA`, `NXE`; `SCE` clear | Vol. 3A §9.8.5 "Initializing IA-32e Mode", §4.13 "Page-Level Protection and Execute-Disable Bit"; Vol. 4 `IA32_EFER` | [LIMINE-STATE] |
+| `RFLAGS.IF`, `DF`, `VM` clear; `RFLAGS=0x2` | Vol. 3A §2.3 "System Flags and Fields in the EFLAGS Register" | [LIMINE-STATE] |
+| `CS=0x28`, data selectors `0x30`, bases 0 | Vol. 3A §3.4.5 "Segment Descriptors", §3.5.1 "Segment Descriptor Tables" | [LIMINE-STATE] |
+| `IDTR` base 0 limit 0; IST not available | Vol. 3A §2.4.3 "IDTR", §5.10 "IDT", §5.14.5 "Interrupt Stack Table" | [LIMINE-STATE] |
+| `TR` base 0 limit 0; no TSS | Vol. 3A §2.4.4 "Task Register (TR)", §6.2.1 "Task-State Segment (TSS)" | [LIMINE-STATE] |
+| Local APIC enabled; `SVR=0x1FF`, `TPR=0`, LVTs masked | Vol. 3A §8.4.3 "Enabling or Disabling the Local APIC", §8.5.1 "Local Vector Table", §8.8.6 "Task Priority in IA-32e Mode", §8.9 "Spurious Interrupt" | [LIMINE-STATE] |
+| `PAT0=WB`, `PAT5=WC`; MTRRs firmware-set | Vol. 3A §10.12 "Page Attribute Table (PAT)", §10.11 "Memory Type Range Registers (MTRRs)" | [LIMINE-CACHE] |
+| SSE enable sequence | Vol. 3A §9.6 "Initializing SSE/SSE2/SSE3/SSSE3 Extensions" | [LIMINE-STATE] |
+
 ## 5. Test envelope
 
 QEMU is the first test environment, not proof of hardware support.

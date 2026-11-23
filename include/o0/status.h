@@ -25,7 +25,8 @@ typedef enum o0_status {
     O0_ERANGE = 9,   /* value outside the supported range */
     O0_ETIMEDOUT = 10,
     O0_EAGAIN = 11,  /* retry later */
-    O0_EOVERFLOW = 12
+    O0_EOVERFLOW = 12,
+    O0_ENOTSUP = 13  /* valid request the current interface cannot express */
 } o0_status;
 
 const char *o0_status_name(o0_status status);

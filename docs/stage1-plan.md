@@ -14,7 +14,16 @@ successful compile is not completion.
 | D4 interrupt model approved (APIC, no PIC) | Director | IDT/APIC bring-up order |
 | Build system and toolchain ratified | A4 | Stage 1 must not invent a competing build |
 | QEMU + OVMF available in CI | A4 | All boot tests run there |
-| Limine pinned to a known commit | A4 | Reproducible images |
+| Limine protocol commit and bootloader release pinned by SHA-256 | A4 | Reproducible images; hashes in `docs/sources.md` |
+
+A3 interface review is required before any real DMA (AHCI probe or later). A1's sign-off
+with the IOMMU blocker is in `docs/interface-draft.md` §11. A2 review of the
+process/thread/address-space/handle concepts is required before Stage 2, not before M0.
+
+**Boot-path labelling:** a bare-metal MBR/boot-sector harness and a Limine-loaded kernel
+boot are different test paths. This repository contains no MBR harness; every Stage 1 boot
+test below loads the kernel through Limine from an ISO. Any future MBR harness must be
+labelled as such and cannot substitute for a Limine boot test.
 
 Toolchain, if A4 has no preference: `clang --target=x86_64-elf` or `x86_64-elf-gcc`, with
 `-ffreestanding -fno-stack-protector -mno-red-zone -mcmodel=kernel -mno-sse` for the entry
@@ -67,6 +76,9 @@ Work:
   EFI memory map and the RSDP pointer. [LIMINE-MEMMAP] [LIMINE-MP] [LIMINE-EFIMM]
 - Normalise types and flags; sort check; overlap check for usable/reclaimable; HHDM
   coverage flags.
+- Implement `o0_hhdm_to_virt` and self-test it: valid range, reserved range rejected,
+  `phys + len` overflow rejected, range crossing a non-mapped gap rejected, device MMIO
+  rejected. See boot contract §5.1.
 - Refuse-to-boot checks from boot contract §11.
 
 Test: same QEMU command; assert B1–B3 and `reserved_violations=0` partial.
@@ -78,6 +90,7 @@ Expected:
 [o0] boot: hhdm=0x... kernel_phys=0x... kernel_virt=0xffffffff80000000
 [o0] memmap: entries=27 usable=1900MiB reclaimable=12MiB
 [o0] memmap: sorted=ok overlap=ok hhdm_coverage=ok
+[o0] hhdm: valid=ok reserved=rejected overflow=rejected gap=rejected mmio=rejected
 [o0] stage1: m1 PASS
 ```
 
@@ -203,6 +216,9 @@ Work:
 - Request the MP feature; per-CPU areas and kernel stacks for APs.
 - Publish each AP entry with a release store to `goto_address`; wait for acknowledgements
   with a timeout; verify feature-set consistency. [LIMINE-MP]
+- Each AP records proof of takeover in its per-CPU block: `CR3 == kernel_cr3`, `RSP`
+  inside its own kernel stack, `lapic_id` as expected. The BSP verifies all records before
+  any reclaim.
 - Cross-check MADT CPU list against the MP list.
 
 Test: `-smp 2` and `-smp 4`.
@@ -212,19 +228,22 @@ Expected:
 ```
 [o0] smp: bsp=0 cpus=4 online=4
 [o0] smp: apic_ids=0,1,2,3 features_match=ok
+[o0] smp: proof cr3=ok stack=ok ack=4/4
 [o0] acpi: madt_cpus=4 ioapics=1 overrides=2
 [o0] stage1: m7 PASS
 ```
 
-Exit criteria: every AP acknowledges on its own kernel stack; no AP is left in bootloader
-memory; a mismatched feature set parks the AP and reports it.
+Exit criteria: every AP acknowledges on its own kernel stack with the kernel `CR3`; no AP
+is left in bootloader memory; a mismatched feature set parks the AP and reports it; the
+`goto_address` release address is the original `limine_mp_info`, not a copy.
 
 ### M8. Reclaim, ring-3 entry and Stage 1 sign-off
 
 Work:
 
-- Run the reclaim checklist, release bootloader-reclaimable memory, allocate from the
-  released range and verify patterns.
+- Run the reclaim checklist (boot contract §8 and §9.3), including the AP proof records,
+  then release bootloader-reclaimable memory, allocate from the released range and verify
+  patterns.
 - Ring-3 test thread enters through `int 0x80`, writes a line through a kernel-mediated
   serial call, yields, and exits.
 - Timer preemption between two kernel threads.

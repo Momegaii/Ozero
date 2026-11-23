@@ -65,6 +65,8 @@ struct o0_boot_info {
     uint32_t firmware_type;  /* enum o0_firmware_type */
     uint32_t cpu_count;
 
+    /* Partial direct map: virt = phys + hhdm_offset, valid only for regions whose type is
+     * HHDM-mapped. Use o0_hhdm_to_virt for a checked conversion. */
     uint64_t hhdm_offset;
 
     o0_paddr_t kernel_phys;

@@ -1,9 +1,10 @@
 # Boot contract (Stage 0)
 
 Status: draft, pending director approval of D1. Normative words: **must**, **must not**,
-**should**. This contract is written against Limine base revision 6, the newest revision at
-protocol commit `877c2d4c` (see `sources.md`). If the bootloader choice changes, this
-document must be re-expressed, not patched.
+**should**. This contract requests Limine base revision 6 at protocol commit `877c2d4c`
+(see `sources.md`). Revision 6 adds no x86-64 entry-state guarantees over revision 5, so
+the x86-64 state relied on here is the revision-5 state, unchanged. If the bootloader
+choice changes, this document must be re-expressed, not patched.
 
 This contract is testable in QEMU before real hardware; the assertions are in §12 and the
 test plan is in `stage1-plan.md`.
@@ -54,76 +55,86 @@ UEFI is the supported path. A hybrid image may also be produced for test conveni
 absence of the RSDP and EFI system table. The firmware type is recorded in boot info.
 [LIMINE-FW]
 
-## 3. Entry state (x86-64, base revision 6)
+## 3. Entry state (x86-64, base revision ≥ 5)
+
+Base revision 6 is requested, but **revision 6 adds no x86-64 entry-state guarantees**: its
+changes relative to revision 5 concern aarch64, riscv64 and loongarch64 only. Every
+x86-64 guarantee below is a revision-5 guarantee that remains in force under revision 6.
+[LIMINE-BASE] [LIMINE-STATE]
 
 The kernel may rely on exactly this state. Anything not listed is undefined and must be
-established by the kernel. [LIMINE-STATE] [LIMINE-BASE]
+established by the kernel. The Source column gives the pinned protocol section and the
+Intel SDM section; SDM numbers are from the 2018 combined Vol. 3A edition (see
+`docs/sources.md`), and titles are the stable anchor.
 
 ### 3.1 Processor mode and control registers
 
-| Item | Guaranteed state | Consequence for the kernel |
-|---|---|---|
-| Mode | IA-32e long mode, CPL 0 | No protected-mode transition code needed |
-| `CR0` | `PE`, `ET`, `WP`, `PG` set; all other bits clear | `EM=0`, `TS=0`, `MP=0`, `NE=0`; the kernel must set `MP=1`, `NE=1` before x87/SSE |
-| `CR4` | `PAE` set; `LA57` set only if 5-level was requested and is available; all other bits clear | `OSFXSR=0`, `OSXMMEXCPT=0`, `OSXSAVE=0`, `PGE=0`, `SMEP=0`, `SMAP=0`, `PCIDE=0`, `FSGSBASE=0`, `UMIP=0`; the kernel enables what it needs |
-| `EFER` | `LME`, `LMA`, `NXE` set (`NXE` only if NX is available) | `SCE=0`; `SYSCALL` is not enabled at entry |
-| Paging | Enabled; 4-level by default, 5-level only if requested | Kernel page tables must be compatible with the active mode |
-| `RFLAGS` | `0x00000002`; `IF=0`, `DF=0`, `VM=0` | Interrupts are off; no `cld` needed before string ops, but the kernel should not rely on it after enabling interrupts |
+| Item | Guaranteed state | Consequence for the kernel | Source |
+|---|---|---|---|
+| Mode | IA-32e long mode, CPL 0 | No protected-mode transition code needed | [LIMINE-STATE] "x86-64"; [SDM-3A] §2.5, §9.8.5 |
+| `CR0` | `PE`, `ET`, `WP`, `PG` set; all other bits clear | `EM=0`, `TS=0`, `MP=0`, `NE=0`; the kernel must set `MP=1`, `NE=1` before x87/SSE | [LIMINE-STATE]; [SDM-3A] §2.5 "Control Registers" |
+| `CR4` | `PAE` set; `LA57` set only if 5-level was requested and is available; all other bits clear | `OSFXSR=0`, `OSXMMEXCPT=0`, `OSXSAVE=0`, `PGE=0`, `SMEP=0`, `SMAP=0`, `PCIDE=0`, `FSGSBASE=0`, `UMIP=0`; the kernel enables what it needs | [LIMINE-STATE]; [SDM-3A] §2.5; 5-level in current Vol. 3A "Paging" (2018 mirror predates it) |
+| `EFER` | `LME`, `LMA`, `NXE` set (`NXE` only if NX is available) | `SCE=0`; `SYSCALL` is not enabled at entry | [LIMINE-STATE]; [SDM-4] `IA32_EFER`; [SDM-3A] §9.8.5, §4.13 |
+| Paging | Enabled; 4-level by default, 5-level only if requested | Kernel page tables must be compatible with the active mode | [LIMINE-STATE] [LIMINE-PAGING]; [SDM-3A] §3.6, §3.10; 5-level in current Vol. 3A "Paging" |
+| `RFLAGS` | `0x00000002`; `IF=0`, `DF=0`, `VM=0` | Interrupts are off; no `cld` needed before string ops, but the kernel should not rely on it after enabling interrupts | [LIMINE-STATE]; [SDM-3A] §2.3 "System Flags and Fields in the EFLAGS Register" |
 
 ### 3.2 General registers and stack
 
-| Item | Guaranteed state |
-|---|---|
-| `RIP` | Entry point from the executable, or the Entry Point feature value [LIMINE-ENTRY] |
-| `CS` | `0x28`, 64-bit code descriptor, base 0 |
-| `DS`, `ES`, `SS`, `FS`, `GS` | `0x30`, 64-bit data descriptor, base 0 |
-| `FS`/`GS` base | 0 |
-| `RAX`–`R15` | All zero |
-| `RSP` | Top of a stack of at least 64 KiB (or the requested Stack Size), in bootloader-reclaimable memory [LIMINE-STACK] |
-| Return address | Invalid value `0` pushed on the stack |
-| `RFLAGS.DF` | Clear |
+| Item | Guaranteed state | Source |
+|---|---|---|
+| `RIP` | Entry point from the executable, or the Entry Point feature value | [LIMINE-STATE] [LIMINE-ENTRY] |
+| `CS` | `0x28`, 64-bit code descriptor, base 0 | [LIMINE-STATE]; [SDM-3A] §3.4.5 "Segment Descriptors", §3.5.1 "Segment Descriptor Tables" |
+| `DS`, `ES`, `SS`, `FS`, `GS` | `0x30`, 64-bit data descriptor, base 0 | [LIMINE-STATE]; [SDM-3A] §3.4.5, §3.5.1 |
+| `FS`/`GS` base | 0 | [LIMINE-STATE]; [SDM-4] `IA32_FS_BASE`, `IA32_GS_BASE` |
+| `RAX`–`R15` | All zero | [LIMINE-STATE] |
+| `RSP` | Top of a stack of at least 64 KiB (or the requested Stack Size), in bootloader-reclaimable memory | [LIMINE-STATE] [LIMINE-STACK] |
+| Return address | Invalid value `0` pushed on the stack | [LIMINE-STATE] |
+| `RFLAGS.DF` | Clear | [LIMINE-STATE]; [SDM-3A] §2.3 |
 
 The initial stack is a loan. The kernel must switch to a kernel-owned stack before it
 reclaims bootloader memory, and must never return from the entry point.
 
 ### 3.3 Descriptor tables and task state
 
-| Item | Guaranteed state |
-|---|---|
-| `GDTR` | Points to a bootloader GDT in bootloader-reclaimable memory with null, 16-bit code/data, 32-bit code/data, and 64-bit code/data descriptors at offsets 0–6 |
-| `IDTR` | Base 0, limit 0; no IDT present |
-| `TR` | Base 0, limit 0; no TSS present |
-| `LDTR` | Null selector; no LDT present |
-| Segment limits | Not enforced in 64-bit mode; `CS`/`DS`/`ES`/`SS` bases forced to 0 |
+| Item | Guaranteed state | Source |
+|---|---|---|
+| `GDTR` | Points to a bootloader GDT in bootloader-reclaimable memory with null, 16-bit code/data, 32-bit code/data, and 64-bit code/data descriptors at offsets 0–6 | [LIMINE-STATE]; [SDM-3A] §2.4.1 "Global Descriptor Table Register (GDTR)", §3.5.1 |
+| `IDTR` | Base 0, limit 0; no IDT present | [LIMINE-STATE]; [SDM-3A] §2.4.3 "IDTR Interrupt Descriptor Table Register", §5.10 "Interrupt Descriptor Table (IDT)" |
+| `TR` | Base 0, limit 0; no TSS present | [LIMINE-STATE]; [SDM-3A] §2.4.4 "Task Register (TR)", §6.2.1 "Task-State Segment (TSS)" |
+| `LDTR` | Null selector; no LDT present | [LIMINE-STATE]; [SDM-3A] §2.4.2 "Local Descriptor Table Register (LDTR)" |
+| Segment limits | Not enforced in 64-bit mode; `CS`/`DS`/`ES`/`SS` bases forced to 0 | [SDM-3A] §3.4.5, "64-bit mode" |
 
 The kernel must install its own GDT, TSS and IDT before it enables interrupts, uses IST
 stacks, or reclaims the bootloader GDT.
 
 ### 3.4 Platform state
 
-| Item | Guaranteed state |
-|---|---|
-| A20 | Open |
-| Legacy PIC | All IRQs masked |
-| I/O APIC | Fixed and lowest-priority redirection entries masked; NMI and ExtINT entries also masked at revision ≥ 5 |
-| Local APIC | Enabled and software-enabled; `SVR = 0x1FF`, `TPR = 0`, all applicable LVT entries masked; NMI LINT entries configured from MADT and masked |
-| x2APIC | Enabled only if requested through the MP feature flag and supported; the response reports which mode is active |
-| IOMMU | Intel VT-d DMA translation and interrupt remapping disabled; AMD-Vi disabled |
-| Boot services | Exited if booted by EFI |
-| Interrupt controllers | The kernel must program routing before unmasking any line |
+| Item | Guaranteed state | Source |
+|---|---|---|
+| A20 | Open | [LIMINE-STATE] |
+| Legacy PIC | All IRQs masked | [LIMINE-STATE] |
+| I/O APIC | Fixed and lowest-priority redirection entries masked; NMI and ExtINT entries also masked at revision ≥ 5 | [LIMINE-STATE]; [SDM-3A] §8.1 "Local and I/O APIC Overview" |
+| Local APIC | Enabled and software-enabled; `SVR = 0x1FF`, `TPR = 0`, all applicable LVT entries masked; NMI LINT entries configured from MADT and masked | [LIMINE-STATE]; [SDM-3A] §8.4.3 "Enabling or Disabling the Local APIC", §8.5.1 "Local Vector Table", §8.8.6 "Task Priority in IA-32e Mode", §8.9 "Spurious Interrupt" |
+| x2APIC | Enabled only if the bootloader enabled it; `LIMINE_MP_RESPONSE_X86_64_X2APIC` in the MP response flags reports the active mode. The kernel must not assume x2APIC. | [LIMINE-MP]; [SDM-3A] "APIC" (x2APIC); [SDM-4] `IA32_X2APIC_*` |
+| IOMMU | Intel VT-d DMA translation and interrupt remapping disabled; AMD-Vi disabled. Limine's Keep IOMMU feature is not requested in Stage 1. | [LIMINE-STATE] |
+| Boot services | Exited if booted by EFI | [UEFI-7.4.6] |
+| Interrupt controllers | The kernel must program routing before unmasking any line | Contract rule, no external source |
 
 ### 3.5 State the kernel must not assume
 
 - **Floating point and SIMD state is not specified.** `CR0.MP=0` at entry and `CR4.OSFXSR=0`.
   The entry translation unit must be built with `-mgeneral-regs-only` (or equivalent), or
   must enable SSE before any compiler-generated SSE instruction executes. A compiler that
-  emits SSE for a struct copy will fault otherwise.
+  emits SSE for a struct copy will fault otherwise. [LIMINE-STATE]; [SDM-3A] §2.5, §9.6
+  "Initializing SSE/SSE2/SSE3/SSSE3 Extensions".
 - **`MXCSR`, x87 control word and XCR0 contents are not specified.** Initialise them.
+  [SDM-3A] §9.6; [SDM-2A] `XGETBV`.
 - **No IDT, no TSS, no IST stack.** Any exception before the kernel installs its IDT is a
-  triple fault with no diagnostics.
+  triple fault with no diagnostics. [SDM-3A] §5.10, §5.14.5, §6.2.1.
 - **`PAT` layout is specified when PAT is supported**: `PAT0=WB`, `PAT5=WC`; MTRRs are
-  left as firmware set them. [LIMINE-CACHE] The kernel must not reprogram MTRRs without a
-  full cache-coherency plan.
+  left as firmware set them. [LIMINE-CACHE]; [SDM-3A] §10.12 "Page Attribute Table (PAT)",
+  §10.11 "Memory Type Range Registers (MTRRs)". The kernel must not reprogram MTRRs
+  without a full cache-coherency plan.
 - **The HHDM offset is not fixed.** Discover it and never hard-code it. [LIMINE-HHDM]
 - **The bootloader GDT, stack, page tables, request responses and MP structures are in
   bootloader-reclaimable memory.** They disappear when the kernel frees that memory.
@@ -169,7 +180,7 @@ bootloader-reclaimable entries are 4 KiB aligned in base and length, and that th
 types do not overlap any other entry. Other types are not guaranteed alignment or
 non-overlap. [LIMINE-MEMMAP]
 
-| Limine type | `o0_mem_type` | HHDM mapped at rev 6 | Writable by kernel | Allocator use |
+| Limine type | `o0_mem_type` | HHDM mapped (rev ≥ 5) | Writable by kernel | Allocator use |
 |---|---|---|---|---|
 | `USABLE` (0) | `O0_MEM_FREE` | Yes | Yes | Immediately free |
 | `RESERVED` (1) | `O0_MEM_RESERVED` | **No** | No | Never |
@@ -195,6 +206,45 @@ Rules:
   memory map, not the mapping, to decide what may be allocated. [LIMINE-LAYOUT]
 - Framebuffer pages use write-combining (`PAT5`). Do not map them again with a conflicting
   cache attribute in the same page.
+
+### 5.1 HHDM predicate and checked conversion
+
+The HHDM is a **partial** linear map, not an identity map of physical memory. A
+physical-to-virtual conversion is valid only when every byte of the requested range is
+covered by a region whose type is in the HHDM-mapped set.
+
+Mapped set: `FREE`, `ACPI_RECLAIM`, `ACPI_NVS`, `RECLAIMABLE`, `KERNEL`, `FRAMEBUFFER`,
+`RESERVED_MAPPED` (present since base revision 4). Not mapped: `RESERVED`, `BAD`.
+
+Contract for `o0_hhdm_to_virt(phys, len, &virt)`:
+
+1. Treat `len == 0` as one byte.
+2. Reject `phys + len` overflow with `O0_EOVERFLOW`.
+3. Reject `hhdm_offset + (phys + len)` overflow with `O0_EOVERFLOW`.
+4. Reject a result that is not canonical for the active paging mode (4-level: bits 63:48
+   must equal bit 47; 5-level: bits 63:57 must equal bit 56) with `O0_ERANGE`.
+5. Walk the normalised map and require **byte-range containment**: every byte in
+   `[phys, phys + len)` lies in a region of the mapped set. A page that merely overlaps a
+   mapped region is not enough, because Limine may overshoot a region boundary to cover
+   it. [LIMINE-LAYOUT] An uncovered byte yields `O0_ERANGE`.
+6. Reject a null `out` pointer with `O0_EINVAL`. Never return a pointer that failed a
+   check.
+
+`o0_hhdm_range_ok(phys, len)` is the boolean form for callers that only need a predicate.
+
+`o0_phys_to_virt(phys)` is a fast path for a single page that has already been validated
+by the allocator or by `o0_hhdm_to_virt`. It performs no range check in release builds and
+asserts the region type in debug builds. It is not a general physical-memory mapper.
+
+Distinctions the kernel must preserve:
+
+| Case | Rule |
+|---|---|
+| HHDM RAM | `phys + hhdm_offset`, valid only under the predicate above |
+| Device MMIO / BAR | Never through the HHDM. Map explicitly with `o0_as_map(..., O0_MAP_UC \| O0_MAP_NX \| O0_MAP_GLOBAL)` and unmap when the driver releases the BAR |
+| Framebuffer | HHDM-mapped write-combining; treat as device memory, not as allocatable RAM |
+| Arbitrary physical address | No API. A caller that needs it must create a mapping with an explicit type and lifetime |
+| Kernel image | `phys = kernel_phys + (virt - kernel_virt)`; this is the only non-HHDM translation the kernel may derive |
 
 ## 6. Memory ownership
 
@@ -256,23 +306,68 @@ the allocator:
 The reclaim phase is reversible in one respect only: if a precondition fails, the pages
 stay reserved. There is no partial reclaim of a structure that is still in use.
 
-## 9. SMP handoff
+## 9. SMP handoff and AP lifetime
+
+### 9.1 Parked state and bootloader-owned memory
 
 - The MP feature is requested even on a uniprocessor system; a response containing only
   the BSP is valid. [LIMINE-MP]
-- Limine boots APs into the same mode as the BSP and parks them. Each `limine_mp_info`
-  has a `goto_address` that the kernel publishes atomically. The kernel must write
-  `extra_argument` and any per-CPU state before the release store. [LIMINE-MP]
-- The AP entry receives a pointer to its `limine_mp_info` in `RDI`; it must immediately
-  switch to its kernel stack and to the kernel page tables, then acknowledge takeover
-  before touching shared state.
-- AP stacks supplied by Limine follow the Stack Size feature and live in
-  bootloader-reclaimable memory. They are loans, not kernel stacks.
+- Limine starts APs into the same mode as the BSP and parks them in **bootloader
+  trampoline code**. The memory map names MP trampolines as an example of
+  bootloader-reclaimable content. Each AP runs on a **bootloader-provided stack** whose
+  size follows the Stack Size feature; treat that stack as bootloader-owned, not as a
+  kernel stack. Each AP polls the `goto_address` field of its own `limine_mp_info`.
+  [LIMINE-MP] [LIMINE-MEMMAP]
+- The MP response and the `limine_mp_info` array are bootloader-owned; treat them as
+  reclaimable. They stay valid only until the kernel reclaims bootloader memory, so every
+  `goto_address` write must happen before reclaim. [LIMINE-MP] [LIMINE-MEMMAP]
+- Copying the values (`lapic_id`, `acpi_uid`, CPU count) early is allowed, but the kernel
+  **must retain the original `limine_mp_info *` for each AP**. `goto_address` is the
+  release address the parked AP is polling; writing a copy of the structure does not
+  release the AP.
+- The trampoline is bootloader-owned. After reclaim, no new AP can be started. Stage 1
+  takes over every CPU before reclaim and does not support AP hotplug.
+
+### 9.2 Handoff sequence, per AP
+
+1. BSP prepares the per-CPU area, a kernel-owned stack with a guard page, and the
+   `extra_argument` value (pointer to the per-CPU structure).
+2. BSP writes `extra_argument` and every per-CPU field, then release-stores the AP entry
+   address into the original `goto_address`. [LIMINE-MP]
+3. AP wakes in bootloader code with `RDI = limine_mp_info *`. It must not run C code on
+   the bootloader stack.
+4. AP switches `RSP` to its kernel stack, loads the kernel `CR3`, sets `GS` base and the
+   per-CPU pointer, initialises FPU/SSE state, and increments an atomic acknowledgement
+   counter.
+5. AP records proof of takeover: `CR3 == kernel_cr3`, `RSP` inside its own kernel stack
+   bounds, `lapic_id` matches the expected value, and the feature set matches the BSP.
+6. BSP waits with a bounded timeout. An AP that does not acknowledge is parked, logged
+   and excluded; reclaim does not proceed.
+
+### 9.3 Reclaim precondition for SMP
+
+Reclaim of bootloader-reclaimable memory is allowed only when all of the following hold,
+after a full memory barrier:
+
+- `ack_count == cpu_count - 1`.
+- Every AP's recorded `CR3` equals the kernel `CR3`.
+- Every AP's recorded `RSP` lies inside a kernel-owned stack range.
+- No `goto_address` write is outstanding.
+- The bootloader trampoline is not needed again (no AP hotplug in Stage 1).
+
+If any check fails, the region stays reserved. Leaking bootloader memory is the correct
+failure mode; reclaiming it while an AP still executes from it produces a random triple
+fault.
+
+### 9.4 Platform details
+
+- AP stacks supplied by Limine follow the Stack Size feature and are loans, not kernel
+  stacks. Treat them as bootloader-owned. [LIMINE-STACK]
 - `reserved` and `reserved1` fields in `limine_mp_info` belong to the bootloader and must
   not be modified. [LIMINE-MP]
 - MTRRs on APs are synchronised by the bootloader; the kernel must not assume it can
-  change MTRRs per-CPU without a coherency plan. [LIMINE-MP] [SDM-3A] "Memory Cache
-  Control".
+  change MTRRs per-CPU without a coherency plan. [LIMINE-MP] [SDM-3A] §10.11.8 "MTRR
+  Considerations in MP Systems".
 - The kernel maps ACPI UIDs to LAPIC IDs from the MP list and cross-checks against MADT.
   A mismatch is logged, not fatal, unless it prevents IPI delivery.
 
@@ -340,8 +435,11 @@ fatal: log, fall back to single-CPU/no-ACPI and a non-TSC clocksource, and conti
 | B10 | Reclaim completed safely | `[o0] reclaim: released=YMiB free=ZMiB` |
 | B11 | No reserved or bad memory allocated | `[o0] pmm: reserved_violations=0` |
 | B12 | Stage 1 self-test passes | `[o0] stage1: PASS` |
+| B13 | HHDM predicate rejects unmapped, overflow and MMIO ranges | `[o0] hhdm: valid=ok reserved=rejected overflow=rejected gap=rejected mmio=rejected` |
+| B14 | Every AP proved takeover before reclaim | `[o0] smp: proof cr3=ok stack=ok ack=N/N` |
 
-Assertions B1–B7 and B10–B12 are single-CPU tests. B8–B9 require `-smp 2` and `-smp 4`.
+Assertions B1–B7 and B10–B13 are single-CPU tests. B8, B9 and B14 require `-smp 2` and
+`-smp 4`.
 
 ## 13. Open questions
 
@@ -352,3 +450,33 @@ Assertions B1–B7 and B10–B12 are single-CPU tests. B8–B9 require `-smp 2` 
   passthrough)? This determines which optional-feature paths are exercised. (A4)
 - Is an IOMMU required before untrusted drivers exist? Limine disables VT-d/AMD-Vi, so
   Stage 1 has no DMA isolation. (A7, U4)
+
+## 14. Source-to-contract table
+
+Pinned sources: Limine protocol `877c2d4c` (`PROTOCOL.md` SHA-256
+`3e702cd9…`, `limine.h` SHA-256 `bd2fa78d…`) and bootloader `v12.11.1`. SDM numbers are
+from the 2018 combined Vol. 3A edition; the section title is the stable anchor.
+
+| # | Claim in this contract | Limine source | Intel SDM / other |
+|---|---|---|---|
+| S1 | Base revision 6 is requested; boot is refused if the tag was not honoured | "Base Revisions", "Base Revision 6"; `LIMINE_BASE_REVISION_SUPPORTED` in `limine.h` | — |
+| S2 | Revision 6 adds no x86-64 entry-state guarantees over revision 5 | "Base Revision 6" (changes limited to aarch64, riscv64, loongarch64) | — |
+| S3 | Long mode, CPL 0, `CR4.PAE=1`, paging enabled | "Machine State at Entry, x86-64" | Vol. 3A §2.5, §9.8.5 |
+| S4 | `CR0`: `PE`, `ET`, `WP`, `PG` set; `MP`, `NE`, `EM`, `TS` clear | "Machine State at Entry, x86-64" | Vol. 3A §2.5 "Control Registers" |
+| S5 | `CR4`: only `PAE` (and `LA57` if requested) set; FPU/SIMD enable bits clear | "Machine State at Entry, x86-64"; "Paging Mode" | Vol. 3A §2.5; 5-level in current "Paging" (not in the 2018 mirror) |
+| S6 | `EFER`: `LME`, `LMA`, `NXE` set; `SCE=0` | "Machine State at Entry, x86-64" | Vol. 4 `IA32_EFER`; Vol. 3A §9.8.5, §4.13 |
+| S7 | `CS=0x28`, `DS/ES/SS/FS/GS=0x30`, bases 0 | "Machine State at Entry, x86-64" | Vol. 3A §3.4.5, §3.5.1 |
+| S8 | `RSP` is a stack of at least 64 KiB in reclaimable memory | "Machine State at Entry"; "Stack Size" | — |
+| S9 | `RFLAGS=0x2`; `IF`, `DF`, `VM` clear | "Machine State at Entry, x86-64" | Vol. 3A §2.3 "System Flags and Fields in the EFLAGS Register" |
+| S10 | `GDTR` points to a bootloader GDT with descriptors at offsets 0–6 | "Machine State at Entry, x86-64" | Vol. 3A §2.4.1, §3.5.1 |
+| S11 | `IDTR` base 0 limit 0; `TR` base 0 limit 0; `LDTR` null | "Machine State at Entry, x86-64" | Vol. 3A §2.4.2–§2.4.4, §5.10, §6.2.1 |
+| S12 | Local APIC enabled, `SVR=0x1FF`, `TPR=0`, LVTs masked | "Machine State at Entry, x86-64" | Vol. 3A §8.4.3, §8.5.1, §8.8.6, §8.9 |
+| S13 | x2APIC only when the bootloader reports it enabled; the mode is read from the MP response flags | "MP" | Vol. 3A "APIC" (x2APIC); Vol. 4 `IA32_X2APIC_*` |
+| S14 | Legacy PIC and I/O APIC lines masked | "Machine State at Entry, x86-64" | Vol. 3A §8.1 |
+| S15 | EFI boot services exited; no boot-service call is legal | "Machine State at Entry, x86-64"; EFI notes | UEFI 2.11 §7.4.6 |
+| S16 | `PAT0=WB`, `PAT5=WC`; MTRRs left as firmware set them | "Caching, x86-64" | Vol. 3A §10.12 "PAT", §10.11 "MTRRs" |
+| S17 | HHDM is partial; mappings may overshoot region boundaries | "HHDM"; "Memory Layout at Entry" | — |
+| S18 | Memory map is sorted; usable/reclaimable are 4 KiB aligned and do not overlap | "Memory Map" | — |
+| S19 | MP response, `limine_mp_info`, AP trampoline and AP stacks are reclaimable | "MP"; "Memory Map" | — |
+| S20 | RSDP is a virtual HHDM address at revision ≥ 4 | "RSDP" | ACPI 6.6 §5.2.5 |
+| S21 | AP MTRRs are synchronised by the bootloader | "MP" | Vol. 3A §10.11.8 "MTRR Considerations in MP Systems"; Limine cites current §12.11.5 |
