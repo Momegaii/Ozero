@@ -18,7 +18,7 @@ director approval before Stage 1.
 
 ## Evidence
 
-- Commit: `357202f8daf44aa52f9f8a9ef30ebe59f608f15a`
+- Commit: `c46ee8627eb48eb5a64be00a508dcb417c6ddfe4`
   (all deliverables below are in this commit; this report is a follow-up commit).
 - Files:
   - `docs/kernel-architecture.md`, `docs/boot-contract.md`, `docs/cpu-baseline.md`,
