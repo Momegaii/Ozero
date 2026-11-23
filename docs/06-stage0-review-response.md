@@ -31,7 +31,7 @@ Definition-of-done status:
 | AHCI probe begins only after DMA/reset contract approval | **blocked** |
 | Haswell notes explicitly distinguish Gen7.5 from Gen8+ | **done** |
 
-## 2. A1 review request
+## 2. A1 review request and response
 
 A1's written review is now available on branch `a1/stage0-review` at commit
 `e2d7c0d`, in `docs/interface-draft.md` §11 and `include/o0/mm.h` /

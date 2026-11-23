@@ -6,7 +6,7 @@ Base commit on main: `147cc86c027cef7cec42525024d26dcccf66d7db`
 Branch: `a3/stage0-review-response`
 Stage 0 package commit: `a2890b5e3c070fb8a13fa64030a0a6e6a6e80714`
 A1 review source: `origin/a1/stage0-review` @ `e2d7c0d`
-A1 review response commit: this commit (HEAD)
+A1 review response commit: `897e5ce7afcc055572a735e7c0ccc6d62d42d8cb`
 
 Use `git rev-parse HEAD` and `git log -1 -- EVIDENCE.md` for the exact values.
 The Stage 0 package commit contains the matrix schema v2, the review response,
@@ -220,7 +220,7 @@ branch: a3/stage0-review-response
 base commit on main: 147cc86c027cef7cec42525024d26dcccf66d7db
 stage 0 package commit: a2890b5e3c070fb8a13fa64030a0a6e6a6e80714
 a1 review source: origin/a1/stage0-review @ e2d7c0d
-a1 review response commit: this commit (HEAD)
+a1 review response commit: 897e5ce7afcc055572a735e7c0ccc6d62d42d8cb
 ```
 
 Get the exact commits with:
@@ -230,6 +230,13 @@ git rev-parse HEAD
 git log --oneline --decorate -3
 git log -1 --oneline -- EVIDENCE.md
 ```
+
+Remote push status (2026-11-23): **blocked**. `git push -u origin
+a3/stage0-review-response` returned HTTP 403, "Permission to
+Momegaii/Ozero.git denied to Momegaii." The available token can read the
+repository but cannot write contents. The branch and patch are local only; no
+remote branch or pull request was created. Patch:
+`/workspace/a3-stage0-review-response.patch`.
 
 A1 review response files:
 
