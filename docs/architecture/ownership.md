@@ -24,6 +24,7 @@ integration authority. The Director approves architecture and stage acceptance.
 | `userland/` | A3 | A3 | User-space programs and runtime. |
 | `userland/platform/dma/` | A3 | A3, A1 | DMA and platform interfaces. A1 sign-off is a required merge gate (IF-008). |
 | `a3/` | A3 | A3, A4 | A3 Stage 0 package on the A4 integration branch. `a3/tools/` is A3-owned; root `tools/check-headers.sh` remains A1-owned (D-010). |
+| `a2/` | A2 | A2, A4 | A2 Stage 0 package on the A4 integration branch. A2 owns the PE fixture contract, tools and evidence; A4 owns the integration branch and review gate. |
 | `tools/` | A3 | A3 | Host-side tooling. |
 | `tools/check-headers.sh` | A1 | A1, A4 | Header/ABI check. A1 owns the script; A4 owns CI integration (D-010). |
 | `tests/abi_static_asserts.c` | A1 | A1, A4 | ABI static asserts. A1 owns the file; A4 invokes it in CI (D-010). |
@@ -48,6 +49,12 @@ match its package. The vendored header snapshots under `a3/include/ozero/` are n
 do not replace A1's files (XB-017 and XB-020 Closed). The file-level `CODEOWNERS` entries for the two
 A3-owned interface files override the directory rule. Integration is not a hardware result: XB-005,
 D-007 and D-021 remain open or Proposed.
+
+A2 owns the `a2/` package: PE fixture sources, the structure inventory, static tools, tests and
+evidence. A4 integrated A2 at `f0c64a9` from A2 `d83cfbe` (code `f6ed1d8`) as a merge commit; the
+integration adds `a2/` only and does not rewrite A2's branch. `CODEOWNERS` lists `/a2/` as A2-owned
+with A4 co-review. The IF-009 v1.1 negative cases were implemented by A4 at `31e6825` under the
+sole-agent order and evidence was regenerated at `37e9bf0`; A1 and A3 still need to re-sign v1.1.
 
 `CODEOWNERS` is the enforced copy of this table. If the two disagree, `CODEOWNERS` wins at review
 time and this document is a bug.

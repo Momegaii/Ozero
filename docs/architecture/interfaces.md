@@ -21,7 +21,7 @@ does not merge. Breaking changes need an ADR and Director approval.
 | IF-006 | Public kernel header surface (`include/ozero/`) | A1 | 0.2 draft | A2, A3 | Draft; A1 published `03f8883`; headers unchanged at `74b1471` |
 | IF-007 | Syscall / user-kernel ABI | A1 + A3 | — | A2 | Not started |
 | IF-008 | DMA and platform interface contract | A3 | 1.1 | A1, A2 | A1 **ACCEPT** at A3 `b9a69d8` (A1 `74b1471`); A3 accepted §6 at `307b919`; D-007/D-021 Proposed; AHCI probe blocked |
-| IF-009 | PE fixture and static-analysis contract | A2 | 1.0 | A1, A3, A4 | **Signed** v1.0: A1 **ACCEPT** with conditions at `74b1471` (`a17d126`); A3 **ACCEPT** for hardware boundary at `307b919`; A2 signature recorded at `6d305b8` (contract `d02598a`); XB-003 Closed. v1.1 disposition open for truncated-header and missing-DLL-name cases (XB-021) |
+| IF-009 | PE fixture and static-analysis contract | A2 | 1.0 | A1, A3, A4 | **Signed** v1.0: A1 **ACCEPT** with conditions at `74b1471` (`a17d126`); A3 **ACCEPT** for hardware boundary at `307b919`; A2 signature recorded at `6d305b8` (contract `d02598a`); XB-003 Closed. v1.1 six negative cases implemented at `31e6825`, evidence `37e9bf0`; XB-021 Closed for implementation; A1/A3 v1.1 re-sign pending |
 
 `IF-001` and `IF-002` are deliberately drafts. A4 owns the harness that consumes them, not the
 technical decision. A1 and A2 must confirm or replace them.
@@ -40,8 +40,14 @@ A2 recorded its signature at `6d305b8`. The fixture manifest is unchanged from `
 the older `6d305b8` / `64b3458` pair; A4's consolidated reconciliation is
 [`a2-review-ledger-reconciled.md`](a2-review-ledger-reconciled.md), and XB-013 is closed in the A4
 candidate. The signature is not loader approval and does not authorize a PE run; no loader exists.
-The v1.1 disposition for truncated headers and the missing DLL-name import case is in
-[`if-009-v1.1-disposition.md`](if-009-v1.1-disposition.md) and remains open as XB-021.
+
+The IF-009 v1.1 candidate adds four truncated-header cases and two import-Name-RVA cases. It is
+implemented at `31e6825`, with raw evidence at `37e9bf0`; the six cases all fail for the named
+reason. XB-021 is closed for implementation, but IF-009 v1.1 is **not signed**: A1 and A3 must
+review and re-sign. v1.0 remains the accepted version until then.
+The v1.1 disposition, implementation and evidence are in
+[`if-009-v1.1-disposition.md`](if-009-v1.1-disposition.md); XB-021 is closed for implementation and
+the v1.1 signature gate is still open.
 
 ## Versioning rules
 

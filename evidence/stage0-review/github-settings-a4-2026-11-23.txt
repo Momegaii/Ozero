@@ -1,0 +1,33 @@
+# GitHub settings audit - A4 directive 2026-11-23
+# head: 37e9bf00240abbe2e111be54438922d3b2600769
+# date: 2026-11-23T15:04:25Z
+
+$ gh api repos/Momegaii/Ozero/branches/main
+{"name":"main","commit":{"sha":"147cc86c027cef7cec42525024d26dcccf66d7db","node_id":"C_kwDOV4lEU9oAKDE0N2NjODZjMDI3Y2VmN2NlYzQyNTI1MDI0ZDI2ZGNjY2Y2NmQ3ZGI","commit":{"author":{"name":"Mohammad","email":"mohammadalmasri1053@gmail.com","date":"2026-11-23T10:32:34Z"},"committer":{"name":"GitHub","email":"noreply@github.com","date":"2026-11-23T10:32:34Z"},"message":"Initial commit","tree":{"sha":"3553fc2f62e5869ec91f488f444db3657472c0d2","url":"https://api.github.com/repos/Momegaii/Ozero/git/trees/3553fc2f62e5869ec91f488f444db3657472c0d2"},"url":"https://api.github.com/repos/Momegaii/Ozero/git/commits/147cc86c027cef7cec42525024d26dcccf66d7db","comment_count":0,"verification":{"verified":true,"reason":"valid","signature":"-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJrBBZCCRC1aQ7uu5UhlAAAk7AQAAh+0bEbTK0NQ7x4ZxCOLGbN\nM1zUdtUtb9Nk/zpcibhjY1guy/Cucma1nrOZ6ih1DXmrtP2MoN+Qqpn/HXWRPqX7\nuAEpq2cgTKZgGJbQUbOp4wRM8D4F5XTmwLkR2VgOaZmwk+ijWo8RjtoVrt0bw7Mp\n7U/7O2hQiM2BvA4BAUTHmstiUhAibwDqsRbyLwgYOc8Qb4O2EPaQj4kyUZiDB6Eq\nTWLsUYvV7BJv4+rvzmQzYUpQk6EhyN54FbmWnrgW/+tNnysbdAcUr8mDhPE6BKho\na9wHvcZzLDUGO7Hlhd4Z56WmZz401BBKEwrCuNl23nfyjVXVVvINy4itJjxe47v8\nv1zgWAa5+dLdiJ0hsQrdR0Gc1e71WF/xBAWLpp6RPxzF0++M+x6IbWRWwAYwoSgL\n3jQqvXpCW9XFpSpPI3O4eDTSi0rDsgOWxbGYInk4CeWrQEwB4Zf8fziiXidJm5qb\nh4LUa3RUSGCerKdU3bdTXEyAVuUvtWXXKofqiOSLTiWasyZ0upgtQQok7k7aLjge\nV9J9ENIUQpKyYPnopsknPZJOhQdEGUJVT+Zxs1XrDFtsr3KpBhFKOiejov/frbl4\n14tVTJjMXp/UukMLtRGjjT1Nk2aOxmrrxZXMogQ2Dt98kJnHw//c264NDzCvXfVd\nhAvNDaFfj5ZwO67+ErD0\n=WCAf\n-----END PGP SIGNATURE-----\n","payload":"tree 3553fc2f62e5869ec91f488f444db3657472c0d2\nauthor Mohammad <mohammadalmasri1053@gmail.com> 1795429954 +0300\ncommitter GitHub <noreply@github.com> 1795429954 +0300\n\nInitial commit","verified_at":"2026-11-23T10:32:34Z"}},"url":"https://api.github.com/repos/Momegaii/Ozero/commits/147cc86c027cef7cec42525024d26dcccf66d7db","html_url":"https://github.com/Momegaii/Ozero/commit/147cc86c027cef7cec42525024d26dcccf66d7db","comments_url":"https://api.github.com/repos/Momegaii/Ozero/commits/147cc86c027cef7cec42525024d26dcccf66d7db/comments","author":{"login":"Momegaii","id":192542746,"node_id":"U_kgDOC3n4Gg","avatar_url":"https://avatars.githubusercontent.com/u/192542746?v=4","gravatar_id":"","url":"https://api.github.com/users/Momegaii","html_url":"https://github.com/Momegaii","followers_url":"https://api.github.com/users/Momegaii/followers","following_url":"https://api.github.com/users/Momegaii/following{/other_user}","gists_url":"https://api.github.com/users/Momegaii/gists{/gist_id}","starred_url":"https://api.github.com/users/Momegaii/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/Momegaii/subscriptions","organizations_url":"https://api.github.com/users/Momegaii/orgs","repos_url":"https://api.github.com/users/Momegaii/repos","events_url":"https://api.github.com/users/Momegaii/events{/privacy}","received_events_url":"https://api.github.com/users/Momegaii/received_events","type":"User","user_view_type":"public","site_admin":false},"committer":{"login":"web-flow","id":19864447,"node_id":"MDQ6VXNlcjE5ODY0NDQ3","avatar_url":"https://avatars.githubusercontent.com/u/19864447?v=4","gravatar_id":"","url":"https://api.github.com/users/web-flow","html_url":"https://github.com/web-flow","followers_url":"https://api.github.com/users/web-flow/followers","following_url":"https://api.github.com/users/web-flow/following{/other_user}","gists_url":"https://api.github.com/users/web-flow/gists{/gist_id}","starred_url":"https://api.github.com/users/web-flow/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/web-flow/subscriptions","organizations_url":"https://api.github.com/users/web-flow/orgs","repos_url":"https://api.github.com/users/web-flow/repos","events_url":"https://api.github.com/users/web-flow/events{/privacy}","received_events_url":"https://api.github.com/users/web-flow/received_events","type":"User","user_view_type":"public","site_admin":false},"parents":[]},"_links":{"self":"https://api.github.com/repos/Momegaii/Ozero/branches/main","html":"https://github.com/Momegaii/Ozero/tree/main"},"protected":false,"protection":{"enabled":false,"required_status_checks":{"enforcement_level":"off","contexts":[],"checks":[]}},"protection_url":"https://api.github.com/repos/Momegaii/Ozero/branches/main/protection"}
+$ gh api repos/Momegaii/Ozero/rulesets
+[]
+$ gh api repos/Momegaii/Ozero/contents/CODEOWNERS?ref=main
+{"message":"Not Found","documentation_url":"https://docs.github.com/rest/repos/contents#get-repository-content","status":"404"}gh: Not Found (HTTP 404)
+
+$ gh api repos/Momegaii/Ozero --jq ...
+{"allow_merge_commit":true,"allow_rebase_merge":true,"allow_squash_merge":true,"default_branch":"main","delete_branch_on_merge":false,"owner":"Momegaii","type":"User","visibility":"public"}
+
+$ gh api repos/Momegaii/Ozero/collaborators?per_page=100 --jq ...
+{"login":"Momegaii","permissions":{"admin":true,"maintain":true,"pull":true,"push":true,"triage":true}}
+
+$ gh api orgs/Momegaii/teams
+{"message":"Not Found","documentation_url":"https://docs.github.com/rest/teams/teams#list-teams","status":"404"}gh: Not Found (HTTP 404)
+
+$ gh pr checks 3
+build-and-boot	pass	1m26s	https://github.com/Momegaii/Ozero/actions/runs/45197271095/job/137770978531	
+
+$ gh pr view 3 --json ...
+hint: if you need to wait for this pull request to be reviewed, merged, or closed before continuing, use this instead of polling:
+    gh event listen --resource https://github.com/Momegaii/Ozero/pull/3 --event com.github.pull_request.review.submitted.v1,com.github.pull_request.state.changed.v1
+  - It prints the first event as a JSON line on stdout and exits; run it again to wait for the next one.
+  - Add `--timeout` to stop waiting after a while, for example `--timeout 30m`; it then exits with status 8.
+  - Events carry no details; read the pull request to see what changed.
+  - It misses changes made before it starts, so read the pull request once it is running.
+  - See `gh event listen --help` for other event types.
+  - Event subscriptions are in preview and may not be enabled for your account.
+{"baseRefName":"main","headRefOid":"7208a286e96be3c37eb0480a222126f22561d360","isDraft":false,"mergeStateStatus":"CLEAN","mergeable":"MERGEABLE","number":3,"state":"OPEN"}

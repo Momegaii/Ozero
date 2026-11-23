@@ -32,12 +32,18 @@ preserve safety gates.
 | A3 branch | a3/stage0-review-response at 48d434f; PR #4 merged into A4 |
 | A4 before takeover | a3a67ab |
 | A3 integration merge | 44d566e; parents 8b71be1 and 48d434f |
-| A4 after takeover | 44d566e plus the takeover commit |
+| A2 integration merge | f0c64a9; A2 package from d83cfbe |
+| A4 after takeover | 44d566e, f0c64a9, IF-009 v1.1 implementation and this directive commit |
+| Directive baseline | 7208a28 |
 | Stage 0 | NOT ACCEPTED |
 | D-006 | Proposed |
 
 PR #1 is open and draft. PR #2 is open and draft. PR #3 is open and non-draft. PR #4 is merged into A4 and
-targets the A4 branch, not main.
+targets the A4 branch, not main. No PR is approved or merged to main.
+
+The directive added three decision inputs: the D-005 boot-protocol package, the XB-012
+branch-protection audit and the XB-005 hardware-evidence plan. None of them approves a decision or
+closes an open blocker. D-005 and D-031 remain Proposed; XB-004, XB-005 and XB-012 remain Open.
 
 ## 3. Recovered A1 evidence
 
@@ -69,9 +75,9 @@ branch. The consolidated reconciliation is docs/architecture/a2-review-ledger-re
 records the current pair, the unchanged manifest and all three signatures. XB-013 is Closed in the
 A4 candidate.
 
-IF-009 v1.1 is not signed and not implemented. A1 accepted v1.0 with two explicit gaps: truncated
-PE headers and a missing DLL name in an import descriptor. The disposition is
-docs/architecture/if-009-v1.1-disposition.md. It requires six negative cases:
+IF-009 v1.1 is implemented and verified at L0 but **not signed**. A1 accepted v1.0 with two explicit
+gaps: truncated PE headers and a missing DLL name in an import descriptor. The disposition is
+docs/architecture/if-009-v1.1-disposition.md. It required six negative cases:
 
 1. truncated DOS header
 2. truncated NT headers
@@ -80,8 +86,17 @@ docs/architecture/if-009-v1.1-disposition.md. It requires six negative cases:
 5. import descriptor with a zero Name RVA
 6. import descriptor with an out-of-bounds Name RVA
 
-Each case must fail for the named reason. The evidence level stays L0. A1 and A3 must re-sign v1.1;
-v1.0 signatures do not carry forward. XB-021 is Open.
+All six are implemented at 31e6825. Each fails for the named reason. The raw evidence at 37e9bf0
+records 12 expected failures, 2 sample-dependent skips and 0 problems; unit tests are 45 OK with
+1 skipped. The evidence level stays L0. XB-021 is Closed for implementation. A1 and A3 must still
+re-sign v1.1; v1.0 signatures do not carry forward, and v1.0 remains the accepted version.
+
+### A2 integration
+
+A2's package is integrated into the A4 candidate at f0c64a9 from A2 d83cfbe. The merge adds a2/
+only and preserves A2's commits and evidence; A2's branch is not rewritten. CODEOWNERS now lists
+/a2/ as A2-owned with A4 co-review. The integration is not a runtime result: no PE load or Windows
+execution is claimed.
 
 ## 5. A3 integration
 
@@ -138,15 +153,16 @@ bc3f566 in 4m55s (run 45195798408); evidence/stage0-review/ci-run-bc3f566.txt.
 
 ## 7. Blocker snapshot
 
-4 Open, 16 Closed, 1 Signed.
+3 Open, 17 Closed, 1 Signed.
 
 | State | Rows |
 | --- | --- |
-| Open | XB-004 boot protocol / D-005; XB-005 A3 hardware evidence; XB-012 branch protection / D-031; XB-021 IF-009 v1.1 gaps |
+| Open | XB-004 boot protocol / D-005; XB-005 A3 hardware evidence; XB-012 branch protection / D-031 |
 | Signed | XB-002 A1/A2 contracts; D-011 Proposed; no ABI freeze |
-| Closed this round | XB-013 A2 ledger reconciliation; XB-016 A1 raw evidence; XB-020 A3 integration |
+| Closed this round | XB-013 A2 ledger reconciliation; XB-016 A1 raw evidence; XB-020 A3 integration; XB-021 IF-009 v1.1 implementation |
 
-The live register is docs/process/cross-agent-blockers.md.
+XB-021 is Closed for implementation only. IF-009 v1.1 is not signed, and A1/A3 re-sign remains a
+review gate. The live register is docs/process/cross-agent-blockers.md.
 
 ## 8. Decisions and gates
 
@@ -155,26 +171,29 @@ D-006 is explicitly not approved. Stage 0 remains NOT ACCEPTED.
 
 | Gate | State |
 | --- | --- |
+| D-005 boot protocol | Proposed; package at docs/decisions/D-005-boot-protocol-package.md; no boot executed |
 | D-006 Stage 0 acceptance | Proposed; not accepted |
 | D-007 A3 DMA/platform interface | Proposed; no AHCI work authorized |
 | D-021 IOMMU policy | Proposed; no DMA work authorized |
-| D-031 main branch protection | Proposed; main is unprotected |
+| D-031 main branch protection | Proposed; main is unprotected; audit at docs/process/branch-protection-audit.md; no setting changed |
 | Windows PE | Static L0 only; no load, import resolution or execution claim |
 | Boot | MBR fixture only; not UEFI, Limine or kernel boot |
-| GPU / hardware | No device execution, residency, submission or completion-fence evidence |
+| GPU / hardware | No device execution, residency, submission or completion-fence evidence; plan at docs/architecture/xb-005-a3-hardware-evidence-plan.md |
 
 ## 9. Not tested
 
 UEFI, Limine loading an Ozero kernel, Ozero kernel entry, real hardware, PE loading or execution,
-Windows compatibility, A3 driver code, AHCI probe, DMA transfer, GPU execution, A1/A2 integration,
-IF-009 v1.1 negative cases, and branch-protection enforcement.
+Windows compatibility, A3 driver code, AHCI probe, DMA transfer, GPU execution, A1 integration,
+A3 QEMU L1 tests, and branch-protection enforcement.
 
 ## 10. Next measurable milestone
 
-The next milestone is Director disposition of D-006, D-007, D-021 and D-031, followed by either:
+The next milestone is Director disposition of D-005, D-006, D-007, D-021 and D-031, followed by:
 
-1. A1/A2 integration into the A4 candidate with the same file-level proof used for A3; or
-2. implementation of the six IF-009 v1.1 negative cases with L0 negative reports and A1/A3 re-sign.
+1. A1 integration into the A4 candidate with the same file-level proof used for A2 and A3; or
+2. A1/A3 review and re-sign of IF-009 v1.1, which is implemented but not signed; or
+3. after D-007/D-021 approval, the first read-only QEMU L1 AHCI identify described in the XB-005
+   plan.
 
 Completion test: the A4 tree contains the agreed change, the named checks pass with raw output, and
 the relevant blocker row moves only when its evidence condition is met.
@@ -186,5 +205,9 @@ the relevant blocker row moves only when its evidence condition is met.
 | 8b71be1 | Recover A1 evidence and reconcile IF-009 v1.1 gaps |
 | 44d566e | Merge A3 PR #4 into the A4 candidate |
 | takeover commit | Record sole-agent takeover, A3 integration proof, A2 reconciliation and master brief |
+| f0c64a9 | Merge A2 Stage 0 package into the A4 candidate |
+| 31e6825 | Implement the six IF-009 v1.1 negative cases |
+| 37e9bf0 | Regenerate A2 evidence at 31e6825 |
+| directive commit | D-005 package, XB-012 audit, XB-005 plan and documentation reconciliation |
 
-main remains 147cc86. No merge to main was performed.
+main remains 147cc86. No merge to main was performed. No PR was approved.

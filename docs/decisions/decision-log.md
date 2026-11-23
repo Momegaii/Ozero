@@ -30,7 +30,7 @@ the register wins.
 | D-002 | Approve branch isolation and the review gate, then protect `main` | **Proposed** | A4 | Project Director | 2026-11-23 | Before Stage 1 | ADR-0002 |
 | D-003 | Approve the Stage 0 build and QEMU MBR harness approach | **Proposed** | A4 | Project Director | 2026-11-23 | Stage 0 review | ADR-0003 |
 | D-004 | Approve agent trust boundaries and workspace profiles | **Proposed** | A4 | Project Director | 2026-11-23 | Before Stage 1 | ADR-0004 |
-| D-005 | Choose the boot protocol and kernel handoff (Limine is a candidate only) | **Proposed** | A1 | Project Director | 2026-11-23 | Stage 1 design | IF-001 |
+| D-005 | Choose the boot protocol and kernel handoff (Limine is a candidate only) | **Proposed** | A1 | Project Director | 2026-11-23 | Stage 1 design | IF-001; A4 package `docs/decisions/D-005-boot-protocol-package.md` |
 | D-006 | Accept Stage 0 | **Proposed** | A4 | Project Director | 2026-11-23 | Stage 0 exit | `docs/templates/stage-acceptance.md` |
 | D-007 | Approve the A3 DMA/platform interface and the required A1 sign-off gate | **Proposed** | A1 + A3 | Project Director | 2026-11-23 | Before A3 DMA work | IF-008 v1.1 at A3 `b9a69d8`; A1 **ACCEPT** at A1 `74b1471`; A3 accepted §6 at `307b919`; PR #4 `48d434f` integrated at `44d566e`; Director approval still pending |
 | D-008 | Approve publishing the A4 Stage 0 branch for independent verification | **Approved** | A4 | Project Director | 2026-11-23 | Stage 0 review | [#3](https://github.com/Momegaii/Ozero/pull/3), `evidence/stage0-review/director-review-2026-11-23.md` |
@@ -82,9 +82,12 @@ the register wins.
   A3 `307b919` is based on A4 `3ae7aca`; A4 integrated its package at `44d566e` (XB-020 Closed).
   Integration does not change any decision status.
 - D-031 remains **Proposed**. The 2026-11-23 recheck records `main` as `protected:false`, no
-  repository rulesets and no `CODEOWNERS` on `main`; required checks are not enabled.
+  repository rulesets and no `CODEOWNERS` on `main`; required checks are not enabled. The exact
+  payloads and the user-vs-organization `CODEOWNERS` problem are in
+  `docs/process/branch-protection-audit.md`; no setting was changed.
 - The sole-agent takeover does not change any decision status. D-006 remains **Proposed** and Stage 0
   remains **not accepted**. D-007 and D-021 remain **Proposed**; A3 PR #4 is integrated into the A4
   candidate at `44d566e`, but no AHCI, DMA, GPU or hardware work is authorized. IF-009 v1.0 is
-  **Signed**; that is an interface signature, not a Stage 0 or D-006 approval. IF-009 v1.1 gaps are
-  recorded as XB-021 and are not approved.
+  **Signed**; that is an interface signature, not a Stage 0 or D-006 approval. IF-009 v1.1 is
+  implemented at `31e6825` and XB-021 is Closed for implementation, but v1.1 is **not signed** and
+  is not approved. The D-005 package and the XB-005 plan are decision inputs, not approvals.

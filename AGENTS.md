@@ -13,6 +13,11 @@ because their sandboxes exhausted their usage. Historical authorship and ownersh
 A4 continues their work without relabeling it. One consolidated A4 brief is maintained in
 `docs/A4_SOLE_AGENT_MASTER_BRIEF.md`.
 
+A2's `a2/` package is integrated into the A4 candidate at `f0c64a9`; A3's package is integrated at
+`44d566e`. A1 is not integrated. IF-009 v1.1 is implemented at `31e6825` with evidence at
+`37e9bf0`, but it is **not signed**; v1.0 remains the accepted version. XB-021 is Closed for
+implementation only.
+
 ## Commands
 
 ```sh
@@ -25,6 +30,8 @@ make check-ci-safety    # reject privileged, raw-disk or Windows-binary CI steps
 make ci                 # check-toolchain + check-ci-safety + build + test-mbr-harness
 make verify-repro       # two clean git-archive builds must be bit-identical
 make verify-clean       # clone HEAD to a temp dir and run `make ci` there
+make -C a2 check        # A2 PE static checks and unit tests
+make -C a3 check        # A3 matrix, header and unit checks
 make clean
 scripts/audit-repos.sh [peer]   # commit graph, branches and clean-tree state
 ```
@@ -55,6 +62,8 @@ Override the build directory with `BUILD_DIR=/path`. The QEMU test accepts
   must not fork it. `include/o0/` is removed.
 - A1 owns `tools/check-headers.sh` and `tests/abi_static_asserts.c`; A4 owns CI integration; A3
   owns other `tools/` content (D-010).
+- A2 owns `a2/` (PE fixtures, tools and evidence); A3 owns `a3/` (hardware package). A4 owns the
+  integration branch and review gate for both.
 - A1–A3 must not edit `docs/`, `scripts/`, `tests/`, `harness/`, `toolchain/` or `.github/` without
   an A4 review on the PR. The exception is `tests/abi_static_asserts.c`, which A1 owns.
 - A4 must not edit A1–A3 domain source. If a fix is needed there, open an issue and request the

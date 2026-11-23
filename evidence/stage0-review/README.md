@@ -6,13 +6,13 @@
 | Repository | `Momegaii/Ozero` |
 | Branch | `a4/stage0-review-followup` (published) |
 | Commit under test | `43961551442009aac8189e5edca3f5c7af43a2cd` (harness baseline) |
-| Current head | `44d566e` (A3 integration merge) plus this takeover commit |
-| A1 / A2 / A3 refs | `2693a34` / `d83cfbe` (`f6ed1d8` code, `d83cfbe` evidence) / PR #4 `48d434f`, integrated at `44d566e` |
+| Current head | `HEAD` of `a4/stage0-review-followup`; directive baseline `7208a28` |
+| A1 / A2 / A3 refs | `2693a34` / `d83cfbe` (`f6ed1d8` code, `d83cfbe` evidence), integrated at `f0c64a9` / PR #4 `48d434f`, integrated at `44d566e` |
 | Import commit | `5a50c0d28f323372cad5126baf6645df07407975` |
 | Base commit | `147cc86c027cef7cec42525024d26dcccf66d7db` (`origin/main`) |
 | Date | 2026-11-23 |
 | Environment | Debian 13, binutils 2.44, GNU make 4.4.1, bash 5.2.37, QEMU 10.0.13 |
-| Overall | All checks passed; negative tests failed as required; A3 integrated at `44d566e` and rechecked |
+| Overall | All checks passed; negative tests failed as required; A2 integrated at `f0c64a9`, A3 at `44d566e`; IF-009 v1.1 implemented, evidence `37e9bf0` |
 
 The report required by the review is [`REPORT.md`](REPORT.md). This file indexes the raw output.
 
@@ -26,6 +26,9 @@ The report required by the review is [`REPORT.md`](REPORT.md). This file indexes
 | Build and MBR harness smoke | `make clean && make ci` | 0 | 5/5 markers, 224 ms on the integrated tree; not kernel boot | `a3-integration-checks-2026-11-23.log`, `ci.log`, `qemu/` |
 | A3 package checks | `make -C a3 check` | 0 | 19 tests, `OK`; matrix and deliverables pass | `a3-integration-checks-2026-11-23.log` |
 | A3 A1-header check | `make -C a3 check-a1-headers A1_INCLUDE=include` | 0 | A1 headers compile against A3 | `a3-integration-checks-2026-11-23.log` |
+| A2 IF-009 v1.1 negative cases | `make -C a2 negative` | 0 | 12 expected failures, 2 sample skips, 0 problems; six v1.1 cases pass | `../../a2/docs/evidence/if-009-v1.1-negative-cases.txt` |
+| A2 unit tests | `python3 -m unittest discover -s tests -v` | 0 | 45 tests `OK`, 1 skipped | `../../a2/docs/evidence/unit-tests.txt` |
+| GitHub settings audit | `gh api .../branches/main`, `.../rulesets`, `.../contents/CODEOWNERS` | 0 | `protected:false`, rulesets `[]`, `CODEOWNERS` 404 on `main`; no setting changed | `github-settings-a4-2026-11-23.txt` |
 | A1 re-verification | `./tools/check-headers.sh` at A1 `2693a34` | 0 | `RESULT: PASS`; static only | `../a1-stage0/a4-verification-2026-11-23.txt` |
 | GitHub Actions | `stage0 / build-and-boot` at `bc3f566` | 0 | success in 4m55s; run `45195798408` | `ci-run-bc3f566.txt` |
 | Reproducibility | `make verify-repro` | 0 | image, ELF and manifest identical | `repro.log` |
@@ -79,7 +82,13 @@ manifest records `commit: unknown` inside both reproducibility copies.
 | `a2-static-check-64b3458.log` | A2 static checks at `64b3458` / code `6d305b8` |
 | `a3-check-307b919.log`, `a3-a1-header-check-307b919.log` | A3 package checks at `307b919`; A1 headers at `74b1471` |
 | `director-review-2026-11-23.md` | Director integration review and A4 disposition |
-| `github-settings.txt` | Branch protection, rulesets and required-check state |
+| `github-settings.txt` | Branch protection, rulesets and required-check state (earlier capture) |
+| `github-settings-a4-2026-11-23.txt` | Live A4 audit: branch metadata, rulesets, `CODEOWNERS`, owner type, collaborators, PR #3 check |
+| `../../docs/decisions/D-005-boot-protocol-package.md` | D-005 alternatives, recommendation, compatibility and approvals |
+| `../../docs/process/branch-protection-audit.md` | XB-012 audit and exact recommended protection payloads |
+| `../../docs/architecture/xb-005-a3-hardware-evidence-plan.md` | XB-005 gap analysis and gated QEMU/L2 plan |
+| `../../a2/docs/15-if-009-v1.1-negative-cases.md` | IF-009 v1.1 case table and L0 results |
+| `../../a2/docs/evidence/if-009-v1.1-negative-cases.txt` | Raw IF-009 v1.1 negative report at `37e9bf0` |
 | `PR_BODY.md` | Submitted pull request body |
 | `repo-audit.txt` | Fetch plus commit graph, branches, tags and clean-tree state |
 | `toolchain.txt` | Strict toolchain check |
@@ -107,11 +116,12 @@ make verify-clean
 
 - QEMU TCG is not real hardware.
 - The image is the A4 MBR harness fixture, not the Ozero kernel.
-- A3 is integrated into the A4 candidate at `44d566e`, but A3's package is static-only; no AHCI
-  probe, DMA transfer, GPU execution or device test ran. A1 and A2 are not integrated.
+- A2 is integrated into the A4 candidate at `f0c64a9` and A3 at `44d566e`, but both packages are
+  static-only; no AHCI probe, DMA transfer, GPU execution or device test ran. A1 is not integrated.
 - PR [#4](https://github.com/Momegaii/Ozero/pull/4) at `48d434f` is integrated into the A4 branch,
   not merged to `main`. D-007 and D-021 remain Proposed; XB-020 is Closed.
 - IF-009 v1.0 is Signed and XB-003 is Closed. A4 reconciled A2's ledger at `f6ed1d8` / `d83cfbe`
-  (XB-013 Closed). IF-009 v1.1 gaps remain Open as XB-021.
+  (XB-013 Closed). IF-009 v1.1 is implemented at `31e6825` with evidence at `37e9bf0`; XB-021 is
+  Closed for implementation, but v1.1 is not signed and v1.0 remains accepted.
 - The branch is published and Stage 0 PR [#3](https://github.com/Momegaii/Ozero/pull/3) is open.
   Stage 0 is still not accepted. D-006 remains Proposed.

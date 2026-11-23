@@ -5,7 +5,10 @@
 | Architecture | [Repository layout](architecture/repository-layout.md) | Proposed |
 | Architecture | [Ownership map](architecture/ownership.md) | Proposed |
 | Architecture | [Interface registry](architecture/interfaces.md) | Proposed |
+| Architecture | [IF-009 v1.1 disposition](architecture/if-009-v1.1-disposition.md) | Implemented at L0; signature pending |
+| Architecture | [XB-005 hardware-evidence plan](architecture/xb-005-a3-hardware-evidence-plan.md) | Plan; blocker Open |
 | Process | [Branch isolation and review gate](process/branching-and-review.md) | Proposed |
+| Process | [Branch-protection audit](process/branch-protection-audit.md) | Audit complete; D-031 Proposed |
 | Process | [Build and test plan](process/build-and-test.md) | Tested |
 | Process | [Test targets](process/test-targets.md) | Implemented |
 | Process | [CI safety](process/ci-safety.md) | Implemented |
@@ -15,6 +18,7 @@
 | Process | [Reporting rules](process/reporting.md) | Implemented |
 | Decisions | [ADR index](adr/README.md) | Proposed |
 | Decisions | [Decision log](decisions/decision-log.md) | Live |
+| Decisions | [D-005 boot-protocol package](decisions/D-005-boot-protocol-package.md) | Package; D-005 Proposed |
 | Templates | [Agent report](templates/agent-report.md) | Ready to use |
 | Templates | [Interface definition](templates/interface.md) | Ready to use |
 | Templates | [Stage acceptance](templates/stage-acceptance.md) | Ready to use |

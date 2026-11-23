@@ -91,31 +91,32 @@ Stage 0 has no persistent state, so rollback is a revert. For later stages:
 
 ## Current branch integration order
 
-At the 2026-11-23 sole-agent takeover snapshot the open branches are
-`a4/stage0-review-followup` (PR #3, head `44d566e` plus this takeover commit),
+At the 2026-11-23 Director execution directive snapshot the open branches are
+`a4/stage0-review-followup` (PR #3, head `HEAD`; directive baseline `7208a28`),
 `a1/stage0-review` (PR #1, head `2693a34`), `agent/a2-stage0` (PR #2, head `d83cfbe`, code
 `f6ed1d8`, evidence `d83cfbe`) and `a3/stage0-review-response` (PR #4, head `48d434f`, base
 `a4/stage0-review-followup`). Merge in this order:
 
 1. A4 control plane: it defines `CODEOWNERS`, `Makefile`, `tests/targets.tsv`, `scripts/` and the
    process documents. Nothing else can be checked against the gates until this lands. `CODEOWNERS`
-   lists `/a3/` as A3-owned with A4 co-review.
+   lists `/a2/` as A2-owned and `/a3/` as A3-owned, both with A4 co-review.
 2. A1: rebase onto the A4 base. Resolve `AGENTS.md`, `README.md` and `docs/README.md` in favour of
    the A4 control-plane text, then add A1's content. A1's `03f8883` refactor makes `include/ozero/`
    the only public root (D-009); `tools/check-headers.sh` and `tests/abi_static_asserts.c` are
    A1-owned, with A4 owning CI integration (D-010). Register the ABI test in `tests/targets.tsv`.
    A1's raw log is copied to `evidence/a1-stage0/` and re-verified at `2693a34` (XB-016 Closed).
-3. A2: rebase onto the same base. Keep the `a2/` package intact and add a root `test-pe-static`
-   target; do not merge `a2/Makefile` into the root Makefile. IF-009 v1.0 is Signed by A1, A3 and
-   A2 (XB-003 Closed). The current code/evidence pair is `f6ed1d8` / `d83cfbe`; A4 reconciled the
-   ledger in `docs/architecture/a2-review-ledger-reconciled.md` (XB-013 Closed). The IF-009 v1.1
-   negative gaps remain Open as XB-021.
+3. A2: **already integrated** into the A4 candidate as merge commit `f0c64a9`. The merge adds
+   `a2/` only and preserves A2's commits and evidence; A2's branch is not rewritten. IF-009 v1.0
+   is Signed by A1, A3 and A2 (XB-003 Closed). The current code/evidence pair is `f6ed1d8` /
+   `d83cfbe`; A4 reconciled the ledger in `docs/architecture/a2-review-ledger-reconciled.md`
+   (XB-013 Closed). IF-009 v1.1 is implemented at `31e6825` with evidence at `37e9bf0`; XB-021 is
+   Closed for implementation, but v1.1 is not signed and A1/A3 re-sign remains.
 4. A3: **already integrated** into the A4 candidate as merge commit `44d566e`. The merge adds 56
    files: 44 under `a3/` and 12 under `include/ozero/`. A1's ten headers are byte-identical to
    `74b1471`; A3's `platform.h`/`block.h` match its package; no A4 control-plane file changed.
    `make -C a3 check` passes 19 tests, `check-a1-headers` exits 0, and `make ci` passes (XB-020
-   Closed). PR #4 is merged into the A4 branch at `44d566e` and is not merged to `main`. D-007 and D-021 remain
-   Proposed; integration does not authorize AHCI, DMA, GPU or hardware work.
+   Closed). PR #4 is merged into the A4 branch at `44d566e` and is not merged to `main`. D-007 and
+   D-021 remain Proposed; integration does not authorize AHCI, DMA, GPU or hardware work.
 
 A1's `74b1471` review is a final interface ACCEPT for IF-008 v1.1, not hardware validation, not a
 runtime DMA test and not Stage 0 acceptance. A3's `make check` and A1-header compile are static

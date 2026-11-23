@@ -336,3 +336,69 @@ Proposed; A3 integration does not authorize AHCI, DMA, GPU or hardware work.
 UEFI, Limine loading an Ozero kernel, Ozero kernel entry, real hardware, PE loading or execution,
 Windows compatibility, A3 driver code, AHCI probe, DMA transfer, GPU execution, A1/A2 integration,
 IF-009 v1.1 negative cases, and branch-protection enforcement.
+
+## 12. Director execution directive addendum — 2026-11-23
+
+A4 continued as the sole active agent under the Director's execution directive. It did not restart
+Stage 0, did not merge into `main`, did not approve any PR, and did not change any decision status.
+
+### Current refs
+
+| Ref | Commit | State |
+| --- | --- | --- |
+| `origin/main` | `147cc86` | unchanged |
+| `origin/a1/stage0-review` | `2693a34` | PR #1, open, draft; not integrated |
+| `origin/agent/a2-stage0` | `d83cfbe` | PR #2, open, draft; integrated into A4 at `f0c64a9` |
+| `origin/a3/stage0-review-response` | `48d434f` | PR #4; integrated into A4 at `44d566e`; not `main` |
+| `origin/a4/stage0-review-followup` | `HEAD` | PR #3, open, non-draft; this directive commit |
+
+### Work completed
+
+1. **A2 integration** — merge `f0c64a9` adds `a2/` only and preserves A2's commits and evidence.
+   `CODEOWNERS` now lists `/a2/` as A2-owned with A4 co-review.
+2. **IF-009 v1.1** — the six required negative cases are implemented at `31e6825`. The raw run at
+   `37e9bf0` records 12 expected failures, 2 sample-dependent skips and 0 problems; the six v1.1
+   cases all fail for the named reason. Unit tests: 45 `OK`, 1 skipped. XB-021 is Closed for
+   implementation. IF-009 v1.1 is **not signed**; A1 and A3 must re-sign, and v1.0 remains the
+   accepted version.
+3. **D-005 package** — `docs/decisions/D-005-boot-protocol-package.md` compares UEFI+Limine,
+   a custom UEFI loader, GRUB/Multiboot2, a UEFI direct stub and a BIOS path; recommends
+   UEFI + Limine base revision 6; records compatibility, approvals and exit criteria. D-005 remains
+   **Proposed**; no boot was executed and no Limine artifact was added.
+4. **XB-012 audit** — `docs/process/branch-protection-audit.md` records `main` as
+   `protected:false`, rulesets `[]`, `CODEOWNERS` 404 on `main`, and the fact that the repository is
+   owned by a User, so the `@ozero/...` team slugs cannot resolve. It provides exact
+   single-maintainer and two-reviewer payloads. No setting was changed; D-031 remains **Proposed**.
+5. **XB-005 plan** — `docs/architecture/xb-005-a3-hardware-evidence-plan.md` names the missing
+   driver, QEMU L1, L2 and L3/L4 evidence per matrix row and gates all AHCI/DMA work on D-007 and
+   D-021. XB-005 remains **Open**; no probe ran.
+6. **Documentation reconciliation** — dashboard, blocker register, decision log, interfaces,
+   ownership map and this report now record A2 integration and the IF-009 v1.1 implementation.
+
+### Raw checks
+
+| Command | Exit | Result | Artifact |
+| --- | --- | --- | --- |
+| `make -C a2 check` | 0 | 45 tests `OK`, 1 skipped; docs and negative checks pass | `a2/docs/evidence/` |
+| `make -C a2 negative` | 0 | 12 expected failures, 2 sample skips, 0 problems | `a2/docs/evidence/if-009-v1.1-negative-cases.txt` |
+| `gh api repos/Momegaii/Ozero/branches/main` | 0 | `protected:false`; required checks `[]` | `github-settings-a4-2026-11-23.txt` |
+| `gh api repos/Momegaii/Ozero/rulesets` | 0 | `[]` | `github-settings-a4-2026-11-23.txt` |
+| `gh api repos/Momegaii/Ozero/contents/CODEOWNERS?ref=main` | 1 | HTTP 404 | `github-settings-a4-2026-11-23.txt` |
+| `gh pr checks 3` | 0 | `build-and-boot` pass | `github-settings-a4-2026-11-23.txt` |
+
+### Blocker snapshot
+
+**3 Open, 17 Closed, 1 Signed.** Open: XB-004, XB-005, XB-012. Signed: XB-002. Closed this round:
+XB-021 (implementation only).
+
+### Decision status
+
+D-008, D-009 and D-010 remain **Approved**. D-005, D-006, D-007, D-021 and D-031 remain
+**Proposed**. Stage 0 remains **NOT ACCEPTED**. The D-005 package and XB-005 plan are decision
+inputs, not approvals.
+
+### Still not tested
+
+UEFI, Limine loading an Ozero kernel, Ozero kernel entry, real hardware, PE loading or execution,
+Windows compatibility, A3 driver code, AHCI probe, DMA transfer, GPU execution, A1 integration,
+A3 QEMU L1 tests, and branch-protection enforcement.

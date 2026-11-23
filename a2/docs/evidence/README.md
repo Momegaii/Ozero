@@ -35,6 +35,8 @@ corrupted copy of a real image, not by a defect in the checker.
 | --- | --- | --- | --- |
 | 2026-11-23 | `8bac650` | `f324b28` | initial import; historical |
 | 2026-11-23 | `50b7853` | `807c447` | director review response; historical once superseded |
+| 2026-11-23 | `f6ed1d8` | `d83cfbe` | IF-009 v1.0 signed; historical A2 pair |
+| 2026-11-23 | `31e6825` | `37e9bf0` | IF-009 v1.1 six negative cases; current A4 candidate |
 
 ## Revision rule
 
