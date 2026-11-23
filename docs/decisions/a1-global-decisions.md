@@ -24,6 +24,19 @@ the A1 rows before merging and keeps the mapping below.
 | D-010 | A1 owns `tools/check-headers.sh` and `tests/abi_static_asserts.c`. A4 owns CI integration and invokes the script unmodified. A3 owns other content under `tools/`. Changes to header rules need A1 review; changes to CI invocation need A4 review. | Proposed | A1 + A4 | Director | this document; `AGENTS.md` |
 | D-011 | A2's process, address-space, handle and syscall requirements are accepted as input to the Stage 7 contract. A1 provides kernel primitives; A2 owns Windows semantics. No ABI is frozen. Conditions are in `docs/a2-interface-review.md`. | Proposed | A1 + A2 | Director | `docs/a2-interface-review.md` |
 
+## Required A4 control-plane edits for D-010
+
+A4's `CODEOWNERS` assigns `/tools/` to A3. Add these lines **after** the `/tools/` line so
+the last match wins:
+
+```
+/tools/check-headers.sh              @ozero/a1-kernel @ozero/a4-integration
+/tests/abi_static_asserts.c          @ozero/a1-kernel @ozero/a4-integration
+```
+
+The `/tools/` rule stays for A3's other tools. The `/tests/` rule stays for A4's
+cross-cutting tests.
+
 ## A1 architecture decisions mapped to global IDs
 
 The local IDs in `docs/kernel-architecture.md` remain for readability. Reports and
