@@ -71,10 +71,10 @@ warning.
 catches untracked files, local state and undocumented steps. The acceptance criterion is not "it
 builds on my machine", it is "it builds on an empty machine from git alone".
 
-## QEMU boot smoke test
+## QEMU MBR harness smoke test
 
 ```sh
-make test
+make test-mbr-harness   # alias: make test
 ```
 
 The harness:
@@ -110,10 +110,15 @@ failing on a missing marker, and the replacement must be recorded in the interfa
 `.github/workflows/stage0.yml` runs on every push and pull request:
 
 1. `make check-toolchain` (minimum versions; CI records exact versions).
-2. `make build`.
-3. `make test`.
-4. `make verify-repro`.
-5. Upload `build/qemu/` and `build/manifest.json` as artifacts.
+2. `make check-ci-safety` (no privileges, raw disks or Windows binaries).
+3. `make build`.
+4. `make test-mbr-harness` (alias `make test`).
+5. `make verify-repro`.
+6. Upload `build/qemu/` and `build/manifest.json` as artifacts.
+
+Normal CI runs no privileged container, no host device, no raw disk write and no third-party Windows
+binary. See [`ci-safety.md`](ci-safety.md). Hardware, PE runtime and Limine jobs are opt-in and are
+not part of this workflow.
 
 CI is a gate, not evidence of record. Recorded evidence is a run on the reference toolchain with the
 commit hash, copied into `evidence/`.

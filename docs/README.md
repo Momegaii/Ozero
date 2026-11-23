@@ -7,6 +7,8 @@
 | Architecture | [Interface registry](architecture/interfaces.md) | Proposed |
 | Process | [Branch isolation and review gate](process/branching-and-review.md) | Proposed |
 | Process | [Build and test plan](process/build-and-test.md) | Tested |
+| Process | [Test targets](process/test-targets.md) | Implemented |
+| Process | [CI safety](process/ci-safety.md) | Implemented |
 | Process | [Trust boundaries](process/trust-boundaries.md) | Reviewed |
 | Process | [Integration checklist](process/integration-checklist.md) | Proposed |
 | Process | [Reporting rules](process/reporting.md) | Implemented |
@@ -30,5 +32,5 @@
 ## Status meaning
 
 **Proposed** means written and awaiting the Director. **Implemented** means the file or code exists.
-**Tested** means a command was run and its output is attached. **Accepted** means the Director
-approved it. Only the Director can move an item to Accepted.
+**Tested** means a command was run and its output is attached. **Approved** means the Director
+approved it, with a date and a link. Only the Director can move an item to Approved.

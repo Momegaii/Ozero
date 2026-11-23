@@ -22,7 +22,7 @@ without those is a status update, not evidence.
 | Blocked | The blocker, who can unblock it, and what was tried. |
 | Submitted for review | Commit hash, files, test command and output. |
 | Tested | A passing command with output, plus the commit it ran on. |
-| Accepted | Director approval link. A4 cannot set this. |
+| Approved | Director approval link with a date. A4 cannot set this. |
 
 Never write "done", "complete" or "working" without one of the above and its evidence.
 
@@ -45,11 +45,11 @@ Every agent report uses `docs/templates/agent-report.md` and contains:
 - Logs are copied into `evidence/<stage>/<date>/` and referenced by relative path.
 - No secrets, tokens, home directories or host names in evidence.
 - A screenshot is not evidence when a log would do.
-- "It works" is not evidence. `make test` exiting 0 with the serial log is.
+- "It works" is not evidence. `make test-mbr-harness` exiting 0 with the serial log is.
 
 ## Distinguishing the four states
 
-| Question | Proposed | Implemented | Tested | Accepted |
+| Question | Proposed | Implemented | Tested | Approved |
 | --- | --- | --- | --- | --- |
 | Is it written down? | yes | yes | yes | yes |
 | Does the code exist at a commit? | maybe | yes | yes | yes |
@@ -57,7 +57,7 @@ Every agent report uses `docs/templates/agent-report.md` and contains:
 | Did the Director approve? | no | no | no | yes |
 
 A4 reports use the weakest true state. A document plus a passing test is **Tested**, not
-**Accepted**. Only the Director moves an item to **Accepted**.
+**Approved**. Only the Director moves an item to **Approved**.
 
 ## Cadence
 

@@ -25,6 +25,7 @@
 /drivers/                           @ozero/a2-platform
 /platform/                          @ozero/a2-platform
 /userland/                          @ozero/a3-userland
+/userland/platform/dma/             @ozero/a3-userland @ozero/a1-kernel
 /tools/                             @ozero/a3-userland
 
 # Third-party intake is pinned and reviewed by A4 plus the consuming owner.

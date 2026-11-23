@@ -37,8 +37,11 @@ jobs:
       - name: Build
         run: make build
 
+      - name: CI safety policy
+        run: make check-ci-safety
+
       - name: Boot smoke test
-        run: make test
+        run: make test-mbr-harness
 
       - name: Reproducibility
         run: make verify-repro

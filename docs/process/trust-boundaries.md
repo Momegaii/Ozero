@@ -79,6 +79,9 @@ Residual risks:
 4. Do not paste secrets into commands, files, logs or evidence.
 5. Prefer a disposable VM for anything that touches boot code or raw disks.
 6. Destroy the workspace after the task; copy out only the evidence you need.
+7. Normal CI must pass `make check-ci-safety`: no privileged container, docker socket, host device,
+   raw disk write, loop device or third-party Windows binary execution. See
+   [`ci-safety.md`](ci-safety.md).
 
 ## What to do when a boundary is crossed
 

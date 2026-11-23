@@ -20,6 +20,7 @@ integration authority. The Director approves architecture and stage acceptance.
 | `drivers/` | A2 | A2 | Device drivers. |
 | `platform/` | A2 | A2 | Platform and board support. |
 | `userland/` | A3 | A3 | User-space programs and runtime. |
+| `userland/platform/dma/` | A3 | A3, A1 | DMA and platform interfaces. A1 sign-off is a required merge gate (IF-008). |
 | `tools/` | A3 | A3 | Host-side tooling. |
 | `docs/` | A4 | A4 | Director co-reviews `docs/adr/` and `docs/dashboard/`. |
 | `scripts/`, `tests/`, `harness/`, `toolchain/`, `.github/` | A4 | A4 | Build and test control plane. |

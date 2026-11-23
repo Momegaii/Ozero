@@ -4,7 +4,7 @@
 | --- | --- |
 | Owner | <agent> |
 | Version | <major>.<minor> |
-| Status | Proposed / Implemented / Tested / Accepted |
+| Status | Proposed / Implemented / Tested / Approved |
 | Consumers | <agents> |
 | Since | Stage <n> |
 | Related | ADR-xxxx |

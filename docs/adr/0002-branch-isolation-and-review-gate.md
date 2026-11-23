@@ -41,7 +41,7 @@ Details are in `docs/process/branching-and-review.md` and
 ## Consequences
 
 - Positive: every commit on `main` has an owner, a test and a rollback.
-- Negative: small changes carry PR overhead. Accepted: the overhead is the point.
+- Negative: small changes carry PR overhead. That overhead is the point.
 - Follow-up: protect `main` in GitHub, create the team slugs, require the CI check.
 
 ## Risks

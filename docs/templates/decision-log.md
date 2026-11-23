@@ -7,11 +7,12 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Proposed / Accepted / Rejected / Superseded |
+| Status | Proposed / Approved / Rejected / Deferred |
 | Raised by | |
 | Date raised | YYYY-MM-DD |
-| Approver | Project Director |
+| Director approver | |
 | Decision owner | |
+| Decided on | YYYY-MM-DD (only when Approved, Rejected or Deferred) |
 | Related | ADR-xxxx, IF-xxx, task id |
 
 ### Context
@@ -39,7 +40,8 @@ Which option A4 recommends, and the one-sentence reason. State what would change
 ### Decision
 
 - Chosen option:
-- Approver:
+- Status: Approved / Rejected / Deferred
+- Director approver:
 - Date:
 - Rationale:
 - Follow-up actions:

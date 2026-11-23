@@ -11,9 +11,9 @@ list. One decision per record.
 
 ## Lifecycle
 
-`Proposed` → `Accepted` → `Superseded` or `Deprecated`.
+`Proposed` → `Approved` → `Superseded` or `Deprecated`.
 
-A4 writes proposals. The Director sets `Accepted` and adds the approval link. A4 never self-approves
+A4 writes proposals. The Director sets `Approved` and adds the approval link. A4 never self-approves
 an architecture decision. An accepted ADR can be superseded, but the old record stays in the tree
 with a link to its replacement.
 

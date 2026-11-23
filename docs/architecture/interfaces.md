@@ -20,9 +20,14 @@ does not merge. Breaking changes need an ADR and Director approval.
 | IF-005 | Test result schema (`result.json`) | A4 | 1.0 | CI, dashboard | Implemented |
 | IF-006 | Public kernel header surface (`include/ozero/`) | A1 | 0.0 | A2, A3 | Not started |
 | IF-007 | Syscall / user-kernel ABI | A1 + A3 | — | A2 | Not started |
+| IF-008 | DMA and platform interface contract | A3 | 0.1 draft | A1, A2 | Proposed |
+| IF-009 | PE fixture and static-analysis contract | A2 | 0.1 draft | A4 | Proposed |
 
 `IF-001` and `IF-002` are deliberately drafts. A4 owns the harness that consumes them, not the
 technical decision. A1 and A2 must confirm or replace them.
+
+`IF-008` carries a mandatory review gate: A1 must approve any A3 change to DMA or platform
+interfaces before a dependent implementation merges. See the integration checklist.
 
 ## Versioning rules
 
@@ -31,6 +36,9 @@ technical decision. A1 and A2 must confirm or replace them.
 - Breaking change: ADR with a migration note, Director approval, and one stage of overlap where
   both versions are accepted by the harness.
 - An interface change is never bundled with an unrelated feature. One PR, one contract change.
+- Cross-agent sign-off: a dependent implementation cannot merge before the interface owner records
+  approval in the PR. The approval names the interface ID and version. This applies in particular
+  to A1 approval of A3 DMA/platform interfaces (IF-008).
 
 ## Interface definition template
 

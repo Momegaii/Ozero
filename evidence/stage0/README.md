@@ -13,6 +13,11 @@ This directory is the evidence for the Stage 0 claims in
 `docs/process/build-and-test.md`. It is a snapshot; the live result is always
 `build/qemu/result.json` after `make ci`.
 
+> Import note: this evidence was recorded in the A4 local repository at `e12983e` and imported into
+> `Momegaii/Ozero` as commit `5a50c0d`. The build hashes are unchanged. To reproduce in this
+> repository, check out `5a50c0d`; the original `e12983e` hash exists only in the local source
+> repository. Review-time evidence is in `../stage0-review/`.
+
 ## Results
 
 | Check | Command | Result | Artifact |

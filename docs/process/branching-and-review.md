@@ -49,12 +49,14 @@ A PR merges only when all of the following are true:
 | 1 | Scope stated: task id, owner, one-line outcome | PR description |
 | 2 | `CODEOWNERS` reviewer approved | GitHub review |
 | 3 | Build passes from a clean checkout | `make verify-clean` log or CI link |
-| 4 | Required tests pass | `make test` result attached |
+| 4 | Required test target passes | `make test-mbr-harness` result attached |
 | 5 | No new compiler or linker warnings | build log |
 | 6 | Interface changes versioned and registered | `docs/architecture/interfaces.md` diff |
-| 7 | Agent report attached | `docs/templates/agent-report.md` |
-| 8 | Rollback is a revert with no state migration | PR description |
-| 9 | Trust-boundary impact reviewed | `docs/process/trust-boundaries.md` checklist |
+| 7 | Cross-agent sign-off recorded before dependent implementation | PR approval naming the interface ID and version; A1 for A3 DMA/platform (IF-008) |
+| 8 | Agent report attached | `docs/templates/agent-report.md` |
+| 9 | Rollback is a revert with no state migration | PR description |
+| 10 | Trust-boundary impact reviewed | `docs/process/trust-boundaries.md` checklist |
+| 11 | CI safety check passes | `make check-ci-safety` log |
 
 A4 reviews process and integration. The domain owner reviews technical correctness. The Director
 approves architecture changes and stage acceptance. A reviewer who is also the author cannot be the
