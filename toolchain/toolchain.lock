@@ -1,0 +1,23 @@
+# Ozero Stage 0 toolchain lock.
+# Source this file; it is shell syntax, not a package manifest.
+# REF_* is the reference environment used for recorded evidence.
+# MIN_* is what CI and contributors may use.
+
+TOOLCHAIN_EPOCH=1795392000   # 2026-11-23T00:00:00Z
+
+REF_OS="Debian 13"
+REF_AS=2.44
+REF_LD=2.44
+REF_OBJCOPY=2.44
+REF_MAKE=4.4.1
+REF_BASH=5.2.37
+REF_QEMU=10.0.13
+
+MIN_AS=2.42
+MIN_LD=2.42
+MIN_OBJCOPY=2.42
+MIN_MAKE=4.3
+MIN_BASH=5.1
+MIN_QEMU=8.0
+
+CONTAINER_IMAGE=debian:trixie-slim

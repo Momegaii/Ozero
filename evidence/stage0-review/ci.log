@@ -1,0 +1,31 @@
+clean: removed build
+toolchain lock: /workspace/Ozero/toolchain/toolchain.lock
+mode: minimum
+
+ok    as       2.44 (>= 2.42)
+ok    ld       2.44 (>= 2.42)
+ok    objcopy  2.44 (>= 2.42)
+ok    make     4.4.1 (>= 4.3)
+ok    bash     5.2.37 (>= 5.1)
+ok    qemu     10.0.13 (>= 8.0)
+
+check-toolchain: ok
+check-ci-safety: ok (8 files scanned)
+build: assembling harness/fixture/boot.S
+build: linking at 0x7C00
+build: ok
+  image  build/ozero-stage0.img  (512 bytes)
+  sha256 37ad8227720cd7f40b1393a8ad554a78f76d08b09ff97be68b1d2579f5e15319
+  elf    build/ozero-stage0.elf  (debug symbols retained)
+  map    build/ozero-stage0.map
+  commit eaca9219dec5fdb1cf8ad5400c7e1fa4e42dc39b
+qemu boot smoke test
+status:   pass
+image:    build/ozero-stage0.img
+sha256:   37ad8227720cd7f40b1393a8ad554a78f76d08b09ff97be68b1d2579f5e15319
+qemu:     QEMU emulator version 10.0.13 (Debian 1:10.0.13+ds-0+deb13u1)
+timeout:  20s
+duration: 223ms
+serial:   build/qemu/serial.log
+test: ok (5 markers in order)
+ci: ok

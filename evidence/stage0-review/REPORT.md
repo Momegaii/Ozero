@@ -1,0 +1,404 @@
+# A4 Stage 0 review — report back
+
+| Field | Value |
+| --- | --- |
+| Date | 2026-11-23 |
+| Author | A4 |
+| Review basis | Director-supplied Stage 0 review, 23 Nov 2026 |
+| Repository | `Momegaii/Ozero` |
+| Branch | `a4/stage0-review-followup` |
+| Commit under test | `43961551442009aac8189e5edca3f5c7af43a2cd` |
+| Parent | `5a50c0d28f323372cad5126baf6645df07407975` (A4 control plane import) |
+| Base | `147cc86c027cef7cec42525024d26dcccf66d7db` (`origin/main`, "Initial commit") |
+| Evidence commit | child of `4396155` on the same branch |
+| Stage state | Submitted for review. Not approved. |
+
+## 1. Exact commits, branch and files
+
+Commit graph:
+
+```
+* 4396155 (HEAD -> a4/stage0-review-followup) docs: implement Stage 0 review actions
+* 5a50c0d docs: import A4 Stage 0 control plane
+* 147cc86 (origin/main, origin/HEAD, main) Initial commit
+```
+
+`git fetch origin --prune` succeeded. `origin/main` is still `147cc86`. No A1, A2 or A3 branch,
+tag or commit exists in the remote or in the local clone. The full audit is in `repo-audit.txt`.
+
+This is the `4396155` snapshot. The current cross-agent refs are in §9 and in
+[`cross-agent-verification-2026-11-23-r3.md`](cross-agent-verification-2026-11-23-r3.md).
+
+Files changed in `4396155` (26 files, +474/−107):
+
+```
+.github/workflows/stage0.yml
+AGENTS.md
+CODEOWNERS
+Makefile
+README.md
+docs/README.md
+docs/adr/0002-branch-isolation-and-review-gate.md
+docs/adr/README.md
+docs/architecture/interfaces.md
+docs/architecture/ownership.md
+docs/dashboard/director-dashboard.md
+docs/decisions/decision-log.md
+docs/process/branching-and-review.md
+docs/process/build-and-test.md
+docs/process/ci-safety.md
+docs/process/integration-checklist.md
+docs/process/reporting.md
+docs/process/test-targets.md
+docs/process/trust-boundaries.md
+docs/templates/decision-log.md
+docs/templates/interface.md
+evidence/stage0/README.md
+scripts/audit-repos.sh
+scripts/check-ci-safety.sh
+scripts/list-targets.sh
+tests/targets.tsv
+```
+
+The A4 control plane itself was imported in `5a50c0d` from the local Stage 0 work. That local
+repository is `/workspace/project` on branch `master` at `d6b7af0`; its commits are `e12983e` and
+`d6b7af0`. It has no remote and is not independently fetchable.
+
+## 2. Commands and raw output
+
+Every command below was run at `4396155` on the reference environment. Raw output is in the named
+file; the lines quoted are verbatim.
+
+| Command | Exit | Raw output |
+| --- | --- | --- |
+| `git fetch origin --prune` | 0 | `repo-audit.txt` |
+| `scripts/audit-repos.sh /workspace/project` | 0 | `repo-audit.txt` |
+| `scripts/check-toolchain.sh --strict` | 0 | `toolchain.txt` |
+| `make targets` | 0 | `targets.txt` |
+| `make check-ci-safety` | 0 | `ci-safety.log` |
+| `make clean && make ci` | 0 | `ci.log` |
+| `make verify-repro` | 0 | `repro.log` |
+| `make verify-clean` | 0 | `clean-checkout.log` |
+| missing-marker negative | 1 | `negative-missing-marker.log` |
+| corrupt-image negative | 2 | `negative-corrupt-image.log` |
+| zero-timeout negative | 1 | `negative-timeout.log` |
+| CI-safety negative | 1 | `ci-safety.log` |
+
+Key raw lines:
+
+```
+$ scripts/check-toolchain.sh --strict
+check-toolchain: ok
+exit=0
+
+$ make clean && make ci
+status:   pass
+image:    build/ozero-stage0.img
+sha256:   37ad8227720cd7f40b1393a8ad554a78f76d08b09ff97be68b1d2579f5e15319
+qemu:     QEMU emulator version 10.0.13 (Debian 1:10.0.13+ds-0+deb13u1)
+timeout:  20s
+duration: 224ms
+test: ok (5 markers in order)
+ci: ok
+exit=0
+
+$ make verify-repro
+ok    ozero-stage0.img   37ad8227720cd7f40b1393a8ad554a78f76d08b09ff97be68b1d2579f5e15319
+ok    ozero-stage0.elf   4e2b74c41b38888430f649eb95548ae2c5ebe29e63db97ff19e43ed087825665
+ok    manifest.json      6a6be1bdd7ed43520843fbe48252a8e7c4305eac266cecb1649d486e39e477d7
+verify-repro: ok at 43961551442009aac8189e5edca3f5c7af43a2cd
+exit=0
+
+$ make verify-clean
+ci: ok
+verify-clean: ok at 43961551442009aac8189e5edca3f5c7af43a2cd
+exit=0
+```
+
+Negative tests:
+
+```
+missing:  OZERO-STAGE0-NEVER-PRINTED
+test: FAIL (timeout)
+exit=1
+
+test: harness error: image size 513 is not a multiple of 512
+exit=2
+
+status:   timeout
+missing:  OZERO-STAGE0-BOOT
+test: FAIL (timeout)
+exit=1
+
+FAIL  privileged container
+/workspace/Ozero/scripts/tmp-ci-safety-violation.sh:2:docker run --privileged alpine true
+exit=1
+```
+
+## 3. Review actions
+
+| # | Action | Closed | Evidence |
+| --- | --- | --- | --- |
+| 1 | Verify A1/A2/A3/A4 commits; record graph and clean tree | Yes at `4396155`; current refs in §9 | `repo-audit.txt` |
+| 2 | Rerun checks in a clean environment | Yes, at `4396155` | `ci.log`, `repro.log`, `clean-checkout.log` |
+| 3 | Separate target labels | Yes | `tests/targets.tsv`, `docs/process/test-targets.md` |
+| 4 | Decision register statuses and approver | Yes; all Proposed at this snapshot | `docs/decisions/decision-log.md` |
+| 5 | A1 review of A3 DMA/platform interfaces as a merge gate | A1 ACCEPT at `b9a69d8`; A3 accepted §6; D-007/D-021 Proposed | IF-008, `CODEOWNERS`, integration checklist |
+| 6 | Safe CI | Yes, enforced | `docs/process/ci-safety.md`, `scripts/check-ci-safety.sh` |
+
+## 4. Decisions needed
+
+All are **Proposed**. None is approved.
+
+| ID | Decision | Owner | Director approver |
+| --- | --- | --- | --- |
+| D-001 | Confirm the A1/A2/A3 domain split and team slugs | A4 | Project Director |
+| D-002 | Approve branch isolation and the review gate | A4 | Project Director |
+| D-003 | Approve the Stage 0 build and QEMU MBR harness approach | A4 | Project Director |
+| D-004 | Approve agent trust boundaries | A4 | Project Director |
+| D-005 | Choose the boot protocol and handoff; Limine is a candidate only | A1 | Project Director |
+| D-006 | Accept Stage 0 | A4 | Project Director |
+| D-007 | Approve IF-008 and the A1 sign-off gate for A3 DMA/platform | A1 + A3 | Project Director |
+| D-008 | Approve publishing the A4 review branch | A4 | Project Director |
+
+## 5. Unresolved risks
+
+| Risk | Impact | Mitigation |
+| --- | --- | --- |
+| A4 branch is unpushed | Independent review cannot fetch the commit | D-008; push after approval |
+| A1/A2/A3 have no commits | Cross-agent gates are defined but untested | Start A1–A3 after D-001 |
+| MBR fixture may be read as kernel boot | False boot claim | Naming rule and explicit not-tested list |
+| CI safety check is static | A novel bypass is possible | Review still required; no opt-in jobs yet |
+| QEMU is not hardware | Compatibility claims would be wrong | Hardware matrix remains a separate target |
+| Reproducibility depends on binutils 2.44 | Other versions may differ | Version is pinned and recorded |
+
+## 6. Not tested
+
+- UEFI boot.
+- Limine loading an Ozero kernel.
+- Ozero kernel entry, memory setup or any kernel subsystem.
+- Real-hardware boot or any device matrix.
+- PE parsing, loading or Windows compatibility.
+- Public header ABI.
+- Any A1, A2 or A3 code, because no such code exists in this repository.
+- Branch protection and CODEOWNERS enforcement, because they are repository settings and the team
+  slugs are placeholders.
+
+## 7. Definition of done
+
+| Item | Met | Evidence |
+| --- | --- | --- |
+| Clean clone reproduces A4 results | Yes | `clean-checkout.log` |
+| Evidence links exact commits and raw outputs | Yes | this file and `README.md` |
+| MBR harness never described as kernel boot | Yes | naming rule and wording audit |
+| Director decisions pending until approved | Yes | register, all Proposed |
+| Cross-agent API sign-off precedes dependent implementation | Yes, as a gate | integration checklist and PR gate |
+
+## 8. Next actions
+
+1. Director decides D-001 to D-008.
+2. On D-008 approval, push `a4/stage0-review-followup` and open a PR against `main`.
+3. A1 records the Limine handoff in IF-001 and answers D-005.
+4. A2 records the current `f6ed1d8` / `d83cfbe` pair in its ledger and response; IF-009 v1.0 is
+   already signed and XB-003 is Closed, but XB-013 remains Open.
+5. A3's IF-008 sign-off is complete; the Director decides D-007 and D-021 before the AHCI probe.
+   A3 PR #4 is reviewed and merge-clean but not merged until the Director authorizes integration.
+
+## 9. Post-review addendum — 2026-11-23
+
+The Director completed a Stage 0 integration review and kept Stage 0 **NOT ACCEPTED**. A4 continued
+from the existing branch; it did not restart Stage 0 and did not merge into `main`.
+
+### Current refs
+
+| Ref | Commit | State |
+| --- | --- | --- |
+| `origin/main` | `147cc86` | unchanged |
+| `origin/a1/stage0-review` | `2693a34` | PR #1, open, draft; IF-008 ACCEPT and IF-009 signature; raw log committed |
+| `origin/agent/a2-stage0` | `d83cfbe` | PR #2, open, draft; code `f6ed1d8`, evidence `d83cfbe` |
+| `origin/a3/stage0-review-response` | `48d434f` | PR #4 against the A4 branch; based on A4 `b4232a0`; IF-008 §6 accepted; not merged |
+| `origin/a4/stage0-review-followup` | `eaca921` plus this audit commit | published; PR #3 open |
+
+### Director A4 actions
+
+1. **Open the A4 Stage 0 review PR** — done: [#3](https://github.com/Momegaii/Ozero/pull/3).
+2. **Refresh the audit after A3 is published** — done: A3 PR #4 `48d434f` is reviewed; XB-011 is
+   Closed. PR #4 is not merged, so A3 is still not in the A4 tree (XB-020).
+3. **Verify A1/A2/A3 evidence and ancestry** — A1 at `2693a34`, A2 at `d83cfbe` / code `f6ed1d8`,
+   A3 PR #4 at `48d434f` with IF-008 v1.1 at `b9a69d8`. A1 recorded ACCEPT for IF-008 (XB-001
+   Closed), answered `A1-REV-01…12` (XB-002 Signed), and signed IF-009 v1.0 with conditions; A3
+   accepted the hardware boundary and A2 recorded its signature, so IF-009 v1.0 is Signed and
+   XB-003 is Closed. A2's ledger still names the old pair `6d305b8` / `64b3458` while the current
+   pair is `f6ed1d8` / `d83cfbe` (XB-013). A3 PR #4 adds 56 files, changes no A4 control-plane file,
+   and merges cleanly from A4 `eaca921`; A4 did not merge it because D-007/D-021 are Proposed and
+   the Director has not authorized integration (XB-020). A1 committed its raw log at
+   `docs/evidence/a1-raw-checks-2026-11-23-r2.txt`, closing XB-016. See
+   [`cross-agent-verification-2026-11-23-r6.md`](cross-agent-verification-2026-11-23-r6.md).
+4. **Resolve namespace and ownership** — D-009 adopts `include/ozero/`; A1's `03f8883` refactor
+   makes it the only public root. D-010 assigns `tools/check-headers.sh` and
+   `tests/abi_static_asserts.c` to A1, with A4 owning CI integration and A3 owning other `tools/`
+   content. `CODEOWNERS` and the ownership map are updated.
+5. **Keep MBR harness and kernel boot separate** — the only executed boot test is
+   `mbr-harness-smoke`; the Limine/kernel target remains not implemented.
+6. **Confirm branch protection and required checks** — `main` reports `"protected": false` and
+   `"protection.enabled": false`; the rulesets list is empty; `CODEOWNERS` is 404 on `main`.
+   Required checks are not enabled (D-031 / XB-012). See
+   [`github-settings.txt`](github-settings.txt).
+
+### Decision status
+
+D-008, D-009 and D-010 are **Approved** by the Director's 2026-11-23 instruction. D-001–D-007 and
+D-011–D-031 remain **Proposed**. D-006 (accept Stage 0) is explicitly **not** approved. D-007 and
+D-021 remain Proposed; IF-009 v1.0 is Signed but that is not a Stage 0 decision.
+
+### Tests at the published head
+
+`make ci` passes on the R3 audit tree: 5 serial markers in order, QEMU 10.0.13, no network, no
+display, no default devices. GitHub Actions `build-and-boot` passed on A4 `eaca921` in 4m54s and on
+A3 PR #4 `48d434f` in 1m25s. The audit commit is documentation and evidence only. A3 PR #4 is not
+merged into A4 or `main`.
+
+### Still not tested
+
+UEFI, Limine loading an Ozero kernel, Ozero kernel entry, real hardware, PE loading, Windows
+compatibility, A3 driver code or DMA, any merge of PR #4, and branch-protection enforcement. A3's
+`make check` and A1-header compile pass, but they are static checks; no AHCI probe or device test
+ran.
+
+## 10. R3 audit addendum — 2026-11-23
+
+The R3 proceed brief asked A4 to review A3 PR #4 and integrate it only if safe and authorized. A4
+reviewed the PR at `48d434f` and did **not** merge it. The final diff is 56 files: 44 under `a3/`,
+12 under `include/ozero/`; no A4 control-plane file changes. A1's ten headers are byte-identical to
+`74b1471`; A3's `platform.h`/`block.h` match its package. A merge test from A4 `eaca921` is clean;
+PR #4 CI passed. D-007 and D-021 remain Proposed and the Director has not authorized integration,
+so XB-020 stays Open.
+
+The same audit reconciles A2 and A1. IF-009 v1.0 is Signed: A1 accepted with conditions at
+`74b1471` (`a17d126`), A3 accepted the hardware boundary at `307b919`, and A2 signed at `6d305b8`.
+XB-003 is Closed. A2's current code/evidence pair is `f6ed1d8` / `d83cfbe`, but its ledger still
+names `6d305b8` / `64b3458`; XB-013 remains Open. A1's raw log is committed at
+`docs/evidence/a1-raw-checks-2026-11-23-r2.txt` (A1 `2693a34`), so XB-016 is Closed. The blocker
+snapshot is **5 Open, 14 Closed, 1 Signed**. Stage 0 remains **NOT ACCEPTED** and D-006 remains
+**Proposed**.
+
+## 11. Sole-agent takeover addendum — 2026-11-23
+
+A4 is the sole active agent under the 23 November 2026 all-work takeover order. It recovered
+A1/A2/A3 work from the existing branches and PRs, preserved authorship, and continued on
+`a4/stage0-review-followup`. It did not restart Stage 0 and did not merge into `main`.
+
+### Current refs
+
+| Ref | Commit | State |
+| --- | --- | --- |
+| `origin/main` | `147cc86` | unchanged |
+| `origin/a1/stage0-review` | `2693a34` | PR #1, open, draft; raw log recovered and re-verified |
+| `origin/agent/a2-stage0` | `d83cfbe` | PR #2, open, draft; code `f6ed1d8`, evidence `d83cfbe` |
+| `origin/a3/stage0-review-response` | `48d434f` | PR #4; integrated into A4 at `44d566e`; merged into A4, not `main` |
+| `origin/a4/stage0-review-followup` | `44d566e` plus this takeover commit | published; PR #3 open |
+
+### Work completed
+
+1. **A1 evidence** — copied `docs/evidence/a1-raw-checks-2026-11-23-r2.txt` to
+   `evidence/a1-stage0/` (source blob `24ce6a9a…`) and re-ran `./tools/check-headers.sh` at A1
+   `2693a34`. The result is `RESULT: PASS`, exit 0. XB-016 stays Closed. This is static header/ABI
+   evidence, not runtime evidence.
+2. **A2 reconciliation** — `docs/architecture/a2-review-ledger-reconciled.md` records code
+   `f6ed1d8`, evidence `d83cfbe`, signed contract `d02598a`, unchanged manifest `f505cb4d…`, and
+   all three signatures. A2's branch ledger remains historical. XB-013 is Closed in the candidate.
+3. **IF-009 v1.1** — `docs/architecture/if-009-v1.1-disposition.md` carries the truncated-header
+   and missing-DLL-name gaps into six required negative cases with L0-only criteria. v1.1 is not
+   signed or implemented. XB-021 is Open.
+4. **A3 integration** — merge `44d566e` adds 56 files: 44 under `a3/`, 12 under `include/ozero/`.
+   No A4 control-plane file changed. A1's ten headers are byte-identical to `74b1471`; A3's
+   `platform.h`/`block.h` match its package. XB-020 is Closed. The file-level map is
+   `docs/architecture/a3-integration-map.md`.
+5. **Checks** — `make -C a3 check` passes 19 tests; `make -C a3 check-a1-headers A1_INCLUDE=include`
+   exits 0; `make clean && make ci` ends `ci: ok` with 5 markers and image SHA-256 `37ad8227…`.
+   Raw output is in `evidence/stage0-review/a3-integration-checks-2026-11-23.log`. GitHub Actions
+   `build-and-boot` passed at `bc3f566` in 4m55s (run `45195798408`), recorded in
+   `evidence/stage0-review/ci-run-bc3f566.txt`.
+
+### Blocker snapshot
+
+**4 Open, 16 Closed, 1 Signed.** Open: XB-004, XB-005, XB-012, XB-021. Signed: XB-002. Closed this
+round: XB-013, XB-016, XB-020.
+
+### Decision status
+
+D-008, D-009 and D-010 remain **Approved**. D-001–D-007 and D-011–D-031 remain **Proposed**.
+D-006 is explicitly **not** approved. Stage 0 remains **NOT ACCEPTED**. D-007 and D-021 remain
+Proposed; A3 integration does not authorize AHCI, DMA, GPU or hardware work.
+
+### Still not tested
+
+UEFI, Limine loading an Ozero kernel, Ozero kernel entry, real hardware, PE loading or execution,
+Windows compatibility, A3 driver code, AHCI probe, DMA transfer, GPU execution, A1/A2 integration,
+IF-009 v1.1 negative cases, and branch-protection enforcement.
+
+## 12. Director execution directive addendum — 2026-11-23
+
+A4 continued as the sole active agent under the Director's execution directive. It did not restart
+Stage 0, did not merge into `main`, did not approve any PR, and did not change any decision status.
+
+### Current refs
+
+| Ref | Commit | State |
+| --- | --- | --- |
+| `origin/main` | `147cc86` | unchanged |
+| `origin/a1/stage0-review` | `2693a34` | PR #1, open, draft; not integrated |
+| `origin/agent/a2-stage0` | `d83cfbe` | PR #2, open, draft; integrated into A4 at `f0c64a9` |
+| `origin/a3/stage0-review-response` | `48d434f` | PR #4; integrated into A4 at `44d566e`; not `main` |
+| `origin/a4/stage0-review-followup` | `HEAD` | PR #3, open, non-draft; this directive commit |
+
+### Work completed
+
+1. **A2 integration** — merge `f0c64a9` adds `a2/` only and preserves A2's commits and evidence.
+   `CODEOWNERS` now lists `/a2/` as A2-owned with A4 co-review.
+2. **IF-009 v1.1** — the six required negative cases are implemented at `31e6825`. The raw run at
+   `37e9bf0` records 12 expected failures, 2 sample-dependent skips and 0 problems; the six v1.1
+   cases all fail for the named reason. Unit tests: 45 `OK`, 1 skipped. XB-021 is Closed for
+   implementation. IF-009 v1.1 is **not signed**; A1 and A3 must re-sign, and v1.0 remains the
+   accepted version.
+3. **D-005 package** — `docs/decisions/D-005-boot-protocol-package.md` compares UEFI+Limine,
+   a custom UEFI loader, GRUB/Multiboot2, a UEFI direct stub and a BIOS path; recommends
+   UEFI + Limine base revision 6; records compatibility, approvals and exit criteria. D-005 remains
+   **Proposed**; no boot was executed and no Limine artifact was added.
+4. **XB-012 audit** — `docs/process/branch-protection-audit.md` records `main` as
+   `protected:false`, rulesets `[]`, `CODEOWNERS` 404 on `main`, and the fact that the repository is
+   owned by a User, so the `@ozero/...` team slugs cannot resolve. It provides exact
+   single-maintainer and two-reviewer payloads. No setting was changed; D-031 remains **Proposed**.
+5. **XB-005 plan** — `docs/architecture/xb-005-a3-hardware-evidence-plan.md` names the missing
+   driver, QEMU L1, L2 and L3/L4 evidence per matrix row and gates all AHCI/DMA work on D-007 and
+   D-021. XB-005 remains **Open**; no probe ran.
+6. **Documentation reconciliation** — dashboard, blocker register, decision log, interfaces,
+   ownership map and this report now record A2 integration and the IF-009 v1.1 implementation.
+
+### Raw checks
+
+| Command | Exit | Result | Artifact |
+| --- | --- | --- | --- |
+| `make -C a2 check` | 0 | 45 tests `OK`, 1 skipped; docs and negative checks pass | `a2/docs/evidence/` |
+| `make -C a2 negative` | 0 | 12 expected failures, 2 sample skips, 0 problems | `a2/docs/evidence/if-009-v1.1-negative-cases.txt` |
+| `gh api repos/Momegaii/Ozero/branches/main` | 0 | `protected:false`; required checks `[]` | `github-settings-a4-2026-11-23.txt` |
+| `gh api repos/Momegaii/Ozero/rulesets` | 0 | `[]` | `github-settings-a4-2026-11-23.txt` |
+| `gh api repos/Momegaii/Ozero/contents/CODEOWNERS?ref=main` | 1 | HTTP 404 | `github-settings-a4-2026-11-23.txt` |
+| `gh pr checks 3` | 0 | `build-and-boot` pass | `github-settings-a4-2026-11-23.txt` |
+
+### Blocker snapshot
+
+**3 Open, 17 Closed, 1 Signed.** Open: XB-004, XB-005, XB-012. Signed: XB-002. Closed this round:
+XB-021 (implementation only).
+
+### Decision status
+
+D-008, D-009 and D-010 remain **Approved**. D-005, D-006, D-007, D-021 and D-031 remain
+**Proposed**. Stage 0 remains **NOT ACCEPTED**. The D-005 package and XB-005 plan are decision
+inputs, not approvals.
+
+### Still not tested
+
+UEFI, Limine loading an Ozero kernel, Ozero kernel entry, real hardware, PE loading or execution,
+Windows compatibility, A3 driver code, AHCI probe, DMA transfer, GPU execution, A1 integration,
+A3 QEMU L1 tests, and branch-protection enforcement.

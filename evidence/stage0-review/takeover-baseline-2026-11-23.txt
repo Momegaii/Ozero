@@ -1,0 +1,96 @@
+# A4 sole-agent takeover baseline
+# generated: 2026-11-23T14:33:12Z
+# repository: Momegaii/Ozero
+# note: remote baseline is A4 a3a67ab; local HEAD is 44d566e because the A3 merge was already created when this log was captured.
+# The branch-head and PR-head values below are the live remote baseline.
+
+$ git fetch origin --prune
+exit=0
+
+## Branch heads
+origin/main                                147cc86c027cef7cec42525024d26dcccf66d7db
+origin/a4/stage0-review-followup           a3a67ab7c6e66fb277f2aa26c9ae0d7230a74c0c
+origin/a1/stage0-review                    2693a34a058506e4755948989fb420c9a20a91ea
+origin/agent/a2-stage0                     d83cfbe9f1f4095d0df53f0dfca20162f255fbf1
+origin/a3/stage0-review-response           48d434f961ff0639a38ee50ba456e99d8ebb72da
+
+## Local state
+$ git rev-parse HEAD
+44d566e972b729d3bf9557ab287833d095a7cdfb
+$ git status --short
+ M docs/architecture/ownership.md
+ M docs/dashboard/director-dashboard.md
+ M docs/decisions/decision-log.md
+ M docs/process/cross-agent-blockers.md
+ M docs/process/integration-checklist.md
+ M evidence/stage0-review/PR_BODY.md
+ M evidence/stage0-review/README.md
+ M evidence/stage0-review/REPORT.md
+?? Ozero_A4_Sole_Agent_Master_Brief_2026-11-23.pdf
+?? docs/A4_SOLE_AGENT_MASTER_BRIEF.md
+?? docs/architecture/a3-integration-map.md
+?? evidence/stage0-review/a3-integration-checks-2026-11-23.log
+?? evidence/stage0-review/a3-integration-verification-2026-11-23.md
+?? evidence/stage0-review/takeover-baseline-2026-11-23.txt
+exit=0
+
+## Pull requests
+### PR #1
+hint: if you need to wait for this pull request to be reviewed, merged, or closed before continuing, use this instead of polling:
+    gh event listen --resource https://github.com/Momegaii/Ozero/pull/1 --event com.github.pull_request.review.submitted.v1,com.github.pull_request.state.changed.v1
+  - It prints the first event as a JSON line on stdout and exits; run it again to wait for the next one.
+  - Add `--timeout` to stop waiting after a while, for example `--timeout 30m`; it then exits with status 8.
+  - Events carry no details; read the pull request to see what changed.
+  - It misses changes made before it starts, so read the pull request once it is running.
+  - See `gh event listen --help` for other event types.
+  - Event subscriptions are in preview and may not be enabled for your account.
+{"additions":4638,"baseRefName":"main","changedFiles":34,"deletions":0,"headRefName":"a1/stage0-review","headRefOid":"2693a34a058506e4755948989fb420c9a20a91ea","isDraft":true,"mergeStateStatus":"CLEAN","mergeable":"MERGEABLE","number":1,"state":"OPEN","title":"A1: Stage 0 review response (boot contract, CPU baseline, interface sketch)"}
+exit=0
+### PR #2
+hint: if you need to wait for this pull request to be reviewed, merged, or closed before continuing, use this instead of polling:
+    gh event listen --resource https://github.com/Momegaii/Ozero/pull/2 --event com.github.pull_request.review.submitted.v1,com.github.pull_request.state.changed.v1
+  - It prints the first event as a JSON line on stdout and exits; run it again to wait for the next one.
+  - Add `--timeout` to stop waiting after a while, for example `--timeout 30m`; it then exits with status 8.
+  - Events carry no details; read the pull request to see what changed.
+  - It misses changes made before it starts, so read the pull request once it is running.
+  - See `gh event listen --help` for other event types.
+  - Event subscriptions are in preview and may not be enabled for your account.
+{"additions":10363,"baseRefName":"main","changedFiles":50,"deletions":0,"headRefName":"agent/a2-stage0","headRefOid":"d83cfbe9f1f4095d0df53f0dfca20162f255fbf1","isDraft":true,"mergeStateStatus":"CLEAN","mergeable":"MERGEABLE","number":2,"state":"OPEN","title":"A2 Stage 0: Windows compatibility research package (static-only, evidence attached)"}
+exit=0
+### PR #3
+hint: if you need to wait for this pull request to be reviewed, merged, or closed before continuing, use this instead of polling:
+    gh event listen --resource https://github.com/Momegaii/Ozero/pull/3 --event com.github.pull_request.review.submitted.v1,com.github.pull_request.state.changed.v1
+  - It prints the first event as a JSON line on stdout and exits; run it again to wait for the next one.
+  - Add `--timeout` to stop waiting after a while, for example `--timeout 30m`; it then exits with status 8.
+  - Events carry no details; read the pull request to see what changed.
+  - It misses changes made before it starts, so read the pull request once it is running.
+  - See `gh event listen --help` for other event types.
+  - Event subscriptions are in preview and may not be enabled for your account.
+{"additions":9003,"baseRefName":"main","changedFiles":99,"deletions":2,"headRefName":"a4/stage0-review-followup","headRefOid":"a3a67ab7c6e66fb277f2aa26c9ae0d7230a74c0c","isDraft":false,"mergeStateStatus":"CLEAN","mergeable":"MERGEABLE","number":3,"state":"OPEN","title":"A4: Stage 0 review follow-up and Director integration actions"}
+exit=0
+### PR #4
+hint: if you need to wait for this pull request to be reviewed, merged, or closed before continuing, use this instead of polling:
+    gh event listen --resource https://github.com/Momegaii/Ozero/pull/4 --event com.github.pull_request.review.submitted.v1,com.github.pull_request.state.changed.v1
+  - It prints the first event as a JSON line on stdout and exits; run it again to wait for the next one.
+  - Add `--timeout` to stop waiting after a while, for example `--timeout 30m`; it then exits with status 8.
+  - Events carry no details; read the pull request to see what changed.
+  - It misses changes made before it starts, so read the pull request once it is running.
+  - See `gh event listen --help` for other event types.
+  - Event subscriptions are in preview and may not be enabled for your account.
+{"additions":7358,"baseRefName":"a4/stage0-review-followup","changedFiles":56,"deletions":0,"headRefName":"a3/stage0-review-response","headRefOid":"48d434f961ff0639a38ee50ba456e99d8ebb72da","isDraft":false,"mergeStateStatus":"CLEAN","mergeable":"MERGEABLE","number":4,"state":"OPEN","title":"A3: integrate Stage 0 package into A4 candidate (review only; no merge to main)"}
+exit=0
+
+## Workflow runs
+### a4/stage0-review-followup
+{"conclusion":"success","databaseId":45192794476,"displayTitle":"A4: Stage 0 review follow-up and Director integration actions","headSha":"a3a67ab7c6e66fb277f2aa26c9ae0d7230a74c0c","status":"completed"}
+{"conclusion":"success","databaseId":45185158269,"displayTitle":"A4: Stage 0 review follow-up and Director integration actions","headSha":"eaca9219dec5fdb1cf8ad5400c7e1fa4e42dc39b","status":"completed"}
+{"conclusion":"success","databaseId":45180803273,"displayTitle":"A4: Stage 0 review follow-up and Director integration actions","headSha":"b4232a07ab88b6558b3020ae2463af16f0c325dd","status":"completed"}
+exit=0
+### a1/stage0-review
+exit=0
+### agent/a2-stage0
+exit=0
+### a3/stage0-review-response
+{"conclusion":"success","databaseId":45185176782,"displayTitle":"A3: integrate Stage 0 package into A4 candidate (review only; no merge to main)","headSha":"48d434f961ff0639a38ee50ba456e99d8ebb72da","status":"completed"}
+{"conclusion":"success","databaseId":45184319705,"displayTitle":"A3: integrate Stage 0 package into A4 candidate (review only; no merge to main)","headSha":"307b919b41f6e65f1a40482588b84f92f715d67a","status":"completed"}
+exit=0

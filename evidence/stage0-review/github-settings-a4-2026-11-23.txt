@@ -1,0 +1,44 @@
+# A4 GitHub settings and PR audit
+# date: 2026-11-23T15:17:23Z
+
+$ git ls-remote origin refs/heads/main refs/heads/a4/stage0-review-followup
+a5fbbf992d8d7947502fcc056d96aea16f6a5031	refs/heads/a4/stage0-review-followup
+147cc86c027cef7cec42525024d26dcccf66d7db	refs/heads/main
+rc=0
+
+$ gh pr view 3 --json number,state,isDraft,headRefName,headRefOid,baseRefName,mergeable,mergeStateStatus,url
+{"baseRefName":"main","headRefName":"a4/stage0-review-followup","headRefOid":"a5fbbf992d8d7947502fcc056d96aea16f6a5031","isDraft":false,"mergeStateStatus":"CLEAN","mergeable":"MERGEABLE","number":3,"state":"OPEN","url":"https://github.com/Momegaii/Ozero/pull/3"}
+rc=0
+
+$ gh api repos/Momegaii/Ozero/branches/main --jq "{name,protected,protection}"
+{"name":"main","protected":false,"protection":{"enabled":false,"required_status_checks":{"checks":[],"contexts":[],"enforcement_level":"off"}}}
+rc=0
+
+$ gh api repos/Momegaii/Ozero/rulesets
+[]
+rc=0
+
+$ gh api repos/Momegaii/Ozero/contents/CODEOWNERS?ref=main
+{"message":"Not Found","documentation_url":"https://docs.github.com/rest/repos/contents#get-repository-content","status":"404"}gh: Not Found (HTTP 404)
+rc=1
+
+$ gh api repos/Momegaii/Ozero --jq "{full_name,owner:.owner.login,owner_type:.owner.type,private,default_branch}"
+{"default_branch":"main","full_name":"Momegaii/Ozero","owner":"Momegaii","owner_type":"User","private":false}
+rc=0
+
+$ gh api repos/Momegaii/Ozero/collaborators --jq ".[] | {login,type,permissions}"
+{"login":"Momegaii","permissions":{"admin":true,"maintain":true,"pull":true,"push":true,"triage":true},"type":"User"}
+rc=0
+
+$ gh pr checks 3
+build-and-boot	pass	4m40s	https://github.com/Momegaii/Ozero/actions/runs/45202583407/job/137789658334	
+rc=0
+
+$ gh run list --branch a4/stage0-review-followup --limit 6
+completed	success	A4: Stage 0 review follow-up and Director integration actions	stage0	a4/stage0-review-followup	pull_request	45202583407	4m44s	2026-11-23T15:12:20Z
+completed	success	A4: Stage 0 review follow-up and Director integration actions	stage0	a4/stage0-review-followup	pull_request	45197271095	1m29s	2026-11-23T14:43:34Z
+completed	success	A4: Stage 0 review follow-up and Director integration actions	stage0	a4/stage0-review-followup	pull_request	45196824672	1m40s	2026-11-23T14:41:00Z
+completed	success	A4: Stage 0 review follow-up and Director integration actions	stage0	a4/stage0-review-followup	pull_request	45195798408	4m59s	2026-11-23T14:35:16Z
+completed	success	A4: Stage 0 review follow-up and Director integration actions	stage0	a4/stage0-review-followup	pull_request	45192794476	1m43s	2026-11-23T14:18:32Z
+completed	success	A4: Stage 0 review follow-up and Director integration actions	stage0	a4/stage0-review-followup	pull_request	45185158269	4m58s	2026-11-23T13:33:50Z
+rc=0

@@ -1,0 +1,8 @@
+# Serial markers required by the Stage 0 boot smoke test.
+# One marker per line, matched as fixed strings and required in this order.
+# The last line is the completion marker; the harness stops as soon as it appears.
+OZERO-STAGE0-BOOT
+OZERO-STAGE0-HARNESS=fixture
+OZERO-STAGE0-MODE=real16
+OZERO-STAGE0-SERIAL=ok
+OZERO-STAGE0-OK

@@ -1,0 +1,54 @@
+# A4 verification of A1 raw evidence
+# generated: 2026-11-23T14:24:42Z
+# repository: Momegaii/Ozero
+# branch: a1/stage0-review
+# source raw log: docs/evidence/a1-raw-checks-2026-11-23-r2.txt
+
+## Exact refs
+$ git rev-parse HEAD
+2693a34a058506e4755948989fb420c9a20a91ea
+
+$ git rev-parse origin/a1/stage0-review
+2693a34a058506e4755948989fb420c9a20a91ea
+
+## Tool versions
+$ cc --version | head -1
+cc (Debian 14.2.0-19) 14.2.0
+$ g++ --version | head -1
+g++ (Debian 14.2.0-19) 14.2.0
+$ git --version
+git version 2.47.3
+$ uname -srm
+Linux 6.8.0-1055-gke x86_64
+
+## Whitespace
+$ git diff --check
+exit=0
+
+## Header and ABI conformance
+$ ./tools/check-headers.sh
+== standalone header compilation ==
+PASS  boot.h
+PASS  cpu.h
+PASS  driver.h
+PASS  ipc.h
+PASS  irq.h
+PASS  mm.h
+PASS  o0.h
+PASS  status.h
+PASS  thread.h
+PASS  types.h
+== umbrella header, C and C++ ==
+PASS  ozero/o0.h (C11)
+PASS  ozero/o0.h (C++17)
+== ABI static assertions ==
+PASS  tests/abi_static_asserts.c
+== generic-interface device neutrality ==
+PASS  no device-class or GPU-generation terms in include/ozero
+== freestanding headers only ==
+PASS  no hosted libc headers in include/ozero
+== public namespace ==
+PASS  no include/o0
+PASS  no legacy o0/ includes
+RESULT: PASS
+exit=0

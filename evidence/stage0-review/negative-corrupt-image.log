@@ -1,0 +1,4 @@
+$ printf "\\x00" >> build/ozero-stage0.img   # 513 bytes
+$ scripts/test-qemu.sh
+test: harness error: image size 513 is not a multiple of 512
+exit=2

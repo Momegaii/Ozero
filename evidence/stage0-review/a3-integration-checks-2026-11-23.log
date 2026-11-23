@@ -1,0 +1,64 @@
+$ make -C a3 check
+make: Entering directory '/workspace/Ozero/a3'
+cc -std=c11 -Wall -Wextra -Werror -Iinclude -fsyntax-only tests/header_smoke.c
+python3 tools/validate_matrix.py
+PASS: matrix validation
+  rows: 10
+  statuses: deferred, not-started
+  driver families: ahci, ahci-pm, ata-legacy, i915, nvme, nvme-zns, usb-bot, usb-uas, virtio-blk
+  deferred: nvme-zns, sata-port-multiplier
+  every row pins a revision, an emulator, real hardware and an acceptance test
+python3 tools/check_deliverables.py
+PASS: deliverable check
+  files: 24
+  documents checked: 7
+  matrix validator: PASS
+python3 -m unittest discover -s tests -p 'test_*.py'
+...................
+----------------------------------------------------------------------
+Ran 19 tests in 0.004s
+
+OK
+sh -n tools/collect_inventory.sh
+make: Leaving directory '/workspace/Ozero/a3'
+exit=0
+
+$ make -C a3 check-a1-headers A1_INCLUDE=include
+make: Entering directory '/workspace/Ozero/a3'
+cc -std=c11 -Wall -Wextra -Werror -Iinclude -Iinclude -fsyntax-only tests/header_smoke.c tests/a1_header_smoke.c
+make: Leaving directory '/workspace/Ozero/a3'
+exit=0
+
+$ make clean && make ci
+clean: removed build
+toolchain lock: /workspace/Ozero/toolchain/toolchain.lock
+mode: minimum
+
+ok    as       2.44 (>= 2.42)
+ok    ld       2.44 (>= 2.42)
+ok    objcopy  2.44 (>= 2.42)
+ok    make     4.4.1 (>= 4.3)
+ok    bash     5.2.37 (>= 5.1)
+ok    qemu     10.0.13 (>= 8.0)
+
+check-toolchain: ok
+check-ci-safety: ok (8 files scanned)
+build: assembling harness/fixture/boot.S
+build: linking at 0x7C00
+build: ok
+  image  build/ozero-stage0.img  (512 bytes)
+  sha256 37ad8227720cd7f40b1393a8ad554a78f76d08b09ff97be68b1d2579f5e15319
+  elf    build/ozero-stage0.elf  (debug symbols retained)
+  map    build/ozero-stage0.map
+  commit 44d566e972b729d3bf9557ab287833d095a7cdfb
+qemu boot smoke test
+status:   pass
+image:    build/ozero-stage0.img
+sha256:   37ad8227720cd7f40b1393a8ad554a78f76d08b09ff97be68b1d2579f5e15319
+qemu:     QEMU emulator version 10.0.13 (Debian 1:10.0.13+ds-0+deb13u1)
+timeout:  20s
+duration: 224ms
+serial:   build/qemu/serial.log
+test: ok (5 markers in order)
+ci: ok
+exit=0
