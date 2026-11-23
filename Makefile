@@ -115,6 +115,8 @@ test: $(BUILD)
 	./$(BUILD)/slab_test
 	$(CC) $(HOST_CFLAGS) -o $(BUILD)/sched_test tests/sched_test.c
 	./$(BUILD)/sched_test
+	$(CC) $(HOST_CFLAGS) -o $(BUILD)/cpu_test tests/cpu_test.c
+	./$(BUILD)/cpu_test
 
 run: $(ISO)
 	$(QEMU) -machine q35 -m 512M -cdrom $(ISO) -boot d \
