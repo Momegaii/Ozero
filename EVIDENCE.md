@@ -9,6 +9,7 @@ A1 review source: `origin/a1/stage0-review` @ `30ee4f0`
 A1 review response commit: this commit (HEAD)
 IF-008 version: 1.1
 IF-008 reconciliation commit: this commit (HEAD); A1 header snapshot: `30ee4f0`
+Remote branch: `origin/a3/stage0-review-response` (pushed 2026-11-23)
 
 Use `git rev-parse HEAD` and `git log -1 -- EVIDENCE.md` for the exact values.
 The Stage 0 package commit contains the matrix schema v2, the review response,
@@ -223,8 +224,8 @@ approves D-007 and D-021.
   correct D-009 before merge.
 - D-010 (`tools/check-headers.sh` ownership) is proposed by A1 but A4 must
   approve and record the exact `CODEOWNERS` lines.
-- The push credential is read-only; A3 has no remote branch and A4 cannot
-  verify it under XB-005.
+- The branch is pushed, but no pull request is open; A4 has not refreshed its
+  audit under XB-005.
 - Archived PRM and specification links may rot.
 
 ## 7. Commit, branch, and files
@@ -248,12 +249,10 @@ git log --oneline --decorate -3
 git log -1 --oneline -- EVIDENCE.md
 ```
 
-Remote push status (2026-11-23): **blocked**. `git push -u origin
-a3/stage0-review-response` returned HTTP 403, "Permission to
-Momegaii/Ozero.git denied to Momegaii." The available token can read the
-repository but cannot write contents. The branch and patch are local only; no
-remote branch or pull request was created. Patch:
-`/workspace/a3-stage0-review-response.patch`.
+Remote push status (2026-11-23): **pushed**. `git push -u origin
+a3/stage0-review-response` created `origin/a3/stage0-review-response` and set
+the local branch to track it. No pull request was created. The local patch
+remains at `/workspace/a3-stage0-review-response.patch`.
 
 A1 review response files:
 

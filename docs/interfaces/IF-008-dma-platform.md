@@ -204,8 +204,8 @@ Open cross-agent dependencies:
   is pending.
 - **D-007 / XB-001:** director approval of IF-008 and A1 final approval of this
   exact version are required before the AHCI probe.
-- **XB-011:** A3 has no remote branch; A4 cannot refresh the repository audit
-  until the push credential is fixed.
+- **XB-011:** `origin/a3/stage0-review-response` is pushed; A4 can refresh the
+  repository audit. No pull request is open.
 
 ## Version history
 

@@ -101,7 +101,7 @@ Remaining before the AHCI probe:
   merge.
 - D-010 (`tools/check-headers.sh` ownership) is proposed by A1 but must be
   approved and recorded consistently by A4.
-- XB-011 remains open until A3 can push a branch for A4's audit.
+- XB-011 is addressed: `origin/a3/stage0-review-response` is pushed, so A4 can refresh its audit. No PR is open.
 
 The questions in §2.1-§2.5 are the original A3 request, kept for audit. A1's
 answers are in §2.0 and IF-008 v1.1. Symbols in those questions that are absent
@@ -194,7 +194,7 @@ Global IDs come from A4's decision register and cross-agent blocker register.
 | D-021 | IOMMU policy: trusted ring-0 only in Stage 1 | Proposed | A3 accepts no IOMMU domain, no IOVA and no translated DMA type in Stage 1 |
 | XB-001 | A1 reviews A3 IF-008 before AHCI probe | Open | A3 published v1.1; A1 final review pending |
 | XB-005 | A3 device tests and hardware requirements have evidence | Open | Static checks only; no QEMU or hardware run |
-| XB-011 | Publish A3 so A4 can refresh the audit | Open | Push credential is read-only; branch remains local |
+| XB-011 | Publish A3 so A4 can refresh the audit | Pushed | `origin/a3/stage0-review-response`; A4 can refresh the audit. No PR is open |
 | XB-004 | Limine pin and boot protocol | Open | A3 consumes A1's boot/platform data; the MBR harness is not Limine evidence |
 
 A3 does not start AHCI probe work while XB-001 is Open.

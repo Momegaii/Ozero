@@ -80,5 +80,5 @@ available.
   director must correct D-009 before merge.
 - Next decision: A1 final approval of IF-008 v1.1 and director approval of
   D-007 and D-021. The AHCI probe is blocked until both are recorded and D-009
-  is resolved. D-010 ownership is proposed by A1; A4 must record it. XB-011
-  remains open until A3 can push.
+  is resolved. D-010 ownership is proposed by A1; A4 must record it. XB-011 is
+  pushed as `origin/a3/stage0-review-response`; A4 can refresh its audit.

@@ -173,7 +173,7 @@ director adds them to A4's register.
 | Block API is published but not finally approved | A1/A3 may diverge on queueing, DMA or reset semantics | IF-008 v1.1 aligned to A1 `30ee4f0`; A1 final approval pending |
 | No IOMMU in Stage 1 | A buggy or malicious driver can DMA anywhere; untrusted/userspace DMA is unsafe | Trusted ring-0 drivers only; escalate before untrusted DMA |
 | A1 has not finally approved IF-008 v1.1 | The AHCI probe could still target an unapproved contract | A1 must approve this exact version before any AHCI probe |
-| Push credential is read-only | A3 branch is local only; A4/XB-005 cannot verify it | Grant contents-write or apply the patch |
+| Remote branch is not yet reviewed | A4 audit and CI have not run on the pushed branch | Open a PR or request A4 audit; XB-005 remains open |
 | D-009 namespace conflict is live | A1 headers use `ozero`; A4 register says `o0`; a merge may mix paths | A3 provisionally uses `ozero`; reopen XB-007 and correct D-009 before merge |
 | Vendored A1 headers can drift | A3's copy of A1 `include/ozero/*.h` may age | Re-sync from `a1/stage0-review` before final review; `make check-a1-headers` compares against an external A1 tree |
 | PRM links are archived/retired | References may rot | Keep archived links and local citation notes; verify before publication |
