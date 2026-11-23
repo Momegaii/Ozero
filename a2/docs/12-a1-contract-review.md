@@ -1,7 +1,7 @@
 # A1 review request: process, address-space, handle and syscall contracts
 
-- Status: A1 answered at `30ee4f0`; A2 accepts all 12; XB-002 awaits A4 register update
-- Evidence: A1 branch `a1/stage0-review`, answers in `docs/a2-contract-review-response.md` at `30ee4f0` (current head `4716e09`); headers `include/ozero/{ipc,thread,mm}.h`
+- Status: A1 answered at `74b1471` (`a17d126`); A2 accepts all 12 at `6d305b8`/`64b3458`; XB-002 awaits A4 register update
+- Evidence: A1 branch `a1/stage0-review`, answers in `docs/a2-contract-review-response.md` at `74b1471` (review `a17d126`, reconciled to A2 `d02598a`/`3f78477`); headers `include/ozero/{ipc,thread,mm}.h`
 - Decisions needed: XB-002 (contract match), A2-Q3 (syscall strategy; related D-018), A2-Q4 (own `ntdll`; related D-011), A2-Q12 (security model; related D-011, D-019)
 - Risks: the loader ABI can freeze before the process, address-space and handle contracts are agreed; see [05-risk-report.md](05-risk-report.md)
 - Next step: A1 answers A1-REV-01…12 with Accept / Change / Defer, names a commit for any header change, and records sign-off in XB-002
@@ -55,10 +55,9 @@ The groups A1 is asked to rule on:
 | Exceptions | Not covered in the interface draft | — |
 | Syscall boundary | "The syscall ABI is explicitly not defined here"; final ABI is A2/A4 work | `interface-draft.md`, `kernel-architecture.md` |
 
-## A1 response (`30ee4f0`, answers `d9cdec1`)
+## A1 response (`74b1471`, review `a17d126`)
 
-A1 answered against A2 `50b7853` and evidence `807c447`. The decisions below are A1's;
-the disposition column is A2's acceptance.
+A1 answered against A2 `50b7853`/`807c447`, then reconciled the answers to A2 `d02598a`/`3f78477` without changing the decisions. A2 accepts at `6d305b8`. The disposition column is A2's acceptance.
 
 | ID | A1 decision | Canonical ID | A2 disposition |
 | --- | --- | --- | --- |
@@ -77,6 +76,10 @@ the disposition column is A2's acceptance.
 
 Counts: **4 Accept, 6 Change required, 2 Defer.** A1 does not close XB-002 on its own;
 A2 acceptance in this revision is the other half.
+
+A1's condition 3 asked A2 to replace `90b004f`/`include/o0` references and the colliding
+D-009…D-023 IDs. Both are resolved at `6d305b8`: references cite `74b1471` and
+`include/ozero/`, and A2-local questions are `A2-Q1…A2-Q15`.
 
 ## A2 answers to A1's open items
 
@@ -237,10 +240,10 @@ does not close the blocker.
 
 ## Sources
 
-- A1 `docs/a2-contract-review-response.md`, branch `a1/stage0-review`, commit `30ee4f0`.
-- A1 `docs/interface-draft.md` §5–§8 and `docs/kernel-architecture.md` §4, commit `4716e09`.
-- A1 `include/ozero/ipc.h`, `include/ozero/thread.h`, `include/ozero/mm.h`, commit `4716e09`.
-- A1 `docs/if009-review.md`, commit `d9cdec1`.
+- A1 `docs/a2-contract-review-response.md`, branch `a1/stage0-review`, commit `74b1471` (`a17d126`).
+- A1 `docs/interface-draft.md` §5–§8 and `docs/kernel-architecture.md` §4, commit `74b1471`.
+- A1 `include/ozero/ipc.h`, `include/ozero/thread.h`, `include/ozero/mm.h`, commit `74b1471`.
+- A1 `docs/if009-review.md`, commit `a17d126`.
 - Microsoft, Processes and Threads: <https://learn.microsoft.com/en-us/windows/win32/procthread/processes-and-threads>
 - Microsoft, Asynchronous Procedure Calls: <https://learn.microsoft.com/en-us/windows/win32/sync/asynchronous-procedure-calls>
 - Microsoft, x64 exception handling: <https://learn.microsoft.com/en-us/cpp/build/exception-handling-x64>

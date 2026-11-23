@@ -411,7 +411,7 @@ class StageGateTests(unittest.TestCase):
     def test_if_009_contract_is_specific(self) -> None:
         text = (ROOT / "docs" / "13-if-009-pe-fixture-contract.md").read_text(encoding="utf-8")
         for token in ("IF-009", "IF9-A1-1", "IF9-A3-2", "XB-003", "Not in scope",
-                      "30ee4f0", "IF-008", "Truncated headers"):
+                      "a17d126", "307b919", "IF-008", "Truncated headers"):
             self.assertIn(token, text)
 
     def test_fixture_manifest_has_no_host_paths(self) -> None:
@@ -422,14 +422,14 @@ class StageGateTests(unittest.TestCase):
 
     def test_a1_answers_are_recorded(self) -> None:
         text = (ROOT / "docs" / "12-a1-contract-review.md").read_text(encoding="utf-8")
-        for token in ("30ee4f0", "4 Accept", "6 Change required", "2 Defer",
+        for token in ("74b1471", "a17d126", "4 Accept", "6 Change required", "2 Defer",
                       "A2-Q3", "A2-Q4", "A2-Q12"):
             self.assertIn(token, text)
 
     def test_review_ledger_is_explicit(self) -> None:
         text = (ROOT / "docs" / "14-review-ledger.md").read_text(encoding="utf-8")
         for token in ("XB-002", "XB-003", "XB-009", "not loader approval",
-                      "Not approved"):
+                      "Not approved", "74b1471", "307b919"):
             self.assertIn(token, text)
 
     def test_evidence_revision_history_is_labelled(self) -> None:

@@ -1,10 +1,10 @@
 # IF-009: PE fixture contract (v1.0)
 
-- Status: submitted for review (A1 change-required on the pre-publication manifest; A3 accept-with-comments; v1.0 confirmations pending; XB-003 Open)
+- Status: A1 accepts v1.0 with conditions (`a17d126`, head `74b1471`); A3 accepts the hardware boundary (`307b919`); A2 signature recorded; A4 registry update pending; XB-003 Open until A4 records
 - Evidence: `fixtures/build-manifest.json` and `docs/evidence/*.txt` at the code revision named in each evidence header
-- Decisions needed: IF-009 v1.0 sign-off by A1 and A3
+- Decisions needed: A4 records both v1.0 signatures and updates the IF-009 registry row
 - Risks: a fixture change after sign-off silently invalidates A1/A3 review; an unlabelled fixture result is read as compatibility; see [05-risk-report.md](05-risk-report.md)
-- Next step: A1 answers IF9-A1-1…3, A3 answers IF9-A3-1…2, A2 records both signatures with commit hashes
+- Next step: A4 updates the IF-009 row to v1.0 and records both signatures; A2 tracks the v1.1 negative-case gaps
 
 ## Contract identity
 
@@ -81,9 +81,9 @@ L1+ results and none exists.
 
 | Side | Reference | Commit |
 | --- | --- | --- |
-| A1 | `include/ozero/` public headers; `o0_as_create`, `o0_as_map`, `o0_as_protect`, `o0_as_unmap`; `o0_thread_create`, user pointer and GS/FS base; `o0_handle_open/dup/wait`; neutral exception record later | `30ee4f0` reviewed, `4716e09` current |
-| A2 | This contract v1.0; PE structures in [01](01-pe-loader-requirements.md) and [10](10-technical-findings.md); loader stages covered: L0 parse only | code `d02598a`, evidence `3f78477` |
-| A3 | Block/storage delivery for any future runtime path (IF-008); no PE parsing | `b9a69d8` |
+| A1 | `include/ozero/` public headers; `o0_as_create`, `o0_as_map`, `o0_as_protect`, `o0_as_unmap`; `o0_thread_create`, user pointer and GS/FS base; `o0_handle_open/dup/wait`; neutral exception record later | reviewed `30ee4f0`, head `74b1471`, review `a17d126` |
+| A2 | This contract v1.0; PE structures in [01](01-pe-loader-requirements.md) and [10](10-technical-findings.md); loader stages covered: L0 parse only | signed pair `d02598a`/`3f78477`; current pair in the evidence headers |
+| A3 | Block/storage delivery for any future runtime path (IF-008); no PE parsing | review `307b919` |
 
 The A1 commit is the header set A1 reviewed; the current A1 head is `4716e09`. A later
 A1 commit does not silently change this contract; a header change that affects the
@@ -124,17 +124,15 @@ IF-009 does not freeze a kernel ABI. It assumes only that a future loader can:
 2. keep the mapped image and its `.pdata` readable for the process lifetime;
 3. create a suspended process and first thread before transferring control.
 
-Questions for A1:
+A1 answered at `a17d126` (head `74b1471`):
 
-- **IF9-A1-1** — do the A1 memory primitives (`o0_as_create`, map, protect) support
-  mapping a file-backed image at a chosen base, or is a section object required first?
-- **IF9-A1-2** — is the mapped image guaranteed to stay resident and readable, including
-  `.pdata`, until the process exits?
-- **IF9-A1-3** — does A1 accept these five fixtures as M0 inputs without implying an ABI
-  freeze or a Windows loader commitment?
+| ID | A1 answer | Consequence |
+| --- | --- | --- |
+| IF9-A1-1 | Change required at the kernel-primitive level: `o0_as_create` + `o0_as_map` can map physical pages at a chosen virtual address and `o0_as_protect` sets protections; there is no file-backed section object at `30ee4f0` | For M0, A2 reads the file into A1-provided memory and maps it. A true section object is A1-REV-04 at Stage 7. Not an IF-009 defect |
+| IF9-A1-2 | Accept with condition: A1 does not evict or unmap behind the address-space owner; the mapping persists until unmap, destroy or exit | A2 must keep `.pdata` mapped while unwind data is needed |
+| IF9-A1-3 | Accept: the five fixtures are static M0 inputs; no ABI freeze, no Windows loader commitment, no runtime claim | A2 owns PE parsing and loader policy |
 
-These overlap A1-REV-04/05/08/09 in [12-a1-contract-review.md](12-a1-contract-review.md);
-A1 may answer them together.
+These overlap A1-REV-04/05/09 in [12-a1-contract-review.md](12-a1-contract-review.md).
 
 ## A3 interface assumptions
 
@@ -147,10 +145,15 @@ Questions for A3:
 - **IF9-A3-2** — confirm that A3 will not cite an IF-009 pass as a driver, AHCI or
   graphics result.
 
-A3 answered both in its review of `807c447` (branch `a3/stage0-review-response`,
-commit `2dcc0fc`): no hardware-platform leakage, and A3 does not review loader runtime.
-A3 also asked for the platform-neutrality sentence above and for relative manifest paths;
-both are in v1.0. A3 confirmation of the v1.0 wording is pending.
+A3 answered both at `307b919`:
+
+- **IF9-A3-1** — No. IF-009 requires no A3 block, DMA, IRQ or GPU interface. A future
+  loader may use IF-008 only as the byte-delivery path.
+- **IF9-A3-2** — No. An IF-009 pass is L0 static evidence; A3 will not cite it as an
+  AHCI, DMA, driver, GPU or runtime result.
+
+A3 accepts IF-009 v1.0 at `d02598a` for the hardware boundary with no blocking comments.
+This is not A1's kernel-interface approval and not loader approval.
 
 ## Change control
 
@@ -166,15 +169,15 @@ both are in v1.0. A3 confirmation of the v1.0 wording is pending.
 
 | Reviewer | Revision reviewed | Verdict | Disposition |
 | --- | --- | --- | --- |
-| A3 | `807c447` | Accept with comments: no hardware-platform leakage; normalize absolute manifest paths; add a platform-neutrality sentence | Both comments applied in v1.0 (`0522f11`): paths are relative, sentence added. A3 confirmation of v1.0 pending |
-| A1 | `807c447` | Change required: no IF-009 document; required contents in `docs/if009-review.md` §4 | v1.0 (`d02598a`) publishes identity, scope, inventory, ownership, references, delivery path, negatives, drift policy and deferrals. Two negative categories remain gaps; A1 review of v1.0 pending |
+| A1 | `d02598a` (contract blob `9be6c8b0…`), review `a17d126`, head `74b1471` | **Accept with conditions** | Static-only L0; version discipline; review-record corrections (resolved at `6d305b8`); A3 v1.0 confirmation (received `307b919`); A4 registry update; no file-backed section claim |
+| A3 | `d02598a`, review `307b919` | **Accept for the hardware boundary**, no blocking comments | IF9-A3-1/2 answered; not loader approval and not A1's kernel approval |
 
 ## Sign-off
 
-| Reviewer | Decision (Accept / Change / Defer) | Commit reviewed | Date |
-| --- | --- | --- | --- |
-| A1 | Change required on pre-publication manifest; v1.0 review pending | `807c447` | 2026-11-23 |
-| A3 | Accept with comments (earlier revision); v1.0 confirmation pending | `807c447` | 2026-11-23 |
+| Reviewer | Decision (Accept / Change / Defer) | A2 commit reviewed | Reviewer commit | Date |
+| --- | --- | --- | --- | --- |
+| A1 | Accept with conditions (IF9-A1-1 kernel primitive; review-record corrections; A3/A4 records) | `d02598a` | `a17d126` | 2026-11-23 |
+| A3 | Accept for the hardware boundary | `d02598a` | `307b919` | 2026-11-23 |
 
 A signature names the IF-009 version, the A2 commit and the reviewer's commit. A general
 approval comment does not close XB-003.
@@ -182,8 +185,8 @@ approval comment does not close XB-003.
 ## Sources
 
 - `fixtures/build-manifest.json` and `tools/build_fixtures.py`.
-- A1 `docs/if009-review.md` at `d9cdec1`; A1 `docs/a2-contract-review-response.md` at `30ee4f0`.
-- A3 `docs/interfaces/IF-009-a3-review.md` at `2dcc0fc`.
+- A1 `docs/if009-review.md` and `docs/a2-contract-review-response.md` at `74b1471` (`a17d126`).
+- A3 `a3/docs/interfaces/IF-009-a3-review.md` at `307b919`.
 - [04-test-corpus.md](04-test-corpus.md), [10-technical-findings.md](10-technical-findings.md).
 - Microsoft, PE format: <https://learn.microsoft.com/en-us/windows/win32/debug/pe-format>
 - Microsoft, x64 exception handling: <https://learn.microsoft.com/en-us/cpp/build/exception-handling-x64>
