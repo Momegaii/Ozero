@@ -11,7 +11,7 @@ permissions:
 jobs:
   build-and-boot:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,6 +42,15 @@ jobs:
 
       - name: Boot smoke test
         run: make test-mbr-harness
+
+      - name: A2 static contract checks
+        run: make -C a2 check-static
+
+      - name: A2 unit tests
+        run: python3 -m unittest discover -s a2/tests -v
+
+      - name: A3 interface and matrix tests
+        run: make -C a3 check
 
       - name: Reproducibility
         run: make verify-repro
