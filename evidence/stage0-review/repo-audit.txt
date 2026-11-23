@@ -1,22 +1,25 @@
 ==================================================================
 repository: /workspace/Ozero
-head:       56bcff00502652aa48db15b401b5d724a4f19636
+head:       c5608721e1bba1515909f0999f3e3ef17ad7b3a6
 branch:     a4/stage0-review-followup
 remotes:
   origin	https://github.com/Momegaii/Ozero.git (fetch)
   origin	https://github.com/Momegaii/Ozero.git (push)
 branches:
-  a4/stage0-review-followup 56bcff0 origin/a4/stage0-review-followup
+  a4/stage0-review-followup c560872 origin/a4/stage0-review-followup
   main 147cc86 origin/main
   origin 147cc86 
   origin/a1/stage0-review 30ee4f0 
-  origin/a4/stage0-review-followup 313138c 
+  origin/a3/stage0-review-response 15cd9ce 
+  origin/a4/stage0-review-followup 245007d 
   origin/agent/a2-stage0 807c447 
   origin/main 147cc86 
 tags:
 commit graph (all refs):
-  * 56bcff0 (HEAD -> a4/stage0-review-followup) docs: apply A1's exact CODEOWNERS overrides from 30ee4f0
-  * 313138c (origin/a4/stage0-review-followup) docs: refresh audit for the PR body update
+  * c560872 (HEAD -> a4/stage0-review-followup) docs: record A3 publication and round-3 verification
+  * 245007d (origin/a4/stage0-review-followup) docs: refresh audit after A1 30ee4f0
+  * 56bcff0 docs: apply A1's exact CODEOWNERS overrides from 30ee4f0
+  * 313138c docs: refresh audit for the PR body update
   * dd47d4e docs: add XB-016 to the submitted PR body
   * 4465f7d docs: refresh repository audit after A1's second-round commits
   * d138cb2 docs: describe the A4 head as 210653c plus docs and audit commits
@@ -33,6 +36,13 @@ commit graph (all refs):
   * f990bf7 docs: record Stage 0 review evidence
   * 4396155 docs: implement Stage 0 review actions
   * 5a50c0d docs: import A4 Stage 0 control plane
+  | * 15cd9ce (origin/a3/stage0-review-response) Record successful A3 branch push
+  | * b9a69d8 Align A3 IF-008 v1.1 to A1 ozero headers
+  | * 0a023a4 a3: record remote push blocker and final A1 review status
+  | * 897e5ce a3: record A1 signed interface review and reconciliation blockers
+  | * bd3034b a3: record Stage 0 package commit and final evidence
+  | * a2890b5 a3: add Stage 0 hardware engineering package and review response
+  |/  
   | * 30ee4f0 (origin/a1/stage0-review) docs: give A4 the exact CODEOWNERS overrides for A1 artifacts (D-010)
   | * 115a7f4 docs: record second-round Stage 0 review evidence and hashes
   | * c50e385 docs: answer the director's second Stage 0 review
@@ -57,52 +67,8 @@ commit graph (all refs):
   | * 8bac650 docs(a2): import Stage 0 package under a2/
   |/  
   * 147cc86 (origin/main, origin/HEAD, main) Initial commit
-commit count (all refs): 38
-tracked files: 82
-top-level tracked entries:
-  .editorconfig
-  .github
-  .gitignore
-  AGENTS.md
-  CODEOWNERS
-  Makefile
-  Ozero_A4_Briefing.pdf
-  README.md
-  docs
-  evidence
-  harness
-  scripts
-  tests
-  toolchain
-working tree: DIRTY
-   M evidence/stage0-review/repo-audit.txt
-A1/A2/A3 refs:
-  refs/remotes/origin/a1/stage0-review
-  refs/remotes/origin/agent/a2-stage0
-A1/A2/A3 commit subjects:
-  210653c docs: align A4 with A1 second-round response
-  30ee4f0 docs: give A4 the exact CODEOWNERS overrides for A1 artifacts (D-010)
-  076ed82 docs: verify updated A2 evidence and ancestry
-  164360e feat: expose driver DMA callbacks and A2 thread primitives
-  50b7853 docs(a2): answer director review with global IDs and A1 review request
-  84fe81a docs: verify A1/A2 branches and track cross-agent blockers
-  90b004f docs: record A1 pull request in Stage 0 report
-  8bac650 docs(a2): import Stage 0 package under a2/
-  e2d7c0d docs: add A1 document index
-  9ddaf4a Merge shared Ozero main into A1 Stage 0 branch
-==================================================================
-repository: /workspace/project
-head:       d6b7af0e2bc92466b1aa3d12983044417efca906
-branch:     master
-remotes:
-branches:
-  master d6b7af0 
-tags:
-commit graph (all refs):
-  * d6b7af0 (HEAD -> master) docs: record Stage 0 evidence and add interface template
-  * e12983e docs: add Stage 0 architecture, integration and QA control plane
-commit count (all refs): 2
-tracked files: 53
+commit count (all refs): 46
+tracked files: 89
 top-level tracked entries:
   .editorconfig
   .github
@@ -120,6 +86,25 @@ top-level tracked entries:
   toolchain
 working tree: clean
 A1/A2/A3 refs:
-  none
+  refs/remotes/origin/a1/stage0-review
+  refs/remotes/origin/a3/stage0-review-response
+  refs/remotes/origin/agent/a2-stage0
 A1/A2/A3 commit subjects:
-  none
+  c560872 docs: record A3 publication and round-3 verification
+  15cd9ce Record successful A3 branch push
+  b9a69d8 Align A3 IF-008 v1.1 to A1 ozero headers
+  245007d docs: refresh audit after A1 30ee4f0
+  210653c docs: align A4 with A1 second-round response
+  30ee4f0 docs: give A4 the exact CODEOWNERS overrides for A1 artifacts (D-010)
+  076ed82 docs: verify updated A2 evidence and ancestry
+  164360e feat: expose driver DMA callbacks and A2 thread primitives
+  50b7853 docs(a2): answer director review with global IDs and A1 review request
+  84fe81a docs: verify A1/A2 branches and track cross-agent blockers
+  0a023a4 a3: record remote push blocker and final A1 review status
+  897e5ce a3: record A1 signed interface review and reconciliation blockers
+  90b004f docs: record A1 pull request in Stage 0 report
+  8bac650 docs(a2): import Stage 0 package under a2/
+  e2d7c0d docs: add A1 document index
+  9ddaf4a Merge shared Ozero main into A1 Stage 0 branch
+  bd3034b a3: record Stage 0 package commit and final evidence
+  a2890b5 a3: add Stage 0 hardware engineering package and review response
