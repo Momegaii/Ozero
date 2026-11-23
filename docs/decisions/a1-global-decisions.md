@@ -80,8 +80,8 @@ hashes. They are not director approvals of the underlying global decisions.
 
 | ID | Decision | Status | Owner | Approver | Link |
 |---|---|---|---|---|---|
-| D-032 | IF-008 v1.1 is **accepted by A1** at A3 `b9a69d8` (branch head `15cd9ce` is documentation-only; A3 latest `2dcc0fc` does not change the headers). A3's `platform.h`/`block.h` conform; A1's ten headers are byte-identical. AHCI remains blocked on D-007, D-021 and A3's acceptance of the conditions. | Recorded by A1; A4 to register | A1 + A3 | A1 for IF-008; Director for D-007/D-021 | `docs/if008-v1.1-review.md` |
-| D-033 | IF-009 v1.0 is **accepted by A1** at A2 `d02598a`/evidence `3f78477`; contract blob `9be6c8b0…`, manifest blob `f505cb4d…`. Static-only L0; no runtime claim. A3 must confirm v1.0 at `2dcc0fc`; A4 must update the registry at `3ae7aca`; A2 must fix stale refs/IDs. | Recorded by A1; A3/A4 pending | A2 | A1 + A3 + A4 review | `docs/if009-review.md` |
+| D-032 | IF-008 v1.1 is **accepted by A1** at A3 `b9a69d8` (branch head `15cd9ce` is documentation-only; A3 latest `2dcc0fc` does not change the headers). A3's `platform.h`/`block.h` conform; A1's ten headers are byte-identical. AHCI remains blocked on D-007, D-021 and A3's acceptance of the conditions. A1 record `a17d126`. | Recorded by A1; A4 to register | A1 + A3 | A1 for IF-008; Director for D-007/D-021 | `docs/if008-v1.1-review.md` |
+| D-033 | IF-009 v1.0 is **accepted by A1** at A2 `d02598a`/evidence `3f78477`; contract blob `9be6c8b0…`, manifest blob `f505cb4d…`. Static-only L0; no runtime claim. A3 must confirm v1.0 at `2dcc0fc`; A4 must update the registry at `3ae7aca`; A2 must fix stale refs/IDs. A1 record `a17d126`. | Recorded by A1; A3/A4 pending | A2 | A1 + A3 + A4 review | `docs/if009-review.md` |
 
 ## Approval rule
 

@@ -145,6 +145,8 @@ Third round (action brief v2):
 | `85df00573e338db903b030d5ddcbfb4dac009ee7` | `docs: accept IF-008 v1.1 at A3 b9a69d8 (D-032)` | IF-008 review, interface draft, decisions, AGENTS, README |
 | `d9cdec1ea85159e140b67190111f2c18597fa459` | `docs: answer A2 A1-REV-01..12 and review IF-009 (D-033)` | A2 response, IF-009 review, action brief v2 PDF |
 | this report commit | records the action brief v2 evidence and exact hashes | `docs/stage0-report.md` |
+| `a17d126664ba9c54792612590268f97d7f439b7d` | `docs: review IF-009 v1.0 at A2 d02598a (D-033)` | IF-009 v1.0 review, A2 reconciliation, IF-008 dependency status, proceed PDF |
+| this commit | records the A1 review hash and final provenance | `docs/stage0-report.md` |
 
 Reviewed inputs, not A1 commits:
 

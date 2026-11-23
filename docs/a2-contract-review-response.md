@@ -8,6 +8,7 @@
 | A2 evidence head | `3f7847756f256761a4da0ed393d2762111af22db` (reconciled; previously `807c447`) |
 | A2 review-document blob | `f5d08487837e7141e9845a2c6602f604711a2e8e` (same at `50b7853` and `d02598a`) |
 | A2 requirements blob | `490924d2c84a3d497e3c0a33ed992a8d110c35ae` (same at `50b7853` and `d02598a`) |
+| A1 review commit | `a17d126664ba9c54792612590268f97d7f439b7d` |
 | A1 header commit | `30ee4f0da3c3d4263033680d39e7937fcb59f42f` |
 | Date | 23 November 2026 |
 | Status | **Answered and reconciled at A2 `d02598a`/`3f78477`. A2 acceptance pending. XB-002 is not closed by A1 alone.** |

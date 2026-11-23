@@ -13,6 +13,7 @@
 | IF-009 contract blob | `9be6c8b02d20ac1cbdd5c27e62d0ae94a264fc2f` |
 | Fixture manifest blob | `f505cb4d9403b65d860c92d574bd736270db446a` |
 | A1 header commit | `30ee4f0da3c3d4263033680d39e7937fcb59f42f` |
+| A1 review commit | `a17d126664ba9c54792612590268f97d7f439b7d` |
 | A3 review commit | `2dcc0fcc6371aa6167ca773321e76ca9d5a587c0` (reviewed `807c447`; v1.0 confirmation pending) |
 | A4 registry reviewed | `3ae7acaf4d81d103063a33ca49c1739bdee316f8` (IF-009 row still 0.1 draft; update required) |
 | Related | XB-003, D-011, D-024, D-025, D-026, D-033 |
@@ -112,13 +113,13 @@ the registry.
 
 | Reviewer | Decision | Revision reviewed | Date |
 |---|---|---|---|
-| A1 | **Accept (fixture contract) with IF9-A1-1 kernel-primitive condition** | A2 `d02598a`; contract blob `9be6c8b0…`; A1 `30ee4f0` | 2026-11-23 |
+| A1 | **Accept (fixture contract) with IF9-A1-1 kernel-primitive condition** | A2 `d02598a`; contract blob `9be6c8b0…`; A1 `30ee4f0`; A1 review commit `a17d126` | 2026-11-23 |
 | A3 | Accept with comments at `807c447`; v1.0 confirmation pending | `807c447`; review `2dcc0fc` | 2026-11-23 |
 | A4 | Registry update pending | `245007d`/`3ae7aca` | 2026-11-23 |
 
 A1's signature names IF-009 v1.0, the A2 code revision `d02598a`, the contract
-blob `9be6c8b0…` and A1 `30ee4f0`. It does not close XB-003 alone; A3 and A4
-must record their side.
+blob `9be6c8b0…`, A1 `30ee4f0` and A1 review commit `a17d126`. It does not close
+XB-003 alone; A3 and A4 must record their side.
 
 ## 7. Sources
 
