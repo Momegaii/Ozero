@@ -13,12 +13,14 @@ Stage 0 remains **not accepted**. The director's four A2 actions are handled as 
 | Director action | Status in this branch |
 | --- | --- |
 | Regenerate evidence at the final branch HEAD | Evidence is regenerated in the pure-evidence commit that follows the code commit; its header names the code revision, and `git diff <code>..HEAD -- ':!a2/docs/evidence'` is empty (XB-009) |
-| Request A1's review of the process/address-space/handle/syscall contract | [12-a1-contract-review.md](12-a1-contract-review.md) lists A1-REV-01…12 with Accept/Change/Defer answers requested; a review request is posted on PR #1; XB-002 stays Open until A1 signs |
+| Request A1's review of the process/address-space/handle/syscall contract | A1 answered at `30ee4f0` (4 Accept, 6 Change required, 2 Defer); A2 accepts all 12 and answers A1's open items in [12](12-a1-contract-review.md); XB-002 awaits A4 recording |
 | Keep unexecuted Windows corpus entries not-run | All 17 entries are `not-run`; the lint policy and `test_corpus_entries_remain_not_run` fail if that changes without an approval record |
 | Keep M0 and M1 unimplemented | No loader or harness code exists; the implementation gate in [07](07-stage7-milestone.md) requires D-006, XB-002 and XB-003 before any code |
 
-Global IDs used here: D-006 (Stage 0 acceptance), D-009…D-023 (A2 decisions),
+IDs used here: D-006 (Stage 0 acceptance), D-011…D-030 (A1 review, canonical),
+A2-Q1…A2-Q15 (A2-local questions; A2 does not allocate canonical D-IDs),
 XB-002 (A1 contract review), XB-003 (PE fixture contract), XB-009 (evidence revision).
+The consolidated state is in [14-review-ledger.md](14-review-ledger.md).
 
 ## Revision history
 
@@ -29,7 +31,9 @@ reader can tell a historical reference from the current one.
 | Date | Code revision | Evidence commit | Note |
 | --- | --- | --- | --- |
 | 2026-11-23 | `8bac650` | `f324b28` | initial import into Ozero; historical, superseded |
-| 2026-11-23 | `50b7853` | `807c447` | director review response; historical once a later evidence commit exists |
+| 2026-11-23 | `50b7853` | `807c447` | director review response; historical |
+| 2026-11-23 | `0522f11` | `b227327` | IF-009 v1.0 and provenance reconciliation; historical |
+| 2026-11-23 | `d02598a` | `3f78477` | A3 review record and A1 answer acceptance; historical once superseded |
 
 References to `8bac650` elsewhere in this document describe the import and are labelled
 historical. No evidence file cites a revision older than the code it was generated from.

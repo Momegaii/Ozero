@@ -1,8 +1,8 @@
 # A1 review request: process, address-space, handle and syscall contracts
 
-- Status: review requested (A1 has not answered; XB-002 remains Open)
-- Evidence: A1 branch `a1/stage0-review` at `90b004f`; files `docs/interface-draft.md` §6–§8, `docs/kernel-architecture.md` §4, `include/o0/{ipc,thread,mm}.h`
-- Decisions needed: XB-002 (contract match), D-011 (syscall strategy), D-012 (own `ntdll`), D-020 (security model)
+- Status: A1 answered at `30ee4f0`; A2 accepts all 12; XB-002 awaits A4 register update
+- Evidence: A1 branch `a1/stage0-review`, answers in `docs/a2-contract-review-response.md` at `30ee4f0` (current head `4716e09`); headers `include/ozero/{ipc,thread,mm}.h`
+- Decisions needed: XB-002 (contract match), A2-Q3 (syscall strategy; related D-018), A2-Q4 (own `ntdll`; related D-011), A2-Q12 (security model; related D-011, D-019)
 - Risks: the loader ABI can freeze before the process, address-space and handle contracts are agreed; see [05-risk-report.md](05-risk-report.md)
 - Next step: A1 answers A1-REV-01…12 with Accept / Change / Defer, names a commit for any header change, and records sign-off in XB-002
 
@@ -54,6 +54,41 @@ The groups A1 is asked to rule on:
 | APCs and TEB | "No Windows thread/process semantics, tokens, or APC model is implied" | §6 |
 | Exceptions | Not covered in the interface draft | — |
 | Syscall boundary | "The syscall ABI is explicitly not defined here"; final ABI is A2/A4 work | `interface-draft.md`, `kernel-architecture.md` |
+
+## A1 response (`30ee4f0`, answers `d9cdec1`)
+
+A1 answered against A2 `50b7853` and evidence `807c447`. The decisions below are A1's;
+the disposition column is A2's acceptance.
+
+| ID | A1 decision | Canonical ID | A2 disposition |
+| --- | --- | --- | --- |
+| A1-REV-01 | **Change required** — add `o0_process_create_from_section` at Stage 7; A2 composes today | D-011 | Accept; A2 owns PEB/TEB and loader policy |
+| A1-REV-02 | **Change required** — per-thread APC queue and alertable-wait hooks at Stage 7 | D-027 | Accept; return-to-user and alertable wait are sufficient |
+| A1-REV-03 | **Accept** — `thread.h` has user pointer and GS/FS primitives | D-025 | Accept; A2 allocates the TEB |
+| A1-REV-04 | **Change required** — section objects and map-view at Stage 7; `o0_as_map` today | D-011 | Accept; A2 owns image mapping policy |
+| A1-REV-05 | **Defer** — A2 publishes the user layout; A1 may add `O0_USER_*` later | D-026 | Accept; A2 publishes before A1 freezes constants |
+| A1-REV-06 | **Accept** — A2 keeps its NT handle table; A1 handles stay opaque | D-019 | Accept |
+| A1-REV-07 | **Change required** — `o0_handle_wait_many` and alertable wait at Stage 7 | D-011 | Accept; A2 loops over single waits until then |
+| A1-REV-08 | **Change required** — neutral `o0_exception_record`/`o0_context`; A2 translates | D-024 | Accept |
+| A1-REV-09 | **Defer** — A2 implements unwind and keeps `.pdata` mapped | none | Accept |
+| A1-REV-10 | **Accept** — A1 owns the syscall table and entry; A2 owns `ntdll` | D-018 | Accept |
+| A1-REV-11 | **Change required** — `o0_clock_now_ns` and absolute timers at Stage 7 | D-029 | Accept; 1 µs minimum for wait timeouts |
+| A1-REV-12 | **Accept** — A2 owns tokens, SIDs and NT access checks | D-011, D-019 | Accept |
+
+Counts: **4 Accept, 6 Change required, 2 Defer.** A1 does not close XB-002 on its own;
+A2 acceptance in this revision is the other half.
+
+## A2 answers to A1's open items
+
+| A1 open item | A2 answer |
+| --- | --- |
+| Exception shape | Accept D-024: neutral kernel record, A2 translates to Windows shapes |
+| TEB layout | A2 publishes the TEB/PEB layout before Stage 7; Stage 0 does not freeze it |
+| Address-space policy | A2 publishes ASLR ranges, image range and stack/heap placement before A1 freezes constants |
+| APC points | Return-to-user and alertable wait are sufficient; A2 owns dispatch order |
+| Handle inheritance | Explicit list (`STARTUPINFOEX`) preferred; inherit-all only when the caller requests it |
+| Clock resolution | 1 µs minimum for wait timeouts; `QueryPerformanceCounter` uses the same clock and is measured |
+| 32-bit scope | Deferral confirmed (A2-Q2 option B); no x86 ABI work in Stage 1 |
 
 ## Questions for A1
 
@@ -157,7 +192,7 @@ moves to a later milestone.
 
 ### A1-REV-10 — Syscall boundary ownership and stability
 
-- **Requirement:** X1, D-011, D-012.
+- **Requirement:** X1, A2-Q3, A2-Q4.
 - **Gap:** A1 says the syscall ABI is not defined and that final ABI is A2/A4 work.
 - **Question:** does A1 agree that the A2-visible boundary is a stable, A2-owned
   interface (own `ntdll`-equivalent, private upcall mechanism), with A1 providing only
@@ -178,7 +213,7 @@ moves to a later milestone.
 
 ### A1-REV-12 — Security model split
 
-- **Requirement:** X8, A1-OBJ-1, D-020.
+- **Requirement:** X8, A1-OBJ-1, A2-Q12.
 - **Gap:** the draft has no tokens, integrity levels or access-check hook.
 - **Question:** is the Windows-like security model A2 user-mode policy over A1 handles,
   or does A1 enforce access? If A2 enforces, what object metadata can A1 store and
@@ -202,20 +237,23 @@ does not close the blocker.
 
 ## Sources
 
-- A1 `docs/interface-draft.md` §5–§8, branch `a1/stage0-review`, commit `90b004f`.
-- A1 `include/o0/ipc.h`, `include/o0/thread.h`, `include/o0/mm.h`, same commit.
-- A1 `docs/kernel-architecture.md` §4 and §6, same commit.
+- A1 `docs/a2-contract-review-response.md`, branch `a1/stage0-review`, commit `30ee4f0`.
+- A1 `docs/interface-draft.md` §5–§8 and `docs/kernel-architecture.md` §4, commit `4716e09`.
+- A1 `include/ozero/ipc.h`, `include/ozero/thread.h`, `include/ozero/mm.h`, commit `4716e09`.
+- A1 `docs/if009-review.md`, commit `d9cdec1`.
 - Microsoft, Processes and Threads: <https://learn.microsoft.com/en-us/windows/win32/procthread/processes-and-threads>
 - Microsoft, Asynchronous Procedure Calls: <https://learn.microsoft.com/en-us/windows/win32/sync/asynchronous-procedure-calls>
 - Microsoft, x64 exception handling: <https://learn.microsoft.com/en-us/cpp/build/exception-handling-x64>
 - Microsoft, Memory Management: <https://learn.microsoft.com/en-us/windows/win32/memory/memory-management>
 
-## Global IDs
+## IDs
 
 | ID | Meaning | State |
 | --- | --- | --- |
-| XB-002 | A1 → A2 contract match | Open; this document is the request |
-| XB-003 | A2 → A1/A3 PE fixture contract (IF-009) | Open; separate review of the fixture contract |
-| D-011 | Syscall/upcall strategy | Proposed (A2 Q3) |
-| D-012 | Own vs Windows `ntdll` | Proposed (A2 Q4) |
-| D-020 | Security model fidelity | Proposed (A2 Q12) |
+| XB-002 | A1 → A2 contract match | A1 answered `30ee4f0`/`d9cdec1`; A2 accepts in this revision; A4 to record |
+| XB-003 | A2 → A1/A3 PE fixture contract (IF-009) | Open; see [13](13-if-009-pe-fixture-contract.md) |
+| A2-Q3 | Syscall/upcall strategy | A2-local; related D-018 |
+| A2-Q4 | Own vs Windows `ntdll` | A2-local; related D-011 |
+| A2-Q12 | Security model fidelity | A2-local; related D-011, D-019 |
+
+Canonical D-xxx IDs belong to A4's register. A2 does not allocate them.

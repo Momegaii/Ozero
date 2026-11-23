@@ -400,21 +400,37 @@ class StageGateTests(unittest.TestCase):
         for token in ("M0 and M1 are unimplemented", "D-006", "XB-002", "XB-003"):
             self.assertIn(token, text)
 
-    def test_open_questions_have_global_ids(self) -> None:
+    def test_open_questions_use_a2_local_ids(self) -> None:
         text = (ROOT / "docs" / "09-open-questions.md").read_text(encoding="utf-8")
-        for number in range(9, 24):
-            self.assertIn(f"D-{number:03d}", text)
+        for number in range(1, 16):
+            self.assertIn(f"A2-Q{number}", text)
+        self.assertNotIn("D-009", text)
+        self.assertNotIn("D-010", text)
 
 
     def test_if_009_contract_is_specific(self) -> None:
         text = (ROOT / "docs" / "13-if-009-pe-fixture-contract.md").read_text(encoding="utf-8")
-        for token in ("IF-009", "IF9-A1-1", "IF9-A3-2", "XB-003", "Not in scope"):
+        for token in ("IF-009", "IF9-A1-1", "IF9-A3-2", "XB-003", "Not in scope",
+                      "30ee4f0", "IF-008", "Truncated headers"):
             self.assertIn(token, text)
 
     def test_fixture_manifest_has_no_host_paths(self) -> None:
         text = MANIFEST.read_text(encoding="utf-8")
         self.assertNotIn("/workspace/", text)
         self.assertNotIn(str(ROOT), text)
+
+
+    def test_a1_answers_are_recorded(self) -> None:
+        text = (ROOT / "docs" / "12-a1-contract-review.md").read_text(encoding="utf-8")
+        for token in ("30ee4f0", "4 Accept", "6 Change required", "2 Defer",
+                      "A2-Q3", "A2-Q4", "A2-Q12"):
+            self.assertIn(token, text)
+
+    def test_review_ledger_is_explicit(self) -> None:
+        text = (ROOT / "docs" / "14-review-ledger.md").read_text(encoding="utf-8")
+        for token in ("XB-002", "XB-003", "XB-009", "not loader approval",
+                      "Not approved"):
+            self.assertIn(token, text)
 
     def test_evidence_revision_history_is_labelled(self) -> None:
         text = (ROOT / "docs" / "11-stage0-review-response.md").read_text(encoding="utf-8")

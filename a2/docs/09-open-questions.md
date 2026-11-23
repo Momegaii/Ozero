@@ -312,43 +312,45 @@ and always publish the raw per-entry numbers. B invites cherry-picking.
 
 **Owner:** A2 + A4. **Needed by:** before the first public report.
 
-## Global decision IDs
+## Decision IDs
 
-A4 owns the decision register in `docs/decisions/decision-log.md`. The IDs below are
-proposed for that register and are stable in A2 text until A4 records them; if A4 has
-already allocated an ID, the Q-number remains the A2 key and the register wins.
+Canonical `D-xxx` IDs belong to A4's register (`docs/decisions/decision-log.md`). A2 does
+not allocate canonical IDs. A2-local questions use `A2-Q1`…`A2-Q15`; A1's review refers to
+them as `A2-Q3`, `A2-Q4` and `A2-Q12` where earlier A2 text wrongly borrowed D-011, D-012
+and D-020.
 
-| A2 key | Proposed global ID | Decision | Status |
-| --- | --- | --- | --- |
-| Q1 | D-009 | Windows baseline | Proposed |
-| Q2 | D-010 | 32-bit timing | Proposed |
-| Q3 | D-011 | Syscall/upcall strategy | Proposed |
-| Q4 | D-012 | Own vs Windows ntdll | Proposed |
-| Q5 | D-013 | .NET hosting | Proposed |
-| Q6 | D-014 | Graphics approach | Proposed |
-| Q7 | D-015 | Signature policy | Proposed |
-| Q8 | D-016 | ReactOS/Wine use | Proposed |
-| Q9 | D-017 | Windowing strategy | Proposed |
-| Q10 | D-018 | Anti-cheat stance | Proposed |
-| Q11 | D-019 | Application classes | Proposed |
-| Q12 | D-020 | Security model | Proposed |
-| Q13 | D-021 | Registry/filesystem virtualisation | Proposed |
-| Q14 | D-022 | Kernel drivers | Proposed |
-| Q15 | D-023 | Claim threshold | Proposed |
+| A2 ID | Question | Related canonical ID |
+| --- | --- | --- |
+| A2-Q1 | Windows baseline | none assigned |
+| A2-Q2 | 32-bit timing | D-030 (A1 defers 32-bit/WOW64 beyond Stage 1) |
+| A2-Q3 | Syscall/upcall strategy | D-018 (A1 owns the syscall table and entry) |
+| A2-Q4 | Own vs Windows `ntdll` | D-011 (A2 requirements accepted as Stage 7 input) |
+| A2-Q5 | .NET hosting | none assigned |
+| A2-Q6 | Graphics approach | none assigned |
+| A2-Q7 | Signature policy | none assigned |
+| A2-Q8 | ReactOS/Wine use | none assigned |
+| A2-Q9 | Windowing strategy | none assigned |
+| A2-Q10 | Anti-cheat stance | none assigned |
+| A2-Q11 | Application classes | none assigned |
+| A2-Q12 | Security model | D-011, D-019 (A2 owns tokens and NT access checks) |
+| A2-Q13 | Registry/filesystem virtualisation | D-011 (A2-owned userland service) |
+| A2-Q14 | Kernel drivers | none assigned |
+| A2-Q15 | Claim threshold | none assigned |
 
-Decisions that already have a global ID are referenced directly:
+Canonical decisions referenced by A2 text:
 
 - D-001 — A1/A2/A3 domain split.
 - D-005 — boot protocol (A1).
 - D-006 — Stage 0 acceptance.
 - D-007 — A3 DMA/platform interface (A1 + A3).
+- D-011, D-018, D-019, D-024…D-030 — A1's review of A2 requirements.
 - XB-002 — A1 review of the A2 process/address-space/handle/syscall contract.
 - XB-003 — A1/A3 review of the A2 PE fixture contract.
 - XB-009 — A2 evidence must cite the branch head that is under review.
 
 ## Decision log
 
-| Question | Global ID | Decision | Date | Owner | Notes |
+| Question | Canonical ID | Decision | Date | Owner | Notes |
 | --- | --- | --- | --- | --- | --- |
 | — | — | none recorded | — | — | this table stays empty until decisions are made |
 

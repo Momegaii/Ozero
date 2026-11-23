@@ -1,6 +1,6 @@
 # IF-009: PE fixture contract (v1.0)
 
-- Status: submitted for review (A3 accepted an earlier revision with comments; A1 pending; v1.0 confirmation pending; XB-003 Open)
+- Status: submitted for review (A1 change-required on the pre-publication manifest; A3 accept-with-comments; v1.0 confirmations pending; XB-003 Open)
 - Evidence: `fixtures/build-manifest.json` and `docs/evidence/*.txt` at the code revision named in each evidence header
 - Decisions needed: IF-009 v1.0 sign-off by A1 and A3
 - Risks: a fixture change after sign-off silently invalidates A1/A3 review; an unlabelled fixture result is read as compatibility; see [05-risk-report.md](05-risk-report.md)
@@ -77,6 +77,45 @@ A pass does **not** mean: the image loads, imports resolve, TLS callbacks run, e
 dispatch, the API set schema is real, or any Windows application is compatible. Those are
 L1+ results and none exists.
 
+## Contract references
+
+| Side | Reference | Commit |
+| --- | --- | --- |
+| A1 | `include/ozero/` public headers; `o0_as_create`, `o0_as_map`, `o0_as_protect`, `o0_as_unmap`; `o0_thread_create`, user pointer and GS/FS base; `o0_handle_open/dup/wait`; neutral exception record later | `30ee4f0` reviewed, `4716e09` current |
+| A2 | This contract v1.0; PE structures in [01](01-pe-loader-requirements.md) and [10](10-technical-findings.md); loader stages covered: L0 parse only | code `d02598a`, evidence `3f78477` |
+| A3 | Block/storage delivery for any future runtime path (IF-008); no PE parsing | `b9a69d8` |
+
+The A1 commit is the header set A1 reviewed; the current A1 head is `4716e09`. A later
+A1 commit does not silently change this contract; a header change that affects the
+primitives above requires a new IF-009 review.
+
+## Delivery path
+
+Stage 0 tools read fixture files from the repository or the harness filesystem. No block
+device, DMA transfer or kernel PE parser is involved.
+
+A future runtime loader receives image bytes through A3's block interface (IF-008). A1
+provides memory and thread primitives, A3 provides storage, and A2 parses PE in user mode.
+Neither A1 nor A3 parses PE, and IF-009 does not require A3 to implement anything in
+Stage 0.
+
+## Negative coverage against A1's categories
+
+A1's review asks for six negative categories. Current coverage is explicit, including the
+gaps:
+
+| A1 category | v1.0 case | State |
+| --- | --- | --- |
+| Malformed PE | `sections_swap`, `pdata_remainder`, `loadconfig_size` | Covered |
+| Truncated headers | — | **Gap**; candidate for v1.1 |
+| Bad relocations | `reloc_block_size` | Covered |
+| Missing imports | `import_terminator` | Partial; a missing DLL name is a **gap** for v1.1 |
+| Invalid TLS | `tls_callbacks_unmapped` | Covered |
+| Expected error/evidence | Each case names the check it must trigger | Covered |
+
+A1's review of v1.0 will decide whether the two gaps block acceptance or can be deferred
+to v1.1.
+
 ## A1 interface assumptions
 
 IF-009 does not freeze a kernel ABI. It assumes only that a future loader can:
@@ -128,13 +167,13 @@ both are in v1.0. A3 confirmation of the v1.0 wording is pending.
 | Reviewer | Revision reviewed | Verdict | Disposition |
 | --- | --- | --- | --- |
 | A3 | `807c447` | Accept with comments: no hardware-platform leakage; normalize absolute manifest paths; add a platform-neutrality sentence | Both comments applied in v1.0 (`0522f11`): paths are relative, sentence added. A3 confirmation of v1.0 pending |
-| A1 | — | Pending | A1-REV-04/05/08/09 and IF9-A1-1…3 remain open |
+| A1 | `807c447` | Change required: no IF-009 document; required contents in `docs/if009-review.md` §4 | v1.0 (`d02598a`) publishes identity, scope, inventory, ownership, references, delivery path, negatives, drift policy and deferrals. Two negative categories remain gaps; A1 review of v1.0 pending |
 
 ## Sign-off
 
 | Reviewer | Decision (Accept / Change / Defer) | Commit reviewed | Date |
 | --- | --- | --- | --- |
-| A1 | pending | — | — |
+| A1 | Change required on pre-publication manifest; v1.0 review pending | `807c447` | 2026-11-23 |
 | A3 | Accept with comments (earlier revision); v1.0 confirmation pending | `807c447` | 2026-11-23 |
 
 A signature names the IF-009 version, the A2 commit and the reviewer's commit. A general
@@ -143,6 +182,8 @@ approval comment does not close XB-003.
 ## Sources
 
 - `fixtures/build-manifest.json` and `tools/build_fixtures.py`.
+- A1 `docs/if009-review.md` at `d9cdec1`; A1 `docs/a2-contract-review-response.md` at `30ee4f0`.
+- A3 `docs/interfaces/IF-009-a3-review.md` at `2dcc0fc`.
 - [04-test-corpus.md](04-test-corpus.md), [10-technical-findings.md](10-technical-findings.md).
 - Microsoft, PE format: <https://learn.microsoft.com/en-us/windows/win32/debug/pe-format>
 - Microsoft, x64 exception handling: <https://learn.microsoft.com/en-us/cpp/build/exception-handling-x64>
