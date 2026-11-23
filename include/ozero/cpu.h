@@ -5,6 +5,7 @@
 #ifndef O0_CPU_H
 #define O0_CPU_H
 
+#include "ozero/status.h"
 #include "ozero/types.h"
 
 #ifdef __cplusplus
@@ -78,6 +79,9 @@ struct o0_cpu_info {
 };
 
 #define O0_CPU_F_BSP (1u << 0)
+
+/* Detect CPU features once on the BSP. Must be called before o0_cpu_features(). */
+o0_status o0_cpu_detect(void);
 
 /* The feature set is detected once on the BSP; APs must match it. */
 const struct o0_cpu_features *o0_cpu_features(void);

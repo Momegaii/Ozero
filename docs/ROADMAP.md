@@ -20,7 +20,7 @@ These are development stages, not delivery-date promises. The order is intention
 
 - **Stage 0** — Complete: architecture baseline approved, toolchain scaffold in place.
 - **Stage 1** — Boot verified in QEMU (BIOS). Exit evidence: reproducible boot in emulation, documented boot path, serial/debug output. Remaining: UEFI path exercise, serial/debug workflow documentation, physical hardware tests.
-- **Stage 2** — Implemented and boot-verified: physical page allocator, normalised boot memory map, 4-level page-table construction, kernel heap (`o0_kalloc`/`o0_kfree`), page-fault error-code decoding, kernel self-tests (heap + PMM). Remaining: CR3 switch to new page tables.
+- **Stage 2** — Implemented and boot-verified (BIOS + UEFI): physical page allocator, normalised boot memory map, 4-level page-table construction, kernel heap (`o0_kalloc`/`o0_kfree`), page-fault error-code decoding, CPU feature discovery (CPUID), kernel self-tests (heap + PMM). Remaining: CR3 switch to new page tables, memory reclaim.
 - **Stages 3–10** — Not started.
 
 ## Dependency rules

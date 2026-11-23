@@ -55,8 +55,11 @@ $(BUILD)/boot_info.o: kernel/src/boot_info.c third_party/limine/limine.h include
 $(BUILD)/paging.o: kernel/arch/x86_64/paging.c include/ozero/boot.h include/ozero/mm.h include/ozero/status.h include/ozero/types.h | $(BUILD)
 	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
 
-$(KERNEL): $(BUILD)/main.o $(BUILD)/interrupts.o $(BUILD)/interrupts_c.o $(BUILD)/pmm.o $(BUILD)/boot_info.o $(BUILD)/paging.o kernel/linker.lds
-	$(LD) $(LDFLAGS) -o $@ $(BUILD)/main.o $(BUILD)/interrupts.o $(BUILD)/interrupts_c.o $(BUILD)/pmm.o $(BUILD)/boot_info.o $(BUILD)/paging.o
+$(BUILD)/cpu.o: kernel/arch/x86_64/cpu.c include/ozero/cpu.h include/ozero/status.h include/ozero/types.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
+$(KERNEL): $(BUILD)/main.o $(BUILD)/interrupts.o $(BUILD)/interrupts_c.o $(BUILD)/pmm.o $(BUILD)/boot_info.o $(BUILD)/paging.o $(BUILD)/cpu.o kernel/linker.lds
+	$(LD) $(LDFLAGS) -o $@ $(BUILD)/main.o $(BUILD)/interrupts.o $(BUILD)/interrupts_c.o $(BUILD)/pmm.o $(BUILD)/boot_info.o $(BUILD)/paging.o $(BUILD)/cpu.o
 	@file $@
 
 $(LIMINE_ARCHIVE): | $(BUILD)

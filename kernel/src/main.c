@@ -4,6 +4,7 @@
 #include <limine.h>
 
 #include "ozero/boot.h"
+#include "ozero/cpu.h"
 #include "ozero/mm.h"
 #include "ozero/status.h"
 
@@ -161,6 +162,8 @@ static void report_memory_map(void) {
 extern o0_status o0_boot_populate(const struct limine_memmap_response *);
 extern o0_status o0_pmm_init(const struct o0_boot_info *);
 extern o0_status o0_paging_init(const struct o0_boot_info *);
+extern o0_status o0_cpu_detect(void);
+extern const struct o0_cpu_features *o0_cpu_features(void);
 extern void *o0_kalloc(size_t size, size_t align);
 extern void o0_kfree(void *ptr, size_t size);
 
@@ -241,6 +244,28 @@ void kmain(void) {
     serial_puts("\n");
     serial_puts("OZERO: free memory=");
     serial_dec(o0_pmm_free_bytes());
+    serial_puts("\n");
+
+    /* Detect CPU features. */
+    if (o0_cpu_detect() != O0_OK) {
+        panic("CPU feature detection failed");
+    }
+    const struct o0_cpu_features *cf = o0_cpu_features();
+    if (cf == NULL) {
+        panic("CPU features not available");
+    }
+    serial_puts("OZERO: CPU long_mode=");
+    serial_puts(cf->long_mode ? "yes" : "no");
+    serial_puts(" pae=");
+    serial_puts(cf->pae ? "yes" : "no");
+    serial_puts(" nx=");
+    serial_puts(cf->nx ? "yes" : "no");
+    serial_puts(" sse2=");
+    serial_puts(cf->sse2 ? "yes" : "no");
+    serial_puts(" apic=");
+    serial_puts(cf->apic ? "yes" : "no");
+    serial_puts(" page_1gb=");
+    serial_puts(cf->page_1gb ? "yes" : "no");
     serial_puts("\n");
 
     /* Build page tables (identity map low memory + kernel high-half).

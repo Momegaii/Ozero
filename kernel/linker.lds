@@ -13,6 +13,8 @@ SECTIONS
 {
     . = 0xffffffff80000000;
 
+    _kernel_start = .;
+
     .limine_requests : ALIGN(8) {
         KEEP(*(.limine_requests_start))
         KEEP(*(.limine_requests))
@@ -34,10 +36,14 @@ SECTIONS
         *(.data .data.*)
     } :data
 
+    _kernel_data_end = .;
+
     .bss : {
         *(.bss .bss.*)
         *(COMMON)
     } :data
+
+    _kernel_end = .;
 
     /DISCARD/ : {
         *(.eh_frame*)

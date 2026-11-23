@@ -145,18 +145,21 @@ o0_status o0_pmm_init(const struct o0_boot_info *bi) {
         bitmap[i] = 0;
     }
 
-    /* Reserve pages for the kernel/bitmap metadata from the first usable
-     * region. The bitmap's own storage is in BSS, but the physical frames
-     * backing the kernel and its data structures are already in use, so
-     * mark them allocated. For Stage 2, conservatively reserve the first
-     * 64 KiB of usable RAM. */
-    uint64_t reserved_pages = 16u; /* 64 KiB / 4 KiB */
+    /* Reserve the kernel's own frames from the first usable region.
+     * The kernel's physical load address is not yet known (boot_info.kernel_phys
+     * is 0 until the CR3 switch offset is determined), so we conservatively
+     * reserve pages based on the kernel's linked size instead. This prevents
+     * the allocator from handing out frames that back the kernel image. */
+    uint64_t kernel_pages = (bi->kernel_phys_size + O0_PAGE_SIZE - 1u) >> O0_PAGE_SHIFT;
+    if (kernel_pages == 0) {
+        kernel_pages = 16u; /* fallback if size not yet known */
+    }
     for (uint64_t r = 0; r < region_count; ++r) {
-        if (regions[r].page_count >= reserved_pages) {
-            for (uint64_t b = 0; b < reserved_pages; ++b) {
+        if (regions[r].page_count >= kernel_pages) {
+            for (uint64_t b = 0; b < kernel_pages; ++b) {
                 set_bit(regions[r].bitmap_start + b);
             }
-            free_pages -= reserved_pages;
+            free_pages -= kernel_pages;
             break;
         }
     }

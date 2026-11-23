@@ -17,6 +17,9 @@
 /* Maximum normalised memory regions we can track. */
 #define O0_BOOT_MAX_MEM_REGIONS 64
 
+extern uint8_t _kernel_start[];
+extern uint8_t _kernel_end[];
+
 static struct o0_mem_region boot_memmap[O0_BOOT_MAX_MEM_REGIONS];
 static uint64_t boot_memmap_count;
 
@@ -81,9 +84,9 @@ o0_status o0_boot_populate(const struct limine_memmap_response *memmap_resp) {
     boot_info.firmware_type = O0_FW_UNKNOWN;
     boot_info.cpu_count = 1;
     boot_info.hhdm_offset = 0;
-    boot_info.kernel_phys = 0;
-    boot_info.kernel_virt = 0;
-    boot_info.kernel_phys_size = 0;
+    boot_info.kernel_phys = 0;       /* physical load offset not yet determined */
+    boot_info.kernel_virt = (o0_vaddr_t)(uintptr_t)_kernel_start;
+    boot_info.kernel_phys_size = (uint64_t)((uintptr_t)_kernel_end - (uintptr_t)_kernel_start);
     boot_info.memmap = boot_memmap;
     boot_info.memmap_count = boot_memmap_count;
     boot_info.cpus = NULL;
