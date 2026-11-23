@@ -44,10 +44,8 @@ candidate. The signature is not loader approval and does not authorize a PE run;
 The IF-009 v1.1 candidate adds four truncated-header cases and two import-Name-RVA cases. It is
 implemented at `31e6825`, with raw evidence at `37e9bf0`; the six cases all fail for the named
 reason. XB-021 is closed for implementation, but IF-009 v1.1 is **not signed**: A1 and A3 must
-review and re-sign. v1.0 remains the accepted version until then.
-The v1.1 disposition, implementation and evidence are in
-[`if-009-v1.1-disposition.md`](if-009-v1.1-disposition.md); XB-021 is closed for implementation and
-the v1.1 signature gate is still open.
+review and re-sign. v1.0 remains the accepted version until then. The disposition is in
+[`if-009-v1.1-disposition.md`](if-009-v1.1-disposition.md).
 
 ## Versioning rules
 
