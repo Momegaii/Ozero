@@ -21,6 +21,10 @@ Related: [`01-hardware-support-matrix.md`](01-hardware-support-matrix.md),
 No level may be skipped for a "supported" claim. L1 alone is not evidence of
 hardware support.
 
+**L1 prerequisite:** A1 must finally approve IF-008 v1.1 and the director must
+approve D-007 and D-021 before the first AHCI probe. No L1 run is valid on an
+unapproved interface.
+
 ## 2. QEMU environment
 
 ### 2.1 Record the environment

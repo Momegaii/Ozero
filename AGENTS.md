@@ -12,8 +12,18 @@ driver implementation yet.
 make check
 ```
 
-This runs the matrix validator, deliverable checker, 13 matrix semantics
+This runs the matrix validator, deliverable checker, 19 contract and matrix semantics
 tests, the header compile, and the inventory shell syntax check.
+
+The tree vendors a snapshot of A1's public headers under `include/ozero/`.
+To compile against an external A1 tree instead:
+
+```sh
+make check-a1-headers A1_INCLUDE=/path/to/a1/include
+```
+
+The directory must contain `ozero/mm.h`, `ozero/driver.h` and `ozero/irq.h`.
+The target puts `A1_INCLUDE` first so the external headers win.
 
 `tools/collect_inventory.sh` is read-only. It prints an inventory to stdout;
 redirect it to a file. Some sections need root and use `sudo -n` when
@@ -46,19 +56,29 @@ available.
 
 ## Current state
 
-- Deliverables: `docs/01`–`docs/06`, `include/o0/*.h`, `matrix/*.csv`,
+- Deliverables: `docs/01`–`docs/06`, `include/ozero/*.h` (A3 `platform.h` and
+  `block.h`, plus an A1 public-header snapshot at `30ee4f0`), `matrix/*.csv`,
   `tools/*`.
-- Static checks pass: matrix validation, deliverable check, 13 semantics
+- Static checks pass: matrix validation, deliverable check, 19 semantics
   tests, header compile, inventory syntax.
 - Matrix schema v2 records pinned spec revision, implementation status,
   emulator, real hardware, and acceptance test per row.
 - All rows are `not-started` or `deferred`; no row is `complete`.
 - No QEMU or real hardware was available in the authoring environment; L1–L4
   tests are planned but not executed.
-- A1 review received on `a1/stage0-review` @ `e2d7c0d`: signed with an IOMMU
-  blocker and four conditions. A3 accepts the conditions for trusted ring-0
-  Stage 1.
-- Next decision: reconcile `include/o0/platform.h` and `include/o0/block.h`
-  with A1's signed `include/o0/mm.h`/`include/o0/driver.h` surface. The AHCI
-  probe is blocked until that reconciliation and director acceptance of the
-  IOMMU risk.
+- A1 review received on `a1/stage0-review` @ `30ee4f0`: signed with an IOMMU
+  blocker and five conditions; final IF-008 approval is pending. A3 accepts the
+  conditions for trusted ring-0 Stage 1.
+- A3 published `docs/interfaces/IF-008-dma-platform.md` v1.1. `platform.h`
+  includes A1's `<ozero/*.h>` directly and does not redeclare A1 types.
+  `block.h` embeds one `o0_io_request`, has no SG pointer, and splits large
+  transfers into multiple buffers and requests. A3 implements
+  `struct o0_device_ops`; reset does not free buffers or unmap BARs.
+- D-009 is contradictory: A4's register says `include/o0/` is approved, while
+  A1 `30ee4f0` uses `include/ozero/` and proposes D-009 as `ozero`. A3
+  provisionally uses `ozero` so it compiles; XB-007 must reopen and A4/the
+  director must correct D-009 before merge.
+- Next decision: A1 final approval of IF-008 v1.1 and director approval of
+  D-007 and D-021. The AHCI probe is blocked until both are recorded and D-009
+  is resolved. D-010 ownership is proposed by A1; A4 must record it. XB-011
+  remains open until A3 can push.

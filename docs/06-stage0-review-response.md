@@ -3,7 +3,7 @@
 Status: **desk response; no implementation or hardware validation**
 
 Review date: 23 November 2026
-Review basis: director-supplied agent summary, not direct repository inspection
+Review basis: director review plus direct inspection of `main`, `a1/stage0-review` @ `30ee4f0`, `agent/a2-stage0` @ `807c447` and `a4/stage0-review-followup` @ `076ed82`
 Artifact commit: see [`EVIDENCE.md`](../EVIDENCE.md) §7 and `git log --oneline`
 
 This is a response to the 23 November 2026 Stage 0 review. It is not an
@@ -14,7 +14,7 @@ was not tested.
 
 | # | Review action | Status | Artifact / evidence |
 |---|---|---|---|
-| 1 | Get A1 written review of `platform.h`/`block.h` before the AHCI probe: DMA sleep rules, reset, no-in-flight-DMA guarantee, address width, alignment, coherency | **A1 review received; conditions accepted; API reconciliation pending; AHCI probe blocked** | A1 branch `a1/stage0-review` @ `e2d7c0d`, `docs/interface-draft.md` §11; §2 below |
+| 1 | Get A1 written review of `platform.h`/`block.h` before the AHCI probe: DMA sleep rules, reset, no-in-flight-DMA guarantee, address width, alignment, coherency | **A1 review received; A3 published IF-008 v1.1; A1 final approval pending; AHCI probe blocked** | A1 `a1/stage0-review` @ `30ee4f0`, `docs/interface-draft.md` §11 and `docs/a3-dma-contract.md`; `docs/interfaces/IF-008-dma-platform.md`; §2 below |
 | 2 | For each matrix row record exact spec revision, implementation status, emulator availability, real hardware, acceptance test | **done** | `matrix/hardware-support-matrix.csv` schema v2; `tools/validate_matrix.py` |
 | 3 | Separate media from transport; keep HDD/SATA, SSD/SATA, SSD/NVMe as product cases, not one driver | **done** | `driver_family` column; `docs/01` §2–§3 |
 | 4 | Defer ZNS and SATA port multiplier unless a concrete requirement justifies them | **done** | both rows are `deferred`; validator enforces it |
@@ -25,7 +25,7 @@ Definition-of-done status:
 
 | Criterion | Status |
 |---|---|
-| A1 signs DMA/platform contracts or API changes are made | **partly met**: A1 signed `mm.h`/`driver.h` with an IOMMU blocker; A3 draft headers still need reconciliation |
+| A1 signs DMA/platform contracts or API changes are made | **partly met**: A1 signed the generic `mm.h`/`driver.h` surface with an IOMMU blocker and five conditions; A3 published IF-008 v1.1 against those headers; A1 final approval of IF-008 v1.1 is pending |
 | Every matrix row has pinned source and test method | **done** |
 | Status reflects implementation and testing, not ambition | **done**: all rows are `not-started` or `deferred` |
 | AHCI probe begins only after DMA/reset contract approval | **blocked** |
@@ -33,11 +33,13 @@ Definition-of-done status:
 
 ## 2. A1 review request and response
 
-A1's written review is now available on branch `a1/stage0-review` at commit
-`e2d7c0d`, in `docs/interface-draft.md` §11 and `include/o0/mm.h` /
-`include/o0/driver.h`. A1 signed the generic services subject to one IOMMU
-blocker and four conditions. The original questions are kept below so the
-record shows what was asked; the disposition table records what was answered.
+A1's written review is available on branch `a1/stage0-review` at commit
+`30ee4f0`, in `docs/interface-draft.md` §11, `docs/a3-dma-contract.md` and
+`include/ozero/mm.h` / `include/ozero/driver.h`. A1 signed the generic services
+subject to one IOMMU blocker and five conditions, and states that final IF-008
+approval follows only after A3 publishes `platform.h` and `block.h`. The original
+questions are kept below so the record shows what was asked; the disposition
+table records what was answered.
 
 ### 2.0 A1 disposition (received 23 November 2026)
 
@@ -46,37 +48,66 @@ record shows what was asked; the disposition table records what was answered.
 | Address width | Signed: `addr_mask` + `max_segment`, validated; CPU physical width is only an upper bound | Accepted |
 | IOMMU assumptions | **Blocker**: no IOMMU in Stage 1 (Limine disables VT-d/AMD-Vi); returned addresses are physical and untranslated; no domain handle | Accepted for trusted ring-0 Stage 1; escalate before untrusted or userspace DMA |
 | Coherency | Signed: explicit `coherent` flag plus `o0_dma_sync`; no implicit maintenance | Accepted |
-| Map/unmap lifetime | Signed: BAR until unmap; DMA buffer until free; both after quiesce; reset invalidates both | Accepted |
+| Map/unmap lifetime | Signed: BAR until unmap; DMA buffer until free; both after quiesce. Reset invalidates in-flight requests and device state, but does **not** free kernel DMA buffers or unmap BARs; the driver reinitialises | Accepted; A3 will not free buffers or unmap BARs in `reset` |
 | Reset and in-flight DMA | Signed: `o0_device_dma_quiesce` then `o0_device_reset`; `o0_io_cancel` is best-effort and completion may still occur | Accepted; A3 will quiesce before reset and keep buffers alive until completion |
-| Block I/O shape | Signed: `o0_io_limits` for transfer size, queue depth, alignment; block semantics stay in A3 | Accepted |
+| Block I/O shape | Signed: `o0_io_limits` for transfer size, queue depth and alignment; one contiguous buffer per `o0_io_request`; block semantics stay in A3 | Accepted; `block.h` embeds one `struct o0_io_request` and carries no SG pointer |
 | Interrupt routing | Signed: GSI/vector split; MSI/MSI-X vector allocation; handler context rules | Accepted |
+| Driver callbacks | Signed: A3 implements `struct o0_device_ops` (`dma_constraints`, `dma_quiesce`, `reset`, `io_submit`, `io_cancel`); A1 wrappers validate | Accepted; A3 will register the table with `o0_device_register_ops` |
 | Device-class neutrality | Signed and automated by `tools/check-headers.sh` | Accepted |
 
-A1's conditions:
+A1's conditions (latest, `30ee4f0`):
 
 1. No untrusted or userspace driver receives DMA before an IOMMU domain exists.
-   Stage 1 is trusted ring-0 drivers only. **A3 accepts for Stage 1.**
+   Stage 1 is trusted ring-0 drivers only (D-021). **A3 accepts for Stage 1.**
 2. A3 must not assume one `o0_dma_buffer` covers a transfer larger than
-   `max_segment`; build a scatter-gather list from multiple buffers.
-   **A3 accepts; `block.h` must document this.**
-3. A3 must not assume BAR mappings come from the HHDM; they are dedicated UC
-   mappings. **A3 accepts; AHCI and GPU drivers must use `o0_device_map_bar`.**
-4. Any semantic change is a versioned interface change, not a driver-local
+   `max_segment`; it splits the transfer into multiple buffers and requests.
+   There is no scatter-gather pointer in `o0_io_request` in Stage 1.
+   **A3 accepts; `block.h` embeds one `o0_io_request` and documents the split.**
+3. A3 must not assume BAR mappings come from the HHDM; they are dedicated
+   UC/NX mappings. **A3 accepts; AHCI and GPU drivers must use
+   `o0_device_map_bar`.**
+4. A3 must not assume reset preserves queue state, DMA buffers or BAR mappings.
+   **A3 accepts; `reset` only resets A3 protocol state.**
+5. Any semantic change is a versioned interface change, not a driver-local
    decision. **A3 accepts.**
 
-Remaining reconciliation work before the AHCI probe:
+A3 reconciliation completed in IF-008 v1.1:
 
-- `include/o0/platform.h` currently describes `o0_dma_domain`, `dma_map_sg`,
-  `dma_map_single`, and `iommu_map`. A1's signed surface is
-  `o0_dma_constraint` + `o0_dma_alloc` + `o0_dma_sync` + `o0_dma_free`, with
-  no domain handle and no SG map object. A3 must either replace the draft with
-  A1's `mm.h`/`driver.h` surface or record a versioned request for the extra
-  operations. The AHCI probe must not start on the unreconciled draft.
-- `include/o0/block.h` must state that a bio larger than `max_segment` is
-  split into multiple `o0_dma_buffer` objects and a driver-built SG list.
-- A1's `o0_device_reset` has no reset-kind argument; `block.h` currently uses
-  `o0_reset_kind`. A3 must decide whether reset kind belongs in the block
-  contract or is platform-only.
+- `include/ozero/platform.h` includes A1's `<ozero/types.h>`, `<ozero/status.h>`,
+  `<ozero/irq.h>`, `<ozero/mm.h>` and `<ozero/driver.h>` directly. It does not
+  redeclare A1 types and does not define `o0_dma_domain`, `dma_map_sg`,
+  `dma_map_single`, `iommu_map`, `o0_reset_kind`, `o0_platform_ops`,
+  `dma_domain_t`, `iommu_domain_t`, `iova_t` or `dma_addr_t`.
+- `include/ozero/block.h` embeds `struct o0_io_request io` in `struct o0_bio`;
+  `io.complete` is the only A1 completion callback. A bio larger than
+  `max_segment` is split into multiple buffers and requests. There is no SG
+  pointer in the generic request.
+- A3 implements `struct o0_device_ops` and registers it with
+  `o0_device_register_ops`; A1 wrappers validate and dispatch.
+- `reset` resets A3 protocol state after A1's `o0_device_dma_quiesce` and
+  `o0_device_reset`; it does not free A1 DMA buffers or unmap BARs.
+- `tests/header_smoke.c` and `tests/a1_header_smoke.c` compile against A1's
+  actual headers at `30ee4f0`.
+
+Remaining before the AHCI probe:
+
+- A1 must give final approval of IF-008 v1.1 after reviewing this published version.
+- The director must approve global D-007 and D-021, and accept the no-IOMMU
+  Stage 1 limitation for trusted ring-0 drivers.
+- D-009 is contradictory: A4's register records `include/o0/` as approved,
+  while A1 `30ee4f0` moves the public root to `include/ozero/` and proposes
+  D-009 as `include/ozero/`. A3 provisionally follows A1's signed headers so it
+  can compile; XB-007 must be reopened and A4/Director must correct D-009 before
+  merge.
+- D-010 (`tools/check-headers.sh` ownership) is proposed by A1 but must be
+  approved and recorded consistently by A4.
+- XB-011 remains open until A3 can push a branch for A4's audit.
+
+The questions in §2.1-§2.5 are the original A3 request, kept for audit. A1's
+answers are in §2.0 and IF-008 v1.1. Symbols in those questions that are absent
+from A1's latest headers, such as `dma_map_single`, `o0_dma_domain` and
+`iommu_map`, were answered by removal; they are not current ABI requirements.
+Unanswered questions would need a new IF-008 version.
 
 ### 2.1 DMA and IOMMU
 
@@ -143,8 +174,30 @@ Remaining reconciliation work before the AHCI probe:
 
 | Role | Name | Decision | Date | Notes |
 |---|---|---|---|---|
-| A1 owner | A1 | Signed with IOMMU blocker and four conditions | 2026-11-23 | `a1/stage0-review` @ `e2d7c0d`, `docs/interface-draft.md` §11 |
-| A3 owner | A3 | Accepted conditions for trusted ring-0 Stage 1; header reconciliation pending | 2026-11-23 | `platform.h`/`block.h` update required before AHCI probe |
+| A1 owner | A1 | Signed its Stage 1 surface with IOMMU blocker and five conditions; final IF-008 approval pending | 2026-11-23 | `a1/stage0-review` @ `30ee4f0`, `docs/interface-draft.md` §11, `docs/a3-dma-contract.md` |
+| A3 owner | A3 | Accepted conditions; published IF-008 v1.1 | 2026-11-23 | `docs/interfaces/IF-008-dma-platform.md`; A1 approval of v1.1 pending |
+
+### 2.7 Global decisions and cross-agent blockers
+
+Global IDs come from A4's decision register and cross-agent blocker register.
+
+| ID | Dependency | State | A3 note |
+|---|---|---|---|
+| D-001 | A1/A2/A3 domain split and team slugs | Open | A3 owns storage/GPU device protocols; no change requested |
+| D-002 | Branch isolation, review gate and `main` protection | Open | A3 has not pushed to `main`; branch protection is A4's check |
+| D-005 | Boot protocol and kernel handoff | Open | A3 consumes A1's boot/platform data; Limine is a candidate only |
+| D-006 | Accept Stage 0 | Open | Director did not accept Stage 0; this package is desk evidence |
+| D-007 | Approve IF-008 and the A1 sign-off gate | Open | A3 published v1.1; A1 final sign-off and director approval pending |
+| D-009 / XB-007 | Public header namespace | **Conflict** | A4 register records `include/o0/` as approved; A1 `30ee4f0` uses `include/ozero/` and proposes D-009 as `include/ozero/`. A3 provisionally uses `ozero` so it compiles against A1's signed headers; reopen XB-007 |
+| D-010 / XB-008 | `tools/check-headers.sh` ownership | Proposed; A4 must record | A1 owns; A3 reviews; A4 invokes in CI. A4 must record the exact `CODEOWNERS` lines |
+| D-020 | DMA is constraint-driven, never device-class-driven | Proposed | A3 supplies `o0_dma_constraint`; A1 never infers it from a storage class |
+| D-021 | IOMMU policy: trusted ring-0 only in Stage 1 | Proposed | A3 accepts no IOMMU domain, no IOVA and no translated DMA type in Stage 1 |
+| XB-001 | A1 reviews A3 IF-008 before AHCI probe | Open | A3 published v1.1; A1 final review pending |
+| XB-005 | A3 device tests and hardware requirements have evidence | Open | Static checks only; no QEMU or hardware run |
+| XB-011 | Publish A3 so A4 can refresh the audit | Open | Push credential is read-only; branch remains local |
+| XB-004 | Limine pin and boot protocol | Open | A3 consumes A1's boot/platform data; the MBR harness is not Limine evidence |
+
+A3 does not start AHCI probe work while XB-001 is Open.
 
 ## 3. Matrix schema v2
 
@@ -207,7 +260,7 @@ No row is `complete`. A successful compile is not evidence for any row.
   this file and the matrix schema v2.
 - Commands and raw output: `make check` output is recorded in
   [`EVIDENCE.md`](../EVIDENCE.md) §2.
-- Decisions needed: D1–D6 in [`README.md`](../README.md); A1 questions in §2.
+- Decisions needed: D-001, D-002, D-005, D-006, D-007, D-009, D-010, D-020 and D-021 in [`README.md`](../README.md); IF-008 v1.1 is the A1 approval request.
 - Unresolved risks: see [`README.md`](../README.md) risks table and §6 below.
 - Explicit not-tested list: §6 below.
 
@@ -226,17 +279,25 @@ The following were **not** run in the authoring environment:
 - No ACPI/UEFI table parsing on real Haswell firmware.
 - No suspend/resume, runtime power management, or thermal test.
 - No performance or endurance measurement.
-- No director acceptance of A1's no-IOMMU blocker.
-- No reconciled `platform.h`/`block.h` build against A1's `mm.h`/`driver.h`.
+- No A1 final approval of IF-008 v1.1.
+- No director approval of D-007 or D-021, and no acceptance of the no-IOMMU
+  Stage 1 limitation.
+- No AHCI probe work; it remains blocked until the interface is approved.
 
 A successful header compile, shell syntax check, matrix validation, or unit
 test does not change this list.
 
 ## 7. References
 
-- A1, *Ozero Stage 0 interface draft* §11, branch `a1/stage0-review` @
-  `e2d7c0d`, `docs/interface-draft.md`, `include/o0/mm.h`,
-  `include/o0/driver.h`.
+- A1, *Ozero Stage 0 interface draft* §11 and *A3 DMA and platform interface:
+  A1 approval conditions*, branch `a1/stage0-review` @ `30ee4f0`,
+  `docs/interface-draft.md`, `docs/a3-dma-contract.md`,
+  `include/ozero/mm.h`, `include/ozero/driver.h`.
+- A3, *IF-008: A3 DMA and platform interface* v1.1,
+  [`docs/interfaces/IF-008-dma-platform.md`](interfaces/IF-008-dma-platform.md).
+- A4, *Global decision register* and *Cross-agent blocker register*:
+  <https://github.com/Momegaii/Ozero/blob/a4/stage0-review-followup/docs/decisions/decision-log.md>
+  <https://github.com/Momegaii/Ozero/blob/a4/stage0-review-followup/docs/process/cross-agent-blockers.md>
 - Intel, *Serial ATA AHCI 1.3.1*.
   <https://www.intel.com/content/dam/www/public/us/en/documents/technical-specifications/serial-ata-ahci-spec-rev1-3-1.pdf>
 - NVM Express, *Specifications* (NVMe Base 2.4, NVMe over PCIe 2.4, ZNS 1.1).

@@ -19,10 +19,18 @@ REQUIRED_FILES = [
     "docs/04-driver-interface-draft.md",
     "docs/05-hardware-test-plan.md",
     "docs/06-stage0-review-response.md",
+    "docs/interfaces/IF-008-dma-platform.md",
     "matrix/hardware-support-matrix.csv",
-    "include/o0/platform.h",
-    "include/o0/block.h",
+    "include/ozero/platform.h",
+    "include/ozero/block.h",
+    "include/ozero/mm.h",
+    "include/ozero/driver.h",
+    "include/ozero/irq.h",
+    "include/ozero/status.h",
+    "include/ozero/types.h",
     "tests/header_smoke.c",
+    "tests/a1_header_smoke.c",
+    "tests/test_if008_contract.py",
     "tests/test_matrix_semantics.py",
     "tools/validate_matrix.py",
     "tools/collect_inventory.sh",
@@ -81,6 +89,15 @@ REQUIRED_SECTIONS = {
         "Required report back",
         "Not tested",
     ],
+    "docs/interfaces/IF-008-dma-platform.md": [
+        "Purpose",
+        "Producer obligations",
+        "Consumer obligations",
+        "Data layout",
+        "Error behaviour",
+        "Compatibility",
+        "Version history",
+    ],
 }
 
 README_SECTIONS = ["Status", "Evidence", "Stage 0 review response", "Decisions", "Risks", "Next step"]
@@ -112,19 +129,75 @@ def main() -> int:
             if section.lower() not in text.lower():
                 errors.append(f"README.md: missing {section!r}")
 
-    platform = ROOT / "include/o0/platform.h"
+    platform = ROOT / "include/ozero/platform.h"
     if platform.is_file():
         text = platform.read_text(encoding="utf-8")
-        for symbol in ("O0_PLATFORM_ABI_VERSION", "o0_platform_ops", "mmio_map", "dma_map_sg", "irq_alloc", "fence_signal"):
-            if symbol not in text:
-                errors.append(f"include/o0/platform.h: missing {symbol!r}")
+        for include in (
+            "<ozero/types.h>",
+            "<ozero/status.h>",
+            "<ozero/irq.h>",
+            "<ozero/mm.h>",
+            "<ozero/driver.h>",
+        ):
+            if include not in text:
+                errors.append(f"include/ozero/platform.h: missing include {include!r}")
+        if "O0_IF008_VERSION" not in text:
+            errors.append("include/ozero/platform.h: missing 'O0_IF008_VERSION'")
+        for forbidden in (
+            "o0_dma_domain",
+            "dma_map_sg",
+            "dma_map_single",
+            "iommu_map",
+            "o0_reset_kind",
+            "o0_platform_ops",
+            "dma_domain_t",
+            "iommu_domain_t",
+            "iova_t",
+            "dma_addr_t",
+        ):
+            if forbidden in text:
+                errors.append(f"include/ozero/platform.h: unsupported symbol {forbidden!r}")
 
-    block = ROOT / "include/o0/block.h"
+    a1_text = ""
+    for rel in ("include/ozero/types.h", "include/ozero/status.h",
+                "include/ozero/irq.h", "include/ozero/mm.h",
+                "include/ozero/driver.h"):
+        path = ROOT / rel
+        if path.is_file():
+            a1_text += path.read_text(encoding="utf-8")
+    for symbol in (
+        "o0_dma_constraint",
+        "o0_dma_alloc",
+        "o0_dma_sync",
+        "o0_dma_free",
+        "o0_device_map_bar",
+        "o0_device_irq",
+        "o0_device_dma_quiesce",
+        "o0_device_reset",
+        "o0_io_submit",
+        "o0_device_register_ops",
+        "o0_device_ops",
+        "O0_MAP_UC",
+    ):
+        if symbol not in a1_text:
+            errors.append(f"include/ozero: A1 headers missing {symbol!r}")
+
+    block = ROOT / "include/ozero/block.h"
     if block.is_file():
         text = block.read_text(encoding="utf-8")
-        for symbol in ("o0_block_dev", "o0_bio", "o0_block_submit_bio", "o0_block_complete_bio", "O0_BLOCK_F_ROTATIONAL"):
+        for symbol in (
+            "o0_block_dev",
+            "o0_bio",
+            "o0_block_submit_bio",
+            "o0_block_complete_bio",
+            "O0_BLOCK_F_ROTATIONAL",
+            "struct o0_io_request io;",
+        ):
             if symbol not in text:
-                errors.append(f"include/o0/block.h: missing {symbol!r}")
+                errors.append(f"include/ozero/block.h: missing {symbol!r}")
+        for forbidden in ("o0_reset_kind", "dma_map_sg", "dma_map_single"):
+            if forbidden in text:
+                errors.append(f"include/ozero/block.h: unsupported symbol {forbidden!r}")
 
     if (ROOT / "tools/validate_matrix.py").is_file():
         result = subprocess.run(

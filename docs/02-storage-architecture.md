@@ -64,7 +64,7 @@ Two boundaries matter:
 
 ## 3. Device-independent block API
 
-The draft header is [`include/o0/block.h`](../include/o0/block.h). It is
+The draft header is [`include/ozero/block.h`](../include/ozero/block.h). It is
 intentionally small: enough to express queueing, cache semantics, discard,
 write zeroes, removable media, and later zoned operations, without encoding
 AHCI, NVMe, or USB details.
@@ -75,8 +75,8 @@ AHCI, NVMe, or USB details.
 |---|---|---|
 | `o0_block_dev` | block layer | One logical block device: name, geometry, features, queues, protocol ops |
 | `o0_block_queue` | block layer | One hardware queue: id, depth, `queue_rq`, `poll`, `timeout` |
-| `o0_bio` | caller / block layer | One I/O request: operation, LBA, vectors, flags, completion |
-| `o0_block_ops` | protocol driver | Device-level reset, flush, discard, write zeroes, open/close, geometry |
+| `o0_bio` | caller / block layer | Block request: embeds one `o0_io_request`, plus operation, LBA, vectors, flags, completion |
+| `o0_block_ops` | protocol driver | Block-level reset policy, flush, discard, write zeroes, open/close, geometry |
 | `o0_block_queue_ops` | protocol driver | Per-queue submission, polling, timeout |
 
 A device may have one queue (USB BOT) or many (NVMe). The block layer must
@@ -90,17 +90,24 @@ o0_block_submit_bio(dev, bio)
     -> validate op, LBA, vectors, alignment
     -> choose queue (bio->queue_id or block-layer policy)
     -> queue->ops->queue_rq(queue, bio)
-         -> driver maps DMA, builds command, rings doorbell
-         -> returns O0_OK if accepted, O0_ERR_AGAIN if busy
+         -> driver allocates DMA buffers and generic requests
+         -> fills bio->io (one contiguous buffer per request)
+         -> calls o0_io_submit(dev, &bio->io)
+         -> returns O0_OK if accepted, O0_EAGAIN if busy
     -> completion (IRQ, poll, or process context)
-         -> o0_block_complete_bio(bio, status, bytes_done)
-              -> calls bio->end_io exactly once
+         -> bio->io.complete trampoline
+              -> o0_block_complete_bio(bio, status, bytes_done)
+                   -> calls bio->end_io exactly once
 ```
 
 Rules:
 
 - `queue_rq` must not sleep. It may allocate from a preallocated pool or
-  return `O0_ERR_AGAIN`.
+  return `O0_EAGAIN`.
+- `bio->io` is the single A1 generic request object. There is no SG pointer in
+  it; a transfer larger than `max_segment` becomes multiple buffers and
+  multiple requests. `bio->io.complete` is the only A1 completion callback;
+  its trampoline calls `o0_block_complete_bio`.
 - A bio accepted by `queue_rq` must complete exactly once, even on reset or
   timeout. The driver owns the bio until it calls
   `o0_block_complete_bio`.
@@ -186,19 +193,24 @@ layer or a policy module, not to the protocol driver's command builder.
 
 ### 3.7 DMA and memory
 
-The block layer passes page-based vectors. The protocol driver maps them with
-A1's DMA interface:
+The block layer passes page-based vectors. The protocol driver uses A1's
+signed Stage 1 DMA surface:
 
-- `dma_map_sg` for scatter/gather;
-- `dma_map_single` for a single contiguous buffer;
-- `dma_alloc_coherent` for command lists, doorbell-adjacent structures, and
-  status blocks that the device and CPU share;
-- `dma_sync_*` for streaming mappings when the architecture is not coherent.
+- `o0_device_dma_constraints` for the device's `addr_mask`, alignment and
+  `max_segment`;
+- `o0_dma_alloc` for command lists, doorbell-adjacent structures, status
+  blocks and data buffers;
+- `o0_dma_sync` for non-coherent buffers, before and after device access;
+- `o0_dma_free` only after `o0_device_dma_quiesce`.
 
-The driver must respect `max_segments`, `max_segment_size`, `dma_alignment`,
-and any 32-bit boundary. If the device cannot address a page, A1's bounce
-buffer path must be used. The driver must not pass a CPU virtual address to
-hardware.
+There is no IOMMU domain and no SG map object in Stage 1. There is also no SG
+pointer in `o0_io_request`. A bio larger than `max_segment` is split into
+multiple `o0_dma_buffer` objects and multiple generic requests; the protocol
+driver may build its own transport SG list internally. The driver must respect
+`max_segments`, `max_segment_size`, `dma_alignment`, `addr_mask` and any
+32-bit boundary. A1 has no bounce-buffer path in the signed Stage 1 surface;
+a device that cannot address a buffer must fail the request, not silently
+truncate it. The driver must not pass a CPU virtual address to hardware.
 
 ## 4. Protocol boundaries
 
@@ -332,19 +344,25 @@ the feature with the right command and the right error path.
 
 ### 6.1 A1 — platform
 
-A1 provides the contracts in [`include/o0/platform.h`](../include/o0/platform.h):
-PCI enumeration, BAR mapping, MMIO access, DMA/IOMMU, interrupts, completion
-fences, memory mapping, ACPI/UEFI table access, power, reset, and hotplug.
+A3 consumes A1's contracts through
+[`include/ozero/platform.h`](../include/ozero/platform.h), which includes A1's
+`<ozero/driver.h>`, `<ozero/mm.h>` and `<ozero/irq.h>`: bus-neutral device
+enumeration, BAR mapping, DMA constraints/allocation/sync/free, GSI/vector
+allocation, bus mastering, I/O limits, quiesce, reset and generic asynchronous
+I/O.
+
+Stage 1 does **not** provide an IOMMU domain, PCI config-space access, ACPI/UEFI
+table access, completion fences, runtime power management or hotplug callbacks.
 
 A3 storage drivers rely on A1 for:
 
-- a mapped, uncached MMIO region with explicit read/write and flush;
-- DMA addresses that are valid for the device's IOMMU domain;
-- MSI/MSI-X allocation and affinity;
-- a completion primitive that can be signaled from IRQ and waited in process
-  context;
-- a reset primitive that guarantees no in-flight DMA after return;
-- ACPI `_CRS`/`_PRT` decoding for legacy interrupts and resources.
+- a dedicated UC/NX BAR mapping; never an HHDM address;
+- physical, untranslated DMA addresses and a constraint-driven allocator
+  (trusted ring-0 only);
+- GSI/vector allocation and handler registration;
+- `o0_device_dma_quiesce` and `o0_device_reset` with no in-flight DMA after
+  quiesce;
+- `o0_io_submit` / `o0_io_cancel` and the A3 `struct o0_device_ops` callbacks.
 
 ### 6.2 A2 — Windows graphics and storage API requirements
 
@@ -361,20 +379,20 @@ A3 provides protocol-specific test hooks and a deterministic way to inject
 timeouts, aborts, and resets. The test plan is in
 [`05-hardware-test-plan.md`](05-hardware-test-plan.md).
 
-## 7. Decisions and open questions
+## 7. A3 design choices and open questions (not global decisions)
 
 | ID | Question | Recommendation | Why |
 |---|---|---|---|
-| S-D1 | Native block drivers or a universal SCSI layer? | Native AHCI and NVMe block drivers; SCSI layer only for USB MSC/UAS | AHCI is ATA and NVMe is NVMe; forcing both through SCSI adds translation and hides protocol errors. USB MSC/UAS genuinely are SCSI. |
-| S-D2 | Support 4Kn? | Yes, at the block layer and in AHCI/NVMe | 4Kn changes LBA arithmetic and alignment; a 512-only assumption will fail on real devices. |
-| S-D3 | Advertise discard by default? | Only when the device supports it; otherwise ignore | Discard is advisory and not a zeroing operation; silent emulation is misleading. |
-| S-D4 | Write cache default? | Expose `FLUSH`/`FUA`; default to write-back only with a visible policy | Durability must be explicit; a write completion is not a durability guarantee. |
-| S-D5 | Queue depth assumptions? | Per-protocol: AHCI 32, NVMe 64+, BOT 1, UAS multiple | The block layer must not assume parallelism that the transport cannot provide. |
-| S-D6 | NVMe baseline version? | 1.4-compatible core; negotiate 2.4 features only when present | Matrix pins NVMe 2.4; QEMU is 1.4. Requiring 2.4 would make QEMU useless. |
-| S-D7 | Hot-plug scope? | AHCI and USB first; NVMe optional | Hot-plug is a property of the bay/transport, not the media. |
-| S-D8 | Legacy ATA? | Best effort, no hot-plug promise | Hardware availability and obsolete command sets make it a poor first target. |
-| S-D9 | Metadata / protection information? | Later milestone | It changes the data path and namespace format; not needed for first boot. |
-| S-D10 | Zoned storage? | Later milestone; keep zone opcodes reserved | The block API has hooks, but no Stage 0 driver. |
+| A3-C1 | Native block drivers or a universal SCSI layer? | Native AHCI and NVMe block drivers; SCSI layer only for USB MSC/UAS | AHCI is ATA and NVMe is NVMe; forcing both through SCSI adds translation and hides protocol errors. USB MSC/UAS genuinely are SCSI. |
+| A3-C2 | Support 4Kn? | Yes, at the block layer and in AHCI/NVMe | 4Kn changes LBA arithmetic and alignment; a 512-only assumption will fail on real devices. |
+| A3-C3 | Advertise discard by default? | Only when the device supports it; otherwise ignore | Discard is advisory and not a zeroing operation; silent emulation is misleading. |
+| A3-C4 | Write cache default? | Expose `FLUSH`/`FUA`; default to write-back only with a visible policy | Durability must be explicit; a write completion is not a durability guarantee. |
+| A3-C5 | Queue depth assumptions? | Per-protocol: AHCI 32, NVMe 64+, BOT 1, UAS multiple | The block layer must not assume parallelism that the transport cannot provide. |
+| A3-C6 | NVMe baseline version? | 1.4-compatible core; negotiate 2.4 features only when present | Matrix pins NVMe 2.4; QEMU is 1.4. Requiring 2.4 would make QEMU useless. |
+| A3-C7 | Hot-plug scope? | AHCI and USB first; NVMe optional | Hot-plug is a property of the bay/transport, not the media. |
+| A3-C8 | Legacy ATA? | Best effort, no hot-plug promise | Hardware availability and obsolete command sets make it a poor first target. |
+| A3-C9 | Metadata / protection information? | Later milestone | It changes the data path and namespace format; not needed for first boot. |
+| A3-C10 | Zoned storage? | Later milestone; keep zone opcodes reserved | The block API has hooks, but no Stage 0 driver. |
 
 ## 8. Test hooks and acceptance
 

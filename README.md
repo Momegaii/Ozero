@@ -29,16 +29,21 @@ matrix validator, the deliverable checker, and the read-only inventory script.
 | Deliverable | File | Status | Evidence |
 |---|---|---|---|
 | Hardware support matrix | [`docs/01-hardware-support-matrix.md`](docs/01-hardware-support-matrix.md), [`matrix/hardware-support-matrix.csv`](matrix/hardware-support-matrix.csv) | desk artifact | `tools/validate_matrix.py` PASS |
-| Storage architecture note | [`docs/02-storage-architecture.md`](docs/02-storage-architecture.md) | desk artifact | specification review; block API draft |
+| Storage architecture note | [`docs/02-storage-architecture.md`](docs/02-storage-architecture.md) | desk artifact | specification review; block API reconciled to IF-008 v1.1 |
 | Haswell Gen7.5 GPU note | [`docs/03-haswell-gen75-gpu.md`](docs/03-haswell-gen75-gpu.md) | desk artifact | i915 v6.6 source references; PRM references |
-| Driver interface draft | [`docs/04-driver-interface-draft.md`](docs/04-driver-interface-draft.md), [`include/o0/platform.h`](include/o0/platform.h) | desk artifact | header smoke compile PASS |
+| Driver interface draft | [`docs/04-driver-interface-draft.md`](docs/04-driver-interface-draft.md), [`docs/interfaces/IF-008-dma-platform.md`](docs/interfaces/IF-008-dma-platform.md), [`include/ozero/platform.h`](include/ozero/platform.h) | desk artifact | header smoke PASS against A1 `30ee4f0` |
 | Hardware test plan | [`docs/05-hardware-test-plan.md`](docs/05-hardware-test-plan.md), [`tools/collect_inventory.sh`](tools/collect_inventory.sh) | desk artifact | shell syntax check PASS |
-| Stage 0 review response | [`docs/06-stage0-review-response.md`](docs/06-stage0-review-response.md) | desk artifact | review action matrix; A1 review received, reconciliation pending |
+| Stage 0 review response | [`docs/06-stage0-review-response.md`](docs/06-stage0-review-response.md) | desk artifact | review action matrix; IF-008 v1.1 published, A1 final approval pending |
 
 Supporting files:
 
-- [`include/o0/block.h`](include/o0/block.h) — draft block I/O contract.
+- [`docs/interfaces/IF-008-dma-platform.md`](docs/interfaces/IF-008-dma-platform.md)
+  — reconciled A3 DMA/platform interface (v1.1, A1 final approval pending).
+- [`include/ozero/block.h`](include/ozero/block.h) — block I/O contract.
 - [`tests/header_smoke.c`](tests/header_smoke.c) — compile-only header check.
+- [`tests/a1_header_smoke.c`](tests/a1_header_smoke.c) — fails unless A1 headers are used.
+- [`tests/test_if008_contract.py`](tests/test_if008_contract.py) — IF-008
+  contract guard.
 - [`tests/test_matrix_semantics.py`](tests/test_matrix_semantics.py) — matrix
   semantics tests.
 - [`tools/check_deliverables.py`](tools/check_deliverables.py) — docs and
@@ -88,6 +93,7 @@ python3 tools/validate_matrix.py
 python3 tools/check_deliverables.py
 python3 -m unittest discover -s tests -p 'test_*.py'
 cc -std=c11 -Wall -Wextra -Werror -Iinclude -fsyntax-only tests/header_smoke.c
+make check-a1-headers A1_INCLUDE=/tmp/a1include
 sh -n tools/collect_inventory.sh
 ```
 
@@ -95,8 +101,9 @@ Expected results:
 
 - matrix validator: PASS, 10 rows, required storage families present;
 - deliverable check: PASS, all required sections and references present;
-- matrix semantics tests: PASS, 13 tests;
+- contract and matrix semantics tests: PASS, 19 tests;
 - header smoke: PASS, no compiler diagnostics;
+- A1-header smoke: PASS against `ozero/mm.h`, `ozero/driver.h` and `ozero/irq.h`;
 - inventory script: PASS, no shell syntax errors.
 
 Source verification performed for this draft:
@@ -129,7 +136,7 @@ The 23 Nov 2026 review actions are tracked in
 
 | Review action | Status | Artifact |
 |---|---|---|
-| A1 written review before AHCI probe | **received; conditions accepted; reconciliation pending** — AHCI probe blocked | A1 `a1/stage0-review` @ `e2d7c0d`; `docs/06` §2 |
+| A1 written review before AHCI probe | **received; A3 published IF-008 v1.1; A1 final approval pending** — AHCI probe blocked | A1 `a1/stage0-review` @ `30ee4f0`; `docs/a3-dma-contract.md`; `docs/interfaces/IF-008-dma-platform.md`; `docs/06` §2 |
 | Pin spec revision, status, emulator, hardware, test per row | done in matrix schema v2 | `matrix/hardware-support-matrix.csv` |
 | Separate media from transport; keep drivers distinct | done | `docs/01` §2–§3 |
 | Defer ZNS and port multiplier | done | matrix rows `deferred` |
@@ -140,12 +147,19 @@ The 23 Nov 2026 review actions are tracked in
 
 | ID | Decision | Recommendation | Owner |
 |---|---|---|---|
-| D1 | A1 DMA API: Linux-like or minimal custom? | A1 signed constraint-driven `o0_dma_alloc`/`o0_dma_sync`/`o0_dma_free`; no domain handle in Stage 1. A3 reconciles `platform.h` to that surface | A1/A3 |
-| D2 | AHCI/USB: native block drivers or a universal SCSI layer? | Native AHCI and NVMe block drivers; SCSI layer only for USB MSC/UAS | A1/A3 |
-| D3 | Firmware baseline: UEFI-only or legacy BIOS/CSM? | UEFI 2.11 + ACPI 6.6 as reference, with compatibility for Haswell-era ACPI 5.x/UEFI 2.3–2.4; CSM out of scope | A1/A3 |
-| D4 | Haswell test hardware: GT3e, GT2, or both? | Both: GT3e for eDRAM and GT2 for the non-eDRAM path | A4 |
-| D5 | NVMe baseline: 1.4 or 2.4? | 1.4-compatible core; negotiate 2.4 features only when present; QEMU is 1.4 | A3 |
-| D6 | 4Kn and TRIM defaults? | Support 4Kn at the block layer; advertise discard/write zeroes only when the device supports them | A3 |
+| D-001 | A1/A2/A3 domain split and GitHub team slugs | Keep the split; A3 owns storage/GPU device protocols | A4 |
+| D-002 | Branch isolation and review gate; protect `main` | Protect `main`; merge through PRs only | A4 |
+| D-005 | Boot protocol and kernel handoff | Limine is a candidate only; A3 consumes A1's boot/platform data | A1 |
+| D-006 | Accept Stage 0 | Not accepted; this package is desk evidence only | A4 |
+| D-007 | Approve IF-008 v1.1 and the A1 sign-off gate | A3 published v1.1; A1 final approval and director approval pending | A1 + A3 |
+| D-009 | Public header namespace | **Conflict:** A4's register says `include/o0/` approved; A1 `30ee4f0` uses `include/ozero/` and proposes D-009 as `ozero`. A3 provisionally uses `ozero` to compile; XB-007 must reopen | A1 + A4 |
+| D-010 | `tools/check-headers.sh` ownership | A1 owns; A3 reviews; A4 invokes in CI. A4 must record the exact `CODEOWNERS` lines | A1 + A4 |
+| D-020 | DMA is constraint-driven, never device-class-driven | A3 supplies `o0_dma_constraint`; A1 does not infer it | A1 |
+| D-021 | IOMMU policy: trusted ring-0 only in Stage 1 | No DMA domain, no IOVA and no translated DMA type; director approval pending | A1 |
+
+A3 implementation choices (native AHCI/NVMe, NVMe 1.4 core, 4Kn/TRIM) are
+recorded in `docs/02` and `docs/05`; they are not global decisions until the
+director adds them to A4's register.
 
 ## Risks
 
@@ -156,21 +170,26 @@ The 23 Nov 2026 review actions are tracked in
 | i915 source line numbers change | Citations drift | Cite file and symbol names, not only line numbers; pin v6.6 in EVIDENCE |
 | NVMe 2.4 vs QEMU 1.4 | QEMU cannot validate 2.4 features | 1.4-compatible core; real-device tests for 2.4 features |
 | eDRAM enable sequence is incomplete | GT3e may run without eDRAM or hang | Treat eDRAM as a PRM-defined platform sequence; validate on GT3e |
-| Block API is a draft | A1/A3 may diverge on queueing, DMA sleep, or reset semantics | A1 review received; reconcile `platform.h`/`block.h` before implementation |
+| Block API is published but not finally approved | A1/A3 may diverge on queueing, DMA or reset semantics | IF-008 v1.1 aligned to A1 `30ee4f0`; A1 final approval pending |
 | No IOMMU in Stage 1 | A buggy or malicious driver can DMA anywhere; untrusted/userspace DMA is unsafe | Trusted ring-0 drivers only; escalate before untrusted DMA |
-| A3 `platform.h` draft differs from A1 `mm.h`/`driver.h` | The AHCI probe could target an API A1 does not provide | Replace or version the draft before any AHCI probe |
+| A1 has not finally approved IF-008 v1.1 | The AHCI probe could still target an unapproved contract | A1 must approve this exact version before any AHCI probe |
+| Push credential is read-only | A3 branch is local only; A4/XB-005 cannot verify it | Grant contents-write or apply the patch |
+| D-009 namespace conflict is live | A1 headers use `ozero`; A4 register says `o0`; a merge may mix paths | A3 provisionally uses `ozero`; reopen XB-007 and correct D-009 before merge |
+| Vendored A1 headers can drift | A3's copy of A1 `include/ozero/*.h` may age | Re-sync from `a1/stage0-review` before final review; `make check-a1-headers` compares against an external A1 tree |
 | PRM links are archived/retired | References may rot | Keep archived links and local citation notes; verify before publication |
 
 ## Next step
 
-**Reconcile [`include/o0/platform.h`](include/o0/platform.h) and
-[`include/o0/block.h`](include/o0/block.h) with A1's signed
-`include/o0/mm.h`/`include/o0/driver.h` surface.** A1 has signed with an IOMMU
-blocker and four conditions (no untrusted DMA before IOMMU; A3 builds SG lists
-from multiple `o0_dma_buffer` objects; BAR mappings are dedicated UC, not
-HHDM; semantic changes are versioned). A3 accepts the conditions for trusted
-ring-0 Stage 1. The AHCI probe remains blocked until the draft headers match
-the signed surface and the director accepts the IOMMU risk.
+**A1 must give final approval of
+[`docs/interfaces/IF-008-dma-platform.md`](docs/interfaces/IF-008-dma-platform.md)
+v1.1.** A3 has aligned `platform.h` and `block.h` to A1 `30ee4f0`: direct
+inclusion of `include/ozero/*.h`, `struct o0_device_ops`, one contiguous buffer
+per `o0_io_request`, no SG pointer, and reset that does not free buffers or
+unmap BARs. The director must approve D-007 and D-021 and accept the no-IOMMU
+Stage 1 limitation. D-009 remains contradictory: A4's register says
+`include/o0/`, A1 uses `include/ozero/`; A3 provisionally follows A1's signed
+headers. The AHCI probe remains blocked until A1 and the director record
+approval.
 
 ## Repository layout
 
@@ -188,14 +207,24 @@ the signed surface and the director accepts the IOMMU risk.
 │   ├── 03-haswell-gen75-gpu.md
 │   ├── 04-driver-interface-draft.md
 │   ├── 05-hardware-test-plan.md
-│   └── 06-stage0-review-response.md
-├── include/o0/
-│   ├── platform.h
-│   └── block.h
+│   ├── 06-stage0-review-response.md
+│   └── interfaces/
+│       └── IF-008-dma-platform.md
+├── include/ozero/
+│   ├── platform.h        # A3
+│   ├── block.h           # A3
+│   ├── mm.h              # A1 snapshot @ 30ee4f0
+│   ├── driver.h          # A1 snapshot @ 30ee4f0
+│   ├── irq.h             # A1 snapshot @ 30ee4f0
+│   ├── status.h          # A1 snapshot @ 30ee4f0
+│   ├── types.h           # A1 snapshot @ 30ee4f0
+│   └── ...               # other A1 public headers
 ├── matrix/
 │   └── hardware-support-matrix.csv
 ├── tests/
+│   ├── a1_header_smoke.c
 │   ├── header_smoke.c
+│   ├── test_if008_contract.py
 │   └── test_matrix_semantics.py
 └── tools/
     ├── validate_matrix.py
@@ -208,7 +237,7 @@ the signed surface and the director accepts the IOMMU risk.
 - **Status:** Stage 0 desk artifact; no implementation or hardware validation.
 - **Evidence:** `EVIDENCE.md` (commit hash, commands, outputs, source
   versions).
-- **Decisions needed:** D1–D6 above.
+- **Decisions needed:** D-001, D-002, D-005, D-006 and D-007 above.
 - **Risks:** top three are unexecuted tests, Haswell firmware age, and the
   draft block API.
-- **Next step:** reconcile `platform.h`/`block.h` with A1 `mm.h`/`driver.h`, then start the AHCI probe.
+- **Next step:** obtain A1 final approval of IF-008 v1.1 and director approval of D-007/D-021, resolve the D-009 namespace contradiction, then start the AHCI probe.
