@@ -64,7 +64,7 @@ struct o0_cpu_features {
     uint8_t virt_addr_bits;
     uint8_t clflush_size;
     uint8_t reserved0;
-    uint64_t xcr0_supported; /* XGETBV(0) result when XSAVE is available, else 0 */
+    uint64_t xcr0_supported; /* XGETBV(0) when XSAVE+OSXSAVE are enabled, else 0 */
 };
 
 struct o0_cpu_info {
