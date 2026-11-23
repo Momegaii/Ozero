@@ -1,27 +1,29 @@
 ==================================================================
 repository: /workspace/Ozero
-head:       dd47d4e5b74af59aff23b294d3ffac8600326fff
+head:       56bcff00502652aa48db15b401b5d724a4f19636
 branch:     a4/stage0-review-followup
 remotes:
   origin	https://github.com/Momegaii/Ozero.git (fetch)
   origin	https://github.com/Momegaii/Ozero.git (push)
 branches:
-  a4/stage0-review-followup dd47d4e origin/a4/stage0-review-followup
+  a4/stage0-review-followup 56bcff0 origin/a4/stage0-review-followup
   main 147cc86 origin/main
   origin 147cc86 
-  origin/a1/stage0-review 115a7f4 
-  origin/a4/stage0-review-followup 076ed82 
+  origin/a1/stage0-review 30ee4f0 
+  origin/a4/stage0-review-followup 313138c 
   origin/agent/a2-stage0 807c447 
   origin/main 147cc86 
 tags:
 commit graph (all refs):
-  * dd47d4e (HEAD -> a4/stage0-review-followup) docs: add XB-016 to the submitted PR body
+  * 56bcff0 (HEAD -> a4/stage0-review-followup) docs: apply A1's exact CODEOWNERS overrides from 30ee4f0
+  * 313138c (origin/a4/stage0-review-followup) docs: refresh audit for the PR body update
+  * dd47d4e docs: add XB-016 to the submitted PR body
   * 4465f7d docs: refresh repository audit after A1's second-round commits
   * d138cb2 docs: describe the A4 head as 210653c plus docs and audit commits
   * bd7b0c9 docs: record A4 head 210653c before the audit refresh
   * 210653c docs: align A4 with A1 second-round response
   * 9ef13bd docs: record Stage 0 PR #3 and close XB-010
-  * 076ed82 (origin/a4/stage0-review-followup) docs: verify updated A2 evidence and ancestry
+  * 076ed82 docs: verify updated A2 evidence and ancestry
   * 19dac9d docs: address Director Stage 0 integration review
   * 5642c16 docs: refresh repository audit with published A4 branch
   * 8e73e09 docs: record A4 branch publication
@@ -31,7 +33,8 @@ commit graph (all refs):
   * f990bf7 docs: record Stage 0 review evidence
   * 4396155 docs: implement Stage 0 review actions
   * 5a50c0d docs: import A4 Stage 0 control plane
-  | * 115a7f4 (origin/a1/stage0-review) docs: record second-round Stage 0 review evidence and hashes
+  | * 30ee4f0 (origin/a1/stage0-review) docs: give A4 the exact CODEOWNERS overrides for A1 artifacts (D-010)
+  | * 115a7f4 docs: record second-round Stage 0 review evidence and hashes
   | * c50e385 docs: answer the director's second Stage 0 review
   | * 164360e feat: expose driver DMA callbacks and A2 thread primitives
   | * 03f8883 refactor: make include/ozero the single public header root (D-009)
@@ -54,7 +57,7 @@ commit graph (all refs):
   | * 8bac650 docs(a2): import Stage 0 package under a2/
   |/  
   * 147cc86 (origin/main, origin/HEAD, main) Initial commit
-commit count (all refs): 35
+commit count (all refs): 38
 tracked files: 82
 top-level tracked entries:
   .editorconfig
@@ -78,6 +81,7 @@ A1/A2/A3 refs:
   refs/remotes/origin/agent/a2-stage0
 A1/A2/A3 commit subjects:
   210653c docs: align A4 with A1 second-round response
+  30ee4f0 docs: give A4 the exact CODEOWNERS overrides for A1 artifacts (D-010)
   076ed82 docs: verify updated A2 evidence and ancestry
   164360e feat: expose driver DMA callbacks and A2 thread primitives
   50b7853 docs(a2): answer director review with global IDs and A1 review request
