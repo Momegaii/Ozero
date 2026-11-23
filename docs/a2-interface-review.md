@@ -8,8 +8,13 @@
 | A2 commit reviewed | `f324b28d943c34adc27a307f44c4e4b248fe3410` |
 | A2 package revision stated by A2 | `8bac650` (import); evidence regenerated at `f324b28` |
 | Date | 23 November 2026 |
-| Status | **Reviewed with conditions. Not an ABI freeze.** |
+| Status | **Reviewed with conditions. Not an ABI freeze.** A1-REV-01…12 answered separately. |
 | Global decisions | D-011, D-018, D-019, D-024 through D-030 |
+
+> **Superseded for A1-REV-01…12.** A2's current review request is answered in
+> `docs/a2-contract-review-response.md` against A2 `50b7853` and evidence head
+> `807c447`, with A1 headers at `30ee4f0`. This document remains the
+> requirements-group review from A2 `f324b28`; its A2 revision is stale.
 
 ## 1. Scope and method
 
