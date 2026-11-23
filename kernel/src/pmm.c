@@ -102,7 +102,13 @@ static o0_status pmm_scan_regions(const struct o0_boot_info *bi) {
             return O0_ENOMEM;
         }
 
+        if (mr->base > UINT64_MAX - mr->length) {
+            return O0_EOVERFLOW;
+        }
         uint64_t pages = mr->length >> O0_PAGE_SHIFT;
+        if (pages > UINT64_MAX - usable_pages) {
+            return O0_EOVERFLOW;
+        }
         regions[region_count].base = mr->base;
         regions[region_count].length = mr->length;
         regions[region_count].page_count = pages;
@@ -134,6 +140,9 @@ o0_status o0_pmm_init(const struct o0_boot_info *bi) {
     }
 
     /* Bitmap: one bit per usable page, rounded up to whole bytes. */
+    if (total_pages > UINT64_MAX - 7u) {
+        return O0_EOVERFLOW;
+    }
     uint64_t bitmap_bytes = (total_pages + 7u) / 8u;
     if (bitmap_bytes > O0_PMM_BITMAP_MAX_BYTES) {
         return O0_ENOMEM;
@@ -151,16 +160,29 @@ o0_status o0_pmm_init(const struct o0_boot_info *bi) {
      * is 0 until the CR3 switch offset is determined), so we conservatively
      * reserve pages based on the kernel's linked size instead. This prevents
      * the allocator from handing out frames that back the kernel image. */
+    if (bi->kernel_phys_size > UINT64_MAX - (O0_PAGE_SIZE - 1u)) {
+        return O0_EOVERFLOW;
+    }
     uint64_t kernel_pages = (bi->kernel_phys_size + O0_PAGE_SIZE - 1u) >> O0_PAGE_SHIFT;
     if (kernel_pages == 0) {
         kernel_pages = 16u; /* fallback if size not yet known */
     }
+    /* Address zero is the failure sentinel; never allocate physical page zero. */
+    uint64_t zero_bit = paddr_to_bit(0);
+    if (zero_bit != (uint64_t)-1) {
+        set_bit(zero_bit);
+        --free_pages;
+    }
+
     for (uint64_t r = 0; r < region_count; ++r) {
         if (regions[r].page_count >= kernel_pages) {
             for (uint64_t b = 0; b < kernel_pages; ++b) {
-                set_bit(regions[r].bitmap_start + b);
+                uint64_t bit = regions[r].bitmap_start + b;
+                if (!test_bit(bit)) {
+                    set_bit(bit);
+                    --free_pages;
+                }
             }
-            free_pages -= kernel_pages;
             break;
         }
     }
@@ -178,7 +200,7 @@ O0_NODISCARD o0_paddr_t o0_pmm_alloc_pages(uint32_t order) {
      * thread), so the scan and the update must be atomic. */
     o0_irq_state_t irq = o0_irq_save();
 
-    uint64_t need = 1u << order;
+    uint64_t need = UINT64_C(1) << order;
     if (need > free_pages) {
         o0_irq_restore(irq);
         return 0;
@@ -220,12 +242,31 @@ void o0_pmm_free_pages(o0_paddr_t base, uint32_t order) {
         return;
     }
 
+    if (order > 63) {
+        return;
+    }
     o0_irq_state_t irq = o0_irq_save();
-
-    uint64_t need = 1u << order;
+    uint64_t need = UINT64_C(1) << order;
     uint64_t first = paddr_to_bit(base);
 
     if (first == (uint64_t)-1) {
+        o0_irq_restore(irq);
+        return;
+    }
+
+    uint64_t region_end = 0;
+    bool found_region = false;
+    for (uint64_t r = 0; r < region_count; ++r) {
+        uint64_t start = regions[r].bitmap_start;
+        uint64_t end = start + regions[r].page_count;
+        if (first >= start && first < end) {
+            region_end = end;
+            found_region = true;
+            break;
+        }
+    }
+    if (!found_region || need > region_end - first ||
+        need > total_pages - first) {
         o0_irq_restore(irq);
         return;
     }
