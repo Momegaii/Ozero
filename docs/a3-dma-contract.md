@@ -7,13 +7,13 @@
 | Owner | A3 |
 | A1 role | Required sign-off gate before dependent implementation |
 | Version reviewed | 1.1, A3 `b9a69d8` (A1 headers `30ee4f0`) |
-| Status | **ACCEPTED by A1 at A3 `b9a69d8`.** A3 must accept §6; D-007 and D-021 remain pending; AHCI remains blocked. Interface sign-off only, not runtime proof. |
+| Status | **ACCEPTED by A1 at A3 `b9a69d8`; A3 accepted §6 at `307b919`.** D-007 and D-021 remain pending; AHCI remains blocked. Interface sign-off only, not runtime proof. |
 
-A3 has since published `platform.h` and `block.h` at `b9a69d8`. A1 reviewed the actual
-headers and accepted IF-008 v1.1; the detailed decision is in
-`docs/if008-v1.1-review.md`. This document remains the A1-side condition set. A3 must
-accept §6, and no AHCI probe or real DMA work starts before D-007/D-021 and A3's
-acceptance.
+A3 published `platform.h` and `block.h` at `b9a69d8`. A1 reviewed the actual headers
+and accepted IF-008 v1.1; the detailed decision is in
+`docs/if008-v1.1-review.md`. A3 accepted all eight §6 conditions at `307b919` in
+`a3/docs/interfaces/IF-008-v1.1-acceptance.md`. No AHCI probe or real DMA work starts
+before D-007/D-021 approval.
 
 ## 1. Stage 1 restriction
 
@@ -139,11 +139,13 @@ A3 must make both headers satisfy all of these before requesting sign-off:
 ## 8. Approval status
 
 A1 reviewed A3's published headers at `b9a69d8` and **accepted IF-008 v1.1**; the record
-is `docs/if008-v1.1-review.md` (D-032). A3 must still:
+is `docs/if008-v1.1-review.md` (D-032). A3 accepted all eight §6 conditions at
+`307b919` in `a3/docs/interfaces/IF-008-v1.1-acceptance.md`. A3 must still:
 
-1. Accept the §6 conditions at its current head (`2dcc0fc`).
-2. Keep the reviewed `platform.h`/`block.h` unchanged; any change needs a new IF-008
+1. Keep the reviewed `platform.h`/`block.h` unchanged; any change needs a new IF-008
    version and a new A1 review.
+2. Preserve A1's root `include/ozero/` headers during integration; the `a3/include/ozero`
+   snapshot is not authoritative.
 3. Record the acceptance in its branch and the global register.
 
 D-007 and D-021 remain pending, and AHCI remains blocked. A1's sign-off is interface-only:

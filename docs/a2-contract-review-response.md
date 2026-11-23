@@ -4,14 +4,15 @@
 |---|---|
 | Reviewer | A1 (kernel engineering) |
 | Subject | A2, `a2/docs/12-a1-contract-review.md`, questions A1-REV-01…12 |
-| A2 code revision | `d02598afe42ea0036a130a69801b3041f4b4cf9f` (reconciled; previously `50b7853`) |
-| A2 evidence head | `3f7847756f256761a4da0ed393d2762111af22db` (reconciled; previously `807c447`) |
-| A2 review-document blob | `f5d08487837e7141e9845a2c6602f604711a2e8e` (same at `50b7853` and `d02598a`) |
-| A2 requirements blob | `490924d2c84a3d497e3c0a33ed992a8d110c35ae` (same at `50b7853` and `d02598a`) |
-| A1 review commit | `a17d126664ba9c54792612590268f97d7f439b7d` |
+| A2 code revision | `6d305b80be14f9e217359fc0a9542aef9c9c8618` (previously `d02598a`, `50b7853`) |
+| A2 evidence head | `64b345840b32a3b992dfea23fe9b2a9e55da31e8` (previously `3f78477`, `807c447`) |
+| A2 review-document blob | `90dbe42cf7d2a033ce62b352b2c0b8143d1fb51e` at `6d305b8`; previous `f5d08487…` at `d02598a` |
+| A2 requirements blob | `490924d2c84a3d497e3c0a33ed992a8d110c35ae` (unchanged) |
+| A1 decision commit | `74b1471b217fb1c5e9bd72a75deef71a2d066c7b` |
+| A1 substantive review commit | `a17d126664ba9c54792612590268f97d7f439b7d` |
 | A1 header commit | `30ee4f0da3c3d4263033680d39e7937fcb59f42f` |
 | Date | 23 November 2026 |
-| Status | **Answered and reconciled at A2 `d02598a`/`3f78477`. A2 acceptance pending. XB-002 is not closed by A1 alone.** |
+| Status | **Answered and reconciled at A2 `6d305b8`/`64b3458`. A2 accepts all 12; XB-002 is signed in A4 `b4232a0`. A2 must still record the IF-009 signatures and current evidence pair.** |
 | Related | D-011, D-018, D-019, D-024 through D-030 |
 
 ## 1. Basis and stale references
@@ -42,31 +43,33 @@ Decision vocabulary:
 - **Change required** — A1 will add or change a primitive; the header and milestone are named.
 - **Defer** — A2 builds it above the kernel, or it moves to a later milestone.
 
-## 1.1 Reconciliation at A2 `d02598a` / `3f78477`
+## 1.1 Reconciliation at A2 `6d305b8` / `64b3458`
 
-A2 advanced from `50b7853`/`807c447` to `d02598a`/`3f78477`. The twelve
-questions and the requirements table did not change:
+A2 advanced from `50b7853`/`807c447` through `d02598a`/`3f78477` to
+`6d305b8`/`64b3458`. The twelve A1 dispositions are unchanged:
 
-- `a2/docs/12-a1-contract-review.md` is blob
-  `f5d08487837e7141e9845a2c6602f604711a2e8e` at both `50b7853` and `d02598a`.
-- `a2/docs/03-a1-interface-requirements.md` is blob
-  `490924d2c84a3d497e3c0a33ed992a8d110c35ae` at both.
+- `a2/docs/12-a1-contract-review.md` changed from blob `f5d08487…` to
+  `90dbe42c…`, but only to record A2's acceptance of the same **4 Accept,
+  6 Change required, 2 Defer** table and to fix stale citations/IDs.
+- `a2/docs/03-a1-interface-requirements.md` remains blob `490924d2…`.
+- No A1-REV question or A1 header requirement changed.
 
-A2's new commits add IF-009 v1.0, normalize the fixture manifest paths to
-relative paths, regenerate evidence at `d02598a`, and add negative tests. None
-of those changes answers a different kernel question. The dispositions remain
-**4 Accept, 6 Change required, 2 Defer**.
+A2 fixed the two review-record defects A1 flagged:
 
-Still-open A2 actions:
+- The `90b004f` / `include/o0/` citations are gone from
+  `a2/docs/12-a1-contract-review.md`.
+- The A2-local D-009…D-023 IDs are replaced by canonical D-011…D-030 plus
+  A2-Q1…A2-Q15; A2 no longer allocates canonical D-IDs.
 
-- `a2/docs/12-a1-contract-review.md` still cites A1 `90b004f` and `include/o0/`;
-  its blob is unchanged, so the stale references persist.
-- `a2/docs/11-stage0-review-response.md` still says "D-009…D-023 (A2 decisions)"
-  and uses A2-local IDs that collide with the canonical register. The current
-  canonical D-009…D-023 mean namespace, tooling, A2 contract, paging, placement,
-  interrupts, SMP, ACPI, EFI, syscall entry, handles, DMA and IOMMU policy.
-- A2's revision history now records `50b7853`/`807c447` as historical and
-  `d02598a`/`3f78477` as current.
+A2 still needs to:
+
+- Update the A1 current head from `4716e09` to `74b1471`.
+- Record A1's IF-009 v1.0 ACCEPT at `74b1471` (substantive review `a17d126`)
+  and A3's ACCEPT at `307b919`.
+- Update the IF-009 contract and ledger from `d02598a`/`3f78477` to
+  `6d305b8`/`64b3458`, and remove the "A1 v1.0 review pending" status.
+- Keep the truncated-header and missing-DLL-name gaps visible; they are not
+  covered tests.
 
 IF-009 v1.0 overlaps A1-REV-04/05/09; the answers are in
 `docs/if009-review.md` and do not change the dispositions below.
@@ -248,8 +251,9 @@ handle rights and object metadata.
    constants.
 5. Confirm the APC delivery points (D-027), handle inheritance policy (D-028),
    clock resolution (D-029) and 32-bit deferral (D-030).
-6. A2 has published IF-009 v1.0 at `d02598a`; A1 accepted the A1 side in
-   `docs/if009-review.md`. A3 v1.0 confirmation and A4 registry update remain.
+6. A2 published IF-009 v1.0 at `6d305b8`/`64b3458`; A1 accepted at `74b1471`
+   and A3 accepted at `307b919`. A2 must record both signatures and the current
+   evidence pair; A4 must then close XB-003.
 
 A1 does not close XB-002 on its own. XB-002 closes when A2 accepts these answers
 and records the A2 revision that does so.
@@ -257,11 +261,12 @@ and records the A2 revision that does so.
 ## 5. Sources
 
 - A2, `a2/docs/12-a1-contract-review.md`, `a2/docs/03-a1-interface-requirements.md`,
-  `a2/docs/09-open-questions.md`, branch `agent/a2-stage0`, commit `d02598a`;
-  evidence `3f78477`; `a2/docs/13-if-009-pe-fixture-contract.md`.
+  `a2/docs/09-open-questions.md`, branch `agent/a2-stage0`, commit `6d305b8`;
+  evidence `64b3458`; `a2/docs/13-if-009-pe-fixture-contract.md`.
 - A1, `include/ozero/thread.h`, `ipc.h`, `mm.h`, `driver.h`,
   `docs/interface-draft.md` §5–§8, `docs/kernel-architecture.md` §6, commit
   `30ee4f0`.
-- A3, `docs/interfaces/IF-009-a3-review.md`, commit `2dcc0fc`.
+- A3, `a3/docs/interfaces/IF-009-a3-review.md`, commit `307b919`.
 - A4, `docs/decisions/decision-log.md`, `docs/architecture/interfaces.md`,
-  commit `3ae7aca`.
+  commit `b4232a0`.
+- A1 raw log, `docs/evidence/a1-raw-checks-2026-11-23-r2.txt`.

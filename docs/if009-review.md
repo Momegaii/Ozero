@@ -8,28 +8,34 @@
 | Reviewers | A1, A3, A4 |
 | Decision | **ACCEPT (A1 side) with conditions** |
 | Date | 23 November 2026 |
-| A2 code revision | `d02598afe42ea0036a130a69801b3041f4b4cf9f` |
-| A2 evidence head | `3f7847756f256761a4da0ed393d2762111af22db` |
-| IF-009 contract blob | `9be6c8b02d20ac1cbdd5c27e62d0ae94a264fc2f` |
+| A2 code revision | `6d305b80be14f9e217359fc0a9542aef9c9c8618` (previously `d02598a`) |
+| A2 evidence head | `64b345840b32a3b992dfea23fe9b2a9e55da31e8` (previously `3f78477`) |
+| IF-009 contract blob | `184b629064e3969c75e0e23883b4c9c4d111ee70` (previously `9be6c8b0`) |
 | Fixture manifest blob | `f505cb4d9403b65d860c92d574bd736270db446a` |
 | A1 header commit | `30ee4f0da3c3d4263033680d39e7937fcb59f42f` |
-| A1 review commit | `a17d126664ba9c54792612590268f97d7f439b7d` |
-| A3 review commit | `2dcc0fcc6371aa6167ca773321e76ca9d5a587c0` (reviewed `807c447`; v1.0 confirmation pending) |
-| A4 registry reviewed | `3ae7acaf4d81d103063a33ca49c1739bdee316f8` (IF-009 row still 0.1 draft; update required) |
-| Related | XB-003, D-011, D-024, D-025, D-026, D-033 |
+| A1 decision commit | `74b1471b217fb1c5e9bd72a75deef71a2d066c7b` |
+| A1 substantive review commit | `a17d126664ba9c54792612590268f97d7f439b7d` |
+| A3 review commit | `307b919b41f6e65f1a40482588b84f92f715d67a` (v1.0 ACCEPT for hardware boundary; reviewed `d02598a`/`3f78477`) |
+| A4 registry reviewed | `b4232a07ab88b6558b3020ae2463af16f0c325dd` (IF-009 row 1.0; A1/A3 accepted; A2 signature record pending) |
+| Related | XB-003, XB-013, XB-016, D-011, D-024, D-025, D-026, D-033 |
 
 ## 1. Finding
 
-A2 published IF-009 v1.0 at code revision `d02598a`, with evidence at
-`3f78477`. The contract is now a real artifact, not a registry row:
+A2 published IF-009 v1.0 at code revision `6d305b8`, with evidence at
+`64b3458`. The contract is now a real artifact, not a registry row:
 
-- `a2/docs/13-if-009-pe-fixture-contract.md` (blob `9be6c8b0…`)
-- `a2/fixtures/build-manifest.json` (blob `f505cb4d…`)
+- `a2/docs/13-if-009-pe-fixture-contract.md` (blob `184b6290…`)
+- `a2/fixtures/build-manifest.json` (blob `f505cb4d…`, unchanged)
+
+A2's `6d305b8` adds the contract-reference and negative-coverage sections to the
+v1.0 contract. The fixture inventory and manifest hashes are unchanged.
 
 A1's earlier review of IF-009 (`docs/if009-review.md` before this version) was
 **CHANGE REQUIRED** because no contract existed. That finding is superseded. A1
 now **accepts IF-009 v1.0 as the fixture and static-analysis contract**, subject
-to the conditions in §5.
+to the conditions in §5. A3 accepted v1.0 for the hardware boundary at
+`307b919`; A4 `b4232a0` records both interface decisions. A2's signature record
+is still pending.
 
 A1 does not accept a runtime claim. The contract itself says a pass is evidence
 level **L0** and does not mean the image loads, imports resolve, TLS callbacks
@@ -48,6 +54,20 @@ The IF9-A1-1 answer overlaps A1-REV-04 (section objects) and A1-REV-05
 lifetime). The dispositions in `docs/a2-contract-review-response.md` are
 unchanged: 4 Accept, 6 Change required, 2 Defer.
 
+## 2.1 Known gaps — visible, not covered
+
+A2's v1.0 negative-coverage table is explicit about two gaps. A1 records them as
+gaps, not covered tests:
+
+| Gap | v1.0 state | A1 disposition |
+|---|---|---|
+| Truncated PE headers | Not covered by a negative case; candidate for v1.1 | A1 does not accept it as covered. A2 must add a truncation case before claiming complete header validation. |
+| Missing DLL name in an import descriptor | Partial: `import_terminator` covers a missing terminator, not a missing DLL name; candidate for v1.1 | A1 does not accept it as covered. A2 must add the missing-DLL-name case in v1.1. |
+
+A1 accepts v1.0 with these gaps explicitly deferred to v1.1. Neither gap may be
+reported as a passing IF-009 test, and A2 must keep the gap table in the
+contract.
+
 ## 3. Fixture inventory accepted as input
 
 Manifest generated `2026-11-23T12:23:30Z`; compiler `python3 -m ziglang cc`
@@ -61,14 +81,14 @@ Manifest generated `2026-11-23T12:23:30Z`; compiler `python3 -m ziglang cc`
 | `tls_dll` | `build/tls_dll.dll` | `13bf410e9522732b73041f2ae3784509a28742a173c2469e997452a43055f9f6` | 70656 | `d560b6fb4b3f3d89c29912e56858f4ec79f5c9cf48460d6d0c5af4b452a1285e` |
 | `cpp_throw` | `build/cpp_throw.exe` | `70403ee7002e94023f609e8d902f844f35f6bb7bcc47e1c8c9beca91eb653b9f` | 225280 | `10d50c5be2e7a97df8c1044c011522d853c1ffe31386e7c1b21612ca9e94600f` |
 
-A2's reproducibility evidence at `3f78477` says:
+A2's reproducibility evidence at `64b3458` says:
 
 ```
 manifest matches: 5 fixtures, compiler 0.17.1
 ```
 
 A1 has not rebuilt these fixtures. The hashes are copied from A2's manifest at
-`d02598a`/`3f78477`; they are not independently verified by A1.
+`6d305b8`/`64b3458`; they are not independently verified by A1.
 
 ## 4. Ownership split A1 signs
 
@@ -95,39 +115,45 @@ the registry.
 2. **Version discipline.** Any change to a fixture source, flag, target,
    compiler version or output hash bumps IF-009 to 1.1, 1.2, and so on. A1 and
    A3 re-sign; an old signature does not carry forward.
-3. **A2 review-record corrections.** `a2/docs/12-a1-contract-review.md` still
-   cites A1 `90b004f` and `include/o0/`; `a2/docs/11-stage0-review-response.md`
-   still uses A2-local D-009…D-023 IDs that collide with the canonical register.
-   A2 must update the references and rename the local IDs. These are review
-   records, not IF-009 content changes.
-4. **A3 v1.0 confirmation.** A3 reviewed `807c447` and accepted with comments;
-   both comments are applied in v1.0. A3 must confirm the v1.0 wording at
-   `d02598a`/`3f78477`. A3's review commit is `2dcc0fc`.
-5. **A4 registry update.** A4 must change the IF-009 row from `0.1 draft` to
-   `1.0`, add A1 and A3 as consumers/reviewers, and record the A1/A3 signatures.
-   A4's audit at `3ae7aca` still shows the old row.
-6. **No file-backed section claim.** A1 does not claim a file-backed section
+3. **A2 signature record.** A2 corrected the stale `90b004f`/`include/o0/`
+   citations and the local D-009…D-023 IDs at `6d305b8`. A2 must now record
+   A1's ACCEPT at `74b1471` (substantive review `a17d126`) and A3's ACCEPT at
+   `307b919`, and update its ledger from `d02598a`/`3f78477` to
+   `6d305b8`/`64b3458`.
+4. **A3 v1.0 confirmation.** A3 accepted v1.0 for the hardware boundary at
+   `307b919` (reviewed `d02598a`/`3f78477`). A2 must record that signature; no
+   further A3 review is required unless the contract changes.
+5. **A4 registry update.** A4 `b4232a0` records the IF-009 row at 1.0 with A1/A3
+   accepted and A2's signature record pending. A4 must close XB-003 only after
+   A2 records both signatures and the current evidence pair.
+6. **Known gaps.** Truncated headers and the missing DLL-name import case are
+   gaps/partial coverage, not covered tests. They are deferred to v1.1 and must
+   remain visible.
+7. **No file-backed section claim.** A1 does not claim a file-backed section
    object exists at `30ee4f0`. IF9-A1-1 is tracked under A1-REV-04 at Stage 7.
 
 ## 6. Sign-off record
 
 | Reviewer | Decision | Revision reviewed | Date |
 |---|---|---|---|
-| A1 | **Accept (fixture contract) with IF9-A1-1 kernel-primitive condition** | A2 `d02598a`; contract blob `9be6c8b0…`; A1 `30ee4f0`; A1 review commit `a17d126` | 2026-11-23 |
-| A3 | Accept with comments at `807c447`; v1.0 confirmation pending | `807c447`; review `2dcc0fc` | 2026-11-23 |
-| A4 | Registry update pending | `245007d`/`3ae7aca` | 2026-11-23 |
+| A1 | **Accept (fixture contract) with IF9-A1-1 kernel-primitive condition; gaps deferred to v1.1** | A2 `6d305b8`; contract blob `184b6290…`; A1 `30ee4f0`; decision `74b1471`; substantive review `a17d126` | 2026-11-23 |
+| A3 | **Accept v1.0 for the hardware boundary** | A2 `d02598a`/`3f78477`; A3 `307b919` | 2026-11-23 |
+| A4 | Registry records A1/A3 acceptance; A2 signature record pending | `b4232a0` | 2026-11-23 |
+| A2 | Signature record pending | `6d305b8`/`64b3458` | 2026-11-23 |
 
-A1's signature names IF-009 v1.0, the A2 code revision `d02598a`, the contract
-blob `9be6c8b0…`, A1 `30ee4f0` and A1 review commit `a17d126`. It does not close
-XB-003 alone; A3 and A4 must record their side.
+A1's signature names IF-009 v1.0, the A2 code revision `6d305b8`, the contract
+blob `184b6290…`, A1 `30ee4f0` and A1 decision `74b1471`. It does not close
+XB-003 alone; A2 must record A1's and A3's signatures and the current evidence
+pair.
 
 ## 7. Sources
 
 - A2, `a2/docs/13-if-009-pe-fixture-contract.md`,
-  `a2/fixtures/build-manifest.json`, `a2/docs/evidence/*`, commit `d02598a`;
-  evidence `3f78477`.
-- A3, `docs/interfaces/IF-009-a3-review.md`, commit `2dcc0fc`.
+  `a2/fixtures/build-manifest.json`, `a2/docs/14-review-ledger.md`,
+  `a2/docs/evidence/*`, code `6d305b8`; evidence `64b3458`.
+- A3, `a3/docs/interfaces/IF-009-a3-review.md`, commit `307b919`.
 - A4, `docs/architecture/interfaces.md`, `docs/process/cross-agent-blockers.md`,
-  commit `3ae7aca`.
+  commit `b4232a0`.
 - A1, `include/ozero/mm.h`, `thread.h`, `ipc.h`,
-  `docs/a2-contract-review-response.md`, commit `30ee4f0`.
+  `docs/a2-contract-review-response.md`, decision `74b1471`.
+- A1 raw log, `docs/evidence/a1-raw-checks-2026-11-23-r2.txt`.
