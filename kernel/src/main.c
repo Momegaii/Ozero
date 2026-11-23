@@ -106,7 +106,7 @@ struct x86_64_exception_frame {
 extern void x86_64_idt_init(void);
 
 void x86_exception_dispatch(struct x86_64_exception_frame *frame) {
-    serial_puts("\\nOZERO: EXCEPTION vector=");
+    serial_puts("\nOZERO: EXCEPTION vector=");
     serial_dec(frame->vector);
     serial_puts(" error=");
     serial_hex(frame->error_code);
@@ -118,7 +118,7 @@ void x86_exception_dispatch(struct x86_64_exception_frame *frame) {
         serial_puts(" cr2=");
         serial_hex(cr2);
     }
-    serial_puts("\\n");
+    serial_puts("\n");
     halt_forever();
 }
 
