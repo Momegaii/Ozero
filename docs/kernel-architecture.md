@@ -56,7 +56,7 @@ are not frozen.
 
 | Subsystem | Responsibility | Public header |
 |---|---|---|
-| `arch/x86_64/entry` | Entry stub, boot-info capture, stack switch, FPU/SSE enable | `boot.h` (internal) |
+| `arch/x86_64/entry` | Entry stub, boot-info capture, stack switch, FPU/SSE enable | `boot.h` |
 | `arch/x86_64/cpu` | CPUID/MSR access, feature table, control-register policy | `cpu.h` |
 | `arch/x86_64/gdt` | GDT, TSS, IST stacks, per-CPU segment setup | `cpu.h` |
 | `arch/x86_64/idt` | IDT, trap/IRQ stubs, exception decode and reporting | `irq.h` |

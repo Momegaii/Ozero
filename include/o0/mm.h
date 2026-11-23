@@ -49,7 +49,7 @@ enum o0_map_flags {
     O0_MAP_GLOBAL = 1u << 4,
     O0_MAP_UC = 1u << 5, /* uncached device memory */
     O0_MAP_WC = 1u << 6, /* write-combining; requires PAT */
-    O0_MAP_NX = 1u << 7  /* explicit no-execute; default for writable data */
+    O0_MAP_NX = 1u << 7  /* force no-execute; mappings without O0_MAP_EXEC are NX */
 };
 
 o0_as_t *o0_as_kernel(void);

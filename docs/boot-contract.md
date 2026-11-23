@@ -26,7 +26,7 @@ It does not define the kernel's internal allocator, scheduler or driver model.
 | Criterion | UEFI + Limine (recommended) | Custom UEFI loader |
 |---|---|---|
 | Work before first kernel instruction | Configure Limine, link kernel at the required base | Implement PE/ELF loading, `GetMemoryMap`/`ExitBootServices` handshake, page tables, stack, RSDP discovery |
-| `ExitBootServices` correctness | Handled by Limine, including `MapKey` retry and event groups [UEFI-7.4.6] | A1 must implement and prove it |
+| `ExitBootServices` correctness | Handled by Limine; A1 never calls a boot service [UEFI-7.4.6] | A1 must implement and prove it |
 | Memory map normalisation | Usable / reclaimable / ACPI / framebuffer / reserved-mapped types [LIMINE-MEMMAP] | A1 must classify EFI types itself |
 | Higher-half mappings and HHDM | Provided; offset discoverable [LIMINE-HHDM] [LIMINE-LAYOUT] | A1 must build them |
 | SMP startup | APs parked in long mode; kernel publishes entry [LIMINE-MP] | A1 must write and debug an INIT-SIPI-SIPI trampoline |
