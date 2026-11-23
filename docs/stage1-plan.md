@@ -28,8 +28,10 @@ keeps the Limine request markers and base revision tag in retained sections.
 Work:
 
 - Minimal entry stub in assembly, no C runtime.
-- Limine configuration, ISO assembly, base revision tag, request markers retained by the
-  linker script.
+- Limine configuration, ISO assembly, base revision tag declared with
+  `LIMINE_BASE_REVISION(6)`, and a check that `LIMINE_BASE_REVISION_SUPPORTED` holds
+  before any response is trusted. [LIMINE-BASE]
+- Request markers and base revision tag retained by the linker script.
 - COM1 initialisation by port I/O and a banner.
 - `isa-debug-exit` for a machine-readable pass/fail code.
 

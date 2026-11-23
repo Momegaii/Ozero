@@ -32,8 +32,9 @@ a single ring-3 test thread.
 - User space occupies the lower canonical half; the kernel occupies the higher canonical
   half. The kernel image is linked at `0xffffffff80000000`, the Limine requirement for
   non-relocatable executables. [LIMINE-LAYOUT]
-- The kernel is mapped in every address space (no KPTI in Stage 1; see U1). User mappings
-  carry the user bit; kernel mappings do not.
+- The kernel is mapped in every address space. Stage 1 does not implement KPTI; whether a
+  Meltdown-class threat model requires it is U1. User mappings carry the user bit; kernel
+  mappings do not.
 - Kernel code and read-only data are mapped read-only and non-executable data is NX. W^X
   is enforced through page permissions, not linker convention alone.
 - SMEP and SMAP are enabled when the CPU reports them, and user copies use explicit

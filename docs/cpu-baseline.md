@@ -24,10 +24,8 @@ preemptible timer.
 | FXSAVE/FXRSTOR | `01H:EDX[24]` | Fast FPU/SSE context switch | Refuse to boot |
 | MSR | `01H:EDX[5]` | `IA32_EFER`, `IA32_APIC_BASE`, syscall MSRs | Refuse to boot |
 | Local APIC | `01H:EDX[9]` | Interrupt delivery; the design has no legacy-PIC path | Refuse to boot |
-| TSC | `01H:EDX[4]` | Timestamp counter and early delay calibration | Degraded: APIC timer only, no TSC clocksource |
 | CMOV | `01H:EDX[15]` | Compiler baseline for x86-64 | Refuse to boot |
 | CX8 (`CMPXCHG8B`) | `01H:EDX[8]` | Atomic 64-bit primitives used by libc-style code | Refuse to boot |
-| CLFSH | `01H:EDX[19]` | Cache-line management for DMA coherency | Optional: use `WBINVD` (slow, system-wide) |
 
 Notes:
 
@@ -36,8 +34,8 @@ Notes:
 - `CPUID.01H:EDX[28]` (HTT) is **not** used to decide the CPU count. Topology comes from
   ACPI MADT and the Limine MP list. HTT only says the package may support more than one
   logical processor.
-- The TSC is required as a counter but not as a clocksource. Invariance is a separate,
-  optional bit (below).
+- The TSC and CLFSH are treated as optional with a degraded fallback, not as boot
+  blockers. TSC invariance is a separate, optional bit (below).
 
 ## 2. Optional features and fallbacks
 
@@ -49,6 +47,8 @@ helper that checks the bit.
 | x2APIC | `01H:ECX[21]` | MSR-based APIC access, 32-bit APIC IDs | xAPIC MMIO; 8-bit APIC IDs |
 | TSC-deadline timer | `01H:ECX[24]` | One-shot per-CPU timer | APIC timer in one-shot or periodic mode |
 | Invariant TSC | `80000007H:EDX[8]` | TSC as monotonic clocksource | APIC timer or HPET as clocksource |
+| TSC | `01H:EDX[4]` | Timestamp counter, early delay calibration | APIC timer only; no TSC clocksource |
+| CLFSH | `01H:EDX[19]` | Cache-line flush for DMA coherency | `WBINVD` (slow, system-wide) |
 | RDTSCP | `80000001H:EDX[27]` | Cheap TSC + `IA32_TSC_AUX` read | `RDTSC` plus `IA32_TSC_AUX` MSR read, or per-CPU lookup |
 | PCID | `01H:ECX[17]` | Tagged TLB entries, cheaper address-space switches | Full TLB flush on `CR3` write |
 | INVPCID | `07H:EBX[10]` | Targeted TLB invalidation | `INVLPG` loops or full flush |

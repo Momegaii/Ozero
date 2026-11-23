@@ -121,10 +121,9 @@ stacks, or reclaims the bootloader GDT.
 - **`MXCSR`, x87 control word and XCR0 contents are not specified.** Initialise them.
 - **No IDT, no TSS, no IST stack.** Any exception before the kernel installs its IDT is a
   triple fault with no diagnostics.
-- **`PAT` contents are not specified for the kernel to change**, but Limine programs a
-  defined PAT layout when PAT is supported: `PAT0=WB`, `PAT5=WC`; MTRRs are left as
-  firmware set them. [LIMINE-CACHE] The kernel must not reprogram MTRRs without a full
-  cache-coherency plan.
+- **`PAT` layout is specified when PAT is supported**: `PAT0=WB`, `PAT5=WC`; MTRRs are
+  left as firmware set them. [LIMINE-CACHE] The kernel must not reprogram MTRRs without a
+  full cache-coherency plan.
 - **The HHDM offset is not fixed.** Discover it and never hard-code it. [LIMINE-HHDM]
 - **The bootloader GDT, stack, page tables, request responses and MP structures are in
   bootloader-reclaimable memory.** They disappear when the kernel frees that memory.
@@ -157,6 +156,11 @@ Population rules:
 3. `struct o0_boot_info` is versioned. The kernel accepts an older structure only through
    an explicit compatibility path, never by reinterpreting fields.
 4. Boot info is read-only after early init, except for the reclaim state of memory regions.
+
+The loaded image is guaranteed to be physically contiguous and mapped with a single
+uniform virtual-to-physical offset, so for addresses inside the image
+`phys = kernel_phys + (virt - kernel_virt)`. [LIMINE-LAYOUT] [LIMINE-EXECADDR] This is the
+only translation the kernel may derive without page tables.
 
 ## 5. Memory map normalisation
 
@@ -237,8 +241,8 @@ All of the following must be true before a single bootloader-reclaimable page is
 the allocator:
 
 1. Kernel GDT, TSS, IST stacks and IDT are installed and self-tested.
-2. The kernel is running on its own page tables (`CR3`), and no code path still uses the
-   bootloader page tables.
+2. The BSP is running on its own page tables (`CR3`), and every AP has switched to them;
+   no code path still uses the bootloader page tables.
 3. The BSP is on a kernel-owned stack.
 4. Every AP has acknowledged takeover and is running on a kernel-owned stack. A parked AP
    still executes bootloader code on a bootloader stack; freeing it is a use-after-free
@@ -260,7 +264,8 @@ stay reserved. There is no partial reclaim of a structure that is still in use.
   has a `goto_address` that the kernel publishes atomically. The kernel must write
   `extra_argument` and any per-CPU state before the release store. [LIMINE-MP]
 - The AP entry receives a pointer to its `limine_mp_info` in `RDI`; it must immediately
-  switch to its kernel stack and acknowledge takeover before touching shared state.
+  switch to its kernel stack and to the kernel page tables, then acknowledge takeover
+  before touching shared state.
 - AP stacks supplied by Limine follow the Stack Size feature and live in
   bootloader-reclaimable memory. They are loans, not kernel stacks.
 - `reserved` and `reserved1` fields in `limine_mp_info` belong to the bootloader and must
