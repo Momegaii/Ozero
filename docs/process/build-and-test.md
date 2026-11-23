@@ -21,7 +21,7 @@ compares the local tools against it.
 | GNU as / ld / objcopy | 2.44 | 2.42 | Bit-identical output requires the same binutils |
 | GNU make | 4.4.1 | 4.3 | `$(file ...)` and `.ONESHELL` behaviour |
 | bash | 5.2 | 5.1 | `set -euo pipefail`, `[[ ]]`, arrays |
-| qemu-system-x86_64 | 10.0.13 | 9.0 | Serial chardev and `isa-debug-exit` |
+| qemu-system-x86_64 | 10.0.13 | 8.0 | Serial chardev and `isa-debug-exit` |
 | OS | Debian 13 | any Linux | Reference environment only |
 
 No cross-compiler, libc, GRUB, Limine or Python is required for Stage 0.
@@ -111,10 +111,16 @@ failing on a missing marker, and the replacement must be recorded in the interfa
 
 1. `make check-toolchain` (minimum versions; CI records exact versions).
 2. `make check-ci-safety` (no privileges, raw disks or Windows binaries).
-3. `make build`.
-4. `make test-mbr-harness` (alias `make test`).
-5. `make verify-repro`.
-6. Upload `build/qemu/` and `build/manifest.json` as artifacts.
+3. `make build` and `make test-mbr-harness` (the BIOS MBR fixture/harness only).
+4. `make -C a2 check-static` (PE structure inventory, corpus manifest and document checks).
+5. `python3 -m unittest discover -s a2/tests -v` (A2 unit tests; fixture-dependent tests skip when fixtures are absent).
+6. `make -C a3 check` (A3 headers, hardware matrix, deliverables and tests).
+7. `make verify-repro` and `make verify-clean`.
+8. Upload `build/` evidence artifacts.
+
+The A2 and A3 jobs are static/interface validation. They do not run a Windows loader, device driver,
+AHCI/DMA transaction, GPU command stream or real-hardware test. The MBR harness is not an Ozero
+kernel boot.
 
 Normal CI runs no privileged container, no host device, no raw disk write and no third-party Windows
 binary. See [`ci-safety.md`](ci-safety.md). Hardware, PE runtime and Limine jobs are opt-in and are
