@@ -5,6 +5,11 @@
  * physical addresses, IOMMU domains and firmware tables behind A1.  A3 drivers
  * consume DMA addresses and opaque handles; they never program an IOMMU or
  * walk ACPI/UEFI tables directly.
+ *
+ * A1's signed Stage 1 surface is o0_dma_constraint + o0_dma_alloc +
+ * o0_dma_sync + o0_dma_free in include/o0/mm.h, with no IOMMU domain handle
+ * and no SG map object.  This draft still carries o0_dma_domain, dma_map_sg
+ * and iommu_map; it must be reconciled before the AHCI probe.
  */
 #ifndef O0_PLATFORM_H
 #define O0_PLATFORM_H

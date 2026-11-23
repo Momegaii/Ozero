@@ -33,7 +33,7 @@ matrix validator, the deliverable checker, and the read-only inventory script.
 | Haswell Gen7.5 GPU note | [`docs/03-haswell-gen75-gpu.md`](docs/03-haswell-gen75-gpu.md) | desk artifact | i915 v6.6 source references; PRM references |
 | Driver interface draft | [`docs/04-driver-interface-draft.md`](docs/04-driver-interface-draft.md), [`include/o0/platform.h`](include/o0/platform.h) | desk artifact | header smoke compile PASS |
 | Hardware test plan | [`docs/05-hardware-test-plan.md`](docs/05-hardware-test-plan.md), [`tools/collect_inventory.sh`](tools/collect_inventory.sh) | desk artifact | shell syntax check PASS |
-| Stage 0 review response | [`docs/06-stage0-review-response.md`](docs/06-stage0-review-response.md) | desk artifact | review action matrix; A1 review still open |
+| Stage 0 review response | [`docs/06-stage0-review-response.md`](docs/06-stage0-review-response.md) | desk artifact | review action matrix; A1 review received, reconciliation pending |
 
 Supporting files:
 
@@ -129,7 +129,7 @@ The 23 Nov 2026 review actions are tracked in
 
 | Review action | Status | Artifact |
 |---|---|---|
-| A1 written review before AHCI probe | **open** — AHCI probe blocked | `docs/06` §2 |
+| A1 written review before AHCI probe | **received; conditions accepted; reconciliation pending** — AHCI probe blocked | A1 `a1/stage0-review` @ `e2d7c0d`; `docs/06` §2 |
 | Pin spec revision, status, emulator, hardware, test per row | done in matrix schema v2 | `matrix/hardware-support-matrix.csv` |
 | Separate media from transport; keep drivers distinct | done | `docs/01` §2–§3 |
 | Defer ZNS and port multiplier | done | matrix rows `deferred` |
@@ -140,7 +140,7 @@ The 23 Nov 2026 review actions are tracked in
 
 | ID | Decision | Recommendation | Owner |
 |---|---|---|---|
-| D1 | A1 DMA API: Linux-like or minimal custom? | Minimal custom API with `o0_dma_domain`; mapping may sleep, sync may not | A1 |
+| D1 | A1 DMA API: Linux-like or minimal custom? | A1 signed constraint-driven `o0_dma_alloc`/`o0_dma_sync`/`o0_dma_free`; no domain handle in Stage 1. A3 reconciles `platform.h` to that surface | A1/A3 |
 | D2 | AHCI/USB: native block drivers or a universal SCSI layer? | Native AHCI and NVMe block drivers; SCSI layer only for USB MSC/UAS | A1/A3 |
 | D3 | Firmware baseline: UEFI-only or legacy BIOS/CSM? | UEFI 2.11 + ACPI 6.6 as reference, with compatibility for Haswell-era ACPI 5.x/UEFI 2.3–2.4; CSM out of scope | A1/A3 |
 | D4 | Haswell test hardware: GT3e, GT2, or both? | Both: GT3e for eDRAM and GT2 for the non-eDRAM path | A4 |
@@ -156,17 +156,21 @@ The 23 Nov 2026 review actions are tracked in
 | i915 source line numbers change | Citations drift | Cite file and symbol names, not only line numbers; pin v6.6 in EVIDENCE |
 | NVMe 2.4 vs QEMU 1.4 | QEMU cannot validate 2.4 features | 1.4-compatible core; real-device tests for 2.4 features |
 | eDRAM enable sequence is incomplete | GT3e may run without eDRAM or hang | Treat eDRAM as a PRM-defined platform sequence; validate on GT3e |
-| Block API is a draft | A1/A3 may diverge on queueing, DMA sleep, or reset semantics | A1 review of `platform.h` and `block.h` before implementation |
+| Block API is a draft | A1/A3 may diverge on queueing, DMA sleep, or reset semantics | A1 review received; reconcile `platform.h`/`block.h` before implementation |
+| No IOMMU in Stage 1 | A buggy or malicious driver can DMA anywhere; untrusted/userspace DMA is unsafe | Trusted ring-0 drivers only; escalate before untrusted DMA |
+| A3 `platform.h` draft differs from A1 `mm.h`/`driver.h` | The AHCI probe could target an API A1 does not provide | Replace or version the draft before any AHCI probe |
 | PRM links are archived/retired | References may rot | Keep archived links and local citation notes; verify before publication |
 
 ## Next step
 
-**A1 reviews and signs off [`include/o0/platform.h`](include/o0/platform.h) and
-[`include/o0/block.h`](include/o0/block.h), specifically the DMA sleep rules,
-reset/no-in-flight-DMA guarantee, address width, alignment, coherency, and
-firmware-table lifetime.** That review unblocks the first AHCI probe
-implementation. Until A1 signs, the AHCI probe remains blocked; A3 must not
-guess at contracts that are expensive to change later.
+**Reconcile [`include/o0/platform.h`](include/o0/platform.h) and
+[`include/o0/block.h`](include/o0/block.h) with A1's signed
+`include/o0/mm.h`/`include/o0/driver.h` surface.** A1 has signed with an IOMMU
+blocker and four conditions (no untrusted DMA before IOMMU; A3 builds SG lists
+from multiple `o0_dma_buffer` objects; BAR mappings are dedicated UC, not
+HHDM; semantic changes are versioned). A3 accepts the conditions for trusted
+ring-0 Stage 1. The AHCI probe remains blocked until the draft headers match
+the signed surface and the director accepts the IOMMU risk.
 
 ## Repository layout
 
@@ -207,4 +211,4 @@ guess at contracts that are expensive to change later.
 - **Decisions needed:** D1–D6 above.
 - **Risks:** top three are unexecuted tests, Haswell firmware age, and the
   draft block API.
-- **Next step:** A1 review of `include/o0/platform.h`.
+- **Next step:** reconcile `platform.h`/`block.h` with A1 `mm.h`/`driver.h`, then start the AHCI probe.

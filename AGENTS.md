@@ -55,7 +55,10 @@ available.
 - All rows are `not-started` or `deferred`; no row is `complete`.
 - No QEMU or real hardware was available in the authoring environment; L1–L4
   tests are planned but not executed.
-- Next decision: A1 written review of `include/o0/platform.h` and
-  `include/o0/block.h` (DMA sleep, reset/no-in-flight-DMA, address width,
-  alignment, coherency, firmware-table lifetime). AHCI probe is blocked
-  until A1 signs.
+- A1 review received on `a1/stage0-review` @ `e2d7c0d`: signed with an IOMMU
+  blocker and four conditions. A3 accepts the conditions for trusted ring-0
+  Stage 1.
+- Next decision: reconcile `include/o0/platform.h` and `include/o0/block.h`
+  with A1's signed `include/o0/mm.h`/`include/o0/driver.h` surface. The AHCI
+  probe is blocked until that reconciliation and director acceptance of the
+  IOMMU risk.

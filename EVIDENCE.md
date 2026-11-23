@@ -5,7 +5,8 @@ Review date: 2026-11-23 (UTC)
 Base commit on main: `147cc86c027cef7cec42525024d26dcccf66d7db`
 Branch: `a3/stage0-review-response`
 Stage 0 package commit: `a2890b5e3c070fb8a13fa64030a0a6e6a6e80714`
-Evidence update commit: this commit (HEAD)
+A1 review source: `origin/a1/stage0-review` @ `e2d7c0d`
+A1 review response commit: this commit (HEAD)
 
 Use `git rev-parse HEAD` and `git log -1 -- EVIDENCE.md` for the exact values.
 The Stage 0 package commit contains the matrix schema v2, the review response,
@@ -170,7 +171,7 @@ and protocol, not by a hard-coded VID/PID list.
 
 | # | Review action | Status | Artifact |
 |---|---|---|---|
-| 1 | A1 written review before AHCI probe | **open — AHCI probe blocked** | `docs/06` §2; no signature |
+| 1 | A1 written review before AHCI probe | **received; conditions accepted; reconciliation pending — AHCI probe blocked** | `origin/a1/stage0-review` @ `e2d7c0d`, `docs/interface-draft.md` §11; `docs/06` §2 |
 | 2 | Pin spec revision, status, emulator, hardware, test per row | done | matrix schema v2 |
 | 3 | Separate media from transport; keep drivers distinct | done | `docs/01` §2–§3 |
 | 4 | Defer ZNS and port multiplier | done | matrix rows `deferred` |
@@ -181,15 +182,18 @@ and protocol, not by a hard-coded VID/PID list.
 
 | ID | Decision | Recommendation | Owner |
 |---|---|---|---|
-| D1 | A1 DMA API: Linux-like or minimal custom? | Minimal custom API with `o0_dma_domain`; mapping may sleep, sync may not | A1 |
+| D1 | A1 DMA API: Linux-like or minimal custom? | A1 signed constraint-driven `o0_dma_alloc`/`o0_dma_sync`/`o0_dma_free`; no domain handle in Stage 1. A3 reconciles `platform.h` to that surface | A1/A3 |
 | D2 | AHCI/USB: native block drivers or a universal SCSI layer? | Native AHCI and NVMe block drivers; SCSI layer only for USB MSC/UAS | A1/A3 |
 | D3 | Firmware baseline: UEFI-only or legacy BIOS/CSM? | UEFI 2.11 + ACPI 6.6 reference; Haswell-era compatibility; CSM out of scope | A1/A3 |
 | D4 | Haswell test hardware: GT3e, GT2, or both? | Both: GT3e for eDRAM, GT2 for non-eDRAM | A4 |
 | D5 | NVMe baseline: 1.4 or 2.4? | 1.4-compatible core; negotiate 2.4 features only when present | A3 |
 | D6 | 4Kn and TRIM defaults? | Support 4Kn at block layer; advertise discard/write zeroes only when supported | A3 |
 
-A1 must also answer the DMA, reset, firmware, interrupt, MMIO, and block
-questions in `docs/06` §2 before the AHCI probe starts.
+A1's review is signed with one IOMMU blocker and four conditions. A3 accepts
+the conditions for trusted ring-0 Stage 1. The AHCI probe remains blocked until
+`include/o0/platform.h` and `include/o0/block.h` are reconciled with A1's
+`include/o0/mm.h`/`include/o0/driver.h` surface and the director accepts the
+IOMMU risk.
 
 ## 6. Unresolved risks
 
@@ -199,7 +203,12 @@ questions in `docs/06` §2 before the AHCI probe starts.
 - QEMU NVMe is 1.4, so it cannot validate NVMe 2.4 features.
 - QEMU has no faithful Haswell i915 model; GPU work needs real GT2/GT3e.
 - eDRAM enable sequence is not implemented or validated.
-- Block/DMA/reset contracts are drafts until A1 signs.
+- A1's no-IOMMU blocker: Stage 1 returns physical, untranslated DMA addresses;
+  untrusted or userspace DMA is unsafe.
+- A3 `platform.h` draft uses `o0_dma_domain`, `dma_map_sg`, and `iommu_map`;
+  A1's signed surface has none of these. The AHCI probe must not start on the
+  unreconciled draft.
+- `block.h` still uses `o0_reset_kind`; A1's `o0_device_reset` has no kind.
 - Archived PRM and specification links may rot.
 
 ## 7. Commit, branch, and files
@@ -210,7 +219,8 @@ Exact values at evidence-write time:
 branch: a3/stage0-review-response
 base commit on main: 147cc86c027cef7cec42525024d26dcccf66d7db
 stage 0 package commit: a2890b5e3c070fb8a13fa64030a0a6e6a6e80714
-evidence update commit: this commit (HEAD)
+a1 review source: origin/a1/stage0-review @ e2d7c0d
+a1 review response commit: this commit (HEAD)
 ```
 
 Get the exact commits with:
@@ -219,6 +229,18 @@ Get the exact commits with:
 git rev-parse HEAD
 git log --oneline --decorate -3
 git log -1 --oneline -- EVIDENCE.md
+```
+
+A1 review response files:
+
+```text
+M  AGENTS.md
+M  README.md
+M  docs/04-driver-interface-draft.md
+M  docs/06-stage0-review-response.md
+M  include/o0/block.h
+M  include/o0/platform.h
+M  EVIDENCE.md
 ```
 
 Files added or changed by the Stage 0 package:
@@ -261,8 +283,8 @@ The following were **not** run in the authoring environment:
 - No ACPI/UEFI table parsing on real Haswell firmware.
 - No suspend/resume, runtime power management, or thermal test.
 - No performance or endurance measurement.
-- No A1 sign-off on the DMA, reset, firmware, interrupt, MMIO, or block
-  contracts.
+- No director acceptance of A1's no-IOMMU blocker.
+- No reconciled `platform.h`/`block.h` build against A1's `mm.h`/`driver.h`.
 
 ## 9. Next evidence to collect
 

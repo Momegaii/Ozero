@@ -14,7 +14,7 @@ was not tested.
 
 | # | Review action | Status | Artifact / evidence |
 |---|---|---|---|
-| 1 | Get A1 written review of `platform.h`/`block.h` before the AHCI probe: DMA sleep rules, reset, no-in-flight-DMA guarantee, address width, alignment, coherency | **open — AHCI probe blocked** | §2 below; no A1 signature exists |
+| 1 | Get A1 written review of `platform.h`/`block.h` before the AHCI probe: DMA sleep rules, reset, no-in-flight-DMA guarantee, address width, alignment, coherency | **A1 review received; conditions accepted; API reconciliation pending; AHCI probe blocked** | A1 branch `a1/stage0-review` @ `e2d7c0d`, `docs/interface-draft.md` §11; §2 below |
 | 2 | For each matrix row record exact spec revision, implementation status, emulator availability, real hardware, acceptance test | **done** | `matrix/hardware-support-matrix.csv` schema v2; `tools/validate_matrix.py` |
 | 3 | Separate media from transport; keep HDD/SATA, SSD/SATA, SSD/NVMe as product cases, not one driver | **done** | `driver_family` column; `docs/01` §2–§3 |
 | 4 | Defer ZNS and SATA port multiplier unless a concrete requirement justifies them | **done** | both rows are `deferred`; validator enforces it |
@@ -25,7 +25,7 @@ Definition-of-done status:
 
 | Criterion | Status |
 |---|---|
-| A1 signs DMA/platform contracts or API changes are made | **open** |
+| A1 signs DMA/platform contracts or API changes are made | **partly met**: A1 signed `mm.h`/`driver.h` with an IOMMU blocker; A3 draft headers still need reconciliation |
 | Every matrix row has pinned source and test method | **done** |
 | Status reflects implementation and testing, not ambition | **done**: all rows are `not-started` or `deferred` |
 | AHCI probe begins only after DMA/reset contract approval | **blocked** |
@@ -33,8 +33,50 @@ Definition-of-done status:
 
 ## 2. A1 review request
 
-The following questions must be answered in writing before the AHCI probe
-starts. The current headers are drafts; silence is not approval.
+A1's written review is now available on branch `a1/stage0-review` at commit
+`e2d7c0d`, in `docs/interface-draft.md` §11 and `include/o0/mm.h` /
+`include/o0/driver.h`. A1 signed the generic services subject to one IOMMU
+blocker and four conditions. The original questions are kept below so the
+record shows what was asked; the disposition table records what was answered.
+
+### 2.0 A1 disposition (received 23 November 2026)
+
+| Item | A1 disposition | A3 response |
+|---|---|---|
+| Address width | Signed: `addr_mask` + `max_segment`, validated; CPU physical width is only an upper bound | Accepted |
+| IOMMU assumptions | **Blocker**: no IOMMU in Stage 1 (Limine disables VT-d/AMD-Vi); returned addresses are physical and untranslated; no domain handle | Accepted for trusted ring-0 Stage 1; escalate before untrusted or userspace DMA |
+| Coherency | Signed: explicit `coherent` flag plus `o0_dma_sync`; no implicit maintenance | Accepted |
+| Map/unmap lifetime | Signed: BAR until unmap; DMA buffer until free; both after quiesce; reset invalidates both | Accepted |
+| Reset and in-flight DMA | Signed: `o0_device_dma_quiesce` then `o0_device_reset`; `o0_io_cancel` is best-effort and completion may still occur | Accepted; A3 will quiesce before reset and keep buffers alive until completion |
+| Block I/O shape | Signed: `o0_io_limits` for transfer size, queue depth, alignment; block semantics stay in A3 | Accepted |
+| Interrupt routing | Signed: GSI/vector split; MSI/MSI-X vector allocation; handler context rules | Accepted |
+| Device-class neutrality | Signed and automated by `tools/check-headers.sh` | Accepted |
+
+A1's conditions:
+
+1. No untrusted or userspace driver receives DMA before an IOMMU domain exists.
+   Stage 1 is trusted ring-0 drivers only. **A3 accepts for Stage 1.**
+2. A3 must not assume one `o0_dma_buffer` covers a transfer larger than
+   `max_segment`; build a scatter-gather list from multiple buffers.
+   **A3 accepts; `block.h` must document this.**
+3. A3 must not assume BAR mappings come from the HHDM; they are dedicated UC
+   mappings. **A3 accepts; AHCI and GPU drivers must use `o0_device_map_bar`.**
+4. Any semantic change is a versioned interface change, not a driver-local
+   decision. **A3 accepts.**
+
+Remaining reconciliation work before the AHCI probe:
+
+- `include/o0/platform.h` currently describes `o0_dma_domain`, `dma_map_sg`,
+  `dma_map_single`, and `iommu_map`. A1's signed surface is
+  `o0_dma_constraint` + `o0_dma_alloc` + `o0_dma_sync` + `o0_dma_free`, with
+  no domain handle and no SG map object. A3 must either replace the draft with
+  A1's `mm.h`/`driver.h` surface or record a versioned request for the extra
+  operations. The AHCI probe must not start on the unreconciled draft.
+- `include/o0/block.h` must state that a bio larger than `max_segment` is
+  split into multiple `o0_dma_buffer` objects and a driver-built SG list.
+- A1's `o0_device_reset` has no reset-kind argument; `block.h` currently uses
+  `o0_reset_kind`. A3 must decide whether reset kind belongs in the block
+  contract or is platform-only.
 
 ### 2.1 DMA and IOMMU
 
@@ -101,8 +143,8 @@ starts. The current headers are drafts; silence is not approval.
 
 | Role | Name | Decision | Date | Notes |
 |---|---|---|---|---|
-| A1 owner | _pending_ | _pending_ | _pending_ | Must answer §2.1–§2.5 |
-| A3 owner | _pending_ | _pending_ | _pending_ | Must not start AHCI probe before A1 |
+| A1 owner | A1 | Signed with IOMMU blocker and four conditions | 2026-11-23 | `a1/stage0-review` @ `e2d7c0d`, `docs/interface-draft.md` §11 |
+| A3 owner | A3 | Accepted conditions for trusted ring-0 Stage 1; header reconciliation pending | 2026-11-23 | `platform.h`/`block.h` update required before AHCI probe |
 
 ## 3. Matrix schema v2
 
@@ -184,14 +226,17 @@ The following were **not** run in the authoring environment:
 - No ACPI/UEFI table parsing on real Haswell firmware.
 - No suspend/resume, runtime power management, or thermal test.
 - No performance or endurance measurement.
-- No A1 sign-off on the DMA, reset, firmware, interrupt, MMIO, or block
-  contracts.
+- No director acceptance of A1's no-IOMMU blocker.
+- No reconciled `platform.h`/`block.h` build against A1's `mm.h`/`driver.h`.
 
 A successful header compile, shell syntax check, matrix validation, or unit
 test does not change this list.
 
 ## 7. References
 
+- A1, *Ozero Stage 0 interface draft* §11, branch `a1/stage0-review` @
+  `e2d7c0d`, `docs/interface-draft.md`, `include/o0/mm.h`,
+  `include/o0/driver.h`.
 - Intel, *Serial ATA AHCI 1.3.1*.
   <https://www.intel.com/content/dam/www/public/us/en/documents/technical-specifications/serial-ata-ahci-spec-rev1-3-1.pdf>
 - NVM Express, *Specifications* (NVMe Base 2.4, NVMe over PCIe 2.4, ZNS 1.1).

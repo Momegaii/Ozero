@@ -78,6 +78,11 @@ struct o0_bio_vec {
     size_t len;
 };
 
+/*
+ * A bio may span more than one DMA segment.  A1's Stage 1 DMA surface has no
+ * SG map object, so the protocol driver splits the bio into multiple
+ * o0_dma_buffer objects and builds its own SG list.
+ */
 struct o0_bio {
     o0_block_op op;
     uint16_t flags;
@@ -116,6 +121,7 @@ struct o0_block_queue {
 };
 
 struct o0_block_ops {
+    /* Block-level reset policy.  A1's o0_device_reset is unconditional. */
     o0_status (*reset)(struct o0_block_dev *dev, o0_reset_kind kind);
     o0_status (*flush)(struct o0_block_dev *dev);
     o0_status (*discard)(struct o0_block_dev *dev,

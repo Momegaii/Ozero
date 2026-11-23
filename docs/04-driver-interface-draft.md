@@ -2,11 +2,16 @@
 
 Status: **Stage 0 desk artifact; no implementation or hardware validation**
 
-A1 sign-off is still open; see [`06-stage0-review-response.md`](06-stage0-review-response.md) §2. The AHCI probe is blocked until A1 answers the DMA, reset, firmware, interrupt, MMIO, and block questions.
+A1 review received on branch `a1/stage0-review` @ `e2d7c0d`: signed with an IOMMU blocker and four conditions. A3 accepts the conditions for trusted ring-0 Stage 1. The AHCI probe remains blocked until this draft is reconciled with A1's `include/o0/mm.h` and `include/o0/driver.h`. See [`06-stage0-review-response.md`](06-stage0-review-response.md) §2.
 
 Scope: MMIO, DMA/IOMMU, interrupt, discovery, completion, memory mapping,
 power, reset, and firmware-table interfaces that A3 device drivers need from A1
 Draft header: [`include/o0/platform.h`](../include/o0/platform.h)
+
+The draft header records A3 requirements. It is not the signed ABI. A1's signed
+surface is `o0_dma_constraint` + `o0_dma_alloc` + `o0_dma_sync` +
+`o0_dma_free`, with no IOMMU domain handle and no SG map object. A3 must
+reconcile the draft before the AHCI probe.
 
 ## 1. Purpose and ownership
 
@@ -17,7 +22,7 @@ The boundary is intentionally narrow:
 |---|---|---|
 | PCI discovery | Enumeration, config space, BAR sizing, bus mastering, DMA masks | Binding to a vendor/device/class, protocol state |
 | MMIO | Mapping, cache attributes, accessors, posting flush, unmap | Register layout, sequencing, read-modify-write locking |
-| DMA / IOMMU | Domains, mappings, bounce buffers, coherency, faults | Buffer lifetime, direction, segment limits, command DMA |
+| DMA / IOMMU | Constraints, allocations, bounce buffers, coherency, faults; no IOMMU in Stage 1 | Buffer lifetime, direction, segment limits, driver-built SG lists, command DMA |
 | Interrupts | Vector allocation, affinity, masking, dispatch | Device interrupt cause, ack, handler policy |
 | Completion | Fences, wait/wake, deferred work | Request tracking, timeout policy, reset recovery |
 | Firmware | ACPI/UEFI table discovery and stable copies | Interpreting device-specific `_DSM`/`_CRS` results |
