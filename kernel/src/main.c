@@ -121,6 +121,11 @@ void x86_exception_dispatch(struct x86_64_exception_frame *frame) {
         __asm__ volatile ("mov %%cr2, %0" : "=r"(cr2));
         serial_puts(" cr2=");
         serial_hex(cr2);
+        serial_puts(" pf=");
+        serial_puts(frame->error_code & 1u ? "protection-violation" : "page-not-present");
+        serial_puts(frame->error_code & 2u ? "-write" : "-read");
+        serial_puts(frame->error_code & 4u ? "-user" : "-supervisor");
+        serial_puts(frame->error_code & 16u ? "-reserved-bit" : "");
     }
     serial_puts("\n");
     halt_forever();
@@ -156,6 +161,46 @@ static void report_memory_map(void) {
 extern o0_status o0_boot_populate(const struct limine_memmap_response *);
 extern o0_status o0_pmm_init(const struct o0_boot_info *);
 extern o0_status o0_paging_init(const struct o0_boot_info *);
+extern void *o0_kalloc(size_t size, size_t align);
+extern void o0_kfree(void *ptr, size_t size);
+
+/* Kernel self-test: exercises the kernel heap and PMM allocator. */
+static void kernel_self_test(void) {
+    serial_puts("OZERO: kernel self-test\n");
+
+    /* Test kernel heap allocations. */
+    void *a = o0_kalloc(16, 4);
+    void *b = o0_kalloc(32, 8);
+    void *c = o0_kalloc(0, 1); /* zero size → 1 byte */
+    if (a == NULL || b == NULL || c == NULL) {
+        panic("kernel heap allocation failed");
+    }
+    ((char *)a)[0] = 'A';
+    ((char *)b)[0] = 'B';
+    ((char *)c)[0] = 'C';
+    if (((char *)a)[0] != 'A' || ((char *)b)[0] != 'B' || ((char *)c)[0] != 'C') {
+        panic("kernel heap write/read failed");
+    }
+    o0_kfree(a, 16);
+    o0_kfree(b, 32);
+    o0_kfree(c, 1);
+    serial_puts("OZERO: kernel heap alloc/free OK\n");
+
+    /* Test PMM page allocator directly. */
+    o0_paddr_t p1 = o0_pmm_alloc_pages(0);
+    o0_paddr_t p2 = o0_pmm_alloc_pages(1); /* 4 contiguous pages */
+    if (p1 == 0 || p2 == 0) {
+        panic("PMM allocation failed");
+    }
+    if ((p1 & 0xfffU) != 0 || (p2 & 0xfffU) != 0) {
+        panic("PMM returned unaligned address");
+    }
+    o0_pmm_free_pages(p1, 0);
+    o0_pmm_free_pages(p2, 1);
+    serial_puts("OZERO: PMM alloc/free OK\n");
+
+    serial_puts("OZERO: kernel self-test complete\n");
+}
 
 __attribute__((noreturn))
 void kmain(void) {
@@ -207,6 +252,9 @@ void kmain(void) {
         panic("paging initialisation failed");
     }
     serial_puts("OZERO: page tables built\n");
+
+    /* Run kernel self-tests (heap + PMM). */
+    kernel_self_test();
 
     report_memory_map();
     serial_puts("OZERO: boot success; entering idle halt loop\n");

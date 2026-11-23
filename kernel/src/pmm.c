@@ -236,6 +236,42 @@ uint64_t o0_pmm_total_bytes(void) {
     return total_pages << O0_PAGE_SHIFT;
 }
 
+/* Simple early kernel bump-heap in BSS. Backed by PMM pages once paging is
+ * active; for Stage 2 it hands out virtual addresses within this static region.
+ */
+#define O0_KHEAP_SIZE (O0_PAGE_SIZE * 64) /* 256 KiB early kernel heap */
+static uint8_t kheap[O0_KHEAP_SIZE];
+static size_t kheap_used;
+
+/* ---- Kernel heap ---- */
+
+O0_NODISCARD void *o0_kalloc(size_t size, size_t align) {
+    if (!initialised) {
+        return NULL;
+    }
+    if (size == 0) {
+        size = 1;
+    }
+    if (align == 0) {
+        align = 1;
+    }
+    /* Align the allocation pointer up. */
+    size_t aligned = (kheap_used + (align - 1u)) & ~(align - 1u);
+    if (aligned + size > O0_KHEAP_SIZE) {
+        return NULL;
+    }
+    void *ptr = (void *)&kheap[aligned];
+    kheap_used = aligned + size;
+    return ptr;
+}
+
+void o0_kfree(void *ptr, size_t size) {
+    /* Bump allocator: no per-allocation free. Memory is reclaimed when the
+     * kernel heap is reset or the system reboots. */
+    (void)ptr;
+    (void)size;
+}
+
 uint64_t o0_pmm_release_bootloader_memory(void) {
     /* Reclaimable regions remain reserved until the boot contract's reclaim
      * checklist is documented and passed. Stage 2 does not release them yet.
