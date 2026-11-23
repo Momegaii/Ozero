@@ -15,6 +15,7 @@
 | A1 header commit | `30ee4f0da3c3d4263033680d39e7937fcb59f42f` |
 | A1 decision commit | `74b1471b217fb1c5e9bd72a75deef71a2d066c7b` |
 | A1 substantive review commit | `a17d126664ba9c54792612590268f97d7f439b7d` |
+| A1 R2 evidence commit | `9cda79c8ac2151e9c4e72caf9be5ab4d14d1f1ba` |
 | A3 review commit | `307b919b41f6e65f1a40482588b84f92f715d67a` (v1.0 ACCEPT for hardware boundary; reviewed `d02598a`/`3f78477`) |
 | A4 registry reviewed | `b4232a07ab88b6558b3020ae2463af16f0c325dd` (IF-009 row 1.0; A1/A3 accepted; A2 signature record pending) |
 | Related | XB-003, XB-013, XB-016, D-011, D-024, D-025, D-026, D-033 |

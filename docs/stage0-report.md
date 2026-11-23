@@ -121,7 +121,8 @@ Proceed-brief definition of done:
 
 Stage 0 remains **not accepted**. The R2 brief asked A1 to publish raw evidence for
 XB-016, make the IF-009 basis explicit against A2 `6d305b8`/`64b3458`, keep the
-two known gaps visible, coordinate A2's record, and preserve A1's headers.
+two known gaps visible, coordinate A2's record, and preserve A1's headers. R2 review
+commit: `9cda79c8ac2151e9c4e72caf9be5ab4d14d1f1ba`.
 
 | # | Action | A1 result | Evidence |
 |---|---|---|---|
@@ -183,7 +184,7 @@ Proceed brief R2:
 
 | Commit | Purpose | Scope |
 |---|---|---|
-| this R2 review commit | `docs: record proceed brief R2 evidence and A2/A3 state` | raw XB-016 log, IF-009 basis/gaps, A2/A3/A4 reconciliation, Stage 0 report |
+| `9cda79c8ac2151e9c4e72caf9be5ab4d14d1f1ba` | `docs: record proceed brief R2 evidence and A2/A3 state` | raw XB-016 log, IF-009 basis/gaps, A2/A3/A4 reconciliation, Stage 0 report |
 | this follow-up commit | records the R2 review hash | `docs/stage0-report.md` |
 
 Reviewed inputs, not A1 commits:
