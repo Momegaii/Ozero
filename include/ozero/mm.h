@@ -107,6 +107,9 @@ enum o0_dma_dir {
     O0_DMA_BIDIRECTIONAL = 2
 };
 
+/* One o0_dma_buffer is one physically contiguous segment. If max_segment is non-zero and
+ * size exceeds it, o0_dma_alloc returns O0_ENOTSUP; the driver must split the transfer.
+ * size is rounded up to pages and buf->size is the rounded size. */
 O0_NODISCARD o0_status o0_dma_alloc(const struct o0_dma_constraint *constraint,
                                     size_t size, struct o0_dma_buffer *out);
 

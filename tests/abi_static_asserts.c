@@ -48,6 +48,7 @@ _Static_assert(O0_DMA_TO_DEVICE == 0 && O0_DMA_FROM_DEVICE == 1 &&
                    O0_DMA_BIDIRECTIONAL == 2,
                "dma direction values");
 _Static_assert(sizeof(struct o0_io_limits) == 12u, "io limits size");
+_Static_assert(sizeof(struct o0_device_ops) == 5u * sizeof(void *), "device ops size");
 
 /* Taking the address of each API forces the compiler to check the prototype. */
 static o0_status (*const check_pmm_init)(const struct o0_boot_info *) = o0_pmm_init;
@@ -58,6 +59,10 @@ static o0_status (*const check_irq_register)(o0_gsi_t, uint32_t, o0_irq_handler_
     o0_irq_register;
 static o0_status (*const check_thread_create)(o0_process_t *, const struct o0_thread_attr *,
                                               o0_thread_t **) = o0_thread_create;
+static o0_status (*const check_thread_user_pointer)(o0_thread_t *, void *) =
+    o0_thread_set_user_pointer;
+static o0_status (*const check_thread_gs_base)(o0_thread_t *, uint64_t) = o0_thread_set_gs_base;
+static o0_status (*const check_thread_fs_base)(o0_thread_t *, uint64_t) = o0_thread_set_fs_base;
 static o0_status (*const check_handle_open)(o0_process_t *, o0_object_t *, uint32_t,
                                             o0_handle_t *) = o0_handle_open;
 static o0_status (*const check_dma_alloc)(const struct o0_dma_constraint *, size_t,
@@ -80,6 +85,9 @@ void o0_stage0_header_check_anchor(void)
     (void)check_as_map;
     (void)check_irq_register;
     (void)check_thread_create;
+    (void)check_thread_user_pointer;
+    (void)check_thread_gs_base;
+    (void)check_thread_fs_base;
     (void)check_handle_open;
     (void)check_dma_alloc;
     (void)check_io_submit;
