@@ -1,12 +1,12 @@
 ==================================================================
 repository: /workspace/Ozero
-head:       9ef13bd9b5c4d6ef04cb815672cd668ec121ea53
+head:       d138cb2dbb177b0bdf51860076b7e6bb0bc47d50
 branch:     a4/stage0-review-followup
 remotes:
   origin	https://github.com/Momegaii/Ozero.git (fetch)
   origin	https://github.com/Momegaii/Ozero.git (push)
 branches:
-  a4/stage0-review-followup 9ef13bd origin/a4/stage0-review-followup
+  a4/stage0-review-followup d138cb2 origin/a4/stage0-review-followup
   main 147cc86 origin/main
   origin 147cc86 
   origin/a1/stage0-review 115a7f4 
@@ -15,7 +15,10 @@ branches:
   origin/main 147cc86 
 tags:
 commit graph (all refs):
-  * 9ef13bd (HEAD -> a4/stage0-review-followup) docs: record Stage 0 PR #3 and close XB-010
+  * d138cb2 (HEAD -> a4/stage0-review-followup) docs: describe the A4 head as 210653c plus docs and audit commits
+  * bd7b0c9 docs: record A4 head 210653c before the audit refresh
+  * 210653c docs: align A4 with A1 second-round response
+  * 9ef13bd docs: record Stage 0 PR #3 and close XB-010
   * 076ed82 (origin/a4/stage0-review-followup) docs: verify updated A2 evidence and ancestry
   * 19dac9d docs: address Director Stage 0 integration review
   * 5642c16 docs: refresh repository audit with published A4 branch
@@ -49,7 +52,7 @@ commit graph (all refs):
   | * 8bac650 docs(a2): import Stage 0 package under a2/
   |/  
   * 147cc86 (origin/main, origin/HEAD, main) Initial commit
-commit count (all refs): 30
+commit count (all refs): 33
 tracked files: 82
 top-level tracked entries:
   .editorconfig
@@ -72,6 +75,7 @@ A1/A2/A3 refs:
   refs/remotes/origin/a1/stage0-review
   refs/remotes/origin/agent/a2-stage0
 A1/A2/A3 commit subjects:
+  210653c docs: align A4 with A1 second-round response
   076ed82 docs: verify updated A2 evidence and ancestry
   164360e feat: expose driver DMA callbacks and A2 thread primitives
   50b7853 docs(a2): answer director review with global IDs and A1 review request
