@@ -92,48 +92,49 @@ This integration gap was corrected in commit [`be929464`](https://github.com/Mom
 
 ## 5. Phase 2 — GPU-independent memory objects and address spaces
 
-**Phase status: PARTIAL — code exists but does not build.**
+**Phase status: PARTIAL — builds and is host-tested, not integrated and not device-backed.**
 
-`kernel/src/gpu.c` (189 lines) defines memory objects, a first-fit GPU virtual-address allocator
-and map/unmap helpers. It redefines `struct o0_gpu_vm` and its function signatures conflict with
-`include/ozero/gpu.h`. CI run
-[45368632161](https://github.com/Momegaii/Ozero/actions/runs/45368632161) on commit `452ccac`
-fails at "Build ELF64 kernel and bootable ISO" with `redefinition of 'struct o0_gpu_vm'` and
-conflicting types for `o0_gpu_vm_create`, `o0_gpu_vm_destroy`, `o0_gpu_vm_alloc`,
-`o0_gpu_vm_free`, `o0_gpu_vm_map` and `o0_gpu_vm_unmap`. The object is listed in `KERNEL_OBJS`,
-and no boot-path code calls it. No checklist item below is complete; treat Phase 2 as open until
-the code builds, is integrated and has host tests.
+`kernel/src/gpu.c` implements memory objects (page-backed, reference and pin counted), a
+first-fit GPU virtual-address range table and map/unmap bookkeeping. `include/ozero/gpu.h` owns
+the only definitions; the earlier redefinition and signature conflict are fixed. `make check`
+passes and CI run
+[45380821831](https://github.com/Momegaii/Ozero/actions/runs/45380821831) on commit `2de6304`
+is green. Host tests live in `tests/gpu_test.c`.
+
+Still open: no boot-path caller, no device backing, no protection/access attributes, no distinct
+GPU address type (APIs take `uint64_t`), and no residency, eviction or coherency model. The
+checklist below is marked only where code and tests exist.
 
 ### 5.1 GPU memory objects and ownership
 
-- [ ] Define Ozero-owned GPU memory-object types and lifecycle.
-- [ ] Implement object creation and destruction.
-- [ ] Track physical-page backing.
-- [ ] Implement page reference and ownership accounting.
-- [ ] Implement pin/unpin operations.
-- [ ] Prevent freeing pages referenced by mappings or in-flight work.
-- [ ] Validate size, alignment and allocation limits.
-- [ ] Handle allocation failure and partial-construction rollback.
+- [x] Define Ozero-owned GPU memory-object types and lifecycle. (`struct o0_gpu_memory`, single definition in the public header.)
+- [x] Implement object creation and destruction. (Destroy refuses while pinned or still referenced.)
+- [x] Track physical-page backing. (Per-page `phys_pages` array; pages are not assumed contiguous.)
+- [x] Implement page reference and ownership accounting. (`refcount` per object, incremented on map.)
+- [x] Implement pin/unpin operations. (Pin clears `evictable`; host-tested.)
+- [x] Prevent freeing pages referenced by mappings or in-flight work. (Mappings and pins are enforced; there is no in-flight state yet.)
+- [x] Validate size, alignment and allocation limits. (Zero size and non-power-of-two alignment rejected; page rounding enforced.)
+- [x] Handle allocation failure and partial-construction rollback. (Partial page runs are unwound on failure.)
 
 ### 5.2 GPU virtual-address allocation
 
-- [ ] Define GPU virtual addresses as a distinct type and namespace from CPU virtual and physical addresses.
-- [ ] Implement GPU virtual-address range allocation and release.
-- [ ] Enforce backend-provided address width and alignment.
-- [ ] Detect arithmetic overflow and invalid ranges.
-- [ ] Reject overlapping allocations.
-- [ ] Define fragmentation behavior and deterministic failure semantics.
-- [ ] Test allocation, release, reuse and boundary cases.
+- [ ] Define GPU virtual addresses as a distinct type and namespace from CPU virtual and physical addresses. (APIs still take `uint64_t`.)
+- [x] Implement GPU virtual-address range allocation and release. (Sorted range table, first-fit.)
+- [x] Enforce backend-provided address width and alignment. (Allocations and mappings are bounded by the space and honour the requested alignment.)
+- [x] Detect arithmetic overflow and invalid ranges. (`va + size` wrap and out-of-range checks.)
+- [x] Reject overlapping allocations. (Overlapping alloc and map attempts fail with `O0_EBUSY`.)
+- [ ] Define fragmentation behavior and deterministic failure semantics. (First-fit with `O0_ENOSPC` exists, but no compaction or fragmentation policy is documented or tested.)
+- [x] Test allocation, release, reuse and boundary cases. (`tests/gpu_test.c`, core allocator test.)
 
 ### 5.3 Mapping and access control
 
-- [ ] Define map, unmap and protection/access operations.
-- [ ] Validate object backing and GPU address ranges.
-- [ ] Track mapping ownership and lifetime.
-- [ ] Reject invalid permissions and unsupported attributes.
-- [ ] Handle partial mapping failures with rollback.
-- [ ] Prevent address-space teardown while work still references mappings.
-- [ ] Define how mapping changes become visible to the device.
+- [ ] Define map, unmap and protection/access operations. (Map and unmap exist; there is no protection or access-attribute model.)
+- [x] Validate object backing and GPU address ranges. (Null/zero-size objects and out-of-range mappings rejected before mutation.)
+- [x] Track mapping ownership and lifetime. (`struct o0_gpu_mapping` binds one object to one range; unmap drops the reference.)
+- [ ] Reject invalid permissions and unsupported attributes. (No permission model exists yet.)
+- [x] Handle partial mapping failures with rollback. (All checks run before any state changes.)
+- [x] Prevent address-space teardown while work still references mappings. (`o0_gpu_vm_destroy` refuses while ranges are live.)
+- [ ] Define how mapping changes become visible to the device. (Phase 3 records the invalidation obligation; the core has no visibility contract.)
 
 ### 5.4 Residency and eviction
 
@@ -147,7 +148,7 @@ the code builds, is integrated and has host tests.
 
 ### 5.5 CPU/GPU visibility and coherency
 
-- [ ] Research the target's actual cache/coherency requirements.
+- [ ] Research the target's actual cache/coherency requirements. (Cacheability encodings are documented in the dossier; CPU/GPU coherency transitions are not.)
 - [ ] Define CPU-to-GPU and GPU-to-CPU ownership/visibility transitions.
 - [ ] Implement required cache operations and memory ordering.
 - [ ] Ensure GPU writes are visible before CPU consumers read them.

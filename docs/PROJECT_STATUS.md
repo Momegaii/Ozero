@@ -98,9 +98,10 @@ Stage 1 — bootable x86-64 kernel: **implemented; see verification state**
 - Phase 1 is open: PCI enumeration exists and is called from the Stage 4 boot self-test, but GPU
   discovery, BAR resource validation, device matching and capability reporting are not
   implemented.
-- Phase 2 is partial: `kernel/src/gpu.c` now compiles against `include/ozero/gpu.h`, with a
-  first-fit VA range table, mapping bookkeeping and teardown guards, all host-tested. It has no
-  boot-path caller and no device integration.
+- Phase 2 is partial (17 of 35 checklist items): `kernel/src/gpu.c` builds against
+  `include/ozero/gpu.h` with memory objects, a first-fit VA range table, map/unmap bookkeeping
+  and teardown guards, all host-tested. No boot-path caller, no device backing, and no
+  protection, residency, eviction or coherency model.
 - Phase 3 is partially implemented: `kernel/src/gpu_hsw.c` provides Haswell PPGTT and GGTT
   encoding, validation, map/unmap, teardown and invalidation-obligation tracking, covered by 10
   host tests. Hardware installation (`PGTBL_CTL`), engine register programming (`PP_DIR_BASE`,
