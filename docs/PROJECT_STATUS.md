@@ -63,26 +63,29 @@ Stage 1 — bootable x86-64 kernel: **implemented; see verification state**
 ### Stage 4 — storage substrate
 
 - `kernel/src/block.c`: block layer core. Validates device names, geometry, queues and
-  every bio (op, vector bounds, block alignment, LBA range, feature flags), delivers one
-  completion per bio, and provides the synchronous single-segment read/write/flush API
-  used by Stage 4 clients.
+  every bio (op, vector bounds, block alignment, LBA range, transfer limits and feature
+  flags), atomically delivers one completion per bio, and provides a synchronous
+  single-segment read/write/flush API using static request slots and bounce buffers.
+  Timed-out requests remain quarantined until late completion or driver-confirmed
+  cancellation and quiescence.
 - `kernel/src/ramdisk.c`: RAM disk, the first `o0_block_dev` driver. PMM-page backing
   reached through the direct map, 4 KiB logical blocks, two devices of up to 4 MiB, and
   a test-only fault-injection hook.
 - `kernel/src/o0fs.c` + `include/ozero/fs.h`: the draft OzeroFS filesystem — superblock
   with checksum, block/inode bitmaps, 128-byte inodes with 12 direct and one indirect
   block, 32-byte directory entries, and format/mount/sync/unmount/stat/lookup/create/
-  mkdir/read/write/truncate/unlink/rmdir/list operations. A failed write releases the
-  blocks it allocated and restores the previous inode.
+  mkdir/read/write/truncate/unlink/rmdir/list operations. Failed writes capture undo
+  images of existing data blocks and attempt to restore data, allocation state and the
+  previous inode; rollback is not crash recovery and can itself fail.
 - `kernel/src/main.c`: Stage 4 boot self-test — registers a RAM disk, formats and mounts
   OzeroFS, creates a directory and file, writes and verifies data, injects a storage
   I/O error (which `o0fs_sync` must report), clears the fault, syncs again, then removes
   the tree and unmounts.
-- `tests/block_test.c` and `tests/fs_test.c`: host unit tests (4 block-layer tests and 9
-  filesystem tests) covering registration validation, I/O round-trips, range and type
-  errors, duplicate names, device limits, format rules, mount validation, indirect
-  blocks, truncate and zero fill, directory listing, `ENOSPC`, persistence across a
-  remount, injected I/O faults and the mount pool limit.
+- `tests/block_test.c` and `tests/fs_test.c`: expanded host suites (6 block-layer test
+  cases and 10 filesystem test cases). New regressions cover late completion after
+  timeout, driver-confirmed cancellation, transfer limits, checksummed malformed
+  superblocks, directory lookup I/O errors, partial overwrite rollback and final inode
+  persistence failure. These new tests are authored but still require execution.
 - Documentation: `docs/o0fs-format.md` specifies the draft on-disk format;
   `docs/decisions/0003-stage4-storage.md` records the storage decisions, alternatives
   and open questions. The filesystem format remains a proposal for Project Director
@@ -92,10 +95,12 @@ Stage 1 — bootable x86-64 kernel: **implemented; see verification state**
 
 Truthful split by evidence type:
 
-- **Build:** the kernel links cleanly with `-Werror` on the documented flags
-  (`make kernel`, ELF64 x86-64). Performed in the current work environment.
-- **Host unit tests:** `make test` — PMM 7/7, slab 5/5, scheduler 5/5, CPU pass,
-  block layer 4/4, OzeroFS 9/9.
+- **Previous baseline build/tests:** the earlier Stage 4 revision was reported to link
+  with `-Werror`; `make test` reported PMM 7/7, slab 5/5, scheduler 5/5, CPU pass,
+  block layer 4/4 and OzeroFS 9/9.
+- **Closing-fix revision:** the expanded block (6 cases) and filesystem (10 cases)
+  suites have not yet been run. The latest kernel build has also not yet been rerun;
+  the previous revision's results do not validate these changes.
 - **QEMU / ISO boot (BIOS):** **performed and passing for the Stage 3 revision** with
   `make iso` + `tools/qemu-smoke.sh` on QEMU 10 (both `q35` and `pc` machines).
   That run predates the Stage 4 change set. The smoke test also asserts the Stage 4
@@ -187,8 +192,10 @@ stage scope, the QEMU BIOS verification above, or the decisions recorded in ADR 
       client path.
 - [x] Filesystem operations: format, mount, create, read, write, truncate, unlink,
       rmdir and directory listing, with a checksummed on-disk superblock.
-- [x] Fault tests: bad superblock/checksum, path and type errors, `ENOSPC`, injected
-      block I/O errors, failed-write block release and remount persistence.
+- [x] Baseline fault tests: bad superblock/checksum, path and type errors, `ENOSPC`,
+      injected block I/O errors, failed-write block release and remount persistence.
+- [ ] Execute new closing-fix regressions for late block completion, checksummed
+      malformed superblocks, lookup I/O propagation and data/inode write rollback.
 - [x] Host unit tests for the block layer and the filesystem; boot self-test added to
       `kmain` and to the smoke markers.
 - [ ] Boot verification of the Stage 4 revision in QEMU (BIOS and UEFI).
