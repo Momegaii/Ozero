@@ -193,7 +193,9 @@ Truthful split by evidence type:
   QEMU 8.2.2 and QEMU 10.1.0, on `qemu64` and `Haswell-v1`. Every run reached the full marker
   set and `QEMU smoke test: PASS`; each log contains `OZERO: firmware=UEFI` and
   `OZERO: interrupt delivery=lapic-extint`. This is OVMF/UEFI emulation evidence, not evidence
-  for a specific physical UEFI firmware.
+  for a specific physical UEFI firmware. **Real UEFI firmware stays an open box:** only OVMF has
+  been exercised (2024.02-2 locally, 2025.11 in CI), and vendor firmware, Secure Boot and CSM
+  interactions are untested.
 - **BIOS boot matrix (Wave 1):** BIOS boots on `qemu64` and `Haswell-v1` pass on QEMU 8.2.2
   and 10.1.0 with the same markers (`OZERO: firmware=BIOS`).
 - **Host sanitizer run (Wave 1):** `make test-sanitize` (ASan + UBSan, leak detection on)
@@ -202,12 +204,22 @@ Truthful split by evidence type:
   `kernel/arch/x86_64/pic.c` or `kernel/src/main.c`.
 - **Real storage hardware:** never exercised. There is no ATA, AHCI or NVMe driver yet; the Stage 4 storage evidence comes from the RAM disk only.
 - **GitHub Actions:** run #43 passed build, all host tests and both QEMU BIOS smoke boots on an
-  earlier revision. For the Wave 1 branch, run
-  [#132](https://github.com/Momegaii/Ozero/actions/runs/45462527735) on commit `d6626b4`
-  completed **SUCCESS** with the new matrix: `boot (bios, qemu64)`, `boot (uefi, qemu64)`,
-  `boot (bios, Haswell-v1)`, `boot (uefi, Haswell-v1)` and `host-sanitizers`. Run #131 on the
-  same branch was also SUCCESS. The REST API is blocked from the sandbox, so these were read
-  from the server-rendered Actions page; the job logs themselves were not downloaded.
+  earlier revision. For the Wave 1 branch there are two **distinct** runs, each SUCCESS with all
+  five jobs (`boot (bios, qemu64)`, `boot (uefi, qemu64)`, `boot (bios, Haswell-v1)`,
+  `boot (uefi, Haswell-v1)`, `host-sanitizers`):
+  [#132](https://github.com/Momegaii/Ozero/actions/runs/45462527735) on commit `d6626b4` and
+  [#133](https://github.com/Momegaii/Ozero/actions/runs/45463475234) on commit `7e2c4bb`. They
+  have different URLs; a previous note that linked both numbers to one URL was wrong. Run #131
+  was also SUCCESS. **Inspection limits:** the anonymous REST API is 403 from this sandbox, but
+  an authenticated call works — run #133's job logs were downloaded and read (they show
+  `QEMU 10.2.1`, `OVMF 2025.11-3ubuntu7.4`, `OZERO: firmware=BIOS`/`UEFI`,
+  `OZERO: interrupt delivery=lapic-extint` and `QEMU smoke test: PASS` in all four cells, plus
+  every host suite passing in `host-sanitizers`). Run #132 was read from the Actions page only;
+  its logs were not inspected.
+- **CI versus local emulator versions:** CI runs **QEMU 10.2.1** with OVMF 2025.11 on
+  `ubuntu-latest`. The local matrix additionally covers QEMU 8.2.2, 10.0.13 and 10.1.0, and those
+  results are **local-only**. QEMU 8.2 matters because it exposed the Wave 1 interrupt-delivery
+  defect (ADR 0005) and CI does not run it.
 - **Physical hardware:** never performed.
 Boot verification of this revision surfaced and fixed three defects that build +
 host tests alone could not catch:
@@ -313,11 +325,16 @@ The next wave is ordered by `docs/hardening-roadmap.md` and starts with **Wave 2
 fundamentals)**:
 
 1. User-mode entry: GDT ring-3 segments, TSS with a kernel stack, `iretq` path, syscall ABI
-   decision and an Ozero-native loader (ADR required before implementation).
+   decision and an Ozero-native loader. The ABI decision is
+   [ADR 0007](decisions/0007-user-abi-syscall-and-executable.md), **proposed and awaiting
+   approval**; no implementation lands before approval.
 2. Per-address-space page tables from the PMM, replacing the static table pool, with demand
    paging and a page-fault handler.
 3. SMP: ACPI MADT, LAPIC/IOAPIC, AP trampoline, per-CPU data and runqueues, TLB shootdown,
-   then PIT → APIC timer. This replaces the Wave 1 LAPIC ExtINT configuration.
+   then PIT → APIC timer. This builds on the Wave 1 LAPIC ExtINT configuration (ADR 0005) rather
+   than "removing a LAPIC disable" — the tree no longer disables the LAPIC, so AP bring-up has to
+   program LVT/TPR per CPU, keep the 8259 path only as a fallback and rely on the per-CPU/`swapgs`
+   reservation made in ADR 0007 so the ABI does not change. Deferred until Wave 2 is verified.
 4. Memory hardening: SMEP/SMAP/NX/WP, KASLR, stack guard pages, buddy PMM, and
    bootloader-memory reclaim (`o0_pmm_release_bootloader_memory`).
 

@@ -36,10 +36,15 @@ per-item status and evidence live in [docs/hardening-roadmap.md](hardening-roadm
   regressions executed; UEFI/OVMF boot verified with firmware markers; CI matrix
   `{bios, uefi} × {qemu64, Haswell-v1}` plus ASan/UBSan host tests added; one interrupt-delivery
   defect fixed (ADR 0005). GitHub Actions observation and physical hardware remain open.
-- **Waves 2–6 — planned, not started.** Wave 2 (user mode, per-process page tables, SMP,
-  memory hardening), Wave 3 (virtio-blk/AHCI/NVMe, partitions, crash consistency, VFS), Wave 4
-  (IPC/signals/futex, PCI/MSI-X/ACPI, security model), Wave 5 (fuzzing, concurrency testing,
-  logging/backtraces, performance baselines), Wave 6 (resume Stage 5/6 graphics).
+- **Wave 2 — core kernel fundamentals: in progress (2026-11-24).** Sub-wave 2.0 (Wave 1
+  housekeeping) is done; 2.1 is the ABI decision,
+  [ADR 0007](decisions/0007-user-abi-syscall-and-executable.md), proposed and awaiting Director
+  approval; 2.2–2.7 are blocked on that approval. No Wave 3+ work until single-CPU user mode is
+  verified. Detail and evidence: [docs/hardening-roadmap.md](hardening-roadmap.md).
+- **Waves 3–6 — planned, not started.** Wave 3 (virtio-blk/AHCI/NVMe, partitions, crash
+  consistency, VFS), Wave 4 (IPC/signals/futex, PCI/MSI-X/ACPI, security model), Wave 5
+  (fuzzing, concurrency testing, logging/backtraces, performance baselines), Wave 6 (resume
+  Stage 5/6 graphics).
 - These waves change the stage sequence by Project Director direction; this note records that
   direction rather than redefining it. Each wave's architectural choices still need their own
   ADR before implementation.

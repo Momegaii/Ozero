@@ -15,8 +15,8 @@ and a real storage driver exist. No Stage 6 phase is claimed complete by this do
 |---:|---|---|---|
 | 1 | Execute the authored-but-unrun Stage 4 regressions and tick the checklist | **Done** | Host tests: block layer 6/6, OzeroFS 10/10 (0 failures) in `make test` and again in `make test-sanitize`. The seven closing-fix regressions (late completion after timeout, driver-confirmed cancellation, transfer limits, checksummed malformed superblocks, lookup I/O propagation, partial-overwrite rollback, final inode persistence failure) all execute and pass. Checklist ticked in `docs/PROJECT_STATUS.md`. |
 | 2 | Boot under OVMF (UEFI) and add smoke markers for it | **Done** | Kernel requests the Limine EFI system table and prints `OZERO: firmware=UEFI` / `OZERO: firmware=BIOS`. `tools/qemu-smoke.sh` gained `QEMU_FIRMWARE=uefi` (OVMF 4 MiB code + per-run variable store) and asserts the matching firmware marker. UEFI boots reach the full marker set, including the scheduler/storage/GPU self-tests. |
-| 3 | Confirm GitHub Actions on the current branch, not just local runs | **Done** | Run [#132](https://github.com/Momegaii/Ozero/actions/runs/45462527735) on `kilo/floral-eagle-2hb`, commit `d6626b4`, completed with conclusion SUCCESS; all five jobs are present (`boot` × 4 cells and `host-sanitizers`). Run #131 on the same branch was also SUCCESS. The REST API is blocked from the sandbox (403), so the run data was read from the server-rendered Actions page. |
-| 4 | Add a CI matrix: `qemu64`, `Haswell-v1`, BIOS and UEFI, with ASan/UBSan host tests | **Done** | `.github/workflows/quality.yml` now has a 4-cell `kernel-and-boot` matrix (CPU × firmware) plus a `host-sanitizers` job running `make test-sanitize`. The same four cells were executed locally on QEMU 8.2.2 and QEMU 10.1.0 and all passed, and GitHub Actions run #132 exercised all five jobs successfully. See `docs/decisions/0006-verification-matrix.md`. |
+| 3 | Confirm GitHub Actions on the current branch, not just local runs | **Done** | Two distinct runs on `kilo/floral-eagle-2hb`, each with all five jobs (`boot` × 4 cells and `host-sanitizers`) and conclusion SUCCESS: [#132](https://github.com/Momegaii/Ozero/actions/runs/45462527735) on commit `d6626b4` and [#133](https://github.com/Momegaii/Ozero/actions/runs/45463475234) on commit `7e2c4bb`. They are separate runs with separate URLs; an earlier revision of this row could be read as giving them one link, which was wrong. Run #131 was also SUCCESS. The anonymous REST API is 403 from this sandbox, but an authenticated call with a token works: run #133's job logs were downloaded and inspected (see below). Run #132 was read from the Actions page only. |
+| 4 | Add a CI matrix: `qemu64`, `Haswell-v1`, BIOS and UEFI, with ASan/UBSan host tests | **Done** | `.github/workflows/quality.yml` now has a 4-cell `kernel-and-boot` matrix (CPU × firmware) plus a `host-sanitizers` job running `make test-sanitize`. GitHub Actions run #133 exercised all five jobs successfully, and its logs show **QEMU 10.2.1** and **OVMF 2025.11-3ubuntu7.4** on `ubuntu-latest`. The same four cells also pass locally on QEMU 8.2.2, 10.0.13 and 10.1.0; those results are **local-only**. See `docs/decisions/0006-verification-matrix.md`. |
 
 Wave 1 also produced one kernel fix. On QEMU 8.2 (Ubuntu 24.04's default), a kernel that
 globally disables the local APIC never receives the 8259 output: `info pic` showed IRQ0/IRQ1
@@ -38,22 +38,49 @@ Local boot matrix result (`tools/qemu-smoke.sh`, full marker set, `PASS` in ever
 This is emulator evidence for the serial marker set. It is not physical-hardware evidence and
 not a claim about UEFI on real firmware beyond Limine's own boot path.
 
-## Wave 2 — Core kernel fundamentals (planned, not started)
+### Emulator and firmware versions: what CI runs versus what was local
 
-1. **User mode:** GDT ring-3 segments, TSS with a kernel stack, `iretq` entry,
-   syscall/sysret, an ABI ADR (Ozero-native, not a Linux syscall table), loader for the
-   native executable format, first init process.
-2. **Per-process page tables from the PMM** (replace the static table pool), demand paging,
-   page-fault handler with VMA tracking.
-3. **SMP:** ACPI MADT parsing, LAPIC/IOAPIC, AP trampoline, per-CPU data, per-CPU runqueues,
-   TLB shootdown, then PIT → APIC timer. The Wave 1 LAPIC ExtINT configuration is the
-   starting point and is expected to be replaced here.
-4. **Memory hardening:** SMEP/SMAP/NX/WP enforcement, KASLR, guard pages on kernel stacks,
-   buddy allocator for the PMM, reclaiming bootloader memory
-   (`o0_pmm_release_bootloader_memory`).
+| Environment | QEMU | Firmware package | Evidence type |
+|---|---|---|---|
+| GitHub Actions `ubuntu-latest` (runs #132, #133) | **10.2.1** (read from the #133 job logs) | **OVMF 2025.11-3ubuntu7.4** (same logs) | CI |
+| This sandbox, local matrix | 8.2.2, 10.0.13, 10.1.0 | `ovmf` 2024.02-2 locally, 2025.11 in CI | Local only |
 
-Dependencies: (2) needs the PMM interface stabilised; (3) needs MADT parsing and removes the
-8259 path; everything in this wave needs the native ABI decision recorded as an ADR first.
+Two consequences, both recorded rather than glossed over:
+
+1. CI does **not** run QEMU 8.2, so the 8.2.2 column above is local-only. It is the version that
+   exposed the Wave 1 interrupt-delivery defect, so it stays in the local matrix on purpose.
+2. **Real UEFI firmware is an open box.** Only OVMF has been exercised, in one version locally
+   and another in CI. Vendor firmware, Secure Boot and CSM interactions are untested and no
+   result here may be read as evidence about them.
+
+## Wave 2 — Core kernel fundamentals (in progress)
+
+**Rule 0 for this wave:** no Wave 3+ work until a single-CPU user mode is verified. GPU
+(Stage 5) and Stage 6 stay paused. Evidence stays split into host, QEMU and physical, and none
+is inferred from another.
+
+| Sub-wave | Scope | Status | Evidence |
+|---|---|---|---|
+| 2.0 | Housekeeping from Wave 1 | **Done** | This document and `docs/PROJECT_STATUS.md`: run numbers and URLs separated and verified, CI-versus-local emulator versions recorded, real UEFI firmware kept as an open box, stale LAPIC note corrected, SMP plan references ADR 0005. |
+| 2.1 | Syscall and executable ABI decision | **Proposed — awaiting Director approval** | [ADR 0007](decisions/0007-user-abi-syscall-and-executable.md) with alternatives, open questions and a verification plan. No code lands before approval. |
+| 2.2 | Per-process page tables from the PMM, user/kernel split, null guard, stack guard page, fault classification, NX/WP/W^X | Not started | Blocked on 2.1 |
+| 2.3 | Ring 3: GDT ring-3 segments, TSS with `RSP0`, #DF IST, `iretq` entry, `syscall` stub with `SFMASK`, selector/`STAR` host test | Not started | Blocked on 2.1 |
+| 2.4 | `o0_copy_from_user`/`o0_copy_to_user` as the only user-memory path, SMAP-ready (`STAC`/`CLAC` hooks), argument validation helper | Not started | Blocked on 2.1 |
+| 2.5 | Static ELF64 `PT_LOAD` loader (no interpreters, relocations, overlaps or oversized segments), init process, syscalls `exit`/`yield`/`debug_write`/`getpid` | Not started | Blocked on 2.1 |
+| 2.6 | Negative tests: NULL dereference dies alone, privileged instruction / kernel jump / bad syscall pointer contained, ELF parser fuzz, process churn without PMM leaks | Not started | Required for sign-off |
+| 2.7 | Boot markers `user entry OK`, `syscall exit status=0`, `user fault contained` on the full BIOS/UEFI × `qemu64`/`Haswell-v1` matrix plus the sanitizer job; STATUS evidence by type | Not started | — |
+
+Deferred until Wave 2 is verified: SMP, SMEP/SMAP, KASLR, signals, IPC, `mmap`, dynamic linking
+and `fork`.
+
+Notes carried into the wave:
+
+- **SMP** (deferred) starts from the Wave 1 LAPIC ExtINT configuration (ADR 0005) rather than
+  from a "disable the LAPIC" state. AP bring-up does not remove that disable — there is none
+  left in the tree — it has to program LVT/TPR per CPU, bring up the AP trampoline and migrate
+  the PIT to the APIC timer while keeping the 8259 path only as a fallback.
+- The **ABI** must reserve per-CPU data and `swapgs` now (ADR 0007 §2.8) so SMP cannot force an
+  ABI change later.
 
 ## Wave 3 — Storage and filesystem (planned, not started)
 
