@@ -91,6 +91,16 @@ Stage 1 — bootable x86-64 kernel: **implemented; see verification state**
   and open questions. The filesystem format remains a proposal for Project Director
   review, not an approved architecture decision.
 
+## Stage 5 — GPU memory and Haswell submission (planning only)
+
+- Planning document: [docs/stage5-gpu.md](stage5-gpu.md).
+- Stage 5 implementation has **not started**; Stage 4 remains the current stage pending its documented follow-up review and hardware work.
+- Intel Haswell Gen7.5 is the first backend target. Intel HD Graphics 4600 is a concrete bring-up target, not the limit of Ozero GPU support.
+- The proposed architecture separates a GPU-independent Ozero core from generation/vendor-specific backends. Future Intel, AMD, NVIDIA and other devices require independently researched and verified backends; no broad vendor support is claimed.
+- The plan's implementation order is discovery/capabilities, GPU memory objects and address spaces, Haswell GGTT/PPGTT, engine-specific submission/completion, then contexts and scheduling.
+- The plan explicitly avoids Gen8+ page-table assumptions in the Haswell backend, Linux DRM as a native dependency, and Windows WDDM as Ozero's native graphics contract.
+- QEMU and host tests must be reported separately from physical GPU validation. No GPU functionality is currently verified.
+
 ## Verification state
 
 Truthful split by evidence type:
