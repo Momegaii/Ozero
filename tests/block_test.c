@@ -86,6 +86,123 @@ static int tests_run;
         }                                                     \
     } while (0)
 
+static struct o0_block_dev async_dev;
+static struct o0_block_queue async_queue;
+static struct o0_bio *late_bio;
+static bool async_hold;
+
+static o0_status async_queue_rq(struct o0_block_queue *queue,
+                                struct o0_bio *bio) {
+    (void)queue;
+    if (async_hold) {
+        late_bio = bio;
+        return O0_OK;
+    }
+    if (bio->op == O0_BLOCK_READ) {
+        memset((uint8_t *)bio->vecs[0].page + bio->vecs[0].offset,
+               0x6c, bio->vecs[0].len);
+        o0_block_complete_bio(bio, O0_BLOCK_OK, bio->vecs[0].len);
+    } else {
+        o0_block_complete_bio(bio, O0_BLOCK_OK, 0);
+    }
+    return O0_OK;
+}
+
+static o0_status async_timeout(struct o0_block_queue *queue,
+                               struct o0_bio *bio) {
+    (void)queue;
+    (void)bio;
+    return O0_EAGAIN; /* not canceled: the late completion still owns the bio */
+}
+
+static const struct o0_block_queue_ops async_queue_ops = {
+    .queue_rq = async_queue_rq,
+    .poll = NULL,
+    .timeout = async_timeout
+};
+
+static const struct o0_block_ops async_block_ops = { 0 };
+
+static void test_timeout_late_completion(void) {
+    TEST("timed-out request remains valid through late completion");
+    memset(&async_dev, 0, sizeof(async_dev));
+    memset(&async_queue, 0, sizeof(async_queue));
+    memcpy(async_dev.name, "async0", 7);
+    async_dev.geo.logical_block_size = 512;
+    async_dev.geo.physical_block_size = 512;
+    async_dev.geo.nr_sectors = 8;
+    async_dev.geo.max_segments = 1;
+    async_dev.geo.max_segment_size = 4096;
+    async_dev.nr_queues = 1;
+    async_dev.queues = &async_queue;
+    async_dev.ops = &async_block_ops;
+    async_queue.id = 0;
+    async_queue.depth = 1;
+    async_queue.ops = &async_queue_ops;
+    async_hold = true;
+    late_bio = NULL;
+
+    ASSERT(o0_block_register(&async_dev) == O0_OK,
+           "asynchronous test device registration failed");
+    static uint8_t caller[512];
+    memset(caller, 0x11, sizeof(caller));
+    ASSERT(o0_block_read(&async_dev, 0, caller, sizeof(caller)) ==
+               O0_ETIMEDOUT,
+           "held request did not time out");
+    ASSERT(late_bio != NULL, "driver did not retain the submitted bio");
+    ASSERT(late_bio->vecs[0].page != caller,
+           "driver retained the caller's buffer instead of the bounce page");
+
+    memset(late_bio->vecs[0].page, 0x22, 512);
+    o0_block_complete_bio(late_bio, O0_BLOCK_OK, 512);
+    for (size_t i = 0; i < sizeof(caller); ++i) {
+        ASSERT(caller[i] == 0x11,
+               "late DMA/completion modified the expired caller buffer");
+    }
+
+    async_hold = false;
+    ASSERT(o0_block_read(&async_dev, 0, caller, sizeof(caller)) == O0_OK,
+           "request slot was not reusable after late completion");
+    for (size_t i = 0; i < sizeof(caller); ++i) {
+        ASSERT(caller[i] == 0x6c, "bounce-buffer read copy-back failed");
+    }
+    o0_block_unregister(&async_dev);
+    PASS();
+}
+
+static void test_transfer_limit_validation(void) {
+    TEST("block transfer sector and segment limits");
+    struct o0_block_dev *dev = NULL;
+    ASSERT(o0_ramdisk_create("limits", 256u * 1024u, &dev) == O0_OK,
+           "ramdisk creation failed");
+
+    static uint8_t page_a[4096] __attribute__((aligned(4096)));
+    static uint8_t page_b[4096] __attribute__((aligned(4096)));
+    struct o0_bio_vec vecs[2] = {
+        { page_a, 0, sizeof(page_a) },
+        { page_b, 0, sizeof(page_b) }
+    };
+    struct o0_bio bio;
+    memset(&bio, 0, sizeof(bio));
+    bio.op = O0_BLOCK_READ;
+    bio.nr_vecs = 2;
+    bio.vecs = vecs;
+    bio.end_io = block_sync_end; /* validation rejects before dispatch */
+
+    dev->geo.max_segments = 1;
+    dev->geo.max_hw_sectors = 2;
+    ASSERT(o0_block_submit_bio(dev, &bio) == O0_EINVAL,
+           "request exceeded max_segments but was accepted");
+
+    dev->geo.max_segments = 2;
+    dev->geo.max_hw_sectors = 1;
+    ASSERT(o0_block_submit_bio(dev, &bio) == O0_ERANGE,
+           "request exceeded max_hw_sectors but was accepted");
+
+    ASSERT(o0_ramdisk_destroy(dev) == O0_OK, "ramdisk destruction failed");
+    PASS();
+}
+
 static void test_registration_validation(void) {
     TEST("registration rejects invalid devices");
     static struct o0_block_dev dev;
@@ -227,6 +344,8 @@ int main(void) {
     printf("Ozero block layer unit tests\n\n");
 
     test_registration_validation();
+    test_timeout_late_completion();
+    test_transfer_limit_validation();
     test_read_write_roundtrip();
     test_fault_injection();
     test_duplicate_and_limits();
