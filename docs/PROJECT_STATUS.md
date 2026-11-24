@@ -1,7 +1,7 @@
 # Ozero Project Status
 
 Last updated: 2026-11-24  
-Current stage: **Stage 6 — Native graphical application environment (active; Phase 6.1 scoped and repository-audited, but framebuffer implementation and QEMU display evidence not yet complete). Stage 5 is closed as the software-foundation milestone; physical GPU execution and vendor-specific acceleration backends remain deferred.**  
+Current stage: **Stage 6 — Native graphical application environment (active; Phase 6.3 software surface code and host-test source authored and wired into Makefile, not tested. Phases 6.1–6.2 and 6.4–6.8 remain open; no desktop/QEMU acceptance claimed). Stage 5 is closed as the software-foundation milestone; physical GPU execution and vendor-specific acceleration backends remain deferred. See docs/stage6.md for the three-agent handoff and test plan.**  
 Stage 3 — processes, threads and scheduler: **implemented; boot-verified in QEMU BIOS for the Stage 3 revision**  
 Stage 2 — physical and virtual memory: **implemented, verified by build + host tests + QEMU boot**  
 Stage 1 — bootable x86-64 kernel: **implemented; see verification state**
