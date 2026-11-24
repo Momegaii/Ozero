@@ -262,6 +262,72 @@ static void test_file_roundtrip(void) {
     PASS();
 }
 
+static void test_write_rollback(void) {
+    TEST("write rollback restores existing data and metadata failures");
+    reset_world();
+    struct fixture fixture;
+    ASSERT(fixture_open(&fixture), "fixture setup failed");
+
+    ASSERT(o0fs_create_file(fixture.fs, "/txn") == O0_OK, "create failed");
+    static uint8_t original[8192];
+    static uint8_t replacement[8192];
+    static uint8_t readback[8192];
+    memset(original, 0x31, sizeof(original));
+    memset(replacement, 0xa7, sizeof(replacement));
+    size_t written = 0;
+    ASSERT(o0fs_write(fixture.fs, "/txn", 0, original, sizeof(original),
+                      &written) == O0_OK,
+           "initial file write failed");
+    ASSERT(written == sizeof(original), "initial write was short");
+
+    uint32_t inode_no = 0;
+    struct o0fs_inode_disk inode;
+    ASSERT(o0fs_lookup(fixture.fs, "/txn", &inode_no) == O0_OK,
+           "inode lookup failed");
+    ASSERT(fs_read_inode(fixture.fs, inode_no, &inode) == O0_OK,
+           "inode read failed");
+    ASSERT(inode.direct[0] != 0 && inode.direct[1] != 0,
+           "two data blocks were not allocated");
+    uint32_t free_before = o0fs_free_blocks(fixture.fs);
+
+    ASSERT(o0_ramdisk_inject_fault(fixture.dev, O0_BLOCK_ERR_IO,
+                                   inode.direct[1], 1) == O0_OK,
+           "second-block fault injection failed");
+    ASSERT(o0fs_write(fixture.fs, "/txn", 0, replacement,
+                      sizeof(replacement), &written) == O0_EIO,
+           "partial overwrite did not report its injected failure");
+    ASSERT(o0fs_free_blocks(fixture.fs) == free_before,
+           "failed overwrite changed free-space accounting");
+    memset(readback, 0, sizeof(readback));
+    size_t got = 0;
+    ASSERT(o0fs_read(fixture.fs, "/txn", 0, readback, sizeof(readback),
+                     &got) == O0_OK,
+           "read after partial overwrite failure failed");
+    ASSERT(got == sizeof(original) &&
+               memcmp(readback, original, sizeof(original)) == 0,
+           "partial overwrite failure did not restore original bytes");
+
+    /* Fail only the inode-table write, after the new data block was written. */
+    ASSERT(o0_ramdisk_inject_write_fault(fixture.dev, O0_BLOCK_ERR_IO,
+                                         fs_inode_lba(fixture.fs, inode_no),
+                                         1) == O0_OK,
+           "inode-write fault injection failed");
+    ASSERT(o0fs_write(fixture.fs, "/txn", 0, replacement, 512,
+                      &written) == O0_EIO,
+           "final inode persistence failure was not reported");
+    memset(readback, 0, sizeof(readback));
+    got = 0;
+    ASSERT(o0fs_read(fixture.fs, "/txn", 0, readback, sizeof(readback),
+                     &got) == O0_OK,
+           "read after inode persistence failure failed");
+    ASSERT(got == sizeof(original) &&
+               memcmp(readback, original, sizeof(original)) == 0,
+           "inode persistence failure did not restore original bytes");
+
+    fixture_close(&fixture);
+    PASS();
+}
+
 static void test_indirect_blocks_and_truncate(void) {
     TEST("indirect blocks, truncate and zero fill");
     reset_world();
@@ -570,6 +636,7 @@ int main(void) {
     test_format_and_mount();
     test_format_rules();
     test_file_roundtrip();
+    test_write_rollback();
     test_indirect_blocks_and_truncate();
     test_directories();
     test_error_paths();
