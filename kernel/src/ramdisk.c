@@ -28,6 +28,7 @@ struct o0_ramdisk {
 
     /* Fault injection state. remaining < 0 means "unlimited". */
     o0_block_status fault;
+    bool fault_write_only;
     uint64_t fault_lba;
     int64_t remaining;
 };
@@ -66,8 +67,8 @@ static void ramdisk_copy(struct o0_ramdisk *rd, uint64_t byte_offset,
 }
 
 static bool ramdisk_fault_matches(struct o0_ramdisk *rd, uint64_t lba,
-                                  uint64_t sectors) {
-    if (rd->fault == O0_BLOCK_OK) {
+                                  uint64_t sectors, bool is_write) {
+    if (rd->fault == O0_BLOCK_OK || (rd->fault_write_only && !is_write)) {
         return false;
     }
     if (rd->remaining == 0) {
@@ -117,7 +118,8 @@ static o0_status ramdisk_queue_rq(struct o0_block_queue *queue,
 
     uint64_t sectors = bytes / rd->dev.geo.logical_block_size;
     if (rd->fault != O0_BLOCK_OK &&
-        ramdisk_fault_matches(rd, bio->lba, sectors)) {
+        ramdisk_fault_matches(rd, bio->lba, sectors,
+                              bio->op == O0_BLOCK_WRITE)) {
         ramdisk_complete(bio, rd->fault, 0);
         return O0_OK;
     }
@@ -145,6 +147,7 @@ static o0_status ramdisk_reset(struct o0_block_dev *dev) {
         return O0_ENOENT;
     }
     rd->fault = O0_BLOCK_OK;
+    rd->fault_write_only = false;
     rd->remaining = 0;
     return O0_OK;
 }
@@ -325,5 +328,18 @@ o0_status o0_ramdisk_inject_fault(struct o0_block_dev *dev,
     rd->fault = status;
     rd->fault_lba = fail_lba;
     rd->remaining = status == O0_BLOCK_OK ? 0 : count;
+    return O0_OK;
+}
+
+o0_status o0_ramdisk_inject_write_fault(struct o0_block_dev *dev,
+                                        o0_block_status status,
+                                        uint64_t fail_lba,
+                                        int64_t count) {
+    o0_status st = o0_ramdisk_inject_fault(dev, status, fail_lba, count);
+    if (st != O0_OK) {
+        return st;
+    }
+    struct o0_ramdisk *rd = ramdisk_from_dev(dev);
+    rd->fault_write_only = status != O0_BLOCK_OK;
     return O0_OK;
 }
