@@ -1,6 +1,6 @@
 # Stage 5: GPU memory and Haswell submission
 
-- Status: **Active — Phase 1 corrected (open); Phase 2 implemented (unverified); Phase 3 research dossier added; implementation blocked on hardware verification**
+- Status: **Active — Phase 1 corrected (open); Phase 2 implemented (unverified); Phase 3 specification review complete from the primary PRM (two items partial); implementation blocked on hardware verification**
 - Roadmap stage: 5
 - Initial hardware backend: Intel Haswell Gen7.5 integrated graphics
 - Concrete bring-up target: Intel HD Graphics 4600 (device ID and revision must be confirmed on the target machine)
@@ -150,14 +150,18 @@ This phase is Haswell-specific. Do not reuse Gen8+ GPU page-table assumptions.
 
 ### 6.1 Specification review
 
-- [ ] Review the Haswell Graphics PRM memory-view material and relevant generation-specific programming reference volumes.
-- [ ] Confirm the Gen7.5 PPGTT hierarchy and entry formats.
-- [ ] Confirm GGTT structure and programming requirements.
-- [ ] Confirm address-width and physical-address constraints.
-- [ ] Confirm reserved bits, permissions and supported page sizes.
-- [ ] Confirm page-directory/page-table alignment and allocation requirements.
-- [ ] Confirm translation-cache invalidation and ordering requirements.
-- [ ] Record ambiguities and undocumented behavior as open issues; do not guess.
+Evidence is recorded in [docs/research/haswell-gen75-ppgtt-ggtt.md](research/haswell-gen75-ppgtt-ggtt.md),
+which cites the primary PRM Volume 5 (2013-12-18) and the supporting 2013 Haswell volumes by
+section and page.
+
+- [x] Review the Haswell Graphics PRM memory-view material and relevant generation-specific programming reference volumes. (Volumes 5, 2b, 2c, 2d and 12 read; SHA-256 of the primary PDF recorded.)
+- [x] Confirm the Gen7.5 PPGTT hierarchy and entry formats. (Two-level directory/table, PDE and PTE bit layouts; one open conflict: the PRM's 1024-entries-per-page statement versus the 512-entry directory-cache coverage.)
+- [ ] Confirm GGTT structure and programming requirements. (Single-level walk and PTE format confirmed; `PGTBL_CTL`/`PGTBL_CTL2` bit layouts were not found in the extracted register volume.)
+- [x] Confirm address-width and physical-address constraints. (PTE physical bits 38:0, PDE page-table bits 39:0, 2 GiB virtual-address ceiling derived from the directory-cache coverage.)
+- [x] Confirm reserved bits, permissions and supported page sizes. (PDE bits 3:2 reserved; no permission bits in either entry; 4 KiB and 32 KiB page sizes.)
+- [x] Confirm page-directory/page-table alignment and allocation requirements. (4 KiB base alignment; directory in GGTT; tables in unsnooped main memory; 32 KiB page alignment for big pages.)
+- [ ] Confirm translation-cache invalidation and ordering requirements. (Command bits and the directory-cache caveat confirmed; no documented completion/wait semantics for invalidation.)
+- [x] Record ambiguities and undocumented behavior as open issues; do not guess. (Section 12.3 of the dossier.)
 
 ### 6.2 PPGTT
 

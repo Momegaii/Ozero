@@ -95,6 +95,10 @@ Stage 1 — bootable x86-64 kernel: **implemented; see verification state**
 
 - Plan and phased task checklist: [docs/stage5-gpu.md](stage5-gpu.md).
 - **Phase 0 — agent inspection and preparation: complete by Project Director acceptance.**
+- Phase 3 specification review is complete from the primary Intel Haswell PRM Volume 5
+  (2013-12-18) and the supporting 2013 command/register volumes, with two checklist items still
+  partial (GGTT `PGTBL_CTL` layouts and TLB-invalidation completion semantics). Evidence and
+  open questions: [docs/research/haswell-gen75-ppgtt-ggtt.md](research/haswell-gen75-ppgtt-ggtt.md).
 - Phases 1–7 remain implementation work: GPU discovery; GPU memory objects/address spaces; Haswell Gen7.5 PPGTT/GGTT; engine-specific submission/completion; contexts/queues/scheduling; backend boundaries; verification and integration.
 - Stage 5 implementation has not yet been verified. No GPU functionality is currently claimed as implemented or hardware-tested.
 - Intel Haswell Gen7.5 is the first backend target. Intel HD Graphics 4600 is a concrete bring-up target, not the limit of Ozero GPU support.
