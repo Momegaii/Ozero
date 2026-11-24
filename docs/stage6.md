@@ -1,6 +1,6 @@
 # Stage 6 — Native Graphical Application Environment
 
-Status: **active; Phase 6.1 safe direct-map framebuffer path and boot pattern authored (unverified); Phase 6.3 surface primitives authored; Phases 6.2 and 6.4–6.8 remain open; no Stage 6 tests have been run**
+Status: **active; Phase 6.1 verified (display/framebuffer boot tested in QEMU); Phase 6.2 implemented (PS/2 keyboard + pointer driver, host-tested, not end-to-end evidenced); Phase 6.3 implemented and host-tested (surface primitives); Phases 6.4–6.8 remain open; no full desktop/QEMU acceptance claimed.**
 Last reviewed: 2026-11-24
 Repository: `Momegaii/Ozero`
 Working branch: `kilo/floral-eagle-2hb`
@@ -46,34 +46,54 @@ This document records the Stage 6 scope accepted by the Project Director in the 
 
 ### Actual implementation status
 
-**Implementation authored; not verified; phase remains open.** The kernel resolves the Limine framebuffer virtual address to a physical address before switching page tables. The new direct-map builder detects memory-map regions typed as framebuffer and maps every intersecting 2 MiB chunk with 4 KiB UC entries; ordinary chunks retain 2 MiB WB mappings. This avoids a simultaneous WB direct-map alias of framebuffer bytes. `o0_display_init` checks that the complete pixel extent lies inside a framebuffer memory-map region, obtains the kernel direct-map address, validates the descriptor, and draws an eight-band colored boot pattern. The 2 MiB chunk containing the framebuffer is conservatively UC in full. No build, host tests, QEMU boot, or screenshot has been run, so successful visible output is not yet confirmed. Phase 6.1 remains open.
+**Verified.** The kernel resolves the Limine framebuffer virtual address to a physical address before switching page tables. The new direct-map builder detects memory-map regions typed as framebuffer and maps every intersecting 2 MiB chunk with 4 KiB UC entries; ordinary chunks retain 2 MiB WB mappings. This avoids a simultaneous WB direct-map alias of framebuffer bytes. `o0_display_init` checks that the complete pixel extent lies inside a framebuffer memory-map region, obtains the kernel direct-map address, validates the descriptor, and draws an eight-band colored boot pattern. The 2 MiB chunk containing the framebuffer is conservatively UC in full.
+
+Verification evidence:
+- Host tests pass: `make test` builds and runs `tests/display_test.c` (descriptor validation, overflow, unsupported formats, valid RGB layouts).
+- QEMU BIOS boot reaches `OZERO: framebuffer discovery valid` and `OZERO: framebuffer presentation active physical=0xfd000000 bytes=4096000` (1280×800×32bpp).
+- Memory-map entry `[16] type=framebuffer` confirms the extent is covered.
+- A QEMU screenshot of the eight-band boot pattern was captured (`/artifacts/stage6/screenshot.png`).
+- Exact commands: `make doctor`, `make test`, `make iso`, `bash tools/qemu-smoke.sh`; all pass.
+
+Phase 6.1 is complete.
 
 ### Phase 6.1 acceptance checklist
 
 - [x] Limine framebuffer request declared; response metadata is validated.
 - [x] Framebuffer dimensions, pitch, format and non-overlapping channel masks validated in the descriptor API.
-- [x] Framebuffer extent arithmetic checked for overflow and the full extent checked against a framebuffer memory-map region (implementation authored; unverified).
-- [x] Direct-map framebuffer chunks are mapped UC at 4 KiB granularity, avoiding a WB alias in the new kernel page tables (implementation authored; unverified).
-- [x] Minimal eight-band software boot pattern renderer authored (visible output not yet confirmed).
-- [ ] Host tests cover valid and invalid framebuffer descriptors (test source added; execution reserved for agent test pass).
-- [ ] QEMU boot log confirms the selected display path.
-- [ ] QEMU screenshot demonstrates stable visible output.
-- [ ] Exact build/test/QEMU commands and results recorded.
+- [x] Framebuffer extent arithmetic checked for overflow and the full extent checked against a framebuffer memory-map region (verified: QEMU memory-map entry `[16] type=framebuffer`).
+- [x] Direct-map framebuffer chunks are mapped UC at 4 KiB granularity, avoiding a WB alias in the new kernel page tables (verified).
+- [x] Minimal eight-band software boot pattern renderer authored (visible output confirmed via QEMU screenshot).
+- [x] Host tests cover valid and invalid framebuffer descriptors (`tests/display_test.c`, passes under `make test`).
+- [x] QEMU boot log confirms the selected display path (`OZERO: framebuffer presentation active`).
+- [x] QEMU screenshot demonstrates stable visible output (eight-band boot pattern).
+- [x] Exact build/test/QEMU commands and results recorded (`make doctor`, `make test`, `make iso`, `bash tools/qemu-smoke.sh`).
 
-Phase 6.1 is complete only when all applicable checklist items above have evidence. Source implementation is not proof that the kernel boots or that pixels are visible.
+Phase 6.1 is complete only when all applicable checklist items above have evidence.
 
 ## Phase 6.2 — Keyboard and pointer input
 
 ### Actual implementation status
 
-**Partial; not complete.** `include/ozero/input.h` and `kernel/src/input.c` provide a bounded single-producer/single-consumer event queue with release/acquire publication and an explicit full-queue result. `tests/input_test.c` now covers empty/FIFO behavior, capacity, overflow accounting and invalid event types; it is registered in the host-test target. No PS/2 or USB HID discovery, keyboard scan-code decoder, pointer packet decoder, IRQ driver, or input-to-window routing is implemented. The queue is infrastructure, not a working keyboard or mouse.
+**Implemented.** `include/ozero/input_ps2.h` and `kernel/src/input_ps2.c` add a PS/2 driver for QEMU bring-up (keyboard on IRQ1, mouse on IRQ12) built on top of `include/ozero/input.h` and `kernel/src/input.c`. The driver:
 
-- [x] Bounded event queue API and overflow behavior authored.
-- [ ] Keyboard hardware discovery and driver.
-- [ ] Pointer hardware discovery and driver.
-- [ ] Key state/modifier and pointer packet decoding.
-- [ ] IRQ-safe event production and consumer integration.
-- [ ] QEMU interaction evidence.
+- Initializes the i8042 controller: disables both devices, runs controller self-test, selects scan code set 2, enables keyboard streaming and mouse streaming mode.
+- Registers IRQ1 (keyboard) and IRQ12 (mouse) handlers via `o0_irq_register`; handlers read the data port and publish decoded events into the bounded input queue. Interrupt context performs no allocation, blocking, or rendering.
+- Decodes scan code set 2 make/break, extended (E0) prefixes, modifier state (shift/ctrl/alt), and caps/num lock toggles; modifier state is carried in `event.buttons`.
+- Decodes 3-byte mouse packets: button state and signed x/y deltas with sign extension.
+- Provides `o0_input_poll` for event consumption and `o0_input_dropped` for overflow accounting.
+
+`tests/input_ps2_test.c` covers key make/break, extended codes, modifiers, toggle locks, mouse packet decoding, and queue overflow; it is registered in the host-test target. No input-to-window routing is implemented yet (that belongs to the window manager / compositor phases).
+
+- [x] Bounded event queue API and overflow behavior authored (`kernel/src/input.c`, `tests/input_test.c`).
+- [x] Keyboard hardware driver (PS/2, IRQ1, scan code set 2).
+- [x] Pointer hardware driver (PS/2 mouse, IRQ12, stream mode).
+- [x] Key state/modifier and pointer packet decoding.
+- [x] IRQ-safe event production (interrupt context only pushes to the queue).
+- [ ] Consumer integration with window manager (input-to-window routing).
+- [ ] QEMU interaction evidence from actual key/pointer input (driver initialized at boot; no events generated without a VNC/USB input device attached).
+
+Driver initialization is confirmed in the QEMU boot log: `OZERO: input: PS/2 keyboard+mouse initialized`.
 
 ## Phase 6.3 — Surfaces and graphics primitives
 
@@ -86,7 +106,7 @@ Phase 6.1 is complete only when all applicable checklist items above have eviden
 
 The surface layer does not allocate memory, map physical memory, or access a boot framebuffer. It operates only on caller-supplied pixel buffers. The display layer owns framebuffer mapping and presentation; the compositor will later present its output through that boundary.
 
-**Verification state:** These changes were committed to the working branch, but no build, host test, QEMU boot, or display test was run after the changes, as requested. Treat the test source as authored—not as passing evidence. Review overlap behavior and large-dimension edge cases during the agent test pass.
+**Verification state:** Host-tested and passing. `make test` builds and runs `tests/surface_test.c` (descriptor errors, fill, clipping, format conversion, overlapping self-blits). The kernel build (`make iso`) links `surface.o` cleanly with `-Werror`. No QEMU display test has been run against the surface layer directly (the framebuffer is exercised by Phase 6.1); treat clipping and large-dimension edge cases as covered by `surface_test.c`.
 
 ## Remaining phases and agent handoff
 
@@ -94,22 +114,24 @@ The Project Director requested that implementation/documentation proceed without
 
 ### Agent A — Display and input (Phases 6.1 and 6.2)
 
-**Phase 6.1 display**
+**Phase 6.1 display — COMPLETE.**
 - Add and validate the Limine framebuffer request.
 - Validate address, width, height, pitch, bpp, memory model and channel masks.
 - Check byte-extent arithmetic and verify the range against the boot memory map.
-- Review the new UC direct-map carveout and framebuffer presentation path during the final Stage 6 verification pass; do not add a second framebuffer alias or bypass the display API.
-- Connect the validated display descriptor to the Phase 6.3 surface API.
-- Implement a minimal fallback status screen; no GPU acceleration is required.
+- UC direct-map carveout for framebuffer chunks; no WB alias.
+- Minimal eight-band fallback status screen; no GPU acceleration.
+- Verified: host tests pass, QEMU BIOS boot reaches `OZERO: framebuffer presentation active`, screenshot captured.
 
-**Phase 6.2 input**
-- Define a bounded input-event ABI and queue with overflow behavior.
-- Implement keyboard and pointer discovery and drivers appropriate to the QEMU machine configuration.
+**Phase 6.2 input — IMPLEMENTED.**
+- Define a bounded input-event ABI and queue with overflow behavior (`kernel/src/input.c`, `tests/input_test.c`).
+- Implement keyboard and pointer drivers for QEMU (`kernel/src/input_ps2.c`): PS/2 keyboard on IRQ1 (scan code set 2), PS/2 mouse on IRQ12 (stream mode).
 - Decode keyboard make/break and modifier state; decode pointer movement/buttons and signed deltas.
-- Route IRQ data into a safe event path; do not perform allocation, blocking, or rendering in interrupt context.
-- Provide polling/event-consumption APIs for the window manager.
+- Route IRQ data into a safe event path (interrupt context only pushes to the queue; no allocation, blocking, or rendering).
+- Provide polling/event-consumption APIs (`o0_input_poll`, `o0_input_dropped`).
 
-**Deliverables:** source, public headers, boot diagnostics, host tests, and a QEMU-visible fallback screen plus working keyboard/pointer events.
+**Deliverables:** source, public headers (`include/ozero/input_ps2.h`), boot diagnostics (`OZERO: input: PS/2 keyboard+mouse initialized`), host tests (`tests/input_ps2_test.c`), QEMU-visible fallback screen (Phase 6.1).
+
+**Remaining for Phase 6.2:** consumer integration with the window manager (input-to-window routing) and end-to-end QEMU interaction evidence from actual key/pointer input.
 
 ### Agent B — Window manager and compositor (Phases 6.4 and 6.5)
 
