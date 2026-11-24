@@ -313,6 +313,8 @@ static o0_status block_status_to_status(o0_block_status status) {
 #define BLOCK_SYNC_WAITING    1u
 #define BLOCK_SYNC_COMPLETED  2u
 #define BLOCK_SYNC_ABANDONED  3u
+#define BLOCK_SYNC_CANCELING  4u
+#define BLOCK_SYNC_LATE_DONE  5u
 
 struct block_sync_slot {
     volatile uint32_t state;
@@ -357,8 +359,14 @@ static void block_sync_end(struct o0_bio *bio, o0_block_status status,
 
     /* The caller timed out. This callback is now the final owner of the slot. */
     expected = BLOCK_SYNC_ABANDONED;
+    if (__atomic_compare_exchange_n(&slot->state, &expected,
+                                    BLOCK_SYNC_FREE, false,
+                                    __ATOMIC_RELEASE, __ATOMIC_RELAXED)) {
+        return;
+    }
+    expected = BLOCK_SYNC_CANCELING;
     (void)__atomic_compare_exchange_n(&slot->state, &expected,
-                                       BLOCK_SYNC_FREE, false,
+                                       BLOCK_SYNC_LATE_DONE, false,
                                        __ATOMIC_RELEASE, __ATOMIC_RELAXED);
 }
 
@@ -433,12 +441,28 @@ static o0_status block_sync_transfer(struct o0_block_dev *dev, o0_block_op op,
              * the slot and its bounce buffer remain quarantined until late
              * completion releases them.
              */
-            if (queue->ops->timeout != NULL &&
-                queue->ops->timeout(queue, &slot->bio) == O0_OK) {
+            if (queue->ops->timeout != NULL) {
                 expected = BLOCK_SYNC_ABANDONED;
-                (void)__atomic_compare_exchange_n(
-                    &slot->state, &expected, BLOCK_SYNC_FREE, false,
-                    __ATOMIC_RELEASE, __ATOMIC_RELAXED);
+                if (__atomic_compare_exchange_n(
+                        &slot->state, &expected, BLOCK_SYNC_CANCELING, false,
+                        __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
+                    o0_status cancel_st =
+                        queue->ops->timeout(queue, &slot->bio);
+                    if (cancel_st == O0_OK) {
+                        /* The driver guarantees no DMA/callback can still run. */
+                        __atomic_store_n(&slot->state, BLOCK_SYNC_FREE,
+                                         __ATOMIC_RELEASE);
+                    } else {
+                        expected = BLOCK_SYNC_CANCELING;
+                        if (!__atomic_compare_exchange_n(
+                                &slot->state, &expected, BLOCK_SYNC_ABANDONED,
+                                false, __ATOMIC_RELEASE, __ATOMIC_ACQUIRE) &&
+                            expected == BLOCK_SYNC_LATE_DONE) {
+                            __atomic_store_n(&slot->state, BLOCK_SYNC_FREE,
+                                             __ATOMIC_RELEASE);
+                        }
+                    }
+                }
             }
             return O0_ETIMEDOUT;
         }
