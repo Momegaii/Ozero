@@ -22,7 +22,7 @@ KERNEL_OBJS := $(BUILD)/main.o $(BUILD)/serial.o $(BUILD)/string.o $(BUILD)/stat
                $(BUILD)/interrupts_c.o $(BUILD)/interrupts.o $(BUILD)/irq_stubs.o \
                $(BUILD)/context.o $(BUILD)/block.o $(BUILD)/ramdisk.o \
                $(BUILD)/o0fs.o $(BUILD)/pci.o $(BUILD)/gpu.o $(BUILD)/gpu_hsw.o \
-               $(BUILD)/gpu_device.o $(BUILD)/gpu_queue.o
+               $(BUILD)/gpu_device.o $(BUILD)/gpu_queue.o $(BUILD)/surface.o
 
 HOST_CFLAGS := -std=gnu11 -O1 -Wall -Wextra -Iinclude
 
@@ -127,6 +127,8 @@ test: $(BUILD)
 	./$(BUILD)/pci_test
 	$(CC) $(HOST_CFLAGS) -Ikernel/src -o $(BUILD)/gpu_test tests/gpu_test.c
 	./$(BUILD)/gpu_test
+	$(CC) $(HOST_CFLAGS) -o $(BUILD)/surface_test tests/surface_test.c kernel/src/surface.c
+	./$(BUILD)/surface_test
 
 run: $(ISO)
 	$(QEMU) -machine q35 -m 512M -cdrom $(ISO) -boot d \
