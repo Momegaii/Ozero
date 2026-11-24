@@ -156,6 +156,7 @@ static void test_timeout_late_completion(void) {
 
     memset(late_bio->vecs[0].page, 0x22, 512);
     o0_block_complete_bio(late_bio, O0_BLOCK_OK, 512);
+    o0_block_complete_bio(late_bio, O0_BLOCK_OK, 512); /* duplicate is ignored */
     for (size_t i = 0; i < sizeof(caller); ++i) {
         ASSERT(caller[i] == 0x11,
                "late DMA/completion modified the expired caller buffer");
