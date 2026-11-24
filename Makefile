@@ -22,7 +22,9 @@ KERNEL_OBJS := $(BUILD)/main.o $(BUILD)/serial.o $(BUILD)/string.o $(BUILD)/stat
                $(BUILD)/interrupts_c.o $(BUILD)/interrupts.o $(BUILD)/irq_stubs.o \
                $(BUILD)/context.o $(BUILD)/block.o $(BUILD)/ramdisk.o \
                $(BUILD)/o0fs.o $(BUILD)/pci.o $(BUILD)/gpu.o $(BUILD)/gpu_hsw.o \
-               $(BUILD)/gpu_device.o $(BUILD)/gpu_queue.o $(BUILD)/surface.o
+               $(BUILD)/gpu_device.o $(BUILD)/gpu_queue.o $(BUILD)/surface.o \\
+               $(BUILD)/display.o $(BUILD)/input.o $(BUILD)/window.o \\
+               $(BUILD)/compositor.o $(BUILD)/gfx_backend.o $(BUILD)/shell.o
 
 HOST_CFLAGS := -std=gnu11 -O1 -Wall -Wextra -Iinclude
 
