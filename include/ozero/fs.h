@@ -42,6 +42,7 @@ extern "C" {
 #define O0FS_MAX_FILE_BYTES ((uint64_t)O0FS_MAX_FILE_BLOCKS * O0FS_BLOCK_SIZE)
 #define O0FS_MAX_BLOCK_COUNT 4096u
 #define O0FS_MIN_BLOCK_COUNT 32u
+#define O0FS_MAX_INODE_COUNT (O0FS_BLOCK_SIZE * 8u)
 #define O0FS_MAX_MOUNTS 2u
 
 enum o0fs_type {

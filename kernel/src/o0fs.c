@@ -168,25 +168,33 @@ static bool fs_super_valid(const struct o0fs_super_disk *super,
         return false;
     }
     if (super->inode_count == 0 ||
+        super->inode_count > O0FS_MAX_INODE_COUNT ||
         super->inode_count % O0FS_INODES_PER_BLOCK != 0) {
         return false;
     }
     if (super->inode_table_block != 1 ||
-        super->inode_table_blocks == 0 ||
-        super->inode_table_blocks * O0FS_INODES_PER_BLOCK != super->inode_count) {
+        super->inode_table_blocks == 0) {
+        return false;
+    }
+    /* Overflow-safe: inode_table_blocks * INODES_PER_BLOCK == inode_count. */
+    if ((uint64_t)super->inode_table_blocks * O0FS_INODES_PER_BLOCK !=
+        super->inode_count) {
         return false;
     }
     if (super->block_bitmap_blocks != 1 || super->inode_bitmap_blocks != 1) {
         return false;
     }
-    if (super->block_bitmap_block !=
-        super->inode_table_block + super->inode_table_blocks) {
+    /* Overflow-safe layout sums. */
+    uint64_t block_bitmap_block =
+        (uint64_t)super->inode_table_block + super->inode_table_blocks;
+    if (block_bitmap_block != super->block_bitmap_block ||
+        block_bitmap_block > UINT32_MAX) {
         return false;
     }
-    if (super->inode_bitmap_block != super->block_bitmap_block + 1) {
+    if ((uint64_t)super->block_bitmap_block + 1u != super->inode_bitmap_block) {
         return false;
     }
-    if (super->data_block != super->inode_bitmap_block + 1 ||
+    if ((uint64_t)super->inode_bitmap_block + 1u != super->data_block ||
         super->data_block >= super->block_count) {
         return false;
     }
