@@ -340,6 +340,11 @@ static o0_status block_sync_transfer(struct o0_block_dev *dev, o0_block_op op,
     }
 
     if (!state.done) {
+        /* Cancel the request from the synchronous caller's point of view: drop
+         * the completion callback and private pointer so that a driver which
+         * completes the bio later cannot dereference the expired stack state. */
+        bio.end_io = NULL;
+        bio.private = NULL;
         return O0_ETIMEDOUT;
     }
     if (state.status != O0_BLOCK_OK) {
