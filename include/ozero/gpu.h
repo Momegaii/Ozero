@@ -6,22 +6,31 @@
 #include <stddef.h>
 
 #include "ozero/status.h"
+#include "ozero/sync.h"
 
 struct o0_gpu_memory {
     uint64_t size;
     uint32_t order;
+    o0_paddr_t phys_base;
+    uint32_t page_count;
     void *backing;
     uint32_t refcount;
     uint32_t pinned;
     bool resident;
     bool evictable;
+    o0_spinlock_t lock;
 };
 
 struct o0_gpu_vm {
     uint64_t base;
     uint64_t size;
     uint64_t next_va;
+    o0_spinlock_t lock;
 };
+
+o0_status o0_gpu_vm_alloc(struct o0_gpu_vm *vm, uint64_t size, uint64_t align,
+                          uint64_t *out_va);
+o0_status o0_gpu_vm_free(struct o0_gpu_vm *vm, uint64_t va, uint64_t size);
 
 struct o0_gpu_mapping {
     struct o0_gpu_vm *vm;
