@@ -40,22 +40,22 @@ This document records the Stage 6 scope accepted by the Project Director in the 
 ### Repository audit performed
 
 - Inspected the active branch's README, roadmap, project status, boot entry point, Limine request declarations and paging implementation.
-- Confirmed the kernel entry point currently requests the Limine memory map and HHDM, but does not declare a Limine framebuffer request.
-- Confirmed there is no existing display/framebuffer subsystem in the inspected source paths.
+- Confirmed the kernel entry point declares a Limine framebuffer request and validates the returned metadata after the paging switch. Pixel access remains disabled.
+- Confirmed `include/ozero/display.h` and `kernel/src/display.c` provide a metadata descriptor and validator, but no framebuffer mapping or pixel presentation API exists yet.
 - Identified an important safety constraint: the current kernel uses a write-back direct map. A framebuffer must not be written through that alias until a safe framebuffer mapping/cache policy is implemented.
 
 ### Actual implementation status
 
-**Not complete.** The work performed so far is repository inspection, scope definition and implementation planning. No framebuffer request, display descriptor implementation, framebuffer mapping, pixel renderer, host tests, QEMU display validation or screenshot has been committed as part of Phase 6.1. Therefore Phase 6.1 must remain open.
+**In progress; not complete.** The Limine framebuffer request and metadata validation are present. This change tightens validation of channel-mask overlap, pitch/extent overflow and the reported framebuffer byte length, and adds `tests/display_test.c` to the host-test target. No safe framebuffer mapping, pixel renderer, QEMU display validation or screenshot is present. The mapping must not be added until the architecture layer prevents conflicting cache-type aliases with the existing write-back direct map. Phase 6.1 remains open.
 
 ### Phase 6.1 acceptance checklist
 
-- [ ] Limine framebuffer request added and response validated.
-- [ ] Framebuffer dimensions, pitch, format and channel masks validated.
+- [x] Limine framebuffer request declared; response metadata is validated.
+- [x] Framebuffer dimensions, pitch, format and non-overlapping channel masks validated in the descriptor API.
 - [ ] Framebuffer extent arithmetic checked for overflow and checked against the boot memory map.
 - [ ] Safe mapping/cache policy implemented; no unsafe write-back alias used.
 - [ ] Minimal fallback renderer writes a known test pattern or status screen.
-- [ ] Host tests cover valid and invalid framebuffer descriptors.
+- [ ] Host tests cover valid and invalid framebuffer descriptors (test source added; execution reserved for agent test pass).
 - [ ] QEMU boot log confirms the selected display path.
 - [ ] QEMU screenshot demonstrates stable visible output.
 - [ ] Exact build/test/QEMU commands and results recorded.
