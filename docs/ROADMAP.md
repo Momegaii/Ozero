@@ -23,7 +23,8 @@ These are development stages, not delivery-date promises. The order is intention
 - **Stage 2** — Implemented: physical page allocator, normalised boot memory map, 4-level page-table construction, page-fault error-code decoding, CPU feature discovery (CPUID). The CR3 switch, the HHDM direct map, `virt_to_phys`/`phys_to_virt` and the address-space API landed with Stage 3. Remaining: memory reclaim.
 - **Stage 3** — Implemented and boot-verified in QEMU (BIOS): kernel runs on its own page tables; slab kernel heap; processes, kernel threads and per-thread stacks; assembly context switch; PIT-driven preemptive priority round-robin scheduler (demo threads run to completion under the timer); spinlocks and blocking mutexes; host unit tests for the allocator and scheduler. Remaining: UEFI boot verification (OVMF) and physical hardware validation.
 - **Stage 4** — Implemented and verified at the QEMU BIOS substrate level: block layer with validated registration, request/transfer limits, atomic completion and safe timed-out request ownership; RAM disk with fault injection; draft OzeroFS with checksummed layout validation and runtime undo-image rollback for failed writes; expanded host tests pass (block 6/6, OzeroFS 10/10); QEMU BIOS smoke passes on q35 with qemu64 and Haswell-v1 CPU models. Remaining: QEMU UEFI/OVMF verification, real hardware protocol drivers (AHCI/NVMe), partition discovery, the asynchronous I/O model, an approved filesystem format and crash-consistency/recovery design, and physical validation. See `docs/decisions/0003-stage4-storage.md`.
-- **Stages 5–10** — Not started.
+- **Stage 5** — Planning documented in [docs/stage5-gpu.md](stage5-gpu.md); implementation not started. The plan uses Haswell Gen7.5 as the first backend while keeping the GPU-independent core open to separately researched future GPU backends.
+- **Stages 6–10** — Not started.
 
 ## Dependency rules
 
