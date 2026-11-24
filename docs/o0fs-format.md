@@ -109,7 +109,7 @@ reuse; no compaction is performed. Directory size is always a multiple of 4096.
 | `o0fs_mount` | Validates the superblock and root inode. On failure releases every page it allocated and returns `EINVAL`/`EIO`. |
 | `o0fs_create_file`, `o0fs_mkdir` | Fail with `EEXIST` if the name exists, `ENOENT` if the parent is missing, `ENOTDIR` if a component is a file, `EINVAL` for an invalid or over-long path. |
 | `o0fs_read` | Short reads at end of file; a hole reads as zeros; reading a directory is `EISDIR`. |
-| `o0fs_write` | Extends the file and zero-fills any gap. A failed write releases blocks allocated by that call and restores the previous inode, so a full volume does not leak blocks. |
+| `o0fs_write` | Extends the file and zero-fills any gap. Before mutation, it captures undo images of existing data blocks that may be overwritten. On a reported failure it attempts to restore those blocks, release newly allocated blocks and restore the previous inode. The rollback is only as reliable as the device's ability to complete the recovery writes. |
 | `o0fs_truncate` | Shrinking frees blocks beyond the new size; growing zero-fills. |
 | `o0fs_unlink` | Files only; a directory is `EISDIR`. Removes the entry, then frees the inode and its blocks. |
 | `o0fs_rmdir` | Empty directories only (`ENOTEMPTY`); the root is `EPERM`. |
@@ -119,11 +119,15 @@ bytes. `.` and `..` are rejected.
 
 ## 7. Consistency limits
 
-There is no journal, no copy-on-write and no write-back cache. Each mutation writes
-whole 4 KiB blocks. Consequences:
+There is no journal, no copy-on-write transaction protocol and no write-back cache.
+The live write path uses temporary page-backed undo images for existing data blocks;
+these are released after success or rollback and are not persistent recovery records.
+Each mutation writes whole 4 KiB blocks. Consequences:
 
-- A power loss between block writes can leave the volume needing repair; there is no
-  `fsck` yet.
+- A power loss between block writes can leave the volume needing repair; runtime undo
+  images do not survive power loss and there is no `fsck` yet.
+- If the device also fails during rollback, the write returns `EIO`; the filesystem
+  cannot promise that the previous bytes or metadata were fully restored.
 - A metadata I/O error during truncate can leave freed blocks recorded as holes; the
   inode is written to match the bitmap, but the operation is not rolled back.
 - Unlink removes the directory entry before releasing the inode; an I/O error in
