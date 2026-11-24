@@ -129,6 +129,8 @@ test: $(BUILD)
 	./$(BUILD)/pci_test
 	$(CC) $(HOST_CFLAGS) -Ikernel/src -o $(BUILD)/gpu_test tests/gpu_test.c
 	./$(BUILD)/gpu_test
+	$(CC) $(HOST_CFLAGS) -o $(BUILD)/display_test tests/display_test.c kernel/src/display.c
+	./$(BUILD)/display_test
 	$(CC) $(HOST_CFLAGS) -o $(BUILD)/surface_test tests/surface_test.c kernel/src/surface.c
 	./$(BUILD)/surface_test
 
