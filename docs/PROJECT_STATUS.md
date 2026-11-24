@@ -155,7 +155,17 @@ Truthful split by evidence type:
   (`backend=none`), so this is a software-model boot, not GPU execution. No GitHub Actions run
   has been observed for this revision yet.
 - **Build (previous Stage 5 branch):** `make check` passes locally in this cloud sandbox (Debian 13, GCC 14.2, binutils, xorriso, QEMU 10.0.13, KVM available): doctor, the freestanding `-Werror` kernel/ISO build and every host suite, including 15 GPU tests (the 10 Haswell PPGTT/GGTT/core tests plus 5 discovery/capability tests). QEMU smoke tests pass on both `qemu64` and `Haswell-v1`. The Stage 5 boot self-test now runs the GPU core memory-object lifecycle and GPU discovery, printing `OZERO: gpu core self-test complete`, `OZERO: gpu pci display devices=`, per-device `OZERO: gpu device ...` lines and `OZERO: gpu discovery complete`. This is local verification; the GitHub Actions run for this branch [45385070008](https://github.com/Momegaii/Ozero/actions/runs/45385070008) also passed (`x86_64-kernel` job, `make check` + both QEMU boots), observed via the GitHub API.
-- **Host unit tests:** PMM 7/7, slab 5/5, scheduler 5/5, CPU, block layer 6/6, OzeroFS 10/10 and GPU 25/25 in the submission branch run (GPU was 15/15 on the previous branch). New closing-fix regressions passed for late completion after timeout, driver-confirmed cancellation, transfer limits, checksummed malformed superblocks, directory lookup I/O errors, partial overwrite rollback and final inode persistence failure.
+- **Host unit tests:** PMM 7/7, slab 5/5, scheduler 5/5, CPU, block layer 6/6, OzeroFS 10/10,
+  PCI 1/1 and GPU 25/25 in the submission branch run (GPU was 15/15 on the previous branch).
+- **Branch audit (2026-11-24):** clean rebuild from an empty `build/`; every header compiles as
+  its own translation unit; `nm -u build/kernel.elf` reports zero undefined symbols; every
+  `kernel/src/*.c` and `kernel/arch/x86_64/*.c` is in the link; all host suites also pass under
+  `-fsanitize=address,undefined` with no leak or UB reports; `gcc -fanalyzer` reports nothing on
+  the GPU sources and one false positive in `ramdisk_copy`; the largest kernel stack frame is
+  400 bytes. Fixed by this audit: `tests/pci_test.c` was never built or run (now wired into
+  `make test`), `tests/gpu_test.c` leaked the resources its faulted environments deliberately
+  keep alive (now released through the documented retirement path), and one `void *` arithmetic
+  expression in `o0fs_format`. New closing-fix regressions passed for late completion after timeout, driver-confirmed cancellation, transfer limits, checksummed malformed superblocks, directory lookup I/O errors, partial overwrite rollback and final inode persistence failure.
 - **QEMU / ISO boot (BIOS):** **Stage 4 revision boot-verified** by `tools/qemu-smoke.sh` in QEMU on `q35` with both `qemu64` and `Haswell-v1` CPU models in run #43. Both runs reached the storage self-test completion marker and reported `QEMU smoke test: PASS`. This validates the RAM-disk/OzeroFS boot self-test, not a persistent storage controller or disk image.
 - **UEFI boot:** **not performed for this revision.** The ISO carries a UEFI boot path (`limine-uefi-cd.bin`), but it has not been exercised under OVMF.
 - **Real storage hardware:** never exercised. There is no ATA, AHCI or NVMe driver yet; the Stage 4 storage evidence comes from the RAM disk only.

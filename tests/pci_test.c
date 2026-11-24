@@ -2,6 +2,10 @@
 #include <assert.h>
 #include "ozero/pci.h"
 
+/* The decode helper lives in the driver TU. Only the pure decode path is exercised, so
+ * the config-space I/O the rest of the file contains is never executed. */
+#include "../kernel/src/pci.c"
+
 int main(void) {
     struct o0_pci_bar bar;
     /* 32-bit memory BAR */

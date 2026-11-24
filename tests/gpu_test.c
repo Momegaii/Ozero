@@ -296,6 +296,10 @@ static void test_ppgtt_active_rules(void) {
     int frees_before = mock_frees;
     o0_hsw_ppgtt_destroy(ppgtt);
     CHECK(mock_frees == frees_before, "destroy must refuse to free an active space");
+
+    o0_hsw_ppgtt_set_active(ppgtt, false);
+    o0_hsw_ppgtt_destroy(ppgtt);
+    CHECK(mock_frees > frees_before, "an inactive space must be released");
     PASS();
 }
 
@@ -382,6 +386,10 @@ static void test_core_allocator(void) {
     CHECK(mem->refcount == 1u, "destroy must refuse a pinned object");
     CHECK(o0_gpu_memory_unpin(mem) == O0_OK && mem->evictable, "unpin must restore evictable");
 
+    /* Teardown is refused while VA ranges remain, so release them first. */
+    CHECK(o0_gpu_vm_free(vm, 0x10000000ull, 0x1000u) == O0_OK, "free the first range");
+    CHECK(o0_gpu_vm_free(vm, 0x10004000ull, 0x1000u) == O0_OK, "free the third range");
+    CHECK(o0_gpu_vm_free(vm, 0x10001000ull, 0x1000u) == O0_OK, "free the reused range");
     o0_gpu_vm_destroy(vm);
     o0_gpu_memory_destroy(mem);
     PASS();
@@ -432,6 +440,7 @@ static void test_residency_eviction(void) {
     CHECK(o0_gpu_vm_map(vm, mem, map_va, O0_GPU_PERM_READ, &mapping) == O0_OK, "map after make resident");
 
     o0_gpu_vm_unmap(vm, mapping);
+    CHECK(o0_gpu_vm_free(vm, 0x10000000ull, 0x1000u) == O0_OK, "free the probe range");
     o0_gpu_vm_destroy(vm);
     o0_gpu_memory_destroy(mem);
     PASS();
@@ -972,6 +981,13 @@ static void test_fence_timeout_faults_queue(void) {
     CHECK(o0_gpu_queue_destroy(env.queue) == O0_EBUSY,
           "unconsumed work must not be released");
 
+    /* Retirement is the only safe release path: the pin is dropped once the device
+     * stops reading, and the faulted queue can then be torn down. */
+    CHECK(o0_hsw_engine_update_tail(env.engine, 8u) == O0_OK, "hardware retires the work");
+    CHECK(o0_gpu_queue_reap(env.queue) == O0_OK, "reaping must succeed");
+    CHECK(o0_gpu_queue_destroy(env.queue) == O0_OK, "retired work may be released");
+    env.queue = NULL;
+
     env_destroy(&env);
     PASS();
 }
@@ -996,7 +1012,12 @@ static void test_fence_signal_and_cancel(void) {
     CHECK(o0_gpu_queue_wait(env.queue, second, 0u, &source) == O0_ETIMEDOUT,
           "the later fence must not be considered complete");
 
-    /* That wait faulted the queue, so use a fresh environment for cancellation. */
+    /* That wait faulted the queue with both fences still live; retire them first. */
+    CHECK(o0_hsw_engine_update_tail(env.engine, 16u) == O0_OK,
+          "hardware retires both submissions");
+    CHECK(o0_gpu_queue_reap(env.queue) == O0_OK, "reaping must succeed");
+    CHECK(o0_gpu_queue_destroy(env.queue) == O0_OK, "retired work may be released");
+    env.queue = NULL;
     env_destroy(&env);
     CHECK(env_create(&env, true), "second test environment must build");
     CHECK(o0_gpu_queue_submit(env.queue, &env.cmd, &first) == O0_OK, "submit again");
@@ -1079,6 +1100,12 @@ static void test_context_isolation(void) {
           "the owning context may submit");
     CHECK(o0_gpu_queue_submit(stranger.queue, &stranger.cmd, &seqno) == O0_ERANGE,
           "the stranger context must be rejected");
+
+    CHECK(o0_hsw_engine_update_tail(owner.engine, 8u) == O0_OK,
+          "retire the owner's submission");
+    CHECK(o0_gpu_queue_reap(owner.queue) == O0_OK, "reaping must succeed");
+    CHECK(o0_gpu_queue_destroy(owner.queue) == O0_OK, "retired work may be released");
+    owner.queue = NULL;
 
     env_destroy(&owner);
     env_destroy(&stranger);

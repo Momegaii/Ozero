@@ -1121,7 +1121,7 @@ o0_status o0fs_format(struct o0_block_dev *dev) {
             memset(&root, 0, sizeof(root));
             root.mode = O0FS_TYPE_DIR;
             root.links = 1;
-            memcpy(scratch + fs_inode_offset(O0FS_ROOT_INODE), &root,
+            memcpy((uint8_t *)scratch + fs_inode_offset(O0FS_ROOT_INODE), &root,
                    sizeof(root));
         }
         st = o0_block_write(dev, super.inode_table_block + i, scratch,

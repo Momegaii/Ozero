@@ -123,6 +123,8 @@ test: $(BUILD)
 	./$(BUILD)/block_test
 	$(CC) $(HOST_CFLAGS) -o $(BUILD)/fs_test tests/fs_test.c
 	./$(BUILD)/fs_test
+	$(CC) $(HOST_CFLAGS) -Ikernel/src -o $(BUILD)/pci_test tests/pci_test.c
+	./$(BUILD)/pci_test
 	$(CC) $(HOST_CFLAGS) -Ikernel/src -o $(BUILD)/gpu_test tests/gpu_test.c
 	./$(BUILD)/gpu_test
 
