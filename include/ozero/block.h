@@ -174,7 +174,13 @@ void o0_block_complete_bio(struct o0_bio *bio,
  * at most one page, and the transfer must stay inside the device. The driver
  * must either complete the bio before queue_rq returns or provide a poll
  * callback; otherwise the wait ends with O0_ETIMEDOUT. The caller's buffer must
- * remain valid until the call returns.
+ * remain valid until the call returns. The implementation uses an internal
+ * page-sized bounce buffer, so a driver never retains the caller's buffer.
+ * If the wait times out, the request and bounce buffer remain quarantined
+ * until late completion. A queue timeout callback may release them early only
+ * by returning O0_OK after cancellation, DMA quiescence, and completion-callback
+ * quiescence are all guaranteed. A timeout callback returning any other status
+ * does not transfer ownership back to the caller.
  *
  * This is the Stage 4 interface: it exists so the block layer and the
  * filesystem can be exercised without an asynchronous I/O scheduler. It is not
