@@ -841,7 +841,11 @@ static o0_status fs_write_checked(struct o0fs *fs, uint32_t inode_no,
     struct o0fs_inode_disk snapshot = *inode;
     o0_status st = fs_write_range(fs, inode, offset, buffer, len);
     if (st == O0_OK) {
-        return fs_write_inode(fs, inode_no, inode);
+        o0_status write_st = fs_write_inode(fs, inode_no, inode);
+        if (write_st == O0_OK) {
+            return O0_OK;
+        }
+        st = write_st;
     }
 
     struct o0fs_inode_disk rollback = *inode;
