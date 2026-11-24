@@ -635,6 +635,10 @@ static void stage3_demo(void) {
     o0_serial_puts("\n");
 }
 
+static struct o0_display_mode boot_display_mode;
+static o0_paddr_t boot_framebuffer_phys;
+static bool boot_framebuffer_valid;
+
 __attribute__((noreturn))
 void kmain(void) {
     o0_serial_init();
@@ -720,6 +724,36 @@ void kmain(void) {
     o0_serial_puts(cf->invariant_tsc ? "yes" : "no");
     o0_serial_puts("\n");
 
+    /* Resolve the bootloader framebuffer address before replacing Limine's
+     * page tables. Framebuffer-containing direct-map chunks will be UC. */
+    boot_framebuffer_valid = false;
+    if (framebuffer_request.response != NULL &&
+        framebuffer_request.response->framebuffer_count != 0 &&
+        framebuffer_request.response->framebuffers != NULL &&
+        framebuffer_request.response->framebuffers[0] != NULL) {
+        const struct limine_framebuffer *fb = framebuffer_request.response->framebuffers[0];
+        boot_display_mode = (struct o0_display_mode) {
+            .address = fb->address, .width = fb->width, .height = fb->height,
+            .pitch = fb->pitch, .bytes = 0, .bpp = fb->bpp,
+            .memory_model = fb->memory_model,
+            .red_size = fb->red_mask_size, .red_shift = fb->red_mask_shift,
+            .green_size = fb->green_mask_size, .green_shift = fb->green_mask_shift,
+            .blue_size = fb->blue_mask_size, .blue_shift = fb->blue_mask_shift
+        };
+        if (fb->height != 0 && fb->pitch <= UINT64_MAX / fb->height) {
+            boot_display_mode.bytes = fb->pitch * fb->height;
+            if (o0_display_mode_validate(&boot_display_mode) == O0_OK) {
+                boot_framebuffer_phys = o0_virt_to_phys(fb->address);
+                boot_framebuffer_valid = boot_framebuffer_phys != 0;
+            }
+        }
+        o0_serial_puts("OZERO: framebuffer discovery ");
+        o0_serial_puts(boot_framebuffer_valid ? "valid" : "unavailable");
+        o0_serial_puts("\n");
+    } else {
+        o0_serial_puts("OZERO: no boot framebuffer; serial fallback\n");
+    }
+
     if (o0_paging_init(bi) != O0_OK) {
         panic("paging initialisation failed");
     }
@@ -730,35 +764,18 @@ void kmain(void) {
     }
     o0_serial_puts("OZERO: page tables active\n");
  
-    /* Validate boot framebuffer metadata only. Pixel access remains disabled
-     * until an architecture-owned UC/WC mapping is installed. */
-    if (framebuffer_request.response != NULL &&
-        framebuffer_request.response->framebuffer_count != 0 &&
-        framebuffer_request.response->framebuffers != NULL &&
-        framebuffer_request.response->framebuffers[0] != NULL) {
-        const struct limine_framebuffer *fb = framebuffer_request.response->framebuffers[0];
-        struct o0_display_mode mode = {
-            .address = fb->address, .width = fb->width, .height = fb->height,
-            .pitch = fb->pitch, .bytes = 0, .bpp = fb->bpp,
-            .memory_model = fb->memory_model,
-            .red_size = fb->red_mask_size, .red_shift = fb->red_mask_shift,
-            .green_size = fb->green_mask_size, .green_shift = fb->green_mask_shift,
-            .blue_size = fb->blue_mask_size, .blue_shift = fb->blue_mask_shift
-        };
-        o0_status display_status = o0_display_mode_validate(&mode);
-        o0_serial_puts("OZERO: framebuffer metadata ");
-        o0_serial_puts(display_status == O0_OK ? "valid" : "rejected");
-        o0_serial_puts(" width=");
-        o0_serial_dec(fb->width);
-        o0_serial_puts(" height=");
-        o0_serial_dec(fb->height);
-        o0_serial_puts(" pitch=");
-        o0_serial_dec(fb->pitch);
-        o0_serial_puts(" bpp=");
-        o0_serial_dec(fb->bpp);
-        o0_serial_puts(" (pixel access disabled pending safe mapping)\\n");
+    if (boot_framebuffer_valid) {
+        o0_status display_status =
+            o0_display_init(&boot_display_mode, boot_framebuffer_phys, bi);
+        o0_serial_puts("OZERO: framebuffer presentation ");
+        o0_serial_puts(display_status == O0_OK ? "active" : "rejected");
+        o0_serial_puts(" physical=");
+        o0_serial_hex(boot_framebuffer_phys);
+        o0_serial_puts(" bytes=");
+        o0_serial_dec(boot_display_mode.bytes);
+        o0_serial_puts("\n");
     } else {
-        o0_serial_puts("OZERO: no boot framebuffer; serial fallback\\n");
+        o0_serial_puts("OZERO: framebuffer unavailable; serial fallback\n");
     }
 
     o0_slab_init();
