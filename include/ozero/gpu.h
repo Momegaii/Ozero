@@ -11,7 +11,7 @@
 struct o0_gpu_memory {
     uint64_t size;
     uint32_t order;
-    o0_paddr_t phys_base;
+    o0_paddr_t *phys_pages;
     uint32_t page_count;
     void *backing;
     uint32_t refcount;
