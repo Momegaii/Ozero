@@ -10,7 +10,7 @@ Ozero must define its own native executable format, loader, runtime, process mod
 
 ## Current milestone
 
-**Stage 4: storage, filesystem and drivers (substrate).**
+**Stage 5: GPU memory and Haswell Gen7.5 submission (active).** Stage 4 storage/filesystem substrate is considered complete as a project milestone; deferred storage follow-ups remain documented in `docs/PROJECT_STATUS.md` and do not block the Stage 5 transition. Stage 5 Phase 0 inspection is complete; implementation phases are tracked in [docs/stage5-gpu.md](docs/stage5-gpu.md).
 
 The approved implementation uses Limine + ELF64 for the current kernel boot image and a freestanding C kernel. The kernel resolves its physical load address, builds and activates its own page tables (HHDM direct map + 4 KiB kernel-image mappings), runs a slab kernel heap, routes interrupts through a remapped PIC with a 100 Hz PIT tick, and preemptively schedules kernel threads with priorities, sleep, join, spinlocks and a blocking mutex.
 
