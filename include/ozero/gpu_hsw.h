@@ -22,6 +22,7 @@
 #include "ozero/gpu_device.h"
 #include "ozero/mm.h"
 #include "ozero/status.h"
+#include "ozero/sync.h"
 #include "ozero/types.h"
 
 #define O0_HSW_PAGE_SIZE 4096u
