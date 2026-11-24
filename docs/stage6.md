@@ -1,6 +1,6 @@
 # Stage 6 — Native Graphical Application Environment
 
-Status: **active; Phase 6.1 is scoped but not implemented**
+Status: **active; Phase 6.3 software-surface primitives authored; Phases 6.1, 6.2, and 6.4–6.8 remain open; no Stage 6 tests have been run for this change set**
 Last reviewed: 2026-11-24
 Repository: `Momegaii/Ozero`
 Working branch: `kilo/floral-eagle-2hb`
@@ -62,6 +62,97 @@ This document records the Stage 6 scope accepted by the Project Director in the 
 
 Phase 6.1 is complete only when all applicable checklist items above have evidence. A bootloader framebuffer descriptor alone is not proof that Ozero can safely render to it.
 
+## Phase 6.3 — Surfaces and graphics primitives
+
+### Implemented in the repository (not yet verified)
+
+- `include/ozero/surface.h`: non-owning surface descriptor and RGBX8888/BGRX8888 API.
+- `kernel/src/surface.c`: descriptor validation, full-surface fill, clipped rectangle fill, clipped blit and pixel-format conversion.
+- `tests/surface_test.c`: host test source covering descriptor errors, fill, clipping, format conversion and overlapping self-blits.
+- `Makefile`: links the surface implementation into the kernel and adds the host surface test to `make test`.
+
+The surface layer does not allocate memory, map physical memory, or access a boot framebuffer. It operates only on caller-supplied pixel buffers. This deliberate boundary prevents Phase 6.3 from bypassing the still-open display mapping/cache-safety work in Phase 6.1.
+
+**Verification state:** These changes were committed to the working branch, but no build, host test, QEMU boot, or display test was run after the changes, as requested. Treat the test source as authored—not as passing evidence. Review overlap behavior and large-dimension edge cases during the agent test pass.
+
+## Remaining phases and agent handoff
+
+The Project Director requested that implementation/documentation proceed without running the Stage 6 test campaign. The following work is not claimed complete. Three agents should implement/review in parallel where dependencies permit, then run the consolidated test plan below.
+
+### Agent A — Display and input (Phases 6.1 and 6.2)
+
+**Phase 6.1 display**
+- Add and validate the Limine framebuffer request.
+- Validate address, width, height, pitch, bpp, memory model and channel masks.
+- Check byte-extent arithmetic and verify the range against the boot memory map.
+- Implement an explicit safe framebuffer mapping/cache policy. Do not write through the existing write-back HHDM alias without proving compatible memory type and alias handling.
+- Connect the validated display descriptor to the Phase 6.3 surface API.
+- Implement a minimal fallback status screen; no GPU acceleration is required.
+
+**Phase 6.2 input**
+- Define a bounded input-event ABI and queue with overflow behavior.
+- Implement keyboard and pointer discovery and drivers appropriate to the QEMU machine configuration.
+- Decode keyboard make/break and modifier state; decode pointer movement/buttons and signed deltas.
+- Route IRQ data into a safe event path; do not perform allocation, blocking, or rendering in interrupt context.
+- Provide polling/event-consumption APIs for the window manager.
+
+**Deliverables:** source, public headers, boot diagnostics, host tests, and a QEMU-visible fallback screen plus working keyboard/pointer events.
+
+### Agent B — Window manager and compositor (Phases 6.4 and 6.5)
+
+**Phase 6.4 window manager**
+- Define window identity, ownership, lifecycle and bounded window count.
+- Implement create/destroy, move/resize, visibility, z-order, focus and hit testing.
+- Validate all geometry with overflow-safe clipping.
+- Route pointer and keyboard events to the focused window.
+- Define a simple client surface ownership/lifetime contract using the Phase 6.3 surface API.
+
+**Phase 6.5 software compositor**
+- Composite visible windows in z-order into a backbuffer.
+- Implement damage rectangles and bounded redraw.
+- Handle clipping, off-screen windows, overlapping windows and format conversion.
+- Present through the display abstraction from Agent A; keep rendering independent of hardware acceleration.
+- Define behavior for allocation failure and invalid client surfaces.
+
+**Deliverables:** window manager and compositor APIs, implementation, deterministic host tests, and a QEMU scene with overlapping windows.
+
+### Agent C — Acceleration boundary, desktop shell and integration (Phases 6.6–6.8)
+
+**Phase 6.6 graphics acceleration boundary**
+- Define capability discovery and a backend interface for surface allocation, blit/fill and presentation only where genuinely supported.
+- Keep the software renderer as the mandatory fallback.
+- Do not advertise physical GPU, virtual GPU, Intel, AMD or NVIDIA acceleration without a separately verified implementation.
+- Keep unsupported operations explicit; no silent success stubs.
+
+**Phase 6.7 desktop shell**
+- Add a desktop background, pointer cursor, window decorations, focus indication and a minimal launcher.
+- Provide at least two simple interactive demo applications/windows.
+- Wire input to window focus and application actions.
+
+**Phase 6.8 integration**
+- Integrate Agent A and B APIs without bypassing their ownership boundaries.
+- Add repeatable QEMU configuration and serial diagnostics.
+- Capture a screenshot of the desktop.
+- Record exact commands, toolchain versions, test output, boot logs and known limitations.
+
+**Deliverables:** a coherent QEMU desktop path and an evidence bundle. This agent owns integration only after the display/input and window/compositor contracts stabilize.
+
+## Consolidated test campaign (agents run this; not run in this change set)
+
+1. Clean freestanding kernel and ISO build with warnings as errors.
+2. All existing host suites plus `surface_test`; run with AddressSanitizer and UndefinedBehaviorSanitizer where supported.
+3. Header self-containment and undefined-symbol/link audit.
+4. QEMU BIOS and UEFI/OVMF boot where the repository supports it.
+5. Framebuffer validation cases: null response, unsupported format, zero dimensions, undersized pitch, overflow, out-of-map range and valid RGB/BGR layouts.
+6. Input tests: queue full/empty, overflow, key press/release, modifiers, pointer sign extension, button transitions and IRQ-safe delivery.
+7. Surface tests: clipping, pitch padding, format conversion, self-overlap in all directions, invalid descriptors and arithmetic boundaries.
+8. Window tests: lifecycle, z-order, focus, hit testing, geometry clipping and event routing.
+9. Compositor tests: overlapping windows, damage coalescing, partial redraw, off-screen clipping and invalid surfaces.
+10. End-to-end QEMU: stable fallback screen, pointer movement, keyboard interaction, launcher action and at least two interactive windows.
+11. Capture serial log and screenshot; attach them to the Stage 6 acceptance report.
+
+For every failure, report the exact command, commit SHA, environment, expected result, actual result and relevant log excerpt. Do not mark a phase complete merely because its source files exist.
+
 ## Stage 6 overall acceptance
 
 Stage 6 is complete when Ozero boots into its own graphical environment, initializes a display, accepts keyboard and pointer input, creates and manages windows, composes multiple surfaces correctly, and runs at least two interactive windows in QEMU. Build, host-test, boot-log and screenshot evidence must be recorded. GPU acceleration is optional; the software display and compositor path must remain usable without it.
@@ -74,6 +165,6 @@ Stage 6 is complete when Ozero boots into its own graphical environment, initial
 - Keep Ozero's native executable format, loader, runtime and ABI independently designed; the Limine/ELF64 kernel boot image does not define the user executable format.
 - Keep vendor-specific acceleration behind explicit capability-driven backend interfaces.
 
-## Next action
+## Current next action
 
-Implement Phase 6.1 in small reviewable steps: add the Limine framebuffer request and descriptor validation first, then implement the safe framebuffer mapping, minimal renderer, host tests and QEMU evidence.
+Assign Agents A–C using the handoff above. Agent A must establish the safe display and input contracts; Agent B can develop against the Phase 6.3 surface API; Agent C should stabilize the desktop and integration only after the lower-level contracts are agreed. The Project Director's independent test agents then run the consolidated campaign. Stage 6 remains open until the acceptance evidence exists.
