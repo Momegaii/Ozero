@@ -41,55 +41,91 @@ static int valid_offset(uint8_t offset, uint8_t width) {
     return -1;
 }
 
-int o0_pci_config_read32(struct o0_pci_bdf bdf, uint8_t offset, uint32_t *out) {
-    if (!out || !valid_offset(offset,4)) return -1;
-    pci_lock_acquire();
+/* Locked accessors: the caller must already hold pci_lock. They let a multi-step
+ * operation (such as a BAR size probe) take the lock once instead of re-entering the
+ * non-recursive public wrappers, which would self-deadlock on the same lock. */
+static int pci_read32_locked(struct o0_pci_bdf bdf, uint8_t offset, uint32_t *out) {
+    if (!out || !valid_offset(offset, 4)) return -1;
     outl(PCI_CONFIG_ADDRESS, pci_config_address(bdf, offset));
     *out = inl(PCI_CONFIG_DATA);
-    pci_lock_release();
     return 0;
 }
-int o0_pci_config_read16(struct o0_pci_bdf bdf, uint8_t offset, uint16_t *out) {
+static int pci_read16_locked(struct o0_pci_bdf bdf, uint8_t offset, uint16_t *out) {
     uint32_t v; int r;
-    if (!out || !valid_offset(offset,2)) return -1;
-    r = o0_pci_config_read32(bdf, offset & ~3u, &v);
+    if (!out || !valid_offset(offset, 2)) return -1;
+    r = pci_read32_locked(bdf, offset & ~3u, &v);
     if (r != 0) return r;
-    *out = (uint16_t)((v >> ((offset % 4u)*8u)) & 0xFFFFu);
+    *out = (uint16_t)((v >> ((offset % 4u) * 8u)) & 0xFFFFu);
     return 0;
 }
-int o0_pci_config_read8(struct o0_pci_bdf bdf, uint8_t offset, uint8_t *out) {
+static int pci_read8_locked(struct o0_pci_bdf bdf, uint8_t offset, uint8_t *out) {
     uint32_t v; int r;
-    if (!out || !valid_offset(offset,1)) return -1;
-    r = o0_pci_config_read32(bdf, offset & ~3u, &v);
+    if (!out || !valid_offset(offset, 1)) return -1;
+    r = pci_read32_locked(bdf, offset & ~3u, &v);
     if (r != 0) return r;
-    *out = (uint8_t)((v >> ((offset % 4u)*8u)) & 0xFFu);
+    *out = (uint8_t)((v >> ((offset % 4u) * 8u)) & 0xFFu);
     return 0;
 }
-int o0_pci_config_write32(struct o0_pci_bdf bdf, uint8_t offset, uint32_t value) {
-    if (!valid_offset(offset,4)) return -1;
-    pci_lock_acquire();
+static int pci_write32_locked(struct o0_pci_bdf bdf, uint8_t offset, uint32_t value) {
+    if (!valid_offset(offset, 4)) return -1;
     outl(PCI_CONFIG_ADDRESS, pci_config_address(bdf, offset));
     outl(PCI_CONFIG_DATA, value);
-    pci_lock_release();
     return 0;
 }
-int o0_pci_config_write16(struct o0_pci_bdf bdf, uint8_t offset, uint16_t value) {
+static int pci_write16_locked(struct o0_pci_bdf bdf, uint8_t offset, uint16_t value) {
     uint32_t v; int r;
-    if (!valid_offset(offset,2)) return -1;
-    r = o0_pci_config_read32(bdf, offset & ~3u, &v);
+    if (!valid_offset(offset, 2)) return -1;
+    r = pci_read32_locked(bdf, offset & ~3u, &v);
     if (r != 0) return r;
-    uint8_t shift = (offset % 4u)*8u;
+    uint8_t shift = (offset % 4u) * 8u;
     v = (v & ~(0xFFFFu << shift)) | ((uint32_t)value << shift);
-    return o0_pci_config_write32(bdf, offset & ~3u, v);
+    return pci_write32_locked(bdf, offset & ~3u, v);
+}
+static int pci_write8_locked(struct o0_pci_bdf bdf, uint8_t offset, uint8_t value) {
+    uint32_t v; int r;
+    if (!valid_offset(offset, 1)) return -1;
+    r = pci_read32_locked(bdf, offset & ~3u, &v);
+    if (r != 0) return r;
+    uint8_t shift = (offset % 4u) * 8u;
+    v = (v & ~(0xFFu << shift)) | ((uint32_t)value << shift);
+    return pci_write32_locked(bdf, offset & ~3u, v);
+}
+
+int o0_pci_config_read32(struct o0_pci_bdf bdf, uint8_t offset, uint32_t *out) {
+    pci_lock_acquire();
+    int r = pci_read32_locked(bdf, offset, out);
+    pci_lock_release();
+    return r;
+}
+int o0_pci_config_read16(struct o0_pci_bdf bdf, uint8_t offset, uint16_t *out) {
+    pci_lock_acquire();
+    int r = pci_read16_locked(bdf, offset, out);
+    pci_lock_release();
+    return r;
+}
+int o0_pci_config_read8(struct o0_pci_bdf bdf, uint8_t offset, uint8_t *out) {
+    pci_lock_acquire();
+    int r = pci_read8_locked(bdf, offset, out);
+    pci_lock_release();
+    return r;
+}
+int o0_pci_config_write32(struct o0_pci_bdf bdf, uint8_t offset, uint32_t value) {
+    pci_lock_acquire();
+    int r = pci_write32_locked(bdf, offset, value);
+    pci_lock_release();
+    return r;
+}
+int o0_pci_config_write16(struct o0_pci_bdf bdf, uint8_t offset, uint16_t value) {
+    pci_lock_acquire();
+    int r = pci_write16_locked(bdf, offset, value);
+    pci_lock_release();
+    return r;
 }
 int o0_pci_config_write8(struct o0_pci_bdf bdf, uint8_t offset, uint8_t value) {
-    uint32_t v; int r;
-    if (!valid_offset(offset,1)) return -1;
-    r = o0_pci_config_read32(bdf, offset & ~3u, &v);
-    if (r != 0) return r;
-    uint8_t shift = (offset % 4u)*8u;
-    v = (v & ~(0xFFu << shift)) | ((uint32_t)value << shift);
-    return o0_pci_config_write32(bdf, offset & ~3u, v);
+    pci_lock_acquire();
+    int r = pci_write8_locked(bdf, offset, value);
+    pci_lock_release();
+    return r;
 }
 
 int o0_pci_decode_bar(uint32_t raw0, uint32_t raw1, uint8_t header_type,
@@ -121,29 +157,29 @@ int o0_pci_probe_bar(struct o0_pci_bdf bdf, uint8_t index,
     uint32_t size0=0, size1=0;
     int is64 = 0;
 
-    r = o0_pci_config_read32(bdf, off, &orig0);
+    r = pci_read32_locked(bdf, off, &orig0);
     if (r == 0 && ((orig0 & 0x6u) == 0x4u)) {
         is64 = 1;
-        r = o0_pci_config_read32(bdf, off+4, &orig1);
+        r = pci_read32_locked(bdf, off+4, &orig1);
     }
-    if (r == 0) r = o0_pci_config_read16(bdf, 0x04u, (uint16_t*)&cmd);
+    if (r == 0) r = pci_read16_locked(bdf, 0x04u, (uint16_t*)&cmd);
 
     if (r == 0) {
         /* disable decode */
-        if (o0_pci_config_write16(bdf, 0x04u, (uint16_t)(cmd & ~0x3u)) != 0) r = -1;
+        if (pci_write16_locked(bdf, 0x04u, (uint16_t)(cmd & ~0x3u)) != 0) r = -1;
     }
     if (r == 0) {
-        if (o0_pci_config_write32(bdf, off, 0xFFFFFFFFu) != 0) r = -1;
-        if (is64 && o0_pci_config_write32(bdf, off+4, 0xFFFFFFFFu) != 0) r = -1;
+        if (pci_write32_locked(bdf, off, 0xFFFFFFFFu) != 0) r = -1;
+        if (is64 && pci_write32_locked(bdf, off+4, 0xFFFFFFFFu) != 0) r = -1;
     }
     if (r == 0) {
-        if (o0_pci_config_read32(bdf, off, &size0) != 0) r = -1;
-        if (is64 && o0_pci_config_read32(bdf, off+4, &size1) != 0) r = -1;
+        if (pci_read32_locked(bdf, off, &size0) != 0) r = -1;
+        if (is64 && pci_read32_locked(bdf, off+4, &size1) != 0) r = -1;
     }
     /* restore always */
-    if (o0_pci_config_write32(bdf, off, orig0) != 0) restoration_failed = 1;
-    if (is64 && o0_pci_config_write32(bdf, off+4, orig1) != 0) restoration_failed = 1;
-    if (o0_pci_config_write16(bdf, 0x04u, (uint16_t)cmd) != 0) restoration_failed = 1;
+    if (pci_write32_locked(bdf, off, orig0) != 0) restoration_failed = 1;
+    if (is64 && pci_write32_locked(bdf, off+4, orig1) != 0) restoration_failed = 1;
+    if (pci_write16_locked(bdf, 0x04u, (uint16_t)cmd) != 0) restoration_failed = 1;
 
     pci_lock_release();
 
@@ -153,10 +189,15 @@ int o0_pci_probe_bar(struct o0_pci_bdf bdf, uint8_t index,
     uint32_t raw1 = is64 ? orig1 : 0;
     o0_pci_decode_bar(orig0, raw1, header_type, index, out);
     if (out->is_memory) {
-        uint64_t mask = is64 ? (((uint64_t)size1 << 32) | size0) : size0;
-        mask &= ~0xFu;
-        if (mask == 0) out->size = 0;
-        else out->size = (~mask) + 1u;
+        if (is64) {
+            uint64_t mask = (((uint64_t)size1 << 32) | size0) & ~(uint64_t)0xFu;
+            out->size = (mask == 0u) ? 0u : (~mask) + 1u;
+        } else {
+            /* 32-bit BAR: compute the size in 32 bits so ~mask does not flip the
+             * high half and produce an enormous value. */
+            uint32_t mask = size0 & ~0xFu;
+            out->size = (mask == 0u) ? 0u : ((uint64_t)(~mask) + 1u);
+        }
     } else {
         uint32_t m = size0 & ~0x3u;
         if (m == 0) out->size = 0;
