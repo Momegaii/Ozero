@@ -28,7 +28,7 @@ Ozero's native graphics contracts are Ozero-defined. Linux DRM/KMS and Windows W
 
 ## 3. Phase 0 — Agent inspection and preparation
 
-<badge>Complete</badge>
+**Phase status: COMPLETE**
 
 Project status: **accepted complete by the Project Director**.
 
