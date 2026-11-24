@@ -1,7 +1,7 @@
 # Ozero Project Status
 
 Last updated: 2026-11-24  
-Current stage: **Stage 6 — Native graphical application environment (active; Phase 6.1 verified — display/framebuffer boot tested in QEMU with screenshot evidence; Phase 6.2 implemented — PS/2 keyboard + pointer driver host-tested, driver initialized at boot; Phase 6.3 implemented and host-tested — software surface primitives; Phases 6.4–6.8 open; no full desktop/QEMU acceptance claimed). Stage 5 is closed as the software-foundation milestone; physical GPU execution and vendor-specific acceleration backends remain deferred. See docs/stage6.md for the three-agent handoff and test plan.**  
+Current stage: **Stage 6 — Native graphical application environment (active; Phase 6.1 verified — display/framebuffer boot tested in QEMU with screenshot evidence; Phase 6.2 implemented — PS/2 keyboard + pointer driver host-tested, driver initialized at boot; Phase 6.3 implemented and host-tested — software surface primitives; Phases 6.4–6.8 open; no full desktop/QEMU acceptance claimed). Stage 5 is closed as the software-foundation milestone; physical GPU execution and vendor-specific acceleration backends remain deferred. See docs/stage6.md for the three-agent handoff and test plan. New GPU/Stage 6 scope is paused by Rule 0; hardening Wave 1 (verification debt) is complete locally and Waves 2–6 are planned in docs/hardening-roadmap.md.**  
 Stage 3 — processes, threads and scheduler: **implemented; boot-verified in QEMU BIOS for the Stage 3 revision**  
 Stage 2 — physical and virtual memory: **implemented, verified by build + host tests + QEMU boot**  
 Stage 1 — bootable x86-64 kernel: **implemented; see verification state**
@@ -85,7 +85,9 @@ Stage 1 — bootable x86-64 kernel: **implemented; see verification state**
   cases and 10 filesystem test cases). New regressions cover late completion after
   timeout, driver-confirmed cancellation, transfer limits, checksummed malformed
   superblocks, directory lookup I/O errors, partial overwrite rollback and final inode
-  persistence failure. These new tests are authored but still require execution.
+  persistence failure. These regressions are executed: `make test` builds and runs
+  `tests/block_test.c` (6 cases) and `tests/fs_test.c` (10 cases) with 0 failures, and
+  `make test-sanitize` runs the same suites under ASan/UBSan with 0 failures.
 - Documentation: `docs/o0fs-format.md` specifies the draft on-disk format;
   `docs/decisions/0003-stage4-storage.md` records the storage decisions, alternatives
   and open questions. The filesystem format remains a proposal for Project Director
@@ -139,6 +141,25 @@ Stage 1 — bootable x86-64 kernel: **implemented; see verification state**
 - The plan avoids Gen8+ page-table assumptions in the Haswell backend, Linux DRM as a native dependency, and Windows WDDM as Ozero's native graphics contract.
 - Host tests, QEMU boot, emulated GPU execution and physical GPU validation must be reported separately.
 
+## Hardening wave (2026-11-24)
+
+The Project Director paused new GPU/Stage 6 scope (Rule 0) and ordered a six-wave hardening
+roadmap. Plan and per-item status: [docs/hardening-roadmap.md](hardening-roadmap.md).
+
+**Wave 1 (verification debt) is complete locally except CI observation:**
+
+- Stage 4 closing-fix regressions executed and passing (block 6/6, OzeroFS 10/10, also under
+  ASan/UBSan).
+- UEFI/OVMF boot performed for this revision. `tools/qemu-smoke.sh` now supports
+  `QEMU_FIRMWARE=uefi`, and the kernel prints `OZERO: firmware=UEFI`/`BIOS` from the Limine EFI
+  system table response.
+- CI matrix added: `{bios, uefi} × {qemu64, Haswell-v1}` plus a sanitizer job.
+- One kernel defect found and fixed: with the local APIC globally disabled, QEMU 8.2 never
+  delivers the 8259 output, so the timer stopped after the first sleep. The kernel now uses the
+  LAPIC ExtINT virtual-wire configuration (ADR 0005) and boots on QEMU 8.2.2 and 10.1.0.
+
+Waves 2–6 are **planned and not started**; none of their items is claimed.
+
 ## Verification state
 
 Truthful split by evidence type:
@@ -167,9 +188,24 @@ Truthful split by evidence type:
   keep alive (now released through the documented retirement path), and one `void *` arithmetic
   expression in `o0fs_format`. New closing-fix regressions passed for late completion after timeout, driver-confirmed cancellation, transfer limits, checksummed malformed superblocks, directory lookup I/O errors, partial overwrite rollback and final inode persistence failure.
 - **QEMU / ISO boot (BIOS):** **Stage 4 revision boot-verified** by `tools/qemu-smoke.sh` in QEMU on `q35` with both `qemu64` and `Haswell-v1` CPU models in run #43. Both runs reached the storage self-test completion marker and reported `QEMU smoke test: PASS`. This validates the RAM-disk/OzeroFS boot self-test, not a persistent storage controller or disk image.
-- **UEFI boot:** **not performed for this revision.** The ISO carries a UEFI boot path (`limine-uefi-cd.bin`), but it has not been exercised under OVMF.
+- **UEFI boot (Wave 1, 2026-11-24):** **verified in emulation.** The same hybrid ISO booted
+  under OVMF (`OVMF_CODE_4M.fd` + per-run `OVMF_VARS_4M.fd`, package `ovmf` 2024.02-2) with
+  QEMU 8.2.2 and QEMU 10.1.0, on `qemu64` and `Haswell-v1`. Every run reached the full marker
+  set and `QEMU smoke test: PASS`; each log contains `OZERO: firmware=UEFI` and
+  `OZERO: interrupt delivery=lapic-extint`. This is OVMF/UEFI emulation evidence, not evidence
+  for a specific physical UEFI firmware.
+- **BIOS boot matrix (Wave 1):** BIOS boots on `qemu64` and `Haswell-v1` pass on QEMU 8.2.2
+  and 10.1.0 with the same markers (`OZERO: firmware=BIOS`).
+- **Host sanitizer run (Wave 1):** `make test-sanitize` (ASan + UBSan, leak detection on)
+  passes every suite: PMM 7/7, slab 5/5, scheduler 5/5, CPU, block 6/6, OzeroFS 10/10, PCI 1/1,
+  GPU 25/25, display, input, PS/2 6/6 and surface. `gcc -fanalyzer` reports nothing for
+  `kernel/arch/x86_64/pic.c` or `kernel/src/main.c`.
 - **Real storage hardware:** never exercised. There is no ATA, AHCI or NVMe driver yet; the Stage 4 storage evidence comes from the RAM disk only.
-- **GitHub Actions:** run #43 passed build, all host tests and both QEMU BIOS smoke boots. See the [workflow run](https://github.com/Momegaii/Ozero/actions/runs/45298240681).
+- **GitHub Actions:** run #43 passed build, all host tests and both QEMU BIOS smoke boots on an
+  earlier revision. For the Wave 1 branch, the workflow has been updated to the four-cell matrix
+  but **no Actions run could be observed from this environment** (`api.github.com` returns 403
+  without a token). CI status for this revision is unverified; the equivalent matrix was executed
+  locally instead and is reported as local evidence.
 - **Physical hardware:** never performed.
 Boot verification of this revision surfaced and fixed three defects that build +
 host tests alone could not catch:
@@ -189,9 +225,12 @@ host tests alone could not catch:
    (`IA32_APIC_BASE` bit 11). With the APIC active, the 8259's INTR is routed
    through LINT0 and only reaches the CPU when LVT0 is programmed for ExtINT
    (virtual-wire) delivery; this PIC-only stage never does that, so every
-   maskable interrupt was silently dropped and the PIT tick never fired. PIC init
-   now clears the APIC global-enable bit so the 8259 delivers INTR directly;
-   Stage 4 AP bring-up re-enables and configures it.
+   maskable interrupt was silently dropped and the PIT tick never fired. The
+   Stage 3 fix cleared the APIC global-enable bit so the 8259 delivers INTR
+   directly. **Superseded by ADR 0005 (Wave 1, 2026-11-24):** clearing the enable
+   bit is not portable — QEMU 8.2 then drops the 8259 output entirely — so the
+   kernel now programs the virtual-wire path (APIC enabled, `LVT0` ExtINT,
+   `TPR` = 0) through a dedicated uncached mapping.
 
 The `tests/pmm_test.c` failure recorded in review (free-page accounting) was a
 defect in the test — `struct o0_boot_info` was used uninitialised — and is fixed;
@@ -238,7 +277,8 @@ stage scope, the QEMU BIOS verification above, or the decisions recorded in ADR 
 - [x] Host-side tests for the allocator and scheduler rules.
 - [x] Boot verification in QEMU (BIOS): boot milestones and the preemptive
       scheduler running the demo threads to completion (smoke test PASS).
-- [ ] Boot verification in QEMU (UEFI) on a machine with OVMF installed.
+- [x] Boot verification in QEMU (UEFI) under OVMF (ovmf 2024.02-2, QEMU 8.2.2 and 10.1.0,
+      `qemu64` and `Haswell-v1`) — Wave 1 evidence.
 - [ ] Physical hardware validation.
 
 ## Stage 4 exit criteria
@@ -250,29 +290,37 @@ stage scope, the QEMU BIOS verification above, or the decisions recorded in ADR 
       rmdir and directory listing, with a checksummed on-disk superblock.
 - [x] Baseline fault tests: bad superblock/checksum, path and type errors, `ENOSPC`,
       injected block I/O errors, failed-write block release and remount persistence.
-- [ ] Execute new closing-fix regressions for late block completion, checksummed
-      malformed superblocks, lookup I/O propagation and data/inode write rollback.
+- [x] Execute new closing-fix regressions for late block completion, checksummed
+      malformed superblocks, lookup I/O propagation and data/inode write rollback
+      (block 6/6, OzeroFS 10/10, also under ASan/UBSan).
 - [x] Host unit tests for the block layer and the filesystem; boot self-test added to
       `kmain` and to the smoke markers.
 - [x] Boot verification of the Stage 4 revision in QEMU BIOS (`q35`, `qemu64` and
       `Haswell-v1`) with storage self-test markers passing.
-- [ ] Boot verification of the Stage 4 revision in QEMU UEFI/OVMF.
+- [x] Boot verification of the Stage 4 revision in QEMU UEFI/OVMF (Wave 1, see above).
 - [ ] A real storage protocol driver (AHCI/NVMe) and partition discovery.
 - [ ] An approved filesystem format and crash-consistency/recovery design.
 
 ## Immediate next engineering wave
 
-1. Boot the Stage 4 revision in QEMU (BIOS, then OVMF) and confirm the storage markers
-   and the injected-fault path on real emulated hardware.
-2. Run a UEFI boot under OVMF; add the same serial markers to any UEFI smoke path.
-3. PCI enumeration plus AHCI/NVMe storage drivers with DMA and IRQ completion, then
-   partition discovery (MBR/GPT) on top of the block layer.
-4. User-mode entry: GDT ring-3 segments, TSS with a kernel stack, `iretq` path and a
-   syscall ABI decision (ADR 0002 follow-ups).
-5. Replace the static page-table pool with PMM-backed per-address-space tables.
-6. AP bring-up (ACPI MADT, local APIC, SMP trampoline) and the PIT → APIC timer
-   migration; the LAPIC disable added for the PIC path is removed here.
-7. Memory-map reclaim (`o0_pmm_release_bootloader_memory`) per `docs/boot-contract.md`.
+Wave 1 closed the emulator/firmware verification debt: the Stage 4 revision boots in BIOS and
+UEFI on both CPU models, the Stage 4 regressions are executed, and the host suites run under
+sanitizers. CI observation and physical hardware remain open.
+
+The next wave is ordered by `docs/hardening-roadmap.md` and starts with **Wave 2 (core kernel
+fundamentals)**:
+
+1. User-mode entry: GDT ring-3 segments, TSS with a kernel stack, `iretq` path, syscall ABI
+   decision and an Ozero-native loader (ADR required before implementation).
+2. Per-address-space page tables from the PMM, replacing the static table pool, with demand
+   paging and a page-fault handler.
+3. SMP: ACPI MADT, LAPIC/IOAPIC, AP trampoline, per-CPU data and runqueues, TLB shootdown,
+   then PIT → APIC timer. This replaces the Wave 1 LAPIC ExtINT configuration.
+4. Memory hardening: SMEP/SMAP/NX/WP, KASLR, stack guard pages, buddy PMM, and
+   bootloader-memory reclaim (`o0_pmm_release_bootloader_memory`).
+
+Storage protocol drivers (virtio-blk, AHCI/NVMe) and partition discovery follow in Wave 3;
+GPU engine work stays paused until Wave 6.
 
 ## Reporting standard
 

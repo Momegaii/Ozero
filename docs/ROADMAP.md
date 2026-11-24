@@ -19,13 +19,30 @@ These are development stages, not delivery-date promises. The order is intention
 ## Stage progress (2026-11-24)
 
 - **Stage 0** — Complete: architecture baseline approved, toolchain scaffold in place.
-- **Stage 1** — Boot verified in QEMU (BIOS) at the time of the Stage 2 wave; serial/debug workflow documented. Remaining: UEFI path exercise re-run, physical hardware tests. Re-verification is required for the current revision because the Stage 3 change set was produced without a local emulator.
+- **Stage 1** — Boot verified in QEMU (BIOS) at the time of the Stage 2 wave; serial/debug workflow documented. The current revision was re-verified in BIOS **and** UEFI/OVMF in hardening Wave 1. Remaining: physical hardware tests.
 - **Stage 2** — Implemented: physical page allocator, normalised boot memory map, 4-level page-table construction, page-fault error-code decoding, CPU feature discovery (CPUID). The CR3 switch, the HHDM direct map, `virt_to_phys`/`phys_to_virt` and the address-space API landed with Stage 3. Remaining: memory reclaim.
-- **Stage 3** — Implemented and boot-verified in QEMU (BIOS): kernel runs on its own page tables; slab kernel heap; processes, kernel threads and per-thread stacks; assembly context switch; PIT-driven preemptive priority round-robin scheduler (demo threads run to completion under the timer); spinlocks and blocking mutexes; host unit tests for the allocator and scheduler. Remaining: UEFI boot verification (OVMF) and physical hardware validation.
-- **Stage 4** — Implemented and verified at the QEMU BIOS substrate level: block layer with validated registration, request/transfer limits, atomic completion and safe timed-out request ownership; RAM disk with fault injection; draft OzeroFS with checksummed layout validation and runtime undo-image rollback for failed writes; expanded host tests pass (block 6/6, OzeroFS 10/10); QEMU BIOS smoke passes on q35 with qemu64 and Haswell-v1 CPU models. Remaining: QEMU UEFI/OVMF verification, real hardware protocol drivers (AHCI/NVMe), partition discovery, the asynchronous I/O model, an approved filesystem format and crash-consistency/recovery design, and physical validation. See `docs/decisions/0003-stage4-storage.md`.
+- **Stage 3** — Implemented and boot-verified in QEMU (BIOS): kernel runs on its own page tables; slab kernel heap; processes, kernel threads and per-thread stacks; assembly context switch; PIT-driven preemptive priority round-robin scheduler (demo threads run to completion under the timer); spinlocks and blocking mutexes; host unit tests for the allocator and scheduler. UEFI boot verification under OVMF was completed in hardening Wave 1. Remaining: physical hardware validation.
+- **Stage 4** — Implemented and verified at the QEMU BIOS substrate level: block layer with validated registration, request/transfer limits, atomic completion and safe timed-out request ownership; RAM disk with fault injection; draft OzeroFS with checksummed layout validation and runtime undo-image rollback for failed writes; expanded host tests pass (block 6/6, OzeroFS 10/10); QEMU BIOS **and UEFI/OVMF** smoke passes on q35 with qemu64 and Haswell-v1 CPU models (UEFI added in hardening Wave 1, QEMU 8.2.2 and 10.1.0), and the closing-fix regressions are executed. Remaining: real hardware protocol drivers (AHCI/NVMe), partition discovery, the asynchronous I/O model, an approved filesystem format and crash-consistency/recovery design, and physical validation. See `docs/decisions/0003-stage4-storage.md`.
 - **Stage 5** — Software-foundation milestone closed by Project Director direction. Physical GPU installation and hardware execution remain deferred; vendor-specific acceleration backends are future work. See `docs/decisions/0004-stage5-software-graphics-architecture.md` and `docs/stage5-gpu.md`.
-- **Stage 6** — Active. Phase 6.3 software surface primitives and host-test source are authored and wired into the build, but not tested. Phases 6.1–6.2 and 6.4–6.8 remain open; no Stage 6 desktop or QEMU acceptance is claimed. Three-agent implementation and test handoff: [docs/stage6.md](stage6.md).
+- **Stage 6** — Paused by Rule 0 of the hardening directive. Phase 6.3 software surface primitives are host-tested; Phases 6.4–6.8 remain open; no Stage 6 desktop or QEMU acceptance is claimed. Stage 6/5 GPU work resumes in hardening Wave 6, after user mode, SMP and a real storage driver exist. Handoff: [docs/stage6.md](stage6.md).
 - **Stages 7–10** — Not started.
+
+## Hardening waves (2026-11-24)
+
+The Project Director paused new GPU/Stage 6 scope and ordered six hardening waves. The plan,
+per-item status and evidence live in [docs/hardening-roadmap.md](hardening-roadmap.md).
+
+- **Wave 1 — Close open verification debt: complete locally (2026-11-24).** Stage 4 closing-fix
+  regressions executed; UEFI/OVMF boot verified with firmware markers; CI matrix
+  `{bios, uefi} × {qemu64, Haswell-v1}` plus ASan/UBSan host tests added; one interrupt-delivery
+  defect fixed (ADR 0005). GitHub Actions observation and physical hardware remain open.
+- **Waves 2–6 — planned, not started.** Wave 2 (user mode, per-process page tables, SMP,
+  memory hardening), Wave 3 (virtio-blk/AHCI/NVMe, partitions, crash consistency, VFS), Wave 4
+  (IPC/signals/futex, PCI/MSI-X/ACPI, security model), Wave 5 (fuzzing, concurrency testing,
+  logging/backtraces, performance baselines), Wave 6 (resume Stage 5/6 graphics).
+- These waves change the stage sequence by Project Director direction; this note records that
+  direction rather than redefining it. Each wave's architectural choices still need their own
+  ADR before implementation.
 
 ## Dependency rules
 

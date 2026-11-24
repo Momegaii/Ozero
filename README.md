@@ -35,7 +35,8 @@ Then:
 git clone https://github.com/Momegaii/Ozero.git
 cd Ozero
 make doctor
-make test      # host unit tests: PMM, slab, scheduler, CPU, block, OzeroFS
+make test           # host unit tests: PMM, slab, scheduler, CPU, block, OzeroFS, ...
+make test-sanitize  # the same suites under ASan/UBSan with leak detection
 make check
 make run
 ```
@@ -45,8 +46,15 @@ The first build downloads the pinned Limine v11.4.1 binary release into `build/`
 For a headless boot assertion:
 
 ```sh
-bash tools/qemu-smoke.sh
+bash tools/qemu-smoke.sh                        # BIOS, qemu64
+QEMU_CPU=Haswell-v1 bash tools/qemu-smoke.sh    # BIOS, Haswell CPU model
+QEMU_FIRMWARE=uefi bash tools/qemu-smoke.sh     # UEFI via OVMF
 ```
+
+The UEFI path needs the `ovmf` package (defaults to
+`/usr/share/OVMF/OVMF_CODE_4M.fd` and `OVMF_VARS_4M.fd`; override with
+`QEMU_OVMF_CODE` / `QEMU_OVMF_VARS`). Both firmware paths assert the full serial marker
+set, including `OZERO: firmware=BIOS`/`UEFI` and `OZERO: interrupt delivery=`.
 
 For GDB debugging, run `make run-debug`, then connect GDB to `localhost:1234`.
 
@@ -61,6 +69,7 @@ Boot log markers (in order):
 | `OZERO: kernel entry reached` | Limine transferred control to `kmain` |
 | `OZERO: architecture=x86_64` | CPU mode confirmed |
 | `OZERO: boot protocol=Limine` | Bootloader identified |
+| `OZERO: firmware=BIOS` / `OZERO: firmware=UEFI` | Firmware that loaded Limine, from the Limine EFI system table response |
 | `OZERO: Limine base revision accepted` | Bootloader supports revision 6 |
 | `OZERO: IDT installed (CPU exceptions 0-31)` | Exception dispatch table active |
 | `OZERO: hhdm_offset=<addr>` | Bootloader direct-map offset |
@@ -74,6 +83,7 @@ Boot log markers (in order):
 | `OZERO: page tables active` | CR3 switched to the kernel's own tables |
 | `OZERO: kernel heap ready` | Slab allocator initialised |
 | `OZERO: PIC remapped to vectors 32-47` | Legacy IRQ routing enabled |
+| `OZERO: interrupt delivery=lapic-extint` | 8259 output delivered through LAPIC LINT0 ExtINT (or `pic-legacy` where no APIC exists) |
 | `OZERO: scheduler initialised` | Scheduler ready (no threads yet) |
 | `OZERO: timer IRQ enabled at 100 Hz` | PIT tick feeding the scheduler |
 | `OZERO: heap OK total=<bytes> live=<n>` | Slab self-test passed |
@@ -117,6 +127,31 @@ Press Ctrl+C to stop QEMU.
 - `docs/`: architecture, roadmap, governance, decisions and the draft OzeroFS format.
 - `AGENTS.md`: mandatory project-wide instructions for every human and AI agent.
 
+## Hardening roadmap
+
+The Project Director paused new GPU/Stage 6 scope and ordered six hardening waves. Plan,
+status and evidence: [docs/hardening-roadmap.md](docs/hardening-roadmap.md). Wave 1
+(verification debt) is complete locally: the Stage 4 regressions execute, BIOS and UEFI boots
+pass on `qemu64` and `Haswell-v1`, CI has a firmware/CPU matrix plus ASan/UBSan host tests,
+and one interrupt-delivery defect was fixed (see
+[docs/decisions/0005-lapic-extint-interrupt-delivery.md](docs/decisions/0005-lapic-extint-interrupt-delivery.md)).
+Waves 2–6 are planned and not started.
+
 ## Honest status
 
-The Stage 3 revision was boot-verified in BIOS-mode QEMU with a smoke test that checks paging, heap, scheduler, kernel-thread execution and worker exit. The Stage 4 revision builds cleanly with `-Werror` and its host test suites pass (block layer 4/4, OzeroFS 9/9, plus the existing suites), and its boot self-test and smoke markers are in place, but the Stage 4 revision has **not** been booted in an emulator in this environment: QEMU is not installed there. The storage evidence covers the RAM disk, not real hardware; there is no ATA/AHCI/NVMe driver yet. None of this proves physical hardware support, UEFI/OVMF support, user-mode isolation, graphics, or Windows compatibility. Check `docs/PROJECT_STATUS.md` and the current smoke-test script for the exact tested configuration; do not claim broader validation than the evidence supports.
+The current revision builds cleanly with `-Werror`, and every host suite passes in the normal
+build and under ASan/UBSan: PMM 7/7, slab 5/5, scheduler 5/5, CPU, block 6/6, OzeroFS 10/10,
+PCI 1/1, GPU 25/25, display, input, PS/2 and surface. The boot smoke test passes in **BIOS and
+UEFI/OVMF** on QEMU 8.2.2 and 10.1.0, for both `qemu64` and `Haswell-v1`: paging, heap,
+timer-driven scheduler with worker exit, storage self-test and the GPU software-model
+self-tests all reach their markers. UEFI support was verified in Wave 1 (2026-11-24) under
+OVMF emulation, not on a physical UEFI machine.
+
+What this does **not** prove: physical hardware support, a real storage controller (the
+storage evidence is the RAM disk; there is no ATA/AHCI/NVMe driver), user-mode isolation
+(there is no user mode or syscall ABI yet), graphics beyond the software framebuffer path,
+GPU engine execution (no register is written outside the software model), or Windows
+compatibility. GitHub Actions status for this exact revision has to be observed in the
+repository; it could not be observed from the sandbox that produced this revision. Check
+`docs/PROJECT_STATUS.md` and `docs/hardening-roadmap.md` for the exact tested configuration;
+do not claim broader validation than the evidence supports.
