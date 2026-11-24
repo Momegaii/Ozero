@@ -1,6 +1,6 @@
 # Ozero Project Status
 
-Last updated: 2026-11-23  
+Last updated: 2026-11-24  
 Current stage: **Stage 4 — storage, filesystem and drivers (substrate implemented; review and hardware work pending)**  
 Stage 3 — processes, threads and scheduler: **implemented; boot-verified in QEMU BIOS for the Stage 3 revision**  
 Stage 2 — physical and virtual memory: **implemented, verified by build + host tests + QEMU boot**  
@@ -95,26 +95,13 @@ Stage 1 — bootable x86-64 kernel: **implemented; see verification state**
 
 Truthful split by evidence type:
 
-- **Previous baseline build/tests:** the earlier Stage 4 revision was reported to link
-  with `-Werror`; `make test` reported PMM 7/7, slab 5/5, scheduler 5/5, CPU pass,
-  block layer 4/4 and OzeroFS 9/9.
-- **Closing-fix revision:** the expanded block (6 cases) and filesystem (10 cases)
-  suites have not yet been run. The latest kernel build has also not yet been rerun;
-  the previous revision's results do not validate these changes.
-- **QEMU / ISO boot (BIOS):** **performed and passing for the Stage 3 revision** with
-  `make iso` + `tools/qemu-smoke.sh` on QEMU 10 (both `q35` and `pc` machines).
-  That run predates the Stage 4 change set. The smoke test also asserts the Stage 4
-  storage markers (block layer ready, RAM disk registered, OzeroFS formatted/mounted,
-  file read-back, fault test, storage self-test complete), but **the Stage 4 revision
-  has not been booted in an emulator here** because QEMU is unavailable in this
-  environment.
-- **UEFI boot:** **not performed for this revision.** The ISO carries a UEFI
-  boot path (`limine-uefi-cd.bin`), but it has not been exercised under OVMF here.
-- **Real storage hardware:** never exercised. There is no ATA, AHCI or NVMe driver yet;
-  the Stage 4 storage evidence comes from the RAM disk only.
-- **GitHub Actions:** not confirmed for this revision.
+- **Build:** `make check` passed in GitHub Actions run [#43](https://github.com/Momegaii/Ozero/actions/runs/45298240681) on commit `7bb6a446f1f81fefe2102b2ab7e79e34b36cc1ef`. This includes the freestanding `-Werror` kernel/ISO build and host test suite.
+- **Host unit tests:** the same run passed PMM 7/7, slab 5/5, scheduler 5/5, CPU, block layer 6/6 and OzeroFS 10/10. New closing-fix regressions passed for late completion after timeout, driver-confirmed cancellation, transfer limits, checksummed malformed superblocks, directory lookup I/O errors, partial overwrite rollback and final inode persistence failure.
+- **QEMU / ISO boot (BIOS):** **Stage 4 revision boot-verified** by `tools/qemu-smoke.sh` in QEMU on `q35` with both `qemu64` and `Haswell-v1` CPU models in run #43. Both runs reached the storage self-test completion marker and reported `QEMU smoke test: PASS`. This validates the RAM-disk/OzeroFS boot self-test, not a persistent storage controller or disk image.
+- **UEFI boot:** **not performed for this revision.** The ISO carries a UEFI boot path (`limine-uefi-cd.bin`), but it has not been exercised under OVMF.
+- **Real storage hardware:** never exercised. There is no ATA, AHCI or NVMe driver yet; the Stage 4 storage evidence comes from the RAM disk only.
+- **GitHub Actions:** run #43 passed build, all host tests and both QEMU BIOS smoke boots. See the [workflow run](https://github.com/Momegaii/Ozero/actions/runs/45298240681).
 - **Physical hardware:** never performed.
-
 Boot verification of this revision surfaced and fixed three defects that build +
 host tests alone could not catch:
 
@@ -198,7 +185,9 @@ stage scope, the QEMU BIOS verification above, or the decisions recorded in ADR 
       malformed superblocks, lookup I/O propagation and data/inode write rollback.
 - [x] Host unit tests for the block layer and the filesystem; boot self-test added to
       `kmain` and to the smoke markers.
-- [ ] Boot verification of the Stage 4 revision in QEMU (BIOS and UEFI).
+- [x] Boot verification of the Stage 4 revision in QEMU BIOS (`q35`, `qemu64` and
+      `Haswell-v1`) with storage self-test markers passing.
+- [ ] Boot verification of the Stage 4 revision in QEMU UEFI/OVMF.
 - [ ] A real storage protocol driver (AHCI/NVMe) and partition discovery.
 - [ ] An approved filesystem format and crash-consistency/recovery design.
 
