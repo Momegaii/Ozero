@@ -221,6 +221,7 @@ static void ramdisk_release(struct o0_ramdisk *rd) {
     memset(&rd->dev, 0, sizeof(rd->dev));
     memset(&rd->queue, 0, sizeof(rd->queue));
     rd->fault = O0_BLOCK_OK;
+    rd->fault_write_only = false;
     rd->remaining = 0;
 }
 
