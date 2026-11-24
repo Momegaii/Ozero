@@ -220,6 +220,19 @@ o0_status o0_block_submit_bio(struct o0_block_dev *dev, struct o0_bio *bio) {
             if (st != O0_OK) {
                 return st;
             }
+            for (uint32_t i = 0; i < bio->nr_vecs; ++i) {
+                const struct o0_bio_vec *vec = &bio->vecs[i];
+                if (dev->geo.max_segment_size != 0 &&
+                    vec->len > dev->geo.max_segment_size) {
+                    return O0_EINVAL;
+                }
+                if (dev->geo.dma_alignment != 0) {
+                    if (vec->offset % dev->geo.dma_alignment != 0 ||
+                        vec->len % dev->geo.dma_alignment != 0) {
+                        return O0_EINVAL;
+                    }
+                }
+            }
             if (bytes == 0 || (bytes % dev->geo.logical_block_size) != 0) {
                 return O0_EINVAL;
             }
@@ -227,6 +240,14 @@ o0_status o0_block_submit_bio(struct o0_block_dev *dev, struct o0_bio *bio) {
             if (bio->lba > dev->geo.nr_sectors ||
                 sectors > dev->geo.nr_sectors - bio->lba) {
                 return O0_ERANGE;
+            }
+            if (dev->geo.max_hw_sectors != 0 &&
+                sectors > dev->geo.max_hw_sectors) {
+                return O0_ERANGE;
+            }
+            if (dev->geo.max_segments != 0 &&
+                bio->nr_vecs > dev->geo.max_segments) {
+                return O0_EINVAL;
             }
             if ((bio->flags & O0_BIO_F_FUA) != 0 &&
                 (dev->geo.features & O0_BLOCK_F_FUA) == 0) {
