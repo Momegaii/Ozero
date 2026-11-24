@@ -28,9 +28,11 @@ on-disk format" as an unresolved decision.
   single-bio submission with bounds, alignment, flag and feature validation; and one
   completion per bio.
 - A new synchronous single-segment API (`o0_block_read`, `o0_block_write`,
-  `o0_block_flush`) submits one bio and waits for completion. A driver must complete
-  before `queue_rq` returns or provide a poll callback, otherwise the call ends with
-  `O0_ETIMEDOUT`.
+  `o0_block_flush`) submits one bio and waits for completion. It uses a static request
+  slot and page-sized bounce buffer. A timeout quarantines both until late completion;
+  a queue timeout callback may release the slot only when it returns `O0_OK` after
+  canceling the request and quiescing DMA plus completion callbacks. Completion is
+  claimed atomically so concurrent IRQ/poll paths cannot invoke it twice.
 - Request merging, queue-depth accounting, an asynchronous I/O scheduler, discard and
   zone operations are explicitly not implemented.
 
@@ -52,7 +54,9 @@ on-disk format" as an unresolved decision.
   write, truncate, unlink, rmdir, list and free-space queries.
 - Failure paths are part of the design: bad magic/checksum/layout on mount, path and
   type errors with dedicated status codes, `ENOSPC`, injected I/O errors, and a write
-  path that releases blocks allocated by a failed write.
+  path that captures undo images for existing blocks and attempts to restore data,
+  newly allocated blocks and the inode after a failed write. This is runtime rollback,
+  not journaling or crash recovery; rollback itself can fail.
 
 This is a **proposal for the format**, not a final architecture decision. It borrows
 only generic filesystem concepts (superblock, inode, bitmaps, indirect blocks). Its
@@ -97,8 +101,9 @@ required by the native path.
 
 ## Verification
 
-`make kernel` links cleanly with `-Werror`, `make test` runs the new block and OzeroFS
-host suites (4 + 9 tests) plus the existing suites, and the kernel boot self-test
-formats, mounts, writes, reads, injects a storage fault and recovers. QEMU itself was
-not available in the environment where this change was produced, so the boot markers
-are added to `tools/qemu-smoke.sh` but were not executed there.
+The original Stage 4 implementation was reported to build with `-Werror` and pass
+its host suites (4 block tests + 9 filesystem tests) plus the existing suites. The
+closing-fix revision adds block timeout/limit and filesystem rollback/superblock/path
+regressions (6 block test cases + 10 filesystem test cases), but those additions have
+not yet been executed in this environment. The Stage 4 QEMU smoke path also remains
+unverified; the boot markers exist in `tools/qemu-smoke.sh`.
