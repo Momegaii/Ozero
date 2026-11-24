@@ -14,6 +14,8 @@
 extern "C" {
 #endif
 
+#define O0_THREAD_FLAG_USER 1u
+
 struct o0_thread_attr {
     const char *name;
     void (*entry)(void *arg);
@@ -21,6 +23,8 @@ struct o0_thread_attr {
     size_t stack_size; /* 0 selects the kernel default */
     int32_t priority;  /* 0 is normal; larger is higher priority */
     uint32_t flags;
+    uint64_t user_entry; /* used when O0_THREAD_FLAG_USER is set */
+    uint64_t user_rsp;
 };
 
 /* ---- Processes ---- */

@@ -1,6 +1,7 @@
 PYTHON ?= python3
 CC ?= gcc
 LD ?= ld
+OBJCOPY ?= objcopy
 QEMU ?= qemu-system-x86_64
 BUILD := build
 LIMINE_COMMIT := 5be26a73d7b7b4d4477d18be94e1d16e615adf56
@@ -24,7 +25,16 @@ KERNEL_OBJS := $(BUILD)/main.o $(BUILD)/serial.o $(BUILD)/string.o $(BUILD)/stat
                $(BUILD)/o0fs.o $(BUILD)/pci.o $(BUILD)/gpu.o $(BUILD)/gpu_hsw.o \
                $(BUILD)/gpu_device.o $(BUILD)/gpu_queue.o $(BUILD)/surface.o \
                $(BUILD)/display.o $(BUILD)/input.o $(BUILD)/input_ps2.o $(BUILD)/window.o \
-               $(BUILD)/compositor.o $(BUILD)/gfx_backend.o $(BUILD)/shell.o
+               $(BUILD)/compositor.o $(BUILD)/gfx_backend.o $(BUILD)/shell.o \
+               $(BUILD)/abi.o $(BUILD)/elf.o $(BUILD)/usercopy.o $(BUILD)/usercopy_stub.o \
+               $(BUILD)/user.o $(BUILD)/syscall_c.o $(BUILD)/syscall_entry.o \
+               $(BUILD)/gdt.o
+
+# Static user images, embedded in the kernel image for the Wave 2 self-tests.
+USER_PROGS := init quiet fault_null fault_priv fault_kjump badptr
+USER_ELFS := $(addprefix $(BUILD)/user_,$(addsuffix .elf,$(USER_PROGS)))
+USER_BLOBS := $(addprefix $(BUILD)/blob_,$(addsuffix .o,$(USER_PROGS)))
+KERNEL_OBJS += $(USER_BLOBS)
 
 HOST_CFLAGS := -std=gnu11 -O1 -Wall -Wextra -Iinclude
 # Extra flags and per-test environment let the same recipes run under sanitizers
@@ -72,6 +82,29 @@ $(BUILD)/pic.o: kernel/arch/x86_64/pic.c | $(BUILD)
 
 $(BUILD)/interrupts_c.o: kernel/arch/x86_64/interrupts.c | $(BUILD)
 	$(CC) $(CFLAGS) -Ithird_party/limine -Iinclude -c $< -o $@
+
+$(BUILD)/gdt.o: kernel/arch/x86_64/gdt.c | $(BUILD)
+	$(CC) $(CFLAGS) -Ithird_party/limine -Iinclude -c $< -o $@
+
+$(BUILD)/syscall_c.o: kernel/src/syscall.c | $(BUILD)
+	$(CC) $(CFLAGS) -Ithird_party/limine -Iinclude -Ikernel -Ikernel/src -c $< -o $@
+
+$(BUILD)/syscall_entry.o: kernel/arch/x86_64/syscall.S | $(BUILD)
+	$(CC) -m64 -ffreestanding -fno-pic -fno-pie -c $< -o $@
+
+$(BUILD)/usercopy_stub.o: kernel/arch/x86_64/usercopy.S | $(BUILD)
+	$(CC) -m64 -ffreestanding -fno-pic -fno-pie -c $< -o $@
+
+# Static user images, then their embedded blob objects.
+$(BUILD)/user_%.o: user/%.S | $(BUILD)
+	$(CC) -m64 -ffreestanding -fno-pic -fno-pie -c $< -o $@
+
+$(BUILD)/user_%.elf: $(BUILD)/user_%.o user/user.ld
+	$(LD) -nostdlib -static -z max-page-size=0x1000 -T user/user.ld -o $@ $<
+
+$(BUILD)/blob_%.o: $(BUILD)/user_%.elf
+	$(OBJCOPY) -I binary -O elf64-x86-64 -B i386:x86-64 $< $@
+
 
 $(BUILD)/interrupts.o: kernel/arch/x86_64/interrupts.S | $(BUILD)
 	$(CC) -m64 -ffreestanding -fno-pic -fno-pie -c $< -o $@
@@ -128,6 +161,10 @@ test: $(BUILD)
 	$(HOST_RUN_ENV) ./$(BUILD)/sched_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/cpu_test tests/cpu_test.c
 	$(HOST_RUN_ENV) ./$(BUILD)/cpu_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/abi_test tests/abi_test.c kernel/src/abi.c
+	$(HOST_RUN_ENV) ./$(BUILD)/abi_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/elf_test tests/elf_test.c kernel/src/elf.c
+	$(HOST_RUN_ENV) ./$(BUILD)/elf_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/block_test tests/block_test.c
 	$(HOST_RUN_ENV) ./$(BUILD)/block_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/fs_test tests/fs_test.c
@@ -150,7 +187,8 @@ test: $(BUILD)
 # failure, not a warning.
 test-sanitize: $(BUILD)
 	rm -f $(BUILD)/pmm_test $(BUILD)/slab_test $(BUILD)/sched_test \
-	      $(BUILD)/cpu_test $(BUILD)/block_test $(BUILD)/fs_test \
+	      $(BUILD)/cpu_test $(BUILD)/abi_test $(BUILD)/elf_test \
+	      $(BUILD)/block_test $(BUILD)/fs_test \
 	      $(BUILD)/pci_test $(BUILD)/gpu_test $(BUILD)/display_test \
 	      $(BUILD)/input_test $(BUILD)/surface_test $(BUILD)/input_ps2_test
 	$(MAKE) test HOST_EXTRA_CFLAGS="$(SAN_CFLAGS)" HOST_RUN_ENV="$(SAN_ENV)"

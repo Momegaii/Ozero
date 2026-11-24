@@ -56,6 +56,12 @@ ISR_NOERR 31
 .type x86_64_isr_common, @function
 x86_64_isr_common:
     cld
+    /* An exception taken from ring 3 must swap to the kernel GS base before any
+     * C code runs. Same-level faults keep the kernel GS base. */
+    testb $3, 24(%rsp)              /* CS at rsp + vector + error + rip */
+    jz 1f
+    swapgs
+1:
     pushq %rax
     pushq %rbx
     pushq %rcx
@@ -92,6 +98,10 @@ x86_64_isr_common:
     popq %rbx
     popq %rax
     addq $16, %rsp
+    testb $3, 8(%rsp)               /* returning to ring 3? */
+    jz 2f
+    swapgs
+2:
     iretq
 
 .section .rodata

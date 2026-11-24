@@ -49,6 +49,12 @@ struct o0_thread {
 
     o0_vaddr_t stack_base;
     size_t stack_size;
+    o0_vaddr_t kstack_base;   /* mapped kernel stack; guard page below */
+    size_t kstack_pages;
+    uint64_t kernel_stack_top; /* TSS.RSP0 for this thread */
+    bool user;
+    uint64_t user_entry;
+    uint64_t user_rsp;
 
     uint64_t wake_tick;
     int exit_status;
@@ -74,6 +80,8 @@ struct o0_thread {
 struct o0_process {
     uint32_t pid;
     bool in_use;
+    bool user;
+    uint32_t thread_count;
     char name[O0_PROCESS_NAME_MAX];
     o0_as_t *as;
 };
@@ -81,11 +89,16 @@ struct o0_process {
 /* Thread registry (thread.c). */
 struct o0_thread *o0_thread_alloc_slot(void);
 void o0_thread_release_slot(struct o0_thread *thread);
+/* Frees the kernel stack and, when the last thread leaves, the process and its
+ * user address space. The thread must not be running. */
+void o0_thread_free_resources(struct o0_thread *thread);
 struct o0_thread *o0_thread_by_index(uint32_t index);
 uint32_t o0_thread_count(void);
 void o0_thread_tick(uint64_t now);
 void o0_thread_wake(struct o0_thread *thread);
 bool o0_thread_init_system(void);
+/* A ring-3 fault: contained, kills only the faulting thread. */
+O0_NORETURN void o0_thread_user_fault(uint64_t rip, uint64_t cr2, uint64_t error);
 
 /* Scheduler (sched.c). */
 void o0_sched_init(void);

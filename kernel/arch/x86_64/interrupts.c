@@ -70,3 +70,9 @@ void x86_64_idt_install_irq_gates(void) {
         idt_set_gate(IDT_IRQ_BASE + i, (uintptr_t)x86_64_irq_stub_table[i], selector);
     }
 }
+
+/* The double fault must run on a stack that may already be corrupt: IST1 points
+ * at the dedicated stack installed with the TSS. */
+void x86_64_idt_install_double_fault_ist(void) {
+    idt[8].ist = 1;
+}

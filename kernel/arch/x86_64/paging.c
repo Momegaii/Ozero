@@ -1,20 +1,21 @@
 /* Ozero kernel - x86-64 paging and address spaces.
  *
  * The kernel runs on Limine's page tables until o0_paging_load(). This file
- * builds a 4-level map that contains exactly what early code needs:
+ * builds a 4-level map that contains what early code needs:
  *
  *   - a direct map (HHDM) window covering the first O0_DIRECT_MAP_LIMIT bytes of
  *     physical memory, at the offset the bootloader reports;
- *   - the kernel image at its linked high-half virtual address, using 2 MiB pages;
+ *   - the kernel image at its linked high-half virtual address, split into a
+ *     read/execute text range and a read/write, no-execute data range (W^X);
  *   - per-address-space 4 KiB mappings for everything else.
  *
- * Page-table pages come from a static pool in BSS. Their physical addresses are
- * obtained by walking the *active* page tables, so no assumption is made about
- * the kernel's physical load address.
+ * Page-table pages are allocated from the PMM (Wave 2.2). A per-process address
+ * space owns its user half; the kernel half is shared and refreshed whenever an
+ * address space is activated, so mappings created after the address space (for
+ * example a new kernel stack) are visible.
  *
- * Honest limits of this stage: no NX (EFER.NXE stays off, so no-execute is not
- * enforced), no PCID, no 1 GiB pages, one page-table pool shared by all address
- * spaces, and the direct map covers only the low O0_DIRECT_MAP_LIMIT of RAM.
+ * NX is encoded on every non-executable mapping. W^X is enforced for public
+ * mappings. WP is enabled before the first CR3 switch.
  */
 
 #include <stdbool.h>
@@ -25,6 +26,7 @@
 #include "ozero/mm.h"
 #include "ozero/status.h"
 #include "ozero/types.h"
+#include "ozero/uapi.h"
 
 #define O0_ENTRY_PRESENT (1ull << 0)
 #define O0_ENTRY_WRITE (1ull << 1)
@@ -47,35 +49,46 @@
 #define O0_PT_INDEX(v) (((uint64_t)(v) >> 12) & 0x1ffu)
 
 #define O0_TABLE_ENTRIES 512u
-#define O0_TABLE_POOL_MAX 128u
 #define O0_AS_MAX 8u
+#define O0_USER_PML4_SPLIT O0_PML4_INDEX(O0_USER_LIMIT)
 
-/* Physical range covered by the direct map. Early kernel code may only touch
- * physical memory below this limit (see docs/boot-contract.md). */
+/* Physical range covered by the direct map. */
 #define O0_DIRECT_MAP_LIMIT (4ull << 30)
 
-#define O0_USER_SPACE_END 0x0000800000000000ull
+/* Kernel stacks: dedicated kernel virtual region, above the HHDM window and
+ * below the kernel image. One 4 KiB guard page sits below each stack. */
+#define O0_KSTACK_VA_BASE 0xffff900000000000ull
+#define O0_KSTACK_VA_END 0xffff900040000000ull
+#define O0_KSTACK_MAX_PAGES 32u
 
 struct o0_as {
-    uint64_t *pml4;
-    uint64_t pml4_phys;
+    o0_paddr_t pml4_phys;
     uint32_t table_count;
     uint32_t mapped_pages;
     bool kernel;
     bool in_use;
 };
 
-static uint64_t table_pool[O0_TABLE_POOL_MAX][O0_TABLE_ENTRIES] O0_ALIGN(4096);
-static uint32_t table_pool_used;
-
-static uint64_t *kernel_pml4;
+static o0_paddr_t kernel_pml4_phys;
 static struct o0_as kernel_as;
 static struct o0_as user_ases[O0_AS_MAX];
 
 static uint64_t hhdm_offset;
 static uint64_t direct_base;
+static uint64_t kstack_next = O0_KSTACK_VA_BASE;
 static bool paging_ready;
 static bool paging_loaded;
+
+/* Host builds (display_test) link this file without the PMM. Weak fallbacks keep
+ * the pure-mode tests linkable; the kernel's strong PMM definitions win. */
+__attribute__((weak)) o0_paddr_t o0_pmm_alloc_pages(uint32_t order) {
+    (void)order;
+    return 0;
+}
+__attribute__((weak)) void o0_pmm_free_pages(o0_paddr_t base, uint32_t order) {
+    (void)base;
+    (void)order;
+}
 
 static inline uint64_t read_cr3(void) {
     uint64_t cr3;
@@ -102,12 +115,7 @@ static inline void invlpg(uint64_t vaddr) {
 }
 
 void o0_arch_set_hhdm(uint64_t offset) {
-    /* The direct map is built with 2 MiB pages, so the offset in force is the
-     * 2 MiB-aligned one and virt = phys + hhdm_offset stays true for every
-     * address the kernel maps. Limine's offset is page-aligned; any rounding is
-     * downwards and cannot move the base above physical 0. */
     hhdm_offset = O0_ALIGN_DOWN(offset, 1ull << 21);
-    /* With no HHDM (not expected under Limine) the direct map is identity. */
     direct_base = hhdm_offset;
 }
 
@@ -119,8 +127,6 @@ uint64_t o0_arch_direct_map_limit(void) {
     return O0_DIRECT_MAP_LIMIT;
 }
 
-/* Physical -> kernel virtual through the direct map. Returns NULL outside the
- * mapped window; callers must handle that instead of guessing. */
 void *o0_phys_to_virt(o0_paddr_t phys) {
     if (phys >= O0_DIRECT_MAP_LIMIT) {
         return NULL;
@@ -162,7 +168,6 @@ o0_status o0_hhdm_to_virt(o0_paddr_t phys, size_t len, void **out) {
     return O0_OK;
 }
 
-/* Walk the active page tables. Returns 0 when the address is not mapped. */
 o0_paddr_t o0_virt_to_phys(const void *virt) {
     uint64_t vaddr = (uint64_t)(uintptr_t)virt;
     uint64_t cr3 = read_cr3() & O0_ADDR_MASK;
@@ -179,7 +184,6 @@ o0_paddr_t o0_virt_to_phys(const void *virt) {
     if (table == NULL) {
         return 0;
     }
-
     entry = table[O0_PDPT_INDEX(vaddr)];
     if ((entry & O0_ENTRY_PRESENT) == 0) {
         return 0;
@@ -191,7 +195,6 @@ o0_paddr_t o0_virt_to_phys(const void *virt) {
     if (table == NULL) {
         return 0;
     }
-
     entry = table[O0_PD_INDEX(vaddr)];
     if ((entry & O0_ENTRY_PRESENT) == 0) {
         return 0;
@@ -203,7 +206,6 @@ o0_paddr_t o0_virt_to_phys(const void *virt) {
     if (table == NULL) {
         return 0;
     }
-
     entry = table[O0_PT_INDEX(vaddr)];
     if ((entry & O0_ENTRY_PRESENT) == 0) {
         return 0;
@@ -211,24 +213,27 @@ o0_paddr_t o0_virt_to_phys(const void *virt) {
     return (entry & O0_ADDR_MASK) + (vaddr & (O0_PAGE_SIZE - 1u));
 }
 
-/* ---------- table pool ---------- */
+/* ---------- page-table page allocation (PMM-backed) ---------- */
 
-static uint64_t *table_alloc(void) {
-    if (table_pool_used >= O0_TABLE_POOL_MAX) {
-        return NULL;
+static o0_paddr_t table_alloc(void) {
+    o0_paddr_t phys = o0_pmm_alloc_pages(0);
+    if (phys == 0) {
+        return 0;
     }
-    uint64_t *table = table_pool[table_pool_used++];
+    uint64_t *table = (uint64_t *)phys_ptr(phys);
+    if (table == NULL) {
+        o0_pmm_free_pages(phys, 0);
+        return 0;
+    }
     for (size_t i = 0; i < O0_TABLE_ENTRIES; ++i) {
         table[i] = 0;
     }
-    return table;
+    return phys;
 }
 
-static uint64_t table_phys(const uint64_t *table) {
-    return o0_virt_to_phys(table);
+static uint64_t *table_ptr(o0_paddr_t phys) {
+    return (uint64_t *)phys_ptr(phys);
 }
-
-/* ---------- mapping helpers ---------- */
 
 static uint64_t flag_bits(uint32_t flags) {
     uint64_t bits = O0_ENTRY_PRESENT | O0_ENTRY_ACCESSED;
@@ -247,265 +252,105 @@ static uint64_t flag_bits(uint32_t flags) {
     if ((flags & O0_MAP_WC) != 0) {
         bits |= O0_ENTRY_PWT;
     }
-    /* EFER.NXE is not enabled at this stage, so NX is never encoded. */
+    if ((flags & O0_MAP_EXEC) == 0) {
+        bits |= O0_ENTRY_NX;
+    }
     return bits;
 }
 
-/* Fetch (or create) the PD that covers vaddr. */
-static uint64_t *get_pd(uint64_t *pml4, uint64_t vaddr, bool create) {
-    uint64_t entry = pml4[O0_PML4_INDEX(vaddr)];
-    uint64_t *pdpt;
-    if ((entry & O0_ENTRY_PRESENT) == 0) {
-        if (!create) {
-            return NULL;
-        }
-        pdpt = table_alloc();
-        if (pdpt == NULL) {
-            return NULL;
-        }
-        uint64_t pdpt_phys = table_phys(pdpt);
-        if (pdpt_phys == 0) {
-            return NULL;
-        }
-        pml4[O0_PML4_INDEX(vaddr)] = pdpt_phys | O0_ENTRY_PRESENT | O0_ENTRY_WRITE;
-    } else {
-        pdpt = (uint64_t *)phys_ptr(entry & O0_ADDR_MASK);
-        if (pdpt == NULL) {
-            return NULL;
-        }
+static o0_paddr_t ensure_child(o0_paddr_t parent_phys, unsigned index, bool user) {
+    uint64_t *parent = table_ptr(parent_phys);
+    if (parent == NULL) {
+        return 0;
     }
-
-    uint64_t pd_index = O0_PDPT_INDEX(vaddr);
-    entry = pdpt[pd_index];
+    uint64_t entry = parent[index];
     if ((entry & O0_ENTRY_PRESENT) == 0) {
-        if (!create) {
-            return NULL;
+        o0_paddr_t child = table_alloc();
+        if (child == 0) {
+            return 0;
         }
-        uint64_t *pd = table_alloc();
-        if (pd == NULL) {
-            return NULL;
-        }
-        uint64_t pd_phys = table_phys(pd);
-        if (pd_phys == 0) {
-            return NULL;
-        }
-        pdpt[pd_index] = pd_phys | O0_ENTRY_PRESENT | O0_ENTRY_WRITE;
-        return pd;
+        parent[index] = child | O0_ENTRY_PRESENT | O0_ENTRY_WRITE |
+                        (user ? O0_ENTRY_USER : 0);
+        return child;
     }
-
     if ((entry & O0_ENTRY_HUGE) != 0) {
-        /* Covered by a 1 GiB page: no PD to hand out. */
-        return NULL;
+        return 0;
     }
-    return (uint64_t *)phys_ptr(entry & O0_ADDR_MASK);
+    return entry & O0_ADDR_MASK;
 }
 
-/* Map [vaddr, vaddr + size) to [paddr, ...) with 2 MiB pages. The range may
- * cross 1 GiB boundaries, so each PD is filled separately. */
-static o0_status map_range_2mb(uint64_t *pml4, uint64_t vaddr, uint64_t paddr,
+/* Map one 4 KiB page. Internal: the caller has already checked W^X and ranges. */
+static o0_status map_4k(o0_paddr_t pml4_phys, uint64_t vaddr, uint64_t paddr,
+                        uint32_t flags, bool user) {
+    o0_paddr_t pdpt = ensure_child(pml4_phys, O0_PML4_INDEX(vaddr), user);
+    if (pdpt == 0) {
+        return O0_ENOMEM;
+    }
+    o0_paddr_t pd = ensure_child(pdpt, O0_PDPT_INDEX(vaddr), user);
+    if (pd == 0) {
+        return O0_ENOMEM;
+    }
+    o0_paddr_t pt = ensure_child(pd, O0_PD_INDEX(vaddr), user);
+    if (pt == 0) {
+        return O0_ENOMEM;
+    }
+    uint64_t *table = table_ptr(pt);
+    if (table == NULL) {
+        return O0_EFAULT;
+    }
+    table[O0_PT_INDEX(vaddr)] = paddr | flag_bits(flags);
+    return O0_OK;
+}
+
+static o0_status map_range_2mb(o0_paddr_t pml4_phys, uint64_t vaddr, uint64_t paddr,
                                uint64_t size, uint32_t flags) {
     if (!O0_IS_ALIGNED(vaddr, 1ull << 21) || !O0_IS_ALIGNED(paddr, 1ull << 21) ||
         !O0_IS_ALIGNED(size, 1ull << 21)) {
         return O0_EINVAL;
     }
-
+    const uint64_t bits = flag_bits(flags);
     uint64_t offset = 0;
     while (offset < size) {
         uint64_t cur_vaddr = vaddr + offset;
-        uint64_t cur_paddr = paddr + offset;
-
-        uint64_t *pd = get_pd(pml4, cur_vaddr, true);
-        if (pd == NULL) {
+        o0_paddr_t pdpt = ensure_child(pml4_phys, O0_PML4_INDEX(cur_vaddr), false);
+        if (pdpt == 0) {
             return O0_ENOMEM;
         }
-
+        o0_paddr_t pd = ensure_child(pdpt, O0_PDPT_INDEX(cur_vaddr), false);
+        if (pd == 0) {
+            return O0_ENOMEM;
+        }
+        uint64_t *table = table_ptr(pd);
+        if (table == NULL) {
+            return O0_EFAULT;
+        }
         uint64_t first_index = O0_PD_INDEX(cur_vaddr);
         uint64_t entries = O0_TABLE_ENTRIES - first_index;
         uint64_t pages_left = (size - offset) >> 21;
         if (entries > pages_left) {
             entries = pages_left;
         }
-
         for (uint64_t i = 0; i < entries; ++i) {
-            pd[first_index + i] = (cur_paddr + (i << 21)) | O0_ENTRY_HUGE | flag_bits(flags);
+            table[first_index + i] =
+                (paddr + offset + (i << 21)) | O0_ENTRY_HUGE | bits;
         }
         offset += entries << 21;
     }
     return O0_OK;
 }
 
-/* Map [vaddr, vaddr + size) to [paddr, ...) with 4 KiB pages.
- *
- * The kernel image cannot be described by 2 MiB pages: the bootloader loads it
- * at a physical address (kernel_phys) that is not congruent to its link address
- * (kernel_virt) modulo 2 MiB. Aligning both down to 2 MiB independently, as a
- * large-page mapping must, silently drops the sub-2 MiB offset and the kernel
- * ends up reading and writing the wrong physical bytes after the CR3 switch.
- * Four-kilobyte pages preserve the exact virtual/physical offset, so the kernel
- * image is mapped here page by page. */
-static o0_status map_range_4kb(uint64_t *pml4, uint64_t vaddr, uint64_t paddr,
+static o0_status map_range_4kb(o0_paddr_t pml4_phys, uint64_t vaddr, uint64_t paddr,
                                uint64_t size, uint32_t flags) {
     if (!O0_IS_ALIGNED(vaddr, O0_PAGE_SIZE) || !O0_IS_ALIGNED(paddr, O0_PAGE_SIZE)) {
         return O0_EINVAL;
     }
-
-    const uint64_t bits = flag_bits(flags);
     for (uint64_t offset = 0; offset < size; offset += O0_PAGE_SIZE) {
-        uint64_t cur_vaddr = vaddr + offset;
-        uint64_t cur_paddr = paddr + offset;
-
-        uint64_t entry = pml4[O0_PML4_INDEX(cur_vaddr)];
-        uint64_t *pdpt;
-        if ((entry & O0_ENTRY_PRESENT) == 0) {
-            pdpt = table_alloc();
-            if (pdpt == NULL) {
-                return O0_ENOMEM;
-            }
-            uint64_t pdpt_phys = table_phys(pdpt);
-            if (pdpt_phys == 0) {
-                return O0_EFAULT;
-            }
-            pml4[O0_PML4_INDEX(cur_vaddr)] = pdpt_phys | O0_ENTRY_PRESENT | O0_ENTRY_WRITE;
-        } else {
-            pdpt = (uint64_t *)phys_ptr(entry & O0_ADDR_MASK);
-            if (pdpt == NULL) {
-                return O0_EFAULT;
-            }
+        o0_status st = map_4k(pml4_phys, vaddr + offset, paddr + offset, flags, false);
+        if (st != O0_OK) {
+            return st;
         }
-
-        uint64_t pd_index = O0_PDPT_INDEX(cur_vaddr);
-        entry = pdpt[pd_index];
-        uint64_t *pd;
-        if ((entry & O0_ENTRY_PRESENT) == 0) {
-            pd = table_alloc();
-            if (pd == NULL) {
-                return O0_ENOMEM;
-            }
-            uint64_t pd_phys = table_phys(pd);
-            if (pd_phys == 0) {
-                return O0_EFAULT;
-            }
-            pdpt[pd_index] = pd_phys | O0_ENTRY_PRESENT | O0_ENTRY_WRITE;
-        } else {
-            if ((entry & O0_ENTRY_HUGE) != 0) {
-                return O0_EINVAL;
-            }
-            pd = (uint64_t *)phys_ptr(entry & O0_ADDR_MASK);
-            if (pd == NULL) {
-                return O0_EFAULT;
-            }
-        }
-
-        uint64_t pd_pt_index = O0_PD_INDEX(cur_vaddr);
-        entry = pd[pd_pt_index];
-        uint64_t *pt;
-        if ((entry & O0_ENTRY_PRESENT) == 0) {
-            pt = table_alloc();
-            if (pt == NULL) {
-                return O0_ENOMEM;
-            }
-            uint64_t pt_phys = table_phys(pt);
-            if (pt_phys == 0) {
-                return O0_EFAULT;
-            }
-            pd[pd_pt_index] = pt_phys | O0_ENTRY_PRESENT | O0_ENTRY_WRITE;
-        } else {
-            if ((entry & O0_ENTRY_HUGE) != 0) {
-                return O0_EINVAL;
-            }
-            pt = (uint64_t *)phys_ptr(entry & O0_ADDR_MASK);
-            if (pt == NULL) {
-                return O0_EFAULT;
-            }
-        }
-
-        pt[O0_PT_INDEX(cur_vaddr)] = cur_paddr | bits;
     }
     return O0_OK;
-}
-
-/* Fetch (or create) the page table for a 4 KiB mapping. */
-static uint64_t *get_pt(struct o0_as *as, uint64_t vaddr, bool create) {
-    uint64_t *pml4 = as->pml4;
-
-    uint64_t entry = pml4[O0_PML4_INDEX(vaddr)];
-    uint64_t *pdpt;
-    if ((entry & O0_ENTRY_PRESENT) == 0) {
-        if (!create) {
-            return NULL;
-        }
-        pdpt = table_alloc();
-        if (pdpt == NULL) {
-            return NULL;
-        }
-        uint64_t pdpt_phys = table_phys(pdpt);
-        if (pdpt_phys == 0) {
-            return NULL;
-        }
-        pml4[O0_PML4_INDEX(vaddr)] = pdpt_phys | O0_ENTRY_PRESENT | O0_ENTRY_WRITE |
-                                     O0_ENTRY_USER;
-        ++as->table_count;
-    } else {
-        pdpt = (uint64_t *)phys_ptr(entry & O0_ADDR_MASK);
-        if (pdpt == NULL) {
-            return NULL;
-        }
-    }
-
-    uint64_t pdpt_index = O0_PDPT_INDEX(vaddr);
-    entry = pdpt[pdpt_index];
-    uint64_t *pd;
-    if ((entry & O0_ENTRY_PRESENT) == 0) {
-        if (!create) {
-            return NULL;
-        }
-        pd = table_alloc();
-        if (pd == NULL) {
-            return NULL;
-        }
-        uint64_t pd_phys = table_phys(pd);
-        if (pd_phys == 0) {
-            return NULL;
-        }
-        pdpt[pdpt_index] = pd_phys | O0_ENTRY_PRESENT | O0_ENTRY_WRITE | O0_ENTRY_USER;
-        ++as->table_count;
-    } else {
-        if ((entry & O0_ENTRY_HUGE) != 0) {
-            return NULL;
-        }
-        pd = (uint64_t *)phys_ptr(entry & O0_ADDR_MASK);
-        if (pd == NULL) {
-            return NULL;
-        }
-    }
-
-    uint64_t pd_index = O0_PD_INDEX(vaddr);
-    entry = pd[pd_index];
-    uint64_t *pt;
-    if ((entry & O0_ENTRY_PRESENT) == 0) {
-        if (!create) {
-            return NULL;
-        }
-        pt = table_alloc();
-        if (pt == NULL) {
-            return NULL;
-        }
-        uint64_t pt_phys = table_phys(pt);
-        if (pt_phys == 0) {
-            return NULL;
-        }
-        pd[pd_index] = pt_phys | O0_ENTRY_PRESENT | O0_ENTRY_WRITE | O0_ENTRY_USER;
-        ++as->table_count;
-    } else {
-        if ((entry & O0_ENTRY_HUGE) != 0) {
-            return NULL;
-        }
-        pt = (uint64_t *)phys_ptr(entry & O0_ADDR_MASK);
-        if (pt == NULL) {
-            return NULL;
-        }
-    }
-    return pt;
 }
 
 static void flush_if_active(const struct o0_as *as, uint64_t vaddr) {
@@ -515,6 +360,11 @@ static void flush_if_active(const struct o0_as *as, uint64_t vaddr) {
 }
 
 /* ---------- init and CR3 switch ---------- */
+
+/* Weak so host unit tests that link this translation unit without the kernel
+ * linker script still resolve; the fallback below then maps the whole image. */
+extern char _kernel_text_start[] __attribute__((weak));
+extern char _kernel_text_end[] __attribute__((weak));
 
 o0_status o0_paging_init(const struct o0_boot_info *bi) {
     if (bi == NULL) {
@@ -527,19 +377,11 @@ o0_status o0_paging_init(const struct o0_boot_info *bi) {
         return O0_EINVAL;
     }
 
-    kernel_pml4 = table_alloc();
-    if (kernel_pml4 == NULL) {
+    o0_paddr_t pml4_phys = table_alloc();
+    if (pml4_phys == 0) {
         return O0_ENOMEM;
     }
 
-    uint64_t pml4_phys = table_phys(kernel_pml4);
-    if (pml4_phys == 0) {
-        return O0_EFAULT;
-    }
-
-    /* Ordinary direct-map memory uses 2 MiB WB pages. Any 2 MiB chunk
-     * intersecting framebuffer memory is instead mapped with 4 KiB UC pages
-     * throughout that chunk. This prevents a conflicting WB alias of pixels. */
     const uint64_t direct_virt = O0_ALIGN_DOWN((uint64_t)direct_base, 1ull << 21);
     const uint64_t large_page = 1ull << 21;
     o0_status status = O0_OK;
@@ -557,37 +399,54 @@ o0_status o0_paging_init(const struct o0_boot_info *bi) {
             }
         }
         if (framebuffer_chunk) {
-            status = map_range_4kb(kernel_pml4, direct_virt + phys, phys, large_page,
-                O0_MAP_READ | O0_MAP_WRITE | O0_MAP_GLOBAL | O0_MAP_UC);
+            status = map_range_4kb(pml4_phys, direct_virt + phys, phys, large_page,
+                                   O0_MAP_READ | O0_MAP_WRITE | O0_MAP_GLOBAL |
+                                   O0_MAP_UC);
         } else {
-            status = map_range_2mb(kernel_pml4, direct_virt + phys, phys, large_page,
-                O0_MAP_READ | O0_MAP_WRITE | O0_MAP_GLOBAL);
+            status = map_range_2mb(pml4_phys, direct_virt + phys, phys, large_page,
+                                   O0_MAP_READ | O0_MAP_WRITE | O0_MAP_GLOBAL);
         }
         if (status != O0_OK) return status;
     }
 
-    /* Kernel image at its linked high-half address. The physical load address
-     * is not 2 MiB-aligned, so the image is mapped with 4 KiB pages to keep the
-     * virtual/physical offset exact (see map_range_4kb). */
+    /* Kernel image: text is RX, everything after it is RW+NX. The physical load
+     * address is not 2 MiB-aligned, so 4 KiB pages preserve the offset. */
     uint64_t image_virt = O0_ALIGN_DOWN(bi->kernel_virt, O0_PAGE_SIZE);
     uint64_t image_phys = O0_ALIGN_DOWN(bi->kernel_phys, O0_PAGE_SIZE);
     uint64_t image_span = (bi->kernel_virt + bi->kernel_phys_size) - image_virt;
     uint64_t image_size = O0_ALIGN_UP(image_span, O0_PAGE_SIZE);
-    status = map_range_4kb(kernel_pml4, image_virt, image_phys, image_size,
-                           O0_MAP_READ | O0_MAP_WRITE | O0_MAP_EXEC | O0_MAP_GLOBAL);
+
+    uint64_t text_end_virt =
+        O0_ALIGN_UP((uint64_t)(uintptr_t)_kernel_text_end, O0_PAGE_SIZE);
+    if (text_end_virt <= image_virt || text_end_virt > image_virt + image_size) {
+        text_end_virt = image_virt + image_size;
+    }
+    status = map_range_4kb(pml4_phys, image_virt, image_phys, text_end_virt - image_virt,
+                           O0_MAP_READ | O0_MAP_EXEC | O0_MAP_GLOBAL);
     if (status != O0_OK) {
         return status;
     }
+    if (text_end_virt < image_virt + image_size) {
+        status = map_range_4kb(pml4_phys, text_end_virt,
+                               image_phys + (text_end_virt - image_virt),
+                               image_virt + image_size - text_end_virt,
+                               O0_MAP_READ | O0_MAP_WRITE | O0_MAP_GLOBAL);
+        if (status != O0_OK) {
+            return status;
+        }
+    }
+    (void)_kernel_text_start;
 
     for (size_t i = 0; i < O0_AS_MAX; ++i) {
         user_ases[i].in_use = false;
     }
-    kernel_as.pml4 = kernel_pml4;
+    kernel_pml4_phys = pml4_phys;
     kernel_as.pml4_phys = pml4_phys;
-    kernel_as.table_count = table_pool_used;
+    kernel_as.table_count = 0;
     kernel_as.mapped_pages = O0_DIRECT_MAP_LIMIT >> O0_PAGE_SHIFT;
     kernel_as.kernel = true;
     kernel_as.in_use = true;
+    kstack_next = O0_KSTACK_VA_BASE;
 
     paging_ready = true;
     return O0_OK;
@@ -597,16 +456,17 @@ o0_status o0_paging_load(void) {
     if (!paging_ready) {
         return O0_EINVAL;
     }
-    uint64_t cr3 = kernel_as.pml4_phys;
-    if (cr3 == 0) {
-        return O0_EFAULT;
-    }
-    /* Write-protect kernel pages so o0_as_protect has an effect. */
+    /* Enable NX (EFER.NXE) and write-protect kernel pages (CR0.WP). */
+    uint32_t lo;
+    uint32_t hi;
+    __asm__ volatile ("rdmsr" : "=a"(lo), "=d"(hi) : "c"(0xc0000080u));
+    uint64_t efer = ((uint64_t)hi << 32) | lo;
+    efer |= (1ull << 11);
+    __asm__ volatile ("wrmsr" : : "a"((uint32_t)efer), "d"((uint32_t)(efer >> 32)),
+                      "c"(0xc0000080u));
     uint64_t cr0 = read_cr0();
-    if ((cr0 & (1ull << 16)) == 0) {
-        write_cr0(cr0 | (1ull << 16));
-    }
-    write_cr3(cr3);
+    write_cr0(cr0 | (1ull << 16));
+    write_cr3(kernel_as.pml4_phys);
     paging_loaded = true;
     return O0_OK;
 }
@@ -621,14 +481,34 @@ o0_as_t *o0_as_kernel(void) {
     return paging_ready ? &kernel_as : NULL;
 }
 
-o0_status o0_as_create(o0_as_t **out) {
-    if (out == NULL) {
-        return O0_EINVAL;
+static void free_user_table_tree(o0_paddr_t phys, unsigned level) {
+    uint64_t *table = table_ptr(phys);
+    if (table == NULL) {
+        return;
     }
-    if (!paging_ready) {
-        return O0_EINVAL;
+    for (unsigned i = 0; i < O0_TABLE_ENTRIES; ++i) {
+        uint64_t entry = table[i];
+        if ((entry & O0_ENTRY_PRESENT) == 0) {
+            continue;
+        }
+        if (level == 1u) {
+            if ((entry & O0_ENTRY_HUGE) == 0) {
+                o0_pmm_free_pages(entry & O0_ADDR_MASK, 0);
+            }
+            continue;
+        }
+        if ((entry & O0_ENTRY_HUGE) != 0) {
+            continue;
+        }
+        free_user_table_tree(entry & O0_ADDR_MASK, level - 1u);
     }
+    o0_pmm_free_pages(phys, 0);
+}
 
+o0_status o0_as_create(o0_as_t **out) {
+    if (out == NULL || !paging_ready) {
+        return O0_EINVAL;
+    }
     struct o0_as *as = NULL;
     for (size_t i = 0; i < O0_AS_MAX; ++i) {
         if (!user_ases[i].in_use) {
@@ -640,21 +520,20 @@ o0_status o0_as_create(o0_as_t **out) {
         return O0_ENOMEM;
     }
 
-    uint64_t *pml4 = table_alloc();
-    if (pml4 == NULL) {
+    o0_paddr_t pml4_phys = table_alloc();
+    if (pml4_phys == 0) {
         return O0_ENOMEM;
     }
-    uint64_t pml4_phys = table_phys(pml4);
-    if (pml4_phys == 0) {
+    uint64_t *pml4 = table_ptr(pml4_phys);
+    uint64_t *kernel_pml4 = table_ptr(kernel_pml4_phys);
+    if (pml4 == NULL || kernel_pml4 == NULL) {
+        o0_pmm_free_pages(pml4_phys, 0);
         return O0_EFAULT;
     }
-
-    /* Share the kernel half: everything above the user-space split. */
-    for (size_t i = O0_PML4_INDEX(O0_USER_SPACE_END); i < O0_TABLE_ENTRIES; ++i) {
+    for (size_t i = O0_USER_PML4_SPLIT; i < O0_TABLE_ENTRIES; ++i) {
         pml4[i] = kernel_pml4[i];
     }
 
-    as->pml4 = pml4;
     as->pml4_phys = pml4_phys;
     as->table_count = 1;
     as->mapped_pages = 0;
@@ -668,11 +547,101 @@ void o0_as_destroy(o0_as_t *as) {
     if (as == NULL || as->kernel) {
         return;
     }
-    /* The table pool is not recycled at this stage; drop the reference only. */
+    if (as->pml4_phys != 0 && (read_cr3() & O0_ADDR_MASK) != as->pml4_phys) {
+        uint64_t *pml4 = table_ptr(as->pml4_phys);
+        if (pml4 != NULL) {
+            for (unsigned i = 0; i < O0_USER_PML4_SPLIT; ++i) {
+                uint64_t entry = pml4[i];
+                if ((entry & O0_ENTRY_PRESENT) == 0) {
+                    continue;
+                }
+                /* pml4 -> pdpt -> pd -> pt, so leaves are reached at level 1. */
+                free_user_table_tree(entry & O0_ADDR_MASK, 3u);
+                pml4[i] = 0;
+            }
+        }
+        o0_pmm_free_pages(as->pml4_phys, 0);
+    }
     as->in_use = false;
-    as->pml4 = NULL;
     as->pml4_phys = 0;
     as->mapped_pages = 0;
+    as->table_count = 0;
+}
+
+static uint32_t entry_flags(uint64_t entry) {
+    uint32_t flags = O0_MAP_READ;
+    if ((entry & O0_ENTRY_WRITE) != 0) {
+        flags |= O0_MAP_WRITE;
+    }
+    if ((entry & O0_ENTRY_USER) != 0) {
+        flags |= O0_MAP_USER;
+    }
+    if ((entry & O0_ENTRY_GLOBAL) != 0) {
+        flags |= O0_MAP_GLOBAL;
+    }
+    if ((entry & O0_ENTRY_NX) == 0) {
+        flags |= O0_MAP_EXEC;
+    }
+    if ((entry & O0_ENTRY_PCD) != 0 && (entry & O0_ENTRY_PWT) != 0) {
+        flags |= O0_MAP_UC;
+    } else if ((entry & O0_ENTRY_PWT) != 0) {
+        flags |= O0_MAP_WC;
+    }
+    return flags;
+}
+
+o0_status o0_as_query(o0_as_t *as, o0_vaddr_t vaddr, uint32_t *out_flags,
+                      o0_paddr_t *out_phys) {
+    if (as == NULL || as->pml4_phys == 0) {
+        return O0_EINVAL;
+    }
+    uint64_t *table = table_ptr(as->pml4_phys);
+    if (table == NULL) {
+        return O0_EFAULT;
+    }
+    uint64_t entry = table[O0_PML4_INDEX(vaddr)];
+    if ((entry & O0_ENTRY_PRESENT) == 0) {
+        return O0_ENOENT;
+    }
+    table = table_ptr(entry & O0_ADDR_MASK);
+    if (table == NULL) {
+        return O0_EFAULT;
+    }
+    entry = table[O0_PDPT_INDEX(vaddr)];
+    if ((entry & O0_ENTRY_PRESENT) == 0) {
+        return O0_ENOENT;
+    }
+    if ((entry & O0_ENTRY_HUGE) != 0) {
+        if (out_flags) *out_flags = entry_flags(entry);
+        if (out_phys) *out_phys = (entry & O0_HUGE_1G_MASK) +
+                                  (vaddr & ((1ull << 30) - 1u));
+        return O0_OK;
+    }
+    table = table_ptr(entry & O0_ADDR_MASK);
+    if (table == NULL) {
+        return O0_EFAULT;
+    }
+    entry = table[O0_PD_INDEX(vaddr)];
+    if ((entry & O0_ENTRY_PRESENT) == 0) {
+        return O0_ENOENT;
+    }
+    if ((entry & O0_ENTRY_HUGE) != 0) {
+        if (out_flags) *out_flags = entry_flags(entry);
+        if (out_phys) *out_phys = (entry & O0_HUGE_2M_MASK) +
+                                  (vaddr & ((1ull << 21) - 1u));
+        return O0_OK;
+    }
+    table = table_ptr(entry & O0_ADDR_MASK);
+    if (table == NULL) {
+        return O0_EFAULT;
+    }
+    entry = table[O0_PT_INDEX(vaddr)];
+    if ((entry & O0_ENTRY_PRESENT) == 0) {
+        return O0_ENOENT;
+    }
+    if (out_flags) *out_flags = entry_flags(entry);
+    if (out_phys) *out_phys = (entry & O0_ADDR_MASK) + (vaddr & (O0_PAGE_SIZE - 1u));
+    return O0_OK;
 }
 
 o0_status o0_as_map(o0_as_t *as, o0_vaddr_t vaddr, o0_paddr_t paddr, size_t len,
@@ -683,22 +652,30 @@ o0_status o0_as_map(o0_as_t *as, o0_vaddr_t vaddr, o0_paddr_t paddr, size_t len,
     if (!O0_IS_ALIGNED(vaddr, O0_PAGE_SIZE) || !O0_IS_ALIGNED(paddr, O0_PAGE_SIZE)) {
         return O0_EINVAL;
     }
-    if (!as->kernel &&
-        (vaddr >= O0_USER_SPACE_END || (uint64_t)len > O0_USER_SPACE_END - vaddr)) {
+    if ((flags & O0_MAP_WRITE) != 0 && (flags & O0_MAP_EXEC) != 0) {
         return O0_EPERM;
+    }
+    if (!as->kernel) {
+        if (vaddr >= O0_USER_LIMIT || (uint64_t)len > O0_USER_LIMIT - vaddr) {
+            return O0_EPERM;
+        }
+        if (vaddr < O0_USER_NULL_GUARD_END) {
+            return O0_EPERM;
+        }
     }
     if (!o0_hhdm_range_ok(paddr, len)) {
         return O0_ERANGE;
     }
 
     size_t pages = O0_ALIGN_UP(len, O0_PAGE_SIZE) >> O0_PAGE_SHIFT;
+    bool user = (flags & O0_MAP_USER) != 0;
     for (size_t i = 0; i < pages; ++i) {
         uint64_t page_vaddr = vaddr + (i << O0_PAGE_SHIFT);
-        uint64_t *pt = get_pt(as, page_vaddr, true);
-        if (pt == NULL) {
-            return O0_ENOMEM;
+        o0_status st = map_4k(as->pml4_phys, page_vaddr, paddr + (i << O0_PAGE_SHIFT),
+                               flags, user);
+        if (st != O0_OK) {
+            return st;
         }
-        pt[O0_PT_INDEX(page_vaddr)] = (paddr + (i << O0_PAGE_SHIFT)) | flag_bits(flags);
         flush_if_active(as, page_vaddr);
         ++as->mapped_pages;
     }
@@ -706,24 +683,28 @@ o0_status o0_as_map(o0_as_t *as, o0_vaddr_t vaddr, o0_paddr_t paddr, size_t len,
 }
 
 o0_status o0_as_unmap(o0_as_t *as, o0_vaddr_t vaddr, size_t len) {
-    if (as == NULL || len == 0) {
+    if (as == NULL || len == 0 || !O0_IS_ALIGNED(vaddr, O0_PAGE_SIZE)) {
         return O0_EINVAL;
     }
-    if (!O0_IS_ALIGNED(vaddr, O0_PAGE_SIZE)) {
-        return O0_EINVAL;
-    }
-
     size_t pages = O0_ALIGN_UP(len, O0_PAGE_SIZE) >> O0_PAGE_SHIFT;
     for (size_t i = 0; i < pages; ++i) {
         uint64_t page_vaddr = vaddr + (i << O0_PAGE_SHIFT);
-        uint64_t *pt = get_pt(as, page_vaddr, false);
-        if (pt == NULL) {
-            return O0_ENOENT;
-        }
+        uint64_t *pml4 = table_ptr(as->pml4_phys);
+        if (pml4 == NULL) return O0_EFAULT;
+        uint64_t e = pml4[O0_PML4_INDEX(page_vaddr)];
+        if ((e & O0_ENTRY_PRESENT) == 0) return O0_ENOENT;
+        uint64_t *pdpt = table_ptr(e & O0_ADDR_MASK);
+        if (pdpt == NULL) return O0_EFAULT;
+        e = pdpt[O0_PDPT_INDEX(page_vaddr)];
+        if ((e & O0_ENTRY_PRESENT) == 0 || (e & O0_ENTRY_HUGE) != 0) return O0_ENOENT;
+        uint64_t *pd = table_ptr(e & O0_ADDR_MASK);
+        if (pd == NULL) return O0_EFAULT;
+        e = pd[O0_PD_INDEX(page_vaddr)];
+        if ((e & O0_ENTRY_PRESENT) == 0 || (e & O0_ENTRY_HUGE) != 0) return O0_ENOENT;
+        uint64_t *pt = table_ptr(e & O0_ADDR_MASK);
+        if (pt == NULL) return O0_EFAULT;
         uint64_t *entry = &pt[O0_PT_INDEX(page_vaddr)];
-        if ((*entry & O0_ENTRY_PRESENT) == 0) {
-            return O0_ENOENT;
-        }
+        if ((*entry & O0_ENTRY_PRESENT) == 0) return O0_ENOENT;
         *entry = 0;
         flush_if_active(as, page_vaddr);
         if (as->mapped_pages > 0) {
@@ -734,36 +715,47 @@ o0_status o0_as_unmap(o0_as_t *as, o0_vaddr_t vaddr, size_t len) {
 }
 
 o0_status o0_as_protect(o0_as_t *as, o0_vaddr_t vaddr, size_t len, uint32_t flags) {
-    if (as == NULL || len == 0) {
+    if (as == NULL || len == 0 || !O0_IS_ALIGNED(vaddr, O0_PAGE_SIZE)) {
         return O0_EINVAL;
     }
-    if (!O0_IS_ALIGNED(vaddr, O0_PAGE_SIZE)) {
-        return O0_EINVAL;
+    if ((flags & O0_MAP_WRITE) != 0 && (flags & O0_MAP_EXEC) != 0) {
+        return O0_EPERM;
     }
-
     size_t pages = O0_ALIGN_UP(len, O0_PAGE_SIZE) >> O0_PAGE_SHIFT;
     for (size_t i = 0; i < pages; ++i) {
         uint64_t page_vaddr = vaddr + (i << O0_PAGE_SHIFT);
-        uint64_t *pt = get_pt(as, page_vaddr, false);
-        if (pt == NULL) {
-            return O0_ENOENT;
+        o0_paddr_t phys = 0;
+        o0_status st = o0_as_query(as, page_vaddr, NULL, &phys);
+        if (st != O0_OK) {
+            return st;
         }
-        uint64_t *entry = &pt[O0_PT_INDEX(page_vaddr)];
-        if ((*entry & O0_ENTRY_PRESENT) == 0) {
-            return O0_ENOENT;
+        st = map_4k(as->pml4_phys, page_vaddr, phys & O0_PAGE_MASK, flags,
+                    (flags & O0_MAP_USER) != 0);
+        if (st != O0_OK) {
+            return st;
         }
-        uint64_t phys = *entry & O0_ADDR_MASK;
-        *entry = phys | flag_bits(flags);
         flush_if_active(as, page_vaddr);
     }
     return O0_OK;
 }
 
-/* Switches the active address space. The address space must keep the kernel
- * half mapped, which o0_as_create guarantees. */
+static void refresh_kernel_half(struct o0_as *as) {
+    uint64_t *pml4 = table_ptr(as->pml4_phys);
+    uint64_t *kernel_pml4 = table_ptr(kernel_pml4_phys);
+    if (pml4 == NULL || kernel_pml4 == NULL) {
+        return;
+    }
+    for (size_t i = O0_USER_PML4_SPLIT; i < O0_TABLE_ENTRIES; ++i) {
+        pml4[i] = kernel_pml4[i];
+    }
+}
+
 o0_status o0_as_activate(o0_as_t *as) {
     if (as == NULL || as->pml4_phys == 0) {
         return O0_EINVAL;
+    }
+    if (!as->kernel) {
+        refresh_kernel_half(as);
     }
     write_cr3(as->pml4_phys);
     return O0_OK;
@@ -780,4 +772,59 @@ o0_as_t *o0_as_active(void) {
         }
     }
     return NULL;
+}
+
+/* ---------- kernel stacks ---------- */
+
+o0_status o0_kstack_alloc(size_t pages, o0_vaddr_t *out_base) {
+    if (out_base == NULL || pages == 0 || pages > O0_KSTACK_MAX_PAGES ||
+        !paging_ready) {
+        return O0_EINVAL;
+    }
+    uint64_t span = (uint64_t)(pages + 1u) << O0_PAGE_SHIFT;
+    if (kstack_next > O0_KSTACK_VA_END - span) {
+        return O0_ENOMEM;
+    }
+    o0_vaddr_t base = kstack_next + O0_PAGE_SIZE; /* leave the guard unmapped */
+    o0_paddr_t phys[O0_KSTACK_MAX_PAGES];
+    for (size_t i = 0; i < pages; ++i) {
+        phys[i] = o0_pmm_alloc_pages(0);
+        if (phys[i] == 0) {
+            for (size_t j = 0; j < i; ++j) {
+                o0_pmm_free_pages(phys[j], 0);
+            }
+            return O0_ENOMEM;
+        }
+    }
+    for (size_t i = 0; i < pages; ++i) {
+        o0_status st = o0_as_map(&kernel_as, base + (i << O0_PAGE_SHIFT), phys[i],
+                                 O0_PAGE_SIZE,
+                                 O0_MAP_READ | O0_MAP_WRITE | O0_MAP_GLOBAL);
+        if (st != O0_OK) {
+            for (size_t j = 0; j < i; ++j) {
+                o0_as_unmap(&kernel_as, base + (j << O0_PAGE_SHIFT), O0_PAGE_SIZE);
+            }
+            for (size_t j = 0; j < pages; ++j) {
+                o0_pmm_free_pages(phys[j], 0);
+            }
+            return st;
+        }
+    }
+    kstack_next = base + ((uint64_t)pages << O0_PAGE_SHIFT);
+    *out_base = base;
+    return O0_OK;
+}
+
+void o0_kstack_free(o0_vaddr_t base, size_t pages) {
+    if (base == 0 || pages == 0 || pages > O0_KSTACK_MAX_PAGES) {
+        return;
+    }
+    for (size_t i = 0; i < pages; ++i) {
+        o0_vaddr_t va = base + (i << O0_PAGE_SHIFT);
+        o0_paddr_t phys = 0;
+        if (o0_as_query(&kernel_as, va, NULL, &phys) == O0_OK) {
+            o0_as_unmap(&kernel_as, va, O0_PAGE_SIZE);
+            o0_pmm_free_pages(phys & O0_PAGE_MASK, 0);
+        }
+    }
 }

@@ -39,6 +39,12 @@ IRQ_STUB 15
 .type x86_64_irq_common, @function
 x86_64_irq_common:
     cld
+    /* Timer and device interrupts can arrive while ring 3 is running; that path
+     * must use the kernel GS base. */
+    testb $3, 24(%rsp)
+    jz 1f
+    swapgs
+1:
     pushq %rax
     pushq %rbx
     pushq %rcx
@@ -75,6 +81,10 @@ x86_64_irq_common:
     popq %rbx
     popq %rax
     addq $16, %rsp
+    testb $3, 8(%rsp)
+    jz 2f
+    swapgs
+2:
     iretq
 
 .section .rodata

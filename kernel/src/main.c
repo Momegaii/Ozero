@@ -19,7 +19,9 @@
 #include "ozero/display.h"
 #include "ozero/boot.h"
 #include "ozero/cpu.h"
+#include "ozero/cpu_local.h"
 #include "ozero/fs.h"
+#include "ozero/gdt.h"
 #include "ozero/gpu.h"
 #include "ozero/gpu_device.h"
 #include "ozero/gpu_hsw.h"
@@ -32,6 +34,8 @@
 #include "ozero/status.h"
 #include "ozero/sync.h"
 #include "ozero/thread.h"
+#include "ozero/uapi.h"
+#include "ozero/user.h"
 
 #include "serial.h"
 #include "string.h"
@@ -111,8 +115,30 @@ struct x86_64_exception_frame {
 
 extern void x86_64_idt_init(void);
 extern void x86_64_idt_install_irq_gates(void);
+extern void x86_64_idt_install_double_fault_ist(void);
+extern bool o0_usercopy_fixup(uint64_t fault_rip, uint64_t *fixup_rip);
 
 void x86_exception_dispatch(struct x86_64_exception_frame *frame) {
+    /* A fault taken from ring 3 must never take the kernel down: the process is
+     * killed and the scheduler continues. */
+    if ((frame->cs & 3u) == 3u) {
+        uint64_t cr2 = 0;
+        if (frame->vector == 14) {
+            __asm__ volatile ("mov %%cr2, %0" : "=r"(cr2));
+        }
+        o0_thread_user_fault(frame->rip, cr2, frame->error_code);
+    }
+
+    /* A fault inside a usercopy core is recovered by redirecting execution to
+     * the fixup label, which returns -EFAULT to the syscall layer. */
+    if (frame->vector == 14) {
+        uint64_t fixup = 0;
+        if (o0_usercopy_fixup(frame->rip, &fixup)) {
+            frame->rip = fixup;
+            return;
+        }
+    }
+
     o0_serial_puts("\nOZERO: EXCEPTION vector=");
     o0_serial_dec(frame->vector);
     o0_serial_puts(" error=");
@@ -647,6 +673,111 @@ static void stage3_demo(void) {
     o0_serial_puts("\n");
 }
 
+/* ---------- Wave 2: ring-3 entry and contained failures ---------- */
+
+extern const unsigned char _binary_build_user_init_elf_start[];
+extern const unsigned char _binary_build_user_init_elf_end[];
+extern const unsigned char _binary_build_user_quiet_elf_start[];
+extern const unsigned char _binary_build_user_quiet_elf_end[];
+extern const unsigned char _binary_build_user_fault_null_elf_start[];
+extern const unsigned char _binary_build_user_fault_null_elf_end[];
+extern const unsigned char _binary_build_user_fault_priv_elf_start[];
+extern const unsigned char _binary_build_user_fault_priv_elf_end[];
+extern const unsigned char _binary_build_user_fault_kjump_elf_start[];
+extern const unsigned char _binary_build_user_fault_kjump_elf_end[];
+extern const unsigned char _binary_build_user_badptr_elf_start[];
+extern const unsigned char _binary_build_user_badptr_elf_end[];
+
+static int wave2_run_user(const char *name, const unsigned char *start,
+                          const unsigned char *end) {
+    size_t size = (size_t)(end - start);
+    o0_serial_puts("OZERO: wave2 run ");
+    o0_serial_puts(name);
+    o0_serial_putc('\n');
+    o0_thread_t *thread = NULL;
+    if (o0_user_spawn(name, start, size, &thread) != O0_OK) {
+        panic("user image load failed");
+    }
+    int status = -1234;
+    if (o0_thread_join(thread, &status) != O0_OK) {
+        panic("user thread join failed");
+    }
+    o0_serial_puts("OZERO: wave2 done ");
+    o0_serial_puts(name);
+    o0_serial_puts(" status=");
+    o0_serial_dec((uint64_t)(int64_t)status);
+    o0_serial_putc('\n');
+    return status;
+}
+
+static void wave2_self_test(void *arg) {
+    (void)arg;
+
+    if (wave2_run_user("init", _binary_build_user_init_elf_start,
+                       _binary_build_user_init_elf_end) != 0) {
+        panic("init process did not exit with status 0");
+    }
+    o0_serial_puts("OZERO: syscall exit status=0\n");
+
+    /* A NULL dereference must kill only the faulting process. */
+    if (wave2_run_user("fault-null", _binary_build_user_fault_null_elf_start,
+                       _binary_build_user_fault_null_elf_end) != -1) {
+        panic("NULL-dereference process was not killed");
+    }
+    /* A privileged instruction from ring 3 must be contained. */
+    if (wave2_run_user("fault-priv", _binary_build_user_fault_priv_elf_start,
+                       _binary_build_user_fault_priv_elf_end) != -1) {
+        panic("privileged-instruction process was not killed");
+    }
+    /* A jump into the kernel half must be contained. */
+    if (wave2_run_user("fault-kjump", _binary_build_user_fault_kjump_elf_start,
+                       _binary_build_user_fault_kjump_elf_end) != -1) {
+        panic("kernel-address jump was not contained");
+    }
+    /* A bad syscall pointer must be rejected with -EFAULT, not fault the kernel. */
+    if (wave2_run_user("badptr", _binary_build_user_badptr_elf_start,
+                       _binary_build_user_badptr_elf_end) != 0) {
+        panic("bad syscall pointer was not rejected with -EFAULT");
+    }
+    o0_serial_puts("OZERO: syscall bad pointer rejected\n");
+
+    /* Process churn: every allocation must come back. */
+    uint64_t before = o0_pmm_free_bytes();
+    for (uint32_t i = 0; i < 16u; ++i) {
+        if (wave2_run_user("churn", _binary_build_user_quiet_elf_start,
+                           _binary_build_user_quiet_elf_end) != 0) {
+            panic("churn process failed");
+        }
+    }
+    uint64_t after = o0_pmm_free_bytes();
+    if (after != before) {
+        panic("process churn leaked physical pages");
+    }
+    o0_serial_puts("OZERO: user churn OK processes=16\n");
+    o0_serial_puts("OZERO: wave2 self-test complete\n");
+}
+
+static void wave2_demo(void) {
+    o0_process_t *proc = NULL;
+    if (o0_process_create("usertest", o0_as_kernel(), &proc) != O0_OK) {
+        panic("user self-test process creation failed");
+    }
+    struct o0_thread_attr attr = {
+        .name = "usertest",
+        .entry = wave2_self_test,
+        .arg = NULL,
+        .stack_size = 0,
+        .priority = 1,
+        .flags = 0,
+        .user_entry = 0,
+        .user_rsp = 0,
+    };
+    o0_thread_t *thread = NULL;
+    if (o0_thread_create(proc, &attr, &thread) != O0_OK) {
+        panic("user self-test thread creation failed");
+    }
+}
+
 static struct o0_display_mode boot_display_mode;
 static o0_paddr_t boot_framebuffer_phys;
 static bool boot_framebuffer_valid;
@@ -778,6 +909,20 @@ void kmain(void) {
         panic("CR3 switch to kernel page tables failed");
     }
     o0_serial_puts("OZERO: page tables active\n");
+
+    /* Ring-3 prerequisites: NX for W^X and SYSCALL for the native ABI. */
+    if (!cf->nx) {
+        panic("CPU lacks NX; W^X cannot be enforced");
+    }
+    if (!cf->syscall) {
+        panic("CPU lacks SYSCALL; the Ozero user ABI requires it");
+    }
+
+    o0_gdt_init();
+    /* The early IDT used Limine's CS selector; reinstall it against our GDT. */
+    x86_64_idt_init();
+    x86_64_idt_install_double_fault_ist();
+    o0_serial_puts("OZERO: gdt+tss installed\n");
  
     if (boot_framebuffer_valid) {
         o0_status display_status =
@@ -832,6 +977,7 @@ void kmain(void) {
     stage5_self_test();
     report_memory_map();
     stage3_demo();
+    wave2_demo();
 
     o0_serial_puts("OZERO: boot success; starting scheduler\n");
     o0_sched_start();

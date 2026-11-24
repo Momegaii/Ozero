@@ -1,8 +1,9 @@
-/* Ozero kernel - processes and kernel threads.
+/* Ozero kernel - processes and threads.
  *
- * Stage 3 threads are kernel threads: ring 0, one 16 KiB kernel stack each,
- * preemptively scheduled by the PIT tick. A process is currently a name, an
- * address space and a thread group - no user-mode state, no syscall ABI.
+ * Kernel threads run in ring 0 with a dedicated kernel stack. User threads run
+ * in ring 3 on a private user address space and re-enter the kernel through
+ * SYSCALL or an interrupt. Each thread owns a kernel stack mapped with a guard
+ * page below it, so TSS.RSP0 has a valid target on every ring transition.
  */
 
 #include <stdbool.h>
@@ -15,6 +16,8 @@
 #include "ozero/status.h"
 #include "ozero/thread.h"
 #include "ozero/types.h"
+#include "ozero/uapi.h"
+#include "ozero/user.h"
 
 #include "serial.h"
 #include "thread_internal.h"
@@ -26,13 +29,16 @@ static uint32_t next_pid = 1;
 static bool thread_system_ready;
 
 /* Entry point for a fresh thread: interrupts are still disabled by the context
- * switch, so they are enabled here before calling user code. */
+ * switch. User threads enter ring 3; kernel threads call their entry normally. */
 static void o0_thread_trampoline(void) {
     __asm__ volatile ("sti" : : : "memory");
 
     struct o0_thread *self = o0_sched_current();
     if (self == NULL) {
         o0_thread_exit(1);
+    }
+    if (self->user) {
+        o0_user_enter(self->user_entry, self->user_rsp);
     }
     void (*entry)(void *) = self->entry;
     void *arg = self->arg;
@@ -52,12 +58,18 @@ bool o0_thread_init_system(void) {
         thread_table[i].rsp = 0;
         thread_table[i].next_ready = NULL;
         thread_table[i].join_waiter = NULL;
+        thread_table[i].kstack_base = 0;
+        thread_table[i].kstack_pages = 0;
+        thread_table[i].kernel_stack_top = 0;
+        thread_table[i].user = false;
         thread_table[i].name[0] = '\0';
     }
     for (size_t i = 0; i < O0_MAX_PROCESSES; ++i) {
         process_table[i].in_use = false;
         process_table[i].as = NULL;
         process_table[i].pid = 0;
+        process_table[i].user = false;
+        process_table[i].thread_count = 0;
         process_table[i].name[0] = '\0';
     }
     next_thread_id = 1;
@@ -87,6 +99,13 @@ void o0_thread_release_slot(struct o0_thread *thread) {
     thread->join_waiter = NULL;
     thread->stack_base = 0;
     thread->stack_size = 0;
+    thread->kstack_base = 0;
+    thread->kstack_pages = 0;
+    thread->kernel_stack_top = 0;
+    thread->rsp = 0;
+    thread->user = false;
+    thread->user_entry = 0;
+    thread->user_rsp = 0;
     thread->name[0] = '\0';
 }
 
@@ -154,6 +173,8 @@ O0_NODISCARD o0_status o0_process_create(const char *name, o0_as_t *as,
     proc->in_use = true;
     proc->pid = next_pid++;
     proc->as = as != NULL ? as : o0_as_kernel();
+    proc->user = false;
+    proc->thread_count = 0;
     copy_name(proc->name, sizeof(proc->name), name);
     *out = proc;
     return O0_OK;
@@ -165,6 +186,8 @@ void o0_process_destroy(o0_process_t *proc) {
     }
     proc->in_use = false;
     proc->as = NULL;
+    proc->user = false;
+    proc->thread_count = 0;
     proc->name[0] = '\0';
 }
 
@@ -192,8 +215,20 @@ const char *o0_process_name(const o0_process_t *proc) {
 O0_NODISCARD o0_status o0_thread_create(o0_process_t *proc,
                                         const struct o0_thread_attr *attr,
                                         o0_thread_t **out) {
-    if (attr == NULL || attr->entry == NULL) {
+    if (attr == NULL) {
         return O0_EINVAL;
+    }
+    bool user = (attr->flags & O0_THREAD_FLAG_USER) != 0;
+    if (!user && attr->entry == NULL) {
+        return O0_EINVAL;
+    }
+    if (user) {
+        uint64_t rip = attr->user_entry;
+        uint64_t rsp = attr->user_rsp;
+        if (rip < O0_USER_NULL_GUARD_END || rip >= O0_USER_LIMIT ||
+            rsp < O0_USER_NULL_GUARD_END || rsp > O0_USER_LIMIT) {
+            return O0_EINVAL;
+        }
     }
     if (!thread_system_ready) {
         return O0_EINVAL;
@@ -211,25 +246,20 @@ O0_NODISCARD o0_status o0_thread_create(o0_process_t *proc,
             stack_pages = requested;
         }
     }
-    uint32_t order = 0;
-    while ((1ul << order) < stack_pages && order < 8) {
-        ++order;
+    if (stack_pages > 32u) {
+        stack_pages = 32u;
     }
 
-    o0_paddr_t stack_phys = o0_pmm_alloc_pages(order);
-    if (stack_phys == 0) {
-        return O0_ENOMEM;
+    o0_vaddr_t stack = 0;
+    o0_status st = o0_kstack_alloc(stack_pages, &stack);
+    if (st != O0_OK) {
+        return st;
     }
-    void *stack = o0_phys_to_virt(stack_phys);
-    if (stack == NULL) {
-        o0_pmm_free_pages(stack_phys, order);
-        return O0_ERANGE;
-    }
-    size_t stack_size = (1ul << order) << O0_PAGE_SHIFT;
+    size_t stack_size = stack_pages << O0_PAGE_SHIFT;
+    uint64_t stack_top = (uint64_t)stack + stack_size;
 
     /* Build the initial frame consumed by x86_64_context_switch:
      * [rbx][rbp][r12][r13][r14][r15][entry]. */
-    uint64_t stack_top = (uint64_t)(uintptr_t)stack + stack_size;
     uint64_t *sp = (uint64_t *)(O0_ALIGN_DOWN(stack_top, 16) - 8u);
     *--sp = (uint64_t)(uintptr_t)o0_thread_trampoline;
     *--sp = 0; /* r15 */
@@ -244,10 +274,16 @@ O0_NODISCARD o0_status o0_thread_create(o0_process_t *proc,
     thread->wait_next = NULL;
     thread->join_waiter = NULL;
     thread->proc = proc;
-    thread->entry = attr->entry;
+    thread->entry = user ? NULL : attr->entry;
     thread->arg = attr->arg;
-    thread->stack_base = (o0_vaddr_t)(uintptr_t)stack;
+    thread->stack_base = stack;
     thread->stack_size = stack_size;
+    thread->kstack_base = stack;
+    thread->kstack_pages = stack_pages;
+    thread->kernel_stack_top = stack_top;
+    thread->user = user;
+    thread->user_entry = user ? attr->user_entry : 0;
+    thread->user_rsp = user ? attr->user_rsp : 0;
     thread->wake_tick = 0;
     thread->exit_status = 0;
     thread->id = next_thread_id++;
@@ -264,11 +300,55 @@ O0_NODISCARD o0_status o0_thread_create(o0_process_t *proc,
     copy_name(thread->name, sizeof(thread->name),
               attr->name != NULL ? attr->name : "thread");
 
+    if (proc != NULL) {
+        ++proc->thread_count;
+    }
+
     o0_sched_enqueue(thread);
     if (out != NULL) {
         *out = thread;
     }
     return O0_OK;
+}
+
+/* Releases everything a finished thread owns. The caller must not be the
+ * thread itself (it is still mapped to its own kernel stack). */
+void o0_thread_free_resources(struct o0_thread *thread) {
+    if (thread == NULL) {
+        return;
+    }
+    if (thread->kstack_base != 0) {
+        o0_kstack_free(thread->kstack_base, thread->kstack_pages);
+        thread->kstack_base = 0;
+        thread->kstack_pages = 0;
+        thread->kernel_stack_top = 0;
+    }
+    struct o0_process *proc = thread->proc;
+    thread->proc = NULL;
+    if (proc != NULL) {
+        if (proc->thread_count > 0) {
+            --proc->thread_count;
+        }
+        if (proc->thread_count == 0) {
+            o0_as_t *as = proc->as;
+            bool user = proc->user;
+            o0_process_destroy(proc);
+            if (user && as != NULL && as != o0_as_kernel()) {
+                o0_as_destroy(as);
+            }
+        }
+    }
+}
+
+O0_NORETURN void o0_thread_user_fault(uint64_t rip, uint64_t cr2, uint64_t error) {
+    o0_serial_puts("OZERO: user fault contained rip=");
+    o0_serial_hex(rip);
+    o0_serial_puts(" cr2=");
+    o0_serial_hex(cr2);
+    o0_serial_puts(" error=");
+    o0_serial_hex(error);
+    o0_serial_putc('\n');
+    o0_thread_exit(-1);
 }
 
 O0_NORETURN void o0_thread_exit(int status) {
@@ -324,6 +404,7 @@ o0_status o0_thread_join(o0_thread_t *thread, int *status) {
         *status = thread->exit_status;
     }
     thread->joined = true;
+    o0_thread_free_resources(thread);
     o0_thread_release_slot(thread);
     return O0_OK;
 }

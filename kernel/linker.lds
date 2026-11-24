@@ -22,9 +22,11 @@ SECTIONS
     } :limine_requests
 
     . = ALIGN(CONSTANT(MAXPAGESIZE));
+    _kernel_text_start = .;
     .text : {
         *(.text .text.*)
     } :text
+    _kernel_text_end = .;
 
     . = ALIGN(CONSTANT(MAXPAGESIZE));
     .rodata : {

@@ -13,7 +13,10 @@
 #include <stdint.h>
 
 #include "ozero/cpu.h"
+#include "ozero/cpu_local.h"
+#include "ozero/gdt.h"
 #include "ozero/irq.h"
+#include "ozero/mm.h"
 #include "ozero/status.h"
 #include "ozero/types.h"
 
@@ -44,6 +47,12 @@ void o0_sched_init(void) {
     boot_thread.arg = NULL;
     boot_thread.stack_base = 0;
     boot_thread.stack_size = 0;
+    boot_thread.kstack_base = 0;
+    boot_thread.kstack_pages = 0;
+    boot_thread.kernel_stack_top = 0;
+    boot_thread.user = false;
+    boot_thread.user_entry = 0;
+    boot_thread.user_rsp = 0;
     boot_thread.wake_tick = 0;
     boot_thread.exit_status = 0;
     boot_thread.id = 0;
@@ -166,6 +175,20 @@ static void switch_to(struct o0_thread *next) {
     next->state = O0_THREAD_RUNNING;
     next->timeslice = O0_DEFAULT_TIMESLICE;
     current = next;
+
+    /* The kernel half is shared, so the running code and stack stay mapped
+     * while CR3 changes. RSP0 must name the incoming thread's kernel stack
+     * before any ring-3 interrupt can occur. */
+    o0_as_t *target = (next->proc != NULL && next->proc->as != NULL)
+                          ? next->proc->as
+                          : o0_as_kernel();
+    if (target != NULL && o0_as_active() != target) {
+        o0_as_activate(target);
+    }
+    if (next->kernel_stack_top != 0) {
+        o0_arch_set_rsp0(next->kernel_stack_top);
+    }
+    o0_cpu_local[0].current = (uint64_t)(uintptr_t)next;
 
     x86_64_context_switch(&prev->rsp, next->rsp);
 }

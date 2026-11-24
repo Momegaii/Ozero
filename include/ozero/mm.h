@@ -63,7 +63,27 @@ enum o0_map_flags {
 
 o0_as_t *o0_as_kernel(void);
 O0_NODISCARD o0_status o0_as_create(o0_as_t **out);
+/* Destroys a user address space: frees every user leaf page and every
+ * page-table page it owns, then the PML4. The address space must not be the
+ * active CR3. Kernel address spaces are ignored. */
 void o0_as_destroy(o0_as_t *as);
+
+/* Queries one 4 KiB mapping. HUGE and absent mappings are resolved to the
+ * effective flags of the covered range. */
+O0_NODISCARD o0_status o0_as_query(o0_as_t *as, o0_vaddr_t vaddr,
+                                   uint32_t *out_flags, o0_paddr_t *out_phys);
+
+/* The address space currently in CR3, or NULL when it is not one of ours. */
+o0_as_t *o0_as_active(void);
+
+/* Makes `as` the active address space. Refreshes the shared kernel half first. */
+o0_status o0_as_activate(o0_as_t *as);
+
+/* Per-thread kernel stacks live in a dedicated kernel virtual region. The page
+ * directly below the returned base is left unmapped, so a downward overflow
+ * faults instead of corrupting an adjacent stack. */
+O0_NODISCARD o0_status o0_kstack_alloc(size_t pages, o0_vaddr_t *out_base);
+void o0_kstack_free(o0_vaddr_t base, size_t pages);
 
 /* len is rounded outward to pages. vaddr and paddr must be page-aligned unless the
  * implementation documents otherwise. */

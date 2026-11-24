@@ -118,6 +118,15 @@ required_markers=(
     "OZERO: gpu recovery refused without verified reset"
     "OZERO: gpu unconsumed work quarantined"
     "OZERO: gpu submission self-test complete"
+    # Wave 2 user mode: entry through iretq, the native syscall ABI, contained
+    # user faults, rejected syscall pointers and leak-free process churn.
+    "OZERO: gdt+tss installed"
+    "OZERO: user entry OK"
+    "OZERO: syscall exit status=0"
+    "OZERO: user fault contained"
+    "OZERO: syscall bad pointer rejected"
+    "OZERO: user churn OK processes=16"
+    "OZERO: wave2 self-test complete"
 )
 
 for marker in "${required_markers[@]}"; do

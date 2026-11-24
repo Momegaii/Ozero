@@ -13,6 +13,7 @@
 #include <string.h>
 
 #include "ozero/cpu.h"
+#include "ozero/cpu_local.h"
 #include "ozero/irq.h"
 #include "ozero/status.h"
 #include "ozero/thread.h"
@@ -21,6 +22,31 @@
 #include "../kernel/src/thread_internal.h"
 
 /* ---- stubs ---- */
+
+struct o0_as {
+    int unused;
+};
+
+static struct o0_as kernel_as_stub;
+
+o0_as_t *o0_as_kernel(void) {
+    return &kernel_as_stub;
+}
+
+o0_as_t *o0_as_active(void) {
+    return &kernel_as_stub;
+}
+
+o0_status o0_as_activate(o0_as_t *as) {
+    (void)as;
+    return O0_OK;
+}
+
+void o0_arch_set_rsp0(uint64_t rsp0) {
+    (void)rsp0;
+}
+
+struct o0_cpu_local o0_cpu_local[O0_MAX_CPUS];
 
 static uint32_t switches;
 static uint32_t idle_calls;
