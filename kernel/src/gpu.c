@@ -85,8 +85,9 @@ o0_status o0_gpu_memory_create(size_t size, struct o0_gpu_memory **out) {
     mem->backing = o0_phys_to_virt(mem->phys_pages[0]);
     mem->refcount = 1u;
     mem->pinned = 0u;
-    mem->resident = true;
+    mem->residency = O0_GPU_RESIDENT;
     mem->evictable = true;
+    mem->visibility = O0_GPU_VIS_CPU; /* Created on CPU side; GPU visibility requires explicit transition. */
     *out = mem;
     return O0_OK;
 }
@@ -112,6 +113,141 @@ void o0_gpu_memory_destroy(struct o0_gpu_memory *mem) {
     }
     o0_kfree(mem, sizeof(*mem));
 }
+
+/* Residency management */
+
+o0_status o0_gpu_memory_make_resident(struct o0_gpu_memory *mem) {
+    if (mem == NULL) {
+        return O0_EINVAL;
+    }
+    o0_spin_lock(&mem->lock);
+    if (mem->residency == O0_GPU_RESIDENT) {
+        o0_spin_unlock(&mem->lock);
+        return O0_OK;
+    }
+    if (mem->residency == O0_GPU_EVICTING) {
+        o0_spin_unlock(&mem->lock);
+        return O0_EBUSY;
+    }
+    /* Currently all backing pages are allocated at creation and never freed until destroy.
+     * When a real eviction path is added, this would re-allocate pages from PMM.
+     * For now, nonresident is a bookkeeping state only. */
+    mem->residency = O0_GPU_RESIDENT;
+    o0_spin_unlock(&mem->lock);
+    return O0_OK;
+}
+
+o0_status o0_gpu_memory_evict(struct o0_gpu_memory *mem) {
+    if (mem == NULL) {
+        return O0_EINVAL;
+    }
+    o0_spin_lock(&mem->lock);
+    if (mem->residency != O0_GPU_RESIDENT) {
+        o0_spin_unlock(&mem->lock);
+        return O0_EINVAL;
+    }
+    if (mem->pinned > 0u) {
+        o0_spin_unlock(&mem->lock);
+        return O0_EBUSY;
+    }
+    if (mem->refcount > 1u) {
+        /* Mappings exist; cannot evict while mapped. */
+        o0_spin_unlock(&mem->lock);
+        return O0_EBUSY;
+    }
+    if (!mem->evictable) {
+        o0_spin_unlock(&mem->lock);
+        return O0_EBUSY;
+    }
+    mem->residency = O0_GPU_EVICTING;
+    o0_spin_unlock(&mem->lock);
+
+    /* In a real implementation, this would:
+     * 1. Unmap from all GPU address spaces (requires backend invalidation)
+     * 2. Wait for in-flight GPU work to complete
+     * 3. Free backing pages back to PMM
+     * 4. Set residency = O0_GPU_NONRESIDENT
+     * For now, we just mark it nonresident; backing pages stay allocated. */
+    o0_spin_lock(&mem->lock);
+    mem->residency = O0_GPU_NONRESIDENT;
+    o0_spin_unlock(&mem->lock);
+    return O0_OK;
+}
+
+o0_status o0_gpu_memory_wait_evicted(struct o0_gpu_memory *mem, uint64_t deadline_ns) {
+    (void)deadline_ns;
+    if (mem == NULL) {
+        return O0_EINVAL;
+    }
+    o0_spin_lock(&mem->lock);
+    bool done = mem->residency == O0_GPU_NONRESIDENT;
+    o0_spin_unlock(&mem->lock);
+    return done ? O0_OK : O0_ETIMEDOUT;
+}
+
+/* Pinning */
+
+o0_status o0_gpu_memory_pin(struct o0_gpu_memory *mem) {
+    if (mem == NULL) {
+        return O0_EINVAL;
+    }
+    o0_spin_lock(&mem->lock);
+    mem->pinned++;
+    mem->evictable = false;
+    o0_spin_unlock(&mem->lock);
+    return O0_OK;
+}
+
+o0_status o0_gpu_memory_unpin(struct o0_gpu_memory *mem) {
+    if (mem == NULL) {
+        return O0_EINVAL;
+    }
+    o0_spin_lock(&mem->lock);
+    if (mem->pinned == 0u) {
+        o0_spin_unlock(&mem->lock);
+        return O0_EINVAL;
+    }
+    mem->pinned--;
+    mem->evictable = (mem->pinned == 0u);
+    o0_spin_unlock(&mem->lock);
+    return O0_OK;
+}
+
+/* Visibility/coherency */
+
+o0_status o0_gpu_memory_set_visibility(struct o0_gpu_memory *mem, enum o0_gpu_visibility vis) {
+    if (mem == NULL) {
+        return O0_EINVAL;
+    }
+    o0_spin_lock(&mem->lock);
+    mem->visibility = vis;
+    o0_spin_unlock(&mem->lock);
+    return O0_OK;
+}
+
+o0_status o0_gpu_memory_flush_cpu_writes(struct o0_gpu_memory *mem) {
+    if (mem == NULL) {
+        return O0_EINVAL;
+    }
+    /* No CPU cache on the direct map in this kernel; this is a no-op placeholder.
+     * When a real CPU cache exists, this would issue CLFLUSH/CLWB or equivalent
+     * for all backing pages. */
+    (void)mem;
+    return O0_OK;
+}
+
+o0_status o0_gpu_memory_invalidate_gpu_reads(struct o0_gpu_memory *mem) {
+    if (mem == NULL) {
+        return O0_EINVAL;
+    }
+    /* No GPU cache to invalidate from CPU side; this is a no-op placeholder.
+     * When a real GPU cache exists, this would issue the required cache maintenance
+     * on the GPU side (via command stream) or wait for GPU to finish. */
+    (void)mem;
+    return O0_OK;
+}
+
+/* Address space */
 
 o0_status o0_gpu_vm_create(uint64_t base, uint64_t size, struct o0_gpu_vm **out) {
     if (out == NULL || size == 0u) {
@@ -206,9 +342,15 @@ o0_status o0_gpu_vm_free(struct o0_gpu_vm *vm, uint64_t va, uint64_t size) {
 }
 
 o0_status o0_gpu_vm_map(struct o0_gpu_vm *vm, struct o0_gpu_memory *mem,
-                        uint64_t va, struct o0_gpu_mapping **out) {
+                        uint64_t va, uint32_t perm, struct o0_gpu_mapping **out) {
     if (vm == NULL || mem == NULL || out == NULL || mem->size == 0u) {
         return O0_EINVAL;
+    }
+    if ((perm & ~(O0_GPU_PERM_READ | O0_GPU_PERM_WRITE | O0_GPU_PERM_EXEC)) != 0u) {
+        return O0_EINVAL;
+    }
+    if (mem->residency != O0_GPU_RESIDENT) {
+        return O0_EBUSY; /* Cannot map non-resident memory. */
     }
     uint64_t limit = vm->base + vm->size;
     if (va < vm->base || va + mem->size < va || va + mem->size > limit) {
@@ -238,6 +380,8 @@ o0_status o0_gpu_vm_map(struct o0_gpu_vm *vm, struct o0_gpu_memory *mem,
     mapping->memory = mem;
     mapping->va = va;
     mapping->size = mem->size;
+    mapping->perm = perm;
+    mapping->visibility = mem->visibility;
 
     o0_spin_lock(&mem->lock);
     mem->refcount++;
@@ -271,28 +415,26 @@ o0_status o0_gpu_vm_unmap(struct o0_gpu_vm *vm, struct o0_gpu_mapping *mapping) 
     return O0_OK;
 }
 
-o0_status o0_gpu_memory_pin(struct o0_gpu_memory *mem) {
+/* Query helpers */
+
+bool o0_gpu_memory_is_resident(const struct o0_gpu_memory *mem) {
     if (mem == NULL) {
-        return O0_EINVAL;
+        return false;
     }
-    o0_spin_lock(&mem->lock);
-    mem->pinned++;
-    mem->evictable = mem->pinned == 0u;
-    o0_spin_unlock(&mem->lock);
-    return O0_OK;
+    bool resident;
+    o0_spin_lock((o0_spinlock_t *)&mem->lock);
+    resident = mem->residency == O0_GPU_RESIDENT;
+    o0_spin_unlock((o0_spinlock_t *)&mem->lock);
+    return resident;
 }
 
-o0_status o0_gpu_memory_unpin(struct o0_gpu_memory *mem) {
+enum o0_gpu_visibility o0_gpu_memory_get_visibility(const struct o0_gpu_memory *mem) {
     if (mem == NULL) {
-        return O0_EINVAL;
+        return O0_GPU_VIS_CPU;
     }
-    o0_spin_lock(&mem->lock);
-    if (mem->pinned == 0u) {
-        o0_spin_unlock(&mem->lock);
-        return O0_EINVAL;
-    }
-    mem->pinned--;
-    mem->evictable = mem->pinned == 0u;
-    o0_spin_unlock(&mem->lock);
-    return O0_OK;
+    enum o0_gpu_visibility vis;
+    o0_spin_lock((o0_spinlock_t *)&mem->lock);
+    vis = mem->visibility;
+    o0_spin_unlock((o0_spinlock_t *)&mem->lock);
+    return vis;
 }

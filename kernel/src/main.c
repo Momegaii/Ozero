@@ -365,7 +365,7 @@ static void stage5_self_test(void) {
     }
     struct o0_gpu_mapping *mapping = NULL;
     /* Map at a distinct VA so it does not collide with the reserved allocation. */
-    if (o0_gpu_vm_map(vm, mem, 0x20010000ull, &mapping) != O0_OK) {
+    if (o0_gpu_vm_map(vm, mem, 0x20010000ull, O0_GPU_PERM_READ | O0_GPU_PERM_WRITE, &mapping) != O0_OK) {
         panic("GPU mapping failed");
     }
     if (o0_gpu_vm_unmap(vm, mapping) != O0_OK) {

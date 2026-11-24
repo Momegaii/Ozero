@@ -536,3 +536,277 @@ const struct o0_gpu_backend_ops o0_gpu_hsw_backend = {
     .match = hsw_match,
     .fill_caps = hsw_fill_caps,
 };
+
+/* ---- Hardware installation and command encoding ---- */
+
+o0_status o0_hsw_ggtt_install(struct o0_hsw_ggtt *ggtt, const struct o0_hsw_mmio *mmio) {
+    if (ggtt == NULL || mmio == NULL || mmio->mmio_base == NULL) {
+        return O0_EINVAL;
+    }
+    if (ggtt->phys == 0u || ggtt->virt == NULL) {
+        return O0_EINVAL;
+    }
+    /* GGTT must be physically contiguous and 4 KiB aligned (already enforced in create). */
+    if (!O0_IS_ALIGNED(ggtt->phys, O0_HSW_PAGE_SIZE)) {
+        return O0_EINVAL;
+    }
+
+    /* Register layout NOT verified on hardware - returns ENOTSUP to prevent use without verification. */
+    (void)mmio;
+    (void)ggtt;
+    return O0_ENOTSUP;
+}
+
+o0_status o0_hsw_ppgtt_install_prepare(struct o0_hsw_ppgtt *ppgtt, enum o0_hsw_engine engine,
+                                       uint32_t *out_lri_dclv, uint32_t *out_lri_base) {
+    if (ppgtt == NULL || out_lri_dclv == NULL || out_lri_base == NULL) {
+        return O0_EINVAL;
+    }
+    if (engine >= O0_HSW_ENGINE_COUNT) {
+        return O0_EINVAL;
+    }
+    if (ppgtt->dir_phys == 0u || ppgtt->dir == NULL) {
+        return O0_EINVAL;
+    }
+    if (!O0_IS_ALIGNED(ppgtt->dir_phys, O0_HSW_PAGE_SIZE)) {
+        return O0_EINVAL;
+    }
+
+    /* PP_DIR_BASE takes the directory physical address (bits 31:12 in bits 31:12, bits 39:32 in bits 11:4).
+     * The PRM says directory must be in GGTT; i915 places it in GSM. This is unverified. */
+    *out_lri_base = (uint32_t)((ppgtt->dir_phys >> 12) & 0xFFFFFu) << 12;
+    *out_lri_base |= (uint32_t)((ppgtt->dir_phys >> 32) & 0xFFu) << 4;
+    *out_lri_base |= 1u;  /* valid bit */
+
+    /* DCLV is the directory cache valid mask. */
+    *out_lri_dclv = ppgtt->dclv;
+
+    return O0_OK;
+}
+
+uint32_t o0_hsw_encode_pipe_control_tlb_inv(void) {
+    /* PIPE_CONTROL for render engine: TLB invalidate + stall.
+     * DW0: opcode + type + length
+     * DW1: TLB invalidate (bit 18) + stall (bit 20) + post-sync (bit 14) */
+    uint32_t dw1 = O0_HSW_PIPE_CONTROL_TLB_INV | O0_HSW_PIPE_CONTROL_STALL | O0_HSW_PIPE_CONTROL_POST_SYNC;
+    /* Return DW1 as the key dword; full command needs DW0+DW1+DW2+DW3 in ring buffer */
+    return dw1;
+}
+
+uint32_t o0_hsw_encode_mi_flush_dw_tlb_inv(void) {
+    /* MI_FLUSH_DW for non-render engines: TLB invalidate + post-sync write.
+     * DW0: opcode + TLB invalidate (bit 18) + post-sync 1h (bit 14) */
+    return O0_HSW_MI_FLUSH_DW_OPCODE | O0_HSW_MI_FLUSH_DW_TLB_INV | O0_HSW_MI_FLUSH_DW_POST_SYNC_1;
+}
+
+uint32_t o0_hsw_encode_lri(uint32_t reg_offset, uint32_t value, uint32_t *out_dwords) {
+    if (out_dwords != NULL) {
+        *out_dwords = 2u;  /* LRI is 2 dwords: DW0=opcode+offset, DW1=value */
+    }
+    /* DW0: opcode (0x22) | register offset (bits 22:2) | byte disables (bits 11:8)
+     * Register offset must be < 0x40000 and not in 0x8800-0x88FF (PRM Vol 2b p.249) */
+    if (reg_offset >= 0x40000u || (reg_offset >= 0x8800u && reg_offset <= 0x88FFu)) {
+        return 0u;
+    }
+    uint32_t dw0 = O0_HSW_MI_LRI_OPCODE | ((reg_offset & 0xFFFFFu) << 2);
+    /* DW1 is the value */
+    (void)value;
+    return dw0;
+}
+
+/* Engine-specific register offsets for PP_DCLV and PP_DIR_BASE */
+static uint32_t hsw_engine_pp_dclv(enum o0_hsw_engine engine) {
+    switch (engine) {
+    case O0_HSW_ENGINE_RENDER: return O0_HSW_RENDER_PP_DCLV;
+    case O0_HSW_ENGINE_VCS:    return O0_HSW_VCS_PP_DCLV;
+    case O0_HSW_ENGINE_VECS:   return O0_HSW_VECS_PP_DCLV;
+    case O0_HSW_ENGINE_BCS:    return O0_HSW_BCS_PP_DCLV;
+    default: return 0u;
+    }
+}
+
+static uint32_t hsw_engine_pp_dir_base(enum o0_hsw_engine engine) {
+    switch (engine) {
+    case O0_HSW_ENGINE_RENDER: return O0_HSW_RENDER_PP_DIR_BASE;
+    case O0_HSW_ENGINE_VCS:    return O0_HSW_VCS_PP_DIR_BASE;
+    case O0_HSW_ENGINE_VECS:   return O0_HSW_VECS_PP_DIR_BASE;
+    case O0_HSW_ENGINE_BCS:    return O0_HSW_BCS_PP_DIR_BASE;
+    default: return 0u;
+    }
+}
+
+/* Encode the full LRI sequence to load PP_DCLV and PP_DIR_BASE for an engine.
+ * Caller must provide a buffer of at least 4 dwords (2 LRI commands = 4 dwords).
+ * Returns number of dwords written, or 0 on error. */
+uint32_t o0_hsw_encode_ppgtt_context_lri(enum o0_hsw_engine engine, uint32_t dclv, uint32_t dir_base,
+                                         uint32_t *buffer, uint32_t buffer_dwords) {
+    if (buffer == NULL || buffer_dwords < 4u) {
+        return 0u;
+    }
+    if (engine >= O0_HSW_ENGINE_COUNT) {
+        return 0u;
+    }
+
+    uint32_t dclv_offset = hsw_engine_pp_dclv(engine);
+    uint32_t base_offset = hsw_engine_pp_dir_base(engine);
+
+    if (dclv_offset == 0u || base_offset == 0u) {
+        return 0u;
+    }
+
+    uint32_t written = 0;
+    uint32_t dwords = 0;
+
+    /* LRI for PP_DCLV (64-bit register, but LRI writes 32 bits at a time).
+     * PRM says PP_DCLV is 64-bit; we write low 32 bits then high 32 bits.
+     * For simplicity, we write the low 32 bits (dclv) to the register. */
+    buffer[written++] = o0_hsw_encode_lri(dclv_offset, dclv, &dwords);
+    written += dwords - 1;  /* encode_lri returns DW0, we need to add DW1 manually */
+    buffer[written++] = dclv;  /* DW1 = value */
+
+    /* LRI for PP_DIR_BASE (32-bit register) */
+    buffer[written++] = o0_hsw_encode_lri(base_offset, dir_base, &dwords);
+    written += dwords - 1;
+    buffer[written++] = dir_base;
+
+    return written;
+}
+
+/* ---- Ring buffer abstraction ---- */
+
+void o0_hsw_ring_init(struct o0_hsw_ring *ring, uint32_t *buffer, uint32_t capacity_dwords) {
+    if (ring == NULL || buffer == NULL || capacity_dwords == 0u) {
+        return;
+    }
+    ring->buffer = buffer;
+    ring->capacity_dwords = capacity_dwords;
+    ring->head = 0u;
+    ring->tail = 0u;
+}
+
+uint32_t o0_hsw_ring_space(const struct o0_hsw_ring *ring) {
+    if (ring == NULL) {
+        return 0u;
+    }
+    if (ring->head >= ring->tail) {
+        return ring->capacity_dwords - (ring->head - ring->tail) - 1u;
+    } else {
+        return ring->tail - ring->head - 1u;
+    }
+}
+
+/* ---- Invalidation emission ---- */
+
+uint32_t o0_hsw_emit_ppgtt_invalidation(struct o0_hsw_ring *ring, enum o0_hsw_engine engine,
+                                        const struct o0_hsw_ppgtt *ppgtt) {
+    if (ring == NULL || engine >= O0_HSW_ENGINE_COUNT || ppgtt == NULL) {
+        return 0u;
+    }
+    if (!ppgtt->active || !ppgtt->tlb_dirty) {
+        return 0u;  /* Nothing to invalidate */
+    }
+
+    uint32_t space = o0_hsw_ring_space(ring);
+    uint32_t needed = 0u;
+
+    if (engine == O0_HSW_ENGINE_RENDER) {
+        /* PIPE_CONTROL: 4 dwords (DW0-DW3) */
+        needed = 4u;
+    } else {
+        /* MI_FLUSH_DW: 2 dwords (DW0-DW1) + optional post-sync data */
+        needed = 2u;
+    }
+
+    if (space < needed) {
+        return 0u;  /* Not enough space */
+    }
+
+    uint32_t written = 0u;
+    uint32_t *buf = &ring->buffer[ring->head];
+
+    if (engine == O0_HSW_ENGINE_RENDER) {
+        /* PIPE_CONTROL with TLB invalidate and stall.
+         * DW0: opcode + type + length (2 dwords after DW0 = 3 total including DW0)
+         * DW1: TLB invalidate | stall | post-sync
+         * DW2: address (0 for TLB invalidate)
+         * DW3: immediate data (0) */
+        buf[0] = O0_HSW_PIPE_CONTROL_OPCODE | O0_HSW_PIPE_CONTROL_TYPE | 2u;
+        buf[1] = O0_HSW_PIPE_CONTROL_TLB_INV | O0_HSW_PIPE_CONTROL_STALL | O0_HSW_PIPE_CONTROL_POST_SYNC;
+        buf[2] = 0u;  /* Address */
+        buf[3] = 0u;  /* Immediate data */
+        written = 4u;
+    } else {
+        /* MI_FLUSH_DW with TLB invalidate and post-sync write.
+         * DW0: opcode | TLB invalidate | post-sync 1h (write immediate data)
+         * DW1: address (0 for TLB invalidate)
+         * Note: MI_FLUSH_DW is 2 dwords minimum, but with post-sync it may need more. */
+        buf[0] = O0_HSW_MI_FLUSH_DW_OPCODE | O0_HSW_MI_FLUSH_DW_TLB_INV | O0_HSW_MI_FLUSH_DW_POST_SYNC_1;
+        buf[1] = 0u;  /* Address */
+        written = 2u;
+    }
+
+    ring->head = (ring->head + written) % ring->capacity_dwords;
+    return written;
+}
+
+uint32_t o0_hsw_emit_ggtt_invalidation(struct o0_hsw_ring *ring, enum o0_hsw_engine engine) {
+    if (ring == NULL || engine >= O0_HSW_ENGINE_COUNT) {
+        return 0u;
+    }
+
+    uint32_t space = o0_hsw_ring_space(ring);
+    /* MI_FLUSH_DW: 2 dwords */
+    if (space < 2u) {
+        return 0u;
+    }
+
+    uint32_t *buf = &ring->buffer[ring->head];
+
+    if (engine == O0_HSW_ENGINE_RENDER) {
+        /* Render uses PIPE_CONTROL */
+        buf[0] = O0_HSW_PIPE_CONTROL_OPCODE | O0_HSW_PIPE_CONTROL_TYPE | 2u;
+        buf[1] = O0_HSW_PIPE_CONTROL_TLB_INV | O0_HSW_PIPE_CONTROL_STALL | O0_HSW_PIPE_CONTROL_POST_SYNC;
+        buf[2] = 0u;
+        buf[3] = 0u;
+        ring->head = (ring->head + 4u) % ring->capacity_dwords;
+        return 4u;
+    } else {
+        /* Non-render uses MI_FLUSH_DW */
+        buf[0] = O0_HSW_MI_FLUSH_DW_OPCODE | O0_HSW_MI_FLUSH_DW_TLB_INV | O0_HSW_MI_FLUSH_DW_POST_SYNC_1;
+        buf[1] = 0u;
+        ring->head = (ring->head + 2u) % ring->capacity_dwords;
+        return 2u;
+    }
+}
+
+uint32_t o0_hsw_emit_mi_update_gtt(struct o0_hsw_ring *ring, uint64_t gfx_addr,
+                                   o0_paddr_t phys, enum o0_hsw_cache cache) {
+    if (ring == NULL) {
+        return 0u;
+    }
+    if (!O0_IS_ALIGNED(gfx_addr, O0_HSW_PAGE_SIZE) || !O0_IS_ALIGNED(phys, O0_HSW_PAGE_SIZE)) {
+        return 0u;
+    }
+    if (!hsw_cache_defined(cache)) {
+        return 0u;
+    }
+
+    uint32_t space = o0_hsw_ring_space(ring);
+    /* MI_UPDATE_GTT: 3 dwords (DW0=opcode, DW1=gfx_addr, DW2=entry) */
+    if (space < 3u) {
+        return 0u;
+    }
+
+    uint32_t *buf = &ring->buffer[ring->head];
+    uint32_t entry = o0_hsw_encode_pte(phys, cache);
+
+    /* DW0: opcode | use global GTT */
+    buf[0] = O0_HSW_MI_UPDATE_GTT_OPCODE | O0_HSW_MI_UPDATE_GTT_USE_GGTT;
+    /* DW1: graphics address (32-bit, 4 KiB aligned) */
+    buf[1] = (uint32_t)(gfx_addr & 0xFFFFF000u);
+    /* DW2: PTE entry */
+    buf[2] = entry;
+
+    ring->head = (ring->head + 3u) % ring->capacity_dwords;
+    return 3u;
+}

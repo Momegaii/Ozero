@@ -356,10 +356,11 @@ static void test_core_allocator(void) {
     CHECK(o0_gpu_memory_create(0x2000u, &mem) == O0_OK, "memory create failed");
     CHECK(mem->page_count == 2u, "two pages expected");
     struct o0_gpu_mapping *mapping = NULL;
-    CHECK(o0_gpu_vm_map(vm, mem, first, &mapping) == O0_EBUSY,
+    CHECK(o0_gpu_vm_map(vm, mem, first, O0_GPU_PERM_READ | O0_GPU_PERM_WRITE, &mapping) == O0_EBUSY,
           "mapping over a live allocation must fail");
-    CHECK(o0_gpu_vm_map(vm, mem, 0x10002000ull, &mapping) == O0_OK, "map failed");
+    CHECK(o0_gpu_vm_map(vm, mem, 0x10002000ull, O0_GPU_PERM_READ | O0_GPU_PERM_WRITE, &mapping) == O0_OK, "map failed");
     CHECK(mem->refcount == 2u, "mapping must take a reference");
+    CHECK(mapping->perm == (O0_GPU_PERM_READ | O0_GPU_PERM_WRITE), "mapping permissions preserved");
 
     CHECK(o0_gpu_vm_alloc(vm, 0x1000u, 0x1000u, &first) == O0_OK, "third alloc failed");
     CHECK(first == 0x10004000ull, "allocation after a mapping must skip both mapped pages");
@@ -381,6 +382,80 @@ static void test_core_allocator(void) {
     CHECK(o0_gpu_memory_unpin(mem) == O0_OK && mem->evictable, "unpin must restore evictable");
 
     o0_gpu_vm_destroy(vm);
+    o0_gpu_memory_destroy(mem);
+    PASS();
+}
+
+static void test_residency_eviction(void) {
+    TEST("residency states and eviction rules");
+    mock_reset();
+    struct o0_gpu_memory *mem = NULL;
+    CHECK(o0_gpu_memory_create(0x1000u, &mem) == O0_OK, "create failed");
+    CHECK(o0_gpu_memory_is_resident(mem), "newly created memory must be resident");
+    CHECK(mem->residency == O0_GPU_RESIDENT, "residency enum must be RESIDENT");
+    CHECK(mem->evictable, "new memory must be evictable by default");
+
+    /* Pinning prevents eviction. */
+    CHECK(o0_gpu_memory_pin(mem) == O0_OK, "pin failed");
+    CHECK(!mem->evictable, "pinned memory must not be evictable");
+    CHECK(o0_gpu_memory_evict(mem) == O0_EBUSY, "evicting pinned memory must fail");
+    CHECK(o0_gpu_memory_unpin(mem) == O0_OK, "unpin failed");
+    CHECK(mem->evictable, "unpinned memory must be evictable again");
+
+    /* Eviction requires no mappings (refcount == 1). */
+    struct o0_gpu_vm *vm = NULL;
+    CHECK(o0_gpu_vm_create(0x10000000ull, 0x10000000ull, &vm) == O0_OK, "vm create failed");
+    uint64_t va = 0;
+    /* Allocate a VA range that we will NOT map at - just to verify allocator works. */
+    CHECK(o0_gpu_vm_alloc(vm, 0x1000u, 0x1000u, &va) == O0_OK, "vm alloc failed");
+    /* Map at a DIFFERENT address so it doesn't overlap the allocated range. */
+    uint64_t map_va = 0x10002000ull;
+    struct o0_gpu_mapping *mapping = NULL;
+    CHECK(o0_gpu_vm_map(vm, mem, map_va, O0_GPU_PERM_READ, &mapping) == O0_OK, "map failed");
+    CHECK(mem->refcount == 2u, "mapping must increment refcount");
+    CHECK(o0_gpu_memory_evict(mem) == O0_EBUSY, "evicting mapped memory must fail");
+    CHECK(o0_gpu_vm_unmap(vm, mapping) == O0_OK, "unmap failed");
+    CHECK(mem->refcount == 1u, "unmap must decrement refcount");
+    CHECK(o0_gpu_memory_evict(mem) == O0_OK, "evicting unmapped memory must succeed");
+    CHECK(!o0_gpu_memory_is_resident(mem), "evicted memory must be nonresident");
+    CHECK(mem->residency == O0_GPU_NONRESIDENT, "residency enum must be NONRESIDENT");
+
+    /* Cannot map non-resident memory. */
+    CHECK(o0_gpu_vm_map(vm, mem, map_va, O0_GPU_PERM_READ, &mapping) == O0_EBUSY,
+          "mapping non-resident memory must fail");
+
+    /* Making resident again should succeed. */
+    CHECK(o0_gpu_memory_make_resident(mem) == O0_OK, "make resident failed");
+    CHECK(o0_gpu_memory_is_resident(mem), "memory must be resident again");
+    CHECK(mem->residency == O0_GPU_RESIDENT, "residency enum must be RESIDENT");
+    CHECK(o0_gpu_vm_map(vm, mem, map_va, O0_GPU_PERM_READ, &mapping) == O0_OK, "map after make resident");
+
+    o0_gpu_vm_unmap(vm, mapping);
+    o0_gpu_vm_destroy(vm);
+    o0_gpu_memory_destroy(mem);
+    PASS();
+}
+
+static void test_visibility_transitions(void) {
+    TEST("CPU/GPU visibility transitions and coherency operations");
+    mock_reset();
+    struct o0_gpu_memory *mem = NULL;
+    CHECK(o0_gpu_memory_create(0x1000u, &mem) == O0_OK, "create failed");
+    CHECK(o0_gpu_memory_get_visibility(mem) == O0_GPU_VIS_CPU, "default visibility must be CPU");
+
+    CHECK(o0_gpu_memory_set_visibility(mem, O0_GPU_VIS_GPU) == O0_OK, "set GPU visibility failed");
+    CHECK(o0_gpu_memory_get_visibility(mem) == O0_GPU_VIS_GPU, "visibility must be GPU");
+
+    CHECK(o0_gpu_memory_set_visibility(mem, O0_GPU_VIS_COHERENT) == O0_OK, "set coherent visibility failed");
+    CHECK(o0_gpu_memory_get_visibility(mem) == O0_GPU_VIS_COHERENT, "visibility must be coherent");
+
+    CHECK(o0_gpu_memory_set_visibility(mem, O0_GPU_VIS_CPU) == O0_OK, "set CPU visibility failed");
+    CHECK(o0_gpu_memory_get_visibility(mem) == O0_GPU_VIS_CPU, "visibility must be CPU");
+
+    /* Flush/invalidate are no-ops in this kernel but must not crash. */
+    CHECK(o0_gpu_memory_flush_cpu_writes(mem) == O0_OK, "flush cpu writes failed");
+    CHECK(o0_gpu_memory_invalidate_gpu_reads(mem) == O0_OK, "invalidate gpu reads failed");
+
     o0_gpu_memory_destroy(mem);
     PASS();
 }
@@ -587,6 +662,8 @@ int main(void) {
     test_ggtt();
     test_ggtt_validation();
     test_core_allocator();
+    test_residency_eviction();
+    test_visibility_transitions();
     test_pool_exhaustion();
     test_display_classification();
     test_mmio_bar_validation();
