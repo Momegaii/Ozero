@@ -277,13 +277,15 @@ o0_status o0_block_submit_bio(struct o0_block_dev *dev, struct o0_bio *bio) {
 void o0_block_complete_bio(struct o0_bio *bio,
                            o0_block_status status,
                            size_t bytes_done) {
-    if (bio == NULL || bio->end_io == NULL) {
+    if (bio == NULL) {
         return;
     }
-    o0_bio_end_t callback = bio->end_io;
-    /* Clear first so a driver that completes twice cannot deliver two
-     * completions for one submission. */
-    bio->end_io = NULL;
+    /* Atomic claim: IRQ and poll completions cannot both invoke end_io. */
+    o0_bio_end_t callback =
+        __atomic_exchange_n(&bio->end_io, NULL, __ATOMIC_ACQ_REL);
+    if (callback == NULL) {
+        return;
+    }
     callback(bio, status, bytes_done);
 }
 
