@@ -90,6 +90,7 @@ static struct o0_block_dev async_dev;
 static struct o0_block_queue async_queue;
 static struct o0_bio *late_bio;
 static bool async_hold;
+static bool async_cancel_on_timeout;
 
 static o0_status async_queue_rq(struct o0_block_queue *queue,
                                 struct o0_bio *bio) {
@@ -112,7 +113,7 @@ static o0_status async_timeout(struct o0_block_queue *queue,
                                struct o0_bio *bio) {
     (void)queue;
     (void)bio;
-    return O0_EAGAIN; /* not canceled: the late completion still owns the bio */
+    return async_cancel_on_timeout ? O0_OK : O0_EAGAIN;
 }
 
 static const struct o0_block_queue_ops async_queue_ops = {
@@ -160,9 +161,20 @@ static void test_timeout_late_completion(void) {
                "late DMA/completion modified the expired caller buffer");
     }
 
+    async_hold = true;
+    async_cancel_on_timeout = true;
+    late_bio = NULL;
+    ASSERT(o0_block_read(&async_dev, 0, caller, sizeof(caller)) ==
+               O0_ETIMEDOUT,
+           "successful cancellation did not report the timeout");
+    ASSERT(late_bio != NULL, "cancel test request was not submitted");
+    /* O0_OK from timeout promises the driver will never touch this bio again. */
+    late_bio = NULL;
     async_hold = false;
+    async_cancel_on_timeout = false;
+
     ASSERT(o0_block_read(&async_dev, 0, caller, sizeof(caller)) == O0_OK,
-           "request slot was not reusable after late completion");
+           "request slot was not reusable after confirmed cancellation");
     for (size_t i = 0; i < sizeof(caller); ++i) {
         ASSERT(caller[i] == 0x6c, "bounce-buffer read copy-back failed");
     }
