@@ -1,7 +1,7 @@
 # Ozero Project Status
 
 Last updated: 2026-11-24  
-Current stage: **Stage 5 — GPU memory and Haswell submission (active; PPGTT/GGTT backend implemented and host-tested, hardware installation open; Stage 4 storage substrate complete)**  
+Current stage: **Stage 5 — GPU memory and Haswell submission (active; Phase 1 GPU discovery implemented, host-tested and boot-integrated with no verified device yet; Phase 2 core host-tested and boot-exercised; Phase 3 PPGTT/GGTT backend implemented and host-tested; hardware installation and submission open; Stage 4 storage substrate complete)**  
 Stage 3 — processes, threads and scheduler: **implemented; boot-verified in QEMU BIOS for the Stage 3 revision**  
 Stage 2 — physical and virtual memory: **implemented, verified by build + host tests + QEMU boot**  
 Stage 1 — bootable x86-64 kernel: **implemented; see verification state**
@@ -95,12 +95,18 @@ Stage 1 — bootable x86-64 kernel: **implemented; see verification state**
 
 - Plan and phased task checklist: [docs/stage5-gpu.md](stage5-gpu.md).
 - **Phase 0 — agent inspection and preparation: complete by Project Director acceptance.**
-- Phase 1 is open: PCI enumeration exists and is called from the Stage 4 boot self-test, but GPU
-  discovery, BAR resource validation, device matching and capability reporting are not
-  implemented.
-- Phase 2 is partial: `kernel/src/gpu.c` now compiles against `include/ozero/gpu.h`, with a
-  first-fit VA range table, mapping bookkeeping and teardown guards, all host-tested. It has no
-  boot-path caller and no device integration.
+- Phase 1 is implemented and host-tested: `kernel/src/gpu_device.c` + `include/ozero/gpu_device.h`
+  add a GPU-independent discovery walk over the kernel PCI layer (display-class detection, BAR
+  probing, validated MMIO selection, backend match and a capability record), wired into the boot
+  self-test by `stage5_self_test` in `kernel/src/main.c`. Verified under QEMU: discovery reports
+  the emulated display device and `backend=none supported=no`, because no Haswell device ID is
+  verified yet (the PRM lists none; the HD 4600 ID/revision must be read from target hardware).
+  Wiring it exposed and fixed two latent PCI defects: `o0_pci_probe_bar` self-deadlocked on the
+  non-recursive config lock, and 32-bit memory-BAR sizes were computed in 64 bits.
+- Phase 2 is partial and integrated: `kernel/src/gpu.c` compiles against `include/ozero/gpu.h`
+  with a first-fit VA range table, mapping bookkeeping and teardown guards, all host-tested, and
+  `stage5_self_test` now exercises the create/alloc/map/unmap/free/destroy lifecycle on the real
+  kernel heap. Residency, eviction, coherency and access control remain open.
 - Phase 3 is partially implemented: `kernel/src/gpu_hsw.c` provides Haswell PPGTT and GGTT
   encoding, validation, map/unmap, teardown and invalidation-obligation tracking, covered by 10
   host tests. Hardware installation (`PGTBL_CTL`), engine register programming (`PP_DIR_BASE`,
@@ -110,7 +116,11 @@ Stage 1 — bootable x86-64 kernel: **implemented; see verification state**
   (2013-12-18) and the supporting 2013 command/register volumes, with two checklist items still
   partial (GGTT `PGTBL_CTL` bit layout and TLB-invalidation completion semantics). Evidence and
   open questions: [docs/research/haswell-gen75-ppgtt-ggtt.md](research/haswell-gen75-ppgtt-ggtt.md).
-- Phases 1–7 remain implementation work: GPU discovery; GPU memory objects/address spaces; Haswell Gen7.5 PPGTT/GGTT; engine-specific submission/completion; contexts/queues/scheduling; backend boundaries; verification and integration.
+- Phases 1–7 remain implementation work overall: Phase 1 discovery is now implemented and
+  host-tested (software only, no verified device); GPU memory objects/address spaces (Phase 2),
+  Haswell Gen7.5 PPGTT/GGTT (Phase 3), engine-specific submission/completion (Phase 4),
+  contexts/queues/scheduling (Phase 5), backend boundaries (Phase 6) and final verification and
+  integration (Phase 7) remain open.
 - No GPU functionality is claimed as hardware-verified. The PPGTT/GGTT backend is host-tested only: nothing programs a device, reads a GPU register or submits work.
 - Intel Haswell Gen7.5 is the first backend target. Intel HD Graphics 4600 is a concrete bring-up target, not the limit of Ozero GPU support.
 - The architecture separates a GPU-independent Ozero core from generation/vendor-specific backends. Future Intel, AMD, NVIDIA and other devices require independently researched and verified backends; no broad vendor support is claimed.
@@ -122,8 +132,8 @@ Stage 1 — bootable x86-64 kernel: **implemented; see verification state**
 Truthful split by evidence type:
 
 - **Build:** `make check` passed in GitHub Actions run [#43](https://github.com/Momegaii/Ozero/actions/runs/45298240681) on commit `7bb6a446f1f81fefe2102b2ab7e79e34b36cc1ef`. This includes the freestanding `-Werror` kernel/ISO build and host test suite.
-- **Build (current Stage 5 branch):** `make check` passes locally on this branch: doctor, the freestanding `-Werror` kernel/ISO build and every host suite, including 10 new GPU tests. QEMU smoke tests pass on both `qemu64` and `Haswell-v1`. The last CI run for the branch, [45368632161](https://github.com/Momegaii/Ozero/actions/runs/45368632161), failed on the `kernel/src/gpu.c` defect that this branch now fixes.
-- **Host unit tests:** the same run passed PMM 7/7, slab 5/5, scheduler 5/5, CPU, block layer 6/6 and OzeroFS 10/10. New closing-fix regressions passed for late completion after timeout, driver-confirmed cancellation, transfer limits, checksummed malformed superblocks, directory lookup I/O errors, partial overwrite rollback and final inode persistence failure.
+- **Build (current Stage 5 branch):** `make check` passes locally in this cloud sandbox (Debian 13, GCC 14.2, binutils, xorriso, QEMU 10.0.13, KVM available): doctor, the freestanding `-Werror` kernel/ISO build and every host suite, including 15 GPU tests (the 10 Haswell PPGTT/GGTT/core tests plus 5 discovery/capability tests). QEMU smoke tests pass on both `qemu64` and `Haswell-v1`. The Stage 5 boot self-test now runs the GPU core memory-object lifecycle and GPU discovery, printing `OZERO: gpu core self-test complete`, `OZERO: gpu pci display devices=`, per-device `OZERO: gpu device ...` lines and `OZERO: gpu discovery complete`. This is local verification; the GitHub Actions run for this branch has not been observed and will be produced by the push.
+- **Host unit tests:** the same local run passed PMM 7/7, slab 5/5, scheduler 5/5, CPU, block layer 6/6, OzeroFS 10/10 and GPU 15/15. New closing-fix regressions passed for late completion after timeout, driver-confirmed cancellation, transfer limits, checksummed malformed superblocks, directory lookup I/O errors, partial overwrite rollback and final inode persistence failure.
 - **QEMU / ISO boot (BIOS):** **Stage 4 revision boot-verified** by `tools/qemu-smoke.sh` in QEMU on `q35` with both `qemu64` and `Haswell-v1` CPU models in run #43. Both runs reached the storage self-test completion marker and reported `QEMU smoke test: PASS`. This validates the RAM-disk/OzeroFS boot self-test, not a persistent storage controller or disk image.
 - **UEFI boot:** **not performed for this revision.** The ISO carries a UEFI boot path (`limine-uefi-cd.bin`), but it has not been exercised under OVMF.
 - **Real storage hardware:** never exercised. There is no ATA, AHCI or NVMe driver yet; the Stage 4 storage evidence comes from the RAM disk only.

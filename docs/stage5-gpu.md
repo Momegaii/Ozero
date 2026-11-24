@@ -1,6 +1,6 @@
 # Stage 5: GPU memory and Haswell submission
 
-- Status: **Active — Phase 1 open; Phase 2 core builds and is host-tested but has no device integration; Phase 3 specification review complete (two items partial) and the PPGTT/GGTT backend implemented and host-tested, with hardware installation and invalidation emission open**
+- Status: **Active — Phase 1 GPU discovery implemented, host-tested and wired into the boot self-test (no verified device ID yet, so every device is reported unsupported); Phase 2 core builds, host-tested and now exercised on the boot path; Phase 3 specification review complete (two items partial) and the PPGTT/GGTT backend implemented and host-tested, with hardware installation and invalidation emission open**
 - Roadmap stage: 5
 - Initial hardware backend: Intel Haswell Gen7.5 integrated graphics
 - Concrete bring-up target: Intel HD Graphics 4600 (device ID and revision must be confirmed on the target machine)
@@ -55,85 +55,79 @@ This integration gap was corrected in commit [`be929464`](https://github.com/Mom
 
 **Evidence boundary:** the call is present in source, but this does not yet prove successful runtime enumeration. Build and boot verification, inspection of actual discovered BDF/IDs, and the remaining PCI resource work are still required. The call currently lives in the Stage 4 self-test as an initial boot integration point; it is not a completed Stage 5 GPU discovery subsystem.
 
+**GPU discovery implementation (2026-11-24):** `kernel/src/gpu_device.c` adds a GPU-independent discovery walk over the kernel PCI layer (`include/ozero/gpu_device.h`). It classifies display functions (PCI base class 0x03), probes each BAR, selects a validated MMIO window, matches a registered backend, and records a capability set. It is wired into the boot path by `stage5_self_test` in `kernel/src/main.c` (`OZERO: gpu pci display devices=`, one `OZERO: gpu device ...` line per display function, then `OZERO: gpu discovery complete`). Verified under QEMU (`qemu64` and `Haswell-v1`): the emulated VGA is reported with its real MMIO window and `backend=none supported=no`. Two latent PCI defects surfaced and were fixed while wiring this up: `o0_pci_probe_bar` self-deadlocked on the non-recursive config lock (it now takes the lock once via locked accessors), and 32-bit memory-BAR sizes were computed in 64 bits (now computed in 32 bits). No Haswell device ID is verified yet, so discovery reports every device unsupported; that is deliberate.
+
 - [x] Inspect existing PCI enumeration and configuration-space access.
-- [ ] Implement or complete PCI enumeration if required; reuse existing kernel facilities where sound.
-- [ ] Enumerate devices and functions deterministically.
-- [ ] Read vendor ID, device ID, revision, class and subclass.
-- [ ] Identify graphics/display functions.
-- [ ] Parse BAR resources, including 64-bit BARs and resource sizes.
-- [ ] Validate MMIO ranges, alignment and address overflow.
-- [ ] Identify interrupt capabilities and establish device interrupt routing requirements.
-- [ ] Establish DMA address-width and alignment constraints.
-- [ ] Avoid creating a GPU-only PCI shortcut that duplicates or conflicts with the kernel PCI layer.
+- [x] Implement or complete PCI enumeration if required; reuse existing kernel facilities where sound. (`kernel/src/gpu_device.c` reuses `ozero/pci.h` rather than duplicating it.)
+- [x] Enumerate devices and functions deterministically. (`o0_pci_init` walk is deterministic; `o0_gpu_discover` iterates the same order.)
+- [x] Read vendor ID, device ID, revision, class and subclass. (captured into `struct o0_gpu_device`; see the boot log `gpu device ... vendor=... device=... class=... rev=...`.)
+- [x] Identify graphics/display functions. (`o0_gpu_is_display_class`, PCI base class 0x03.)
+- [x] Parse BAR resources, including 64-bit BARs and resource sizes. (`o0_pci_probe_bar` sizes 32-bit and 64-bit memory BARs correctly after the 32-bit sizing fix; `o0_gpu_discover` probes every BAR of a display function.)
+- [x] Validate MMIO ranges, alignment and address overflow. (`o0_gpu_validate_mmio_bar`: memory BAR, non-zero power-of-two size, size-aligned base, no overflow.)
+- [ ] Identify interrupt capabilities and establish device interrupt routing requirements. (MSI/MSI-X offsets are parsed by the PCI layer, but GPU interrupt routing is not established and no engine/device is claimed yet.)
+- [ ] Establish DMA address-width and alignment constraints. (`struct o0_pci_dma_constraints` exists but is not populated for GPUs; needs a matched device.)
+- [x] Avoid creating a GPU-only PCI shortcut that duplicates or conflicts with the kernel PCI layer. (discovery is built on `ozero/pci.h`.)
 
 ### 4.2 GPU identification and safe initialization
 
-- [ ] Define a GPU device descriptor.
-- [ ] Match only explicitly researched and supported device IDs/revisions.
-- [ ] Add the initial Haswell Gen7.5 backend match.
-- [ ] Confirm the actual HD Graphics 4600 device ID and revision on target hardware before device-specific bring-up.
-- [ ] Map only validated MMIO resources.
-- [ ] Define initialization and shutdown/error unwind paths.
-- [ ] Keep unknown devices safely unsupported.
-- [ ] Do not probe undocumented registers or infer support from driver-binary strings.
+- [x] Define a GPU device descriptor. (`struct o0_gpu_device` in `include/ozero/gpu_device.h`.)
+- [x] Match only explicitly researched and supported device IDs/revisions. (`o0_gpu_match_backend` consults registered backends; a device is `supported` only when a backend returns its id.)
+- [ ] Add the initial Haswell Gen7.5 backend match. (The backend is registered with a `match` hook and a `fill_caps` capability set, but `o0_gpu_hsw_backend.match` returns `O0_GPU_BACKEND_NONE` until a Haswell device ID/revision is verified on hardware — see the next item. Claiming support without a verified ID is not allowed.)
+- [ ] Confirm the actual HD Graphics 4600 device ID and revision on target hardware before device-specific bring-up. (Not done; needs target hardware. The PRM does not list PCI device IDs — `docs/research/haswell-gen75-ppgtt-ggtt.md` section 1.2.)
+- [ ] Map only validated MMIO resources. (A validated MMIO window is selected and recorded, but not yet mapped into a CPU/GPU address space; that needs a matched device and a backend mapping path.)
+- [ ] Define initialization and shutdown/error unwind paths. (No device is initialized because none matches; the discovery record has no live device state to unwind.)
+- [x] Keep unknown devices safely unsupported. (`o0_gpu_describe` sets `supported=false`; `o0_gpu_discover` records and never aborts boot. Verified under QEMU: the emulated VGA is reported `backend=none supported=no`.)
+- [x] Do not probe undocumented registers or infer support from driver-binary strings. (Discovery reads standard PCI configuration only; the backend claims no device.)
 
 ### 4.3 Capability description
 
-- [ ] Record GPU generation and revision.
-- [ ] Record GPU virtual-address width and supported page sizes.
-- [ ] Record memory domains and DMA constraints.
-- [ ] Record detected engines and engine-specific capabilities.
-- [ ] Record submission/completion mechanisms.
-- [ ] Report preemption, reset and recovery only when documented and implemented.
-- [ ] Expose capabilities through a GPU-independent Ozero interface.
-- [ ] Add deterministic device-match and capability-validation tests.
+- [x] Record GPU generation and revision. (`struct o0_gpu_caps.generation` plus the descriptor `revision`; the Haswell capability set is defined in `o0_gpu_hsw_backend.fill_caps` and is host-tested.)
+- [x] Record GPU virtual-address width and supported page sizes. (Haswell capability set: 32-bit VA, 2 GiB ceiling, 4 KiB and 32 KiB pages; host-tested. Attached to a device only after a verified match.)
+- [ ] Record memory domains and DMA constraints. (Not modelled yet; `struct o0_gpu_caps` has no memory-domain field and DMA constraints are not populated for GPUs.)
+- [x] Record detected engines and engine-specific capabilities. (Haswell capability set records render, blitter, video and media engines from the PRM register map.)
+- [x] Record submission/completion mechanisms. (`caps.submission_supported=false` is recorded; no submission path exists until Phase 4.)
+- [x] Report preemption, reset and recovery only when documented and implemented. (`caps.preemption_reported=false`, `caps.reset_reported=false`.)
+- [x] Expose capabilities through a GPU-independent Ozero interface. (`struct o0_gpu_caps`/`struct o0_gpu_device` in `include/ozero/gpu_device.h`, independent of any vendor format.)
+- [x] Add deterministic device-match and capability-validation tests. (`tests/gpu_test.c`: display classification, MMIO validation/selection, describe-unsupported, Haswell capability set.)
 
 **Exit evidence:** tests for supported/unsupported IDs, descriptor validation, BAR parsing and resource bounds; safe unsupported-device behavior; successful kernel integration without breaking boot.
 
 ## 5. Phase 2 — GPU-independent memory objects and address spaces
 
-**Phase status: PARTIAL — code exists but does not build.**
+**Phase status: PARTIAL — builds, host-tested, and exercised once on the boot path by the Stage 5 self-test; no device integration and the residency, eviction, coherency and access-control items below remain open.**
 
-`kernel/src/gpu.c` (189 lines) defines memory objects, a first-fit GPU virtual-address allocator
-and map/unmap helpers. It redefines `struct o0_gpu_vm` and its function signatures conflict with
-`include/ozero/gpu.h`. CI run
-[45368632161](https://github.com/Momegaii/Ozero/actions/runs/45368632161) on commit `452ccac`
-fails at "Build ELF64 kernel and bootable ISO" with `redefinition of 'struct o0_gpu_vm'` and
-conflicting types for `o0_gpu_vm_create`, `o0_gpu_vm_destroy`, `o0_gpu_vm_alloc`,
-`o0_gpu_vm_free`, `o0_gpu_vm_map` and `o0_gpu_vm_unmap`. The object is listed in `KERNEL_OBJS`,
-and no boot-path code calls it. No checklist item below is complete; treat Phase 2 as open until
-the code builds, is integrated and has host tests.
+`kernel/src/gpu.c` defines memory objects, a first-fit GPU virtual-address allocator and map/unmap helpers against `include/ozero/gpu.h`. It builds, is host-tested (`tests/gpu_test.c`), and `stage5_self_test` in `kernel/src/main.c` now exercises the create/alloc/map/unmap/free/destroy lifecycle once on the real kernel heap (`OZERO: gpu core self-test complete`). It still has no device integration; the residency, eviction, coherency and access-control checklist items below are open.
 
 ### 5.1 GPU memory objects and ownership
 
-- [ ] Define Ozero-owned GPU memory-object types and lifecycle.
-- [ ] Implement object creation and destruction.
-- [ ] Track physical-page backing.
-- [ ] Implement page reference and ownership accounting.
-- [ ] Implement pin/unpin operations.
-- [ ] Prevent freeing pages referenced by mappings or in-flight work.
-- [ ] Validate size, alignment and allocation limits.
-- [ ] Handle allocation failure and partial-construction rollback.
+- [x] Define Ozero-owned GPU memory-object types and lifecycle. (`struct o0_gpu_memory` in `include/ozero/gpu.h`.)
+- [x] Implement object creation and destruction. (`o0_gpu_memory_create`/`o0_gpu_memory_destroy`; host-tested.)
+- [x] Track physical-page backing. (`phys_pages[]` plus `page_count`; per-page PMM allocation.)
+- [ ] Implement page reference and ownership accounting. (A `refcount` is taken on map and dropped on unmap; there is no separate reference()/release() API and no ownership transfer yet.)
+- [x] Implement pin/unpin operations. (`o0_gpu_memory_pin`/`o0_gpu_memory_unpin`; host-tested.)
+- [ ] Prevent freeing pages referenced by mappings or in-flight work. (`o0_gpu_memory_destroy` refuses while pinned or `refcount > 1`; there is no in-flight concept yet.)
+- [x] Validate size, alignment and allocation limits. (create rejects zero size; the VA allocator rejects unaligned sizes and enforces the range-count limit.)
+- [x] Handle allocation failure and partial-construction rollback. (`o0_gpu_memory_create` unwinds partial PMM/slab allocations; pool-exhaustion path is host-tested.)
 
 ### 5.2 GPU virtual-address allocation
 
-- [ ] Define GPU virtual addresses as a distinct type and namespace from CPU virtual and physical addresses.
-- [ ] Implement GPU virtual-address range allocation and release.
-- [ ] Enforce backend-provided address width and alignment.
-- [ ] Detect arithmetic overflow and invalid ranges.
-- [ ] Reject overlapping allocations.
-- [ ] Define fragmentation behavior and deterministic failure semantics.
-- [ ] Test allocation, release, reuse and boundary cases.
+- [ ] Define GPU virtual addresses as a distinct type and namespace from CPU virtual and physical addresses. (Currently plain `uint64_t`; a distinct type is a later decision.)
+- [x] Implement GPU virtual-address range allocation and release. (`o0_gpu_vm_alloc`/`o0_gpu_vm_free`; host-tested.)
+- [x] Enforce backend-provided address width and alignment. (The VM is created with a base/size range; the allocator enforces power-of-two alignment.)
+- [x] Detect arithmetic overflow and invalid ranges. (base+size and candidate+size overflow are checked; host-tested.)
+- [x] Reject overlapping allocations. (The allocator skips live ranges and mapping rejects overlap with `O0_EBUSY`; host-tested.)
+- [ ] Define fragmentation behavior and deterministic failure semantics. (First-fit with a fixed 64-range table; not yet documented as a policy.)
+- [x] Test allocation, release, reuse and boundary cases. (`tests/gpu_test.c`.)
 
 ### 5.3 Mapping and access control
 
-- [ ] Define map, unmap and protection/access operations.
-- [ ] Validate object backing and GPU address ranges.
-- [ ] Track mapping ownership and lifetime.
-- [ ] Reject invalid permissions and unsupported attributes.
-- [ ] Handle partial mapping failures with rollback.
-- [ ] Prevent address-space teardown while work still references mappings.
-- [ ] Define how mapping changes become visible to the device.
+- [ ] Define map, unmap and protection/access operations. (Map/unmap exist; no permission or access operation yet.)
+- [x] Validate object backing and GPU address ranges. (`o0_gpu_vm_map` checks the object size and that the VA range is inside the space; host-tested.)
+- [x] Track mapping ownership and lifetime. (`struct o0_gpu_mapping` plus the object `refcount`; host-tested.)
+- [ ] Reject invalid permissions and unsupported attributes. (No permission model yet.)
+- [ ] Handle partial mapping failures with rollback. (No partial-mapping path yet.)
+- [ ] Prevent address-space teardown while work still references mappings. (`o0_gpu_vm_destroy` refuses while ranges remain; no work/in-flight tracking yet.)
+- [ ] Define how mapping changes become visible to the device. (Needs a backend and an invalidation path; Phase 3/4.)
 
 ### 5.4 Residency and eviction
 
