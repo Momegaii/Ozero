@@ -319,8 +319,8 @@ static void test_write_rollback(void) {
            "two data blocks were not allocated");
     uint32_t free_before = o0fs_free_blocks(fixture.fs);
 
-    ASSERT(o0_ramdisk_inject_fault(fixture.dev, O0_BLOCK_ERR_IO,
-                                   inode.direct[1], 1) == O0_OK,
+    ASSERT(o0_ramdisk_inject_write_fault(fixture.dev, O0_BLOCK_ERR_IO,
+                                         inode.direct[1], 1) == O0_OK,
            "second-block fault injection failed");
     ASSERT(o0fs_write(fixture.fs, "/txn", 0, replacement,
                       sizeof(replacement), &written) == O0_EIO,
