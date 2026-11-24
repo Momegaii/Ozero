@@ -1,6 +1,6 @@
 # Stage 5: GPU memory and Haswell submission
 
-- Status: **Active — Phase 1 open; Phase 2 partial (code present, does not build, not integrated); Phase 3 specification review complete from the primary PRM (two items partial); implementation blocked on the Phase 2 build gap and on hardware verification**
+- Status: **Active — Phase 1 open; Phase 2 core builds and is host-tested but has no device integration; Phase 3 specification review complete (two items partial) and the PPGTT/GGTT backend implemented and host-tested, with hardware installation and invalidation emission open**
 - Roadmap stage: 5
 - Initial hardware backend: Intel Haswell Gen7.5 integrated graphics
 - Concrete bring-up target: Intel HD Graphics 4600 (device ID and revision must be confirmed on the target machine)
@@ -167,53 +167,61 @@ which cites the primary PRM Volume 5 (2013-12-18) and the supporting 2013 Haswel
 section and page.
 
 - [x] Review the Haswell Graphics PRM memory-view material and relevant generation-specific programming reference volumes. (Volumes 5, 2b, 2c, 2d and 12 read; SHA-256 of the primary PDF recorded.)
-- [x] Confirm the Gen7.5 PPGTT hierarchy and entry formats. (Two-level directory/table, PDE and PTE bit layouts; one open conflict: the PRM's 1024-entries-per-page statement versus the 512-entry directory-cache coverage.)
-- [ ] Confirm GGTT structure and programming requirements. (Single-level walk and PTE format confirmed; `PGTBL_CTL`/`PGTBL_CTL2` bit layouts were not found in the extracted register volume.)
+- [x] Confirm the Gen7.5 PPGTT hierarchy and entry formats. (Two-level directory/table; PDE and PTE bit layouts. The 1024-versus-512 conflict is resolved: 512 directory entries, 1024 page-table entries, because `PP_DCLV` covers 32 groups of 16 entries.)
+- [ ] Confirm GGTT structure and programming requirements. (Single-level walk, PTE format and the GTTADR aperture alias confirmed; Volume 5 p.33 gives base alignment, table sizes and the programming rule, but the `PGTBL_CTL`/`PGTBL_CTL2` bit layouts are not present in Volumes 2b, 2c or 5.)
 - [x] Confirm address-width and physical-address constraints. (PTE physical bits 38:0, PDE page-table bits 39:0, 2 GiB virtual-address ceiling derived from the directory-cache coverage.)
 - [x] Confirm reserved bits, permissions and supported page sizes. (PDE bits 3:2 reserved; no permission bits in either entry; 4 KiB and 32 KiB page sizes.)
 - [x] Confirm page-directory/page-table alignment and allocation requirements. (4 KiB base alignment; directory in GGTT; tables in unsnooped main memory; 32 KiB page alignment for big pages.)
-- [ ] Confirm translation-cache invalidation and ordering requirements. (Command bits and the directory-cache caveat confirmed; no documented completion/wait semantics for invalidation.)
+- [ ] Confirm translation-cache invalidation and ordering requirements. (Command bits, `GFX_MODE` bit 13 mode semantics and the directory-cache caveat confirmed. There is no documented completion bit; the TLBPEND registers report arbiter throttling, not invalidation progress.)
 - [x] Record ambiguities and undocumented behavior as open issues; do not guess. (Section 12.3 of the dossier.)
 
 ### 6.2 PPGTT
 
-- [ ] Implement the documented Haswell two-level PPGTT structure.
-- [ ] Allocate and own page-directory pages.
-- [ ] Allocate and own page-table pages.
-- [ ] Support non-contiguous physical backing where the specification permits it.
-- [ ] Encode and validate directory entries.
-- [ ] Encode and validate page-table entries.
-- [ ] Enforce address width, alignment, reserved-bit and permission constraints.
-- [ ] Implement map, unmap and address-space teardown.
-- [ ] Prevent page-table reclamation while hardware may still reference it.
+- [x] Implement the documented Haswell two-level PPGTT structure. (`o0_hsw_ppgtt_map`/`translate` walk directory then table.)
+- [x] Allocate and own page-directory pages. (`o0_hsw_ppgtt_create`, one 4 KiB page from the pool.)
+- [x] Allocate and own page-table pages. (Allocated on first map into a 4 MiB window, zeroed, freed on destroy.)
+- [x] Support non-contiguous physical backing where the specification permits it. (Each table is a separate pool allocation; host test maps into two tables with unrelated physical pages.)
+- [x] Encode and validate directory entries. (`o0_hsw_encode_pde`/`decode_pde`; reserved bits 3:2 rejected.)
+- [x] Encode and validate page-table entries. (`o0_hsw_encode_pte`/`decode_pte`; 4-bit cacheability split across bits 3:1 and 11.)
+- [x] Enforce address width, alignment, reserved-bit and permission constraints. (VA below 2 GiB, 4 KiB alignment, physical address below 512 GiB for PTEs and 1 TiB for PDEs; the format carries no permission bits, and undefined cacheability 0001 is rejected.)
+- [x] Implement map, unmap and address-space teardown. (Teardown refuses to free an active space.)
+- [x] Prevent page-table reclamation while hardware may still reference it. (`o0_hsw_ppgtt_destroy` returns without freeing while the space is marked active.)
+
+Implementation: `include/ozero/gpu_hsw.h`, `kernel/src/gpu_hsw.c`, tests in `tests/gpu_test.c`.
 
 ### 6.3 GGTT
 
-- [ ] Implement Haswell GGTT entry encoding and bounds checks.
-- [ ] Implement global mapping allocation, map and unmap.
-- [ ] Validate global aperture/resource limits.
-- [ ] Keep GGTT and per-context PPGTT responsibilities distinct.
-- [ ] Define ownership and teardown for global mappings.
+- [x] Implement Haswell GGTT entry encoding and bounds checks. (Same PTE format as the PPGTT; addresses outside `entries * 4 KiB` are rejected.)
+- [x] Implement global mapping allocation, map and unmap. (Software model of the table contents; no GSM installation yet.)
+- [x] Validate global aperture/resource limits. (Table size must be a power-of-two number of 4 KiB pages because the pool hands out contiguous power-of-two runs.)
+- [x] Keep GGTT and per-context PPGTT responsibilities distinct. (Separate types, separate API, no shared state.)
+- [x] Define ownership and teardown for global mappings. (`o0_hsw_ggtt` owns one contiguous run; `destroy` releases it; `fill_dummy` implements the PRM recommendation to map every entry.)
+
+Not done: installing the table into hardware (`PGTBL_CTL` layout is unpublished) and the real aperture size on the target machine.
 
 ### 6.4 Translation invalidation
 
-- [ ] Implement the documented Haswell invalidation procedure.
-- [ ] Enforce required register sequencing and memory ordering.
-- [ ] Wait for invalidation completion where required.
-- [ ] Define timeout/error behavior.
-- [ ] Prevent use of stale mappings.
-- [ ] Prevent page-table or backing-page reclamation before invalidation is complete.
+- [ ] Implement the documented Haswell invalidation procedure. (Needs ring buffers; blocked on Phase 4.)
+- [ ] Enforce required register sequencing and memory ordering. (Register sequencing needs engine MMIO and LRI; blocked on Phase 4.)
+- [ ] Wait for invalidation completion where required. (No completion bit is documented; Section 12.3 of the dossier.)
+- [ ] Define timeout/error behavior. (Follows from the previous item.)
+- [x] Prevent use of stale mappings. (Every map and unmap sets a dirty flag reported by `o0_hsw_ppgtt_needs_invalidation` and cleared only by `o0_hsw_ppgtt_invalidated`. While a space is marked active, map and unmap return `O0_EBUSY` because the invalidation cannot be emitted yet.)
+- [x] Prevent page-table or backing-page reclamation before invalidation is complete. (Teardown refuses to free an active space; an inactive space cannot be referenced by an engine.)
+
+The backend records the invalidation obligation but emits no commands. That is a deliberate boundary, not an oversight: command emission requires the Phase 4 ring.
 
 ### 6.5 Backend tests
 
-- [ ] Test valid and invalid entries.
-- [ ] Test low/high and boundary GPU virtual addresses.
-- [ ] Test invalid alignment and reserved bits.
-- [ ] Test permission validation.
-- [ ] Test non-contiguous page-table backing.
-- [ ] Test map/unmap/re-map cycles.
-- [ ] Test invalidation ordering and timeout paths.
-- [ ] Test address-space destruction and memory reclamation.
+- [x] Test valid and invalid entries. (PTE/PDE round-trips, invalid PDE bits, invalid PTE lookup.)
+- [x] Test low/high and boundary GPU virtual addresses. (Address 0, the last page, the 2 GiB ceiling and one page past it.)
+- [x] Test invalid alignment and reserved bits. (Unaligned VA and physical address, PDE bits 3:2.)
+- [x] Test permission validation. (The format has no permission bits; undefined cacheability 0001 is rejected.)
+- [x] Test non-contiguous page-table backing. (Two page tables from unrelated pool runs.)
+- [x] Test map/unmap/re-map cycles. (Map, translate with offset, unmap, re-map, translate again.)
+- [ ] Test invalidation ordering and timeout paths. (Not implemented; see 6.4.)
+- [x] Test address-space destruction and memory reclamation. (Every pool allocation is returned on destroy; an active space is not freed.)
+
+`make test` runs 10 GPU tests in `tests/gpu_test.c` alongside the existing suites.
 
 **Exit evidence:** specification-traceable host tests for PPGTT/GGTT construction and lifecycle. QEMU evidence is required only for behavior genuinely implemented by its emulated device; host tests do not prove physical GPU execution.
 

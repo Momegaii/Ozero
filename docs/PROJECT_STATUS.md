@@ -1,7 +1,7 @@
 # Ozero Project Status
 
 Last updated: 2026-11-24  
-Current stage: **Stage 5 — GPU memory and Haswell submission (active; specification review complete, Phase 2 code does not build yet; Stage 4 storage substrate complete)**  
+Current stage: **Stage 5 — GPU memory and Haswell submission (active; PPGTT/GGTT backend implemented and host-tested, hardware installation open; Stage 4 storage substrate complete)**  
 Stage 3 — processes, threads and scheduler: **implemented; boot-verified in QEMU BIOS for the Stage 3 revision**  
 Stage 2 — physical and virtual memory: **implemented, verified by build + host tests + QEMU boot**  
 Stage 1 — bootable x86-64 kernel: **implemented; see verification state**
@@ -98,18 +98,20 @@ Stage 1 — bootable x86-64 kernel: **implemented; see verification state**
 - Phase 1 is open: PCI enumeration exists and is called from the Stage 4 boot self-test, but GPU
   discovery, BAR resource validation, device matching and capability reporting are not
   implemented.
-- Phase 2 is partial: `kernel/src/gpu.c` defines memory objects and a first-fit GPU
-  virtual-address allocator, but it does not compile. It redefines `struct o0_gpu_vm` and its
-  signatures conflict with `include/ozero/gpu.h`. CI run
-  [45368632161](https://github.com/Momegaii/Ozero/actions/runs/45368632161) fails at "Build
-  ELF64 kernel and bootable ISO". No Phase 2 checklist item is complete and no boot-path code
-  calls the module.
+- Phase 2 is partial: `kernel/src/gpu.c` now compiles against `include/ozero/gpu.h`, with a
+  first-fit VA range table, mapping bookkeeping and teardown guards, all host-tested. It has no
+  boot-path caller and no device integration.
+- Phase 3 is partially implemented: `kernel/src/gpu_hsw.c` provides Haswell PPGTT and GGTT
+  encoding, validation, map/unmap, teardown and invalidation-obligation tracking, covered by 10
+  host tests. Hardware installation (`PGTBL_CTL`), engine register programming (`PP_DIR_BASE`,
+  `PP_DCLV`) and invalidation command emission stay open because they need engine MMIO and ring
+  buffers.
 - Phase 3 specification review is complete from the primary Intel Haswell PRM Volume 5
   (2013-12-18) and the supporting 2013 command/register volumes, with two checklist items still
-  partial (GGTT `PGTBL_CTL` layouts and TLB-invalidation completion semantics). Evidence and
+  partial (GGTT `PGTBL_CTL` bit layout and TLB-invalidation completion semantics). Evidence and
   open questions: [docs/research/haswell-gen75-ppgtt-ggtt.md](research/haswell-gen75-ppgtt-ggtt.md).
 - Phases 1–7 remain implementation work: GPU discovery; GPU memory objects/address spaces; Haswell Gen7.5 PPGTT/GGTT; engine-specific submission/completion; contexts/queues/scheduling; backend boundaries; verification and integration.
-- Stage 5 implementation has not yet been verified. No GPU functionality is currently claimed as implemented or hardware-tested.
+- No GPU functionality is claimed as hardware-verified. The PPGTT/GGTT backend is host-tested only: nothing programs a device, reads a GPU register or submits work.
 - Intel Haswell Gen7.5 is the first backend target. Intel HD Graphics 4600 is a concrete bring-up target, not the limit of Ozero GPU support.
 - The architecture separates a GPU-independent Ozero core from generation/vendor-specific backends. Future Intel, AMD, NVIDIA and other devices require independently researched and verified backends; no broad vendor support is claimed.
 - The plan avoids Gen8+ page-table assumptions in the Haswell backend, Linux DRM as a native dependency, and Windows WDDM as Ozero's native graphics contract.
@@ -120,7 +122,7 @@ Stage 1 — bootable x86-64 kernel: **implemented; see verification state**
 Truthful split by evidence type:
 
 - **Build:** `make check` passed in GitHub Actions run [#43](https://github.com/Momegaii/Ozero/actions/runs/45298240681) on commit `7bb6a446f1f81fefe2102b2ab7e79e34b36cc1ef`. This includes the freestanding `-Werror` kernel/ISO build and host test suite.
-- **Build (current Stage 5 branch):** the branch does not build. GitHub Actions run [45368632161](https://github.com/Momegaii/Ozero/actions/runs/45368632161) on commit `452ccac` fails at "Build ELF64 kernel and bootable ISO" because `kernel/src/gpu.c` redefines `struct o0_gpu_vm` and its signatures conflict with `include/ozero/gpu.h`. The passing build above refers to the Stage 4 revision `7bb6a44`.
+- **Build (current Stage 5 branch):** `make check` passes locally on this branch: doctor, the freestanding `-Werror` kernel/ISO build and every host suite, including 10 new GPU tests. QEMU smoke tests pass on both `qemu64` and `Haswell-v1`. The last CI run for the branch, [45368632161](https://github.com/Momegaii/Ozero/actions/runs/45368632161), failed on the `kernel/src/gpu.c` defect that this branch now fixes.
 - **Host unit tests:** the same run passed PMM 7/7, slab 5/5, scheduler 5/5, CPU, block layer 6/6 and OzeroFS 10/10. New closing-fix regressions passed for late completion after timeout, driver-confirmed cancellation, transfer limits, checksummed malformed superblocks, directory lookup I/O errors, partial overwrite rollback and final inode persistence failure.
 - **QEMU / ISO boot (BIOS):** **Stage 4 revision boot-verified** by `tools/qemu-smoke.sh` in QEMU on `q35` with both `qemu64` and `Haswell-v1` CPU models in run #43. Both runs reached the storage self-test completion marker and reported `QEMU smoke test: PASS`. This validates the RAM-disk/OzeroFS boot self-test, not a persistent storage controller or disk image.
 - **UEFI boot:** **not performed for this revision.** The ISO carries a UEFI boot path (`limine-uefi-cd.bin`), but it has not been exercised under OVMF.

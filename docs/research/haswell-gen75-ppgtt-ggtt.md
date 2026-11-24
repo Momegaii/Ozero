@@ -341,6 +341,12 @@ Register gap: Volume 2c in this release documents `PP_DCLV` but does not contain
 `PP_DIR_BASE` register section with an MMIO offset. The PRM text refers to the register and to
 loading it with LRI, but the offset must be confirmed before use (Section 12).
 
+Structural evidence for the offset: `PP_DCLV` is a 64-bit register occupying 0x2220-0x2227, and
+the reference implementation places `PP_DIR_BASE` at 0x2228. The same 8-byte relationship holds
+in every engine: VCS `PP_DCLV` at 0x12220 and base 0x12228, VECS at 0x1A220 and 0x1A228, BCS at
+0x22220 and 0x22228. Four engines showing the same layout is stronger evidence than a single
+offset, but it remains inference from a reference implementation, not a documented register.
+
 ## 8. Translation invalidation and ordering
 
 Verified (Vol 2c, `GFX_MODE` bit 13, p.91):
@@ -371,6 +377,12 @@ Verified (Vol 2b, `MI_FLUSH`, render engine):
 Verified (Vol 5, p.42): directory-entry changes are only defined for non-active contexts, because
 the device caches directory entries. There is no PRM statement of a bounded time for a live PDE
 update to take effect.
+
+Not an invalidation mechanism: `GFX_PEND_TLB` (0x14040, Vol 2c p.357-358) is a media-engine
+request-throttling register that caps outstanding reads requiring a TLB read. `TLBPEND_SEC*` and
+the `*_TLB_VA` registers expose the graphics arbiter's in-flight translation state. None of them
+reports "invalidation complete", and none substitutes for `PIPE_CONTROL` or `MI_FLUSH_DW`.
+Searches of Volumes 2b, 2c and 5 found no completion status bit for invalidation.
 
 Implementation consequence: a PDE edit is only safe when no engine can be using that address
 space. A PTE edit inside a live page table requires a TLB invalidation command before the engine
@@ -473,6 +485,14 @@ opcode 2h. Re-check them against Volume 2b when encoding.
 12. Haswell page faulting is render-only, cannot handle command-buffer or GGTT faults, and can
     interact with power management to lock up hardware.
 13. Display and aperture paths always use the GGTT.
+14. The GGTT aperture (`GTTADR`) is an alias of the graphics BAR in CPU physical space; the PRM
+    recommends mapping every graphics page to some physical page, even a dummy page (Vol 5 p.35).
+15. Page-fault registers: `ECOCHK` 0x4090-0x4093 bit 14 enables page faulting; the Engine Fault
+    register is 0x4094 and the Main GFX Arbiter Error register 0x40A0 reports the fault count in
+    bits 15:10 (Vol 2c p.221, Vol 5 p.48). `PP_PFD[0:31]` at 0x4580-0x45FF logs faulting page
+    addresses in bits 31:12 (Vol 2c p.258).
+16. `PP_DCLV` covers 32 groups of 16 directory entries, i.e. 512 PDEs, and the per-engine copies
+    are at 0x2220, 0x12220, 0x1A220 and 0x22220 (Vol 2c p.88, 323, 412, 446).
 
 ### 12.2 Derived (arithmetic or consistency conclusions, not direct quotes)
 
@@ -482,9 +502,12 @@ opcode 2h. Re-check them against Volume 2b when encoding.
 2. **PPGTT virtual-address ceiling is 2 GiB.** `PP_DCLV` has 32 bits and each bit covers 16
    directory entries, so it covers 512 PDEs. At 4 MiB per PDE that is 2 GiB. i915's constant
    `PP_DIR_DCLV_2G = 0xffffffff` and its 512-entry page directory agree with this reading.
-3. **PD entry count conflict.** Volume 5 p.38 says both levels allow 1024 entries per page, which
-   would give 4 GiB for the directory. `PP_DCLV` coverage and i915 both give 512 entries and
-   2 GiB. Treat 2 GiB as the enforceable ceiling and record the conflict as open.
+3. **Directory has 512 entries; a page table has 1024.** Volume 5 p.38 says both levels allow
+   1024 entries per page. At the page-table level that is consistent: 1024 PTEs x 4 KiB = 4 MiB,
+   which is what one PDE covers. At the directory level it would give 4 GiB, which `PP_DCLV`
+   cannot express: 32 bits x 16 entries = 512 PDEs = 2 GiB (Vol 2c p.88). Treat 512 as the
+   directory size and 1024 as the page-table size. The Volume 5 sentence is wrong for the
+   directory, and 12.3 item 9 is closed by this reading.
 4. **Configured aperture versus architectural ceiling.** The `PGTBL_CTL2` sizes of 64-512 MiB
    are below the 2 GiB DCLV ceiling. A 512 MiB aperture needs 128 PDEs, i.e. eight DCLV bits.
    The PRM does not state how the two limits interact; verify on hardware.
@@ -501,20 +524,28 @@ opcode 2h. Re-check them against Volume 2b when encoding.
 ### 12.3 Unknown or unverified
 
 1. `PP_DIR_BASE` MMIO offset is not documented in the extracted Volume 2c text. i915 uses
-   engine MMIO base + 0x228 (render 0x2228, VCS 0x12228, BCS 0x22228, VECS 0x1A228). The render,
-   VCS and BCS offsets fall inside the engine ranges published in Vol 3 p.18 (Section 1.2), which
-   makes them plausible but still not documented register definitions; the VECS offset lies
-   outside those ranges. Confirm all four against the full PRM or hardware before use. Do not
-   commit them as facts.
-2. `PGTBL_CTL` and `PGTBL_CTL2` bit layouts are not present in the extracted Volume 2c register
-   text. Their existence, base-address field and size encoding are only described in prose in
-   Volume 5 p.33.
+   engine MMIO base + 0x228 (render 0x2228, VCS 0x12228, BCS 0x22228, VECS 0x1A228). Evidence for
+   these offsets: each follows a 64-bit `PP_DCLV` at 0x2220/0x12220/0x1A220/0x22220 (Vol 2c
+   p.88, 323, 412, 446), and the render, VCS and BCS offsets also fall inside the engine ranges
+   published in Vol 3 p.18. That consistency makes them plausible; it does not make them
+   documented. Confirm against the full PRM or hardware before use. Do not commit them as facts.
+2. `PGTBL_CTL` and `PGTBL_CTL2` bit layouts are not present in the extracted Volumes 2b, 2c or 5;
+   both are only referenced. Volume 5 p.33 does state the requirements: 4 KiB-aligned base, GGTT
+   sizes of 128/256/512 KiB mapping to 128/256/512 MiB apertures, GGTT physically contiguous,
+   PPGTT size selected by `PGTBL_CTL2` with an additional 64 KiB option, and the global GTT
+   programmable only through the GTTADR range. Volume 2b p.268 adds that `MI_STORE_REGISTER_MEM`
+   to `PGTBL_CTL_0` writes undefined data. The bit layout and the enable bit remain unknown.
 3. The Engine Fault register (0x4094) and the Main GFX Arbiter Error register (0x40A0) are named
-   in Volume 5 p.48 but were not found as register definitions in the extracted Volume 2c text.
+   with addresses in Volume 5 p.48; neither has a register block in the extracted Volume 2c. The
+   related registers that are defined are `ECOCHK` 0x4090-0x4093 bit 14 (page-fault enable,
+   Vol 2c p.221), `PP_PFD[0:31]` 0x4580-0x45FF (fault log, Vol 2c p.258), `GAB_ERR_REPORT`
+   0x24094 for the blitter (Vol 2c p.451) and `GAC_ERROR` 0x140A0 for the media engine
+   (Vol 2c p.362). The 0x4094/0x40A0 bit layouts stay unverified.
 4. The "Force PD Restore" bit in the context descriptor is referenced by the `PP_DCLV`
    description but its definition was not located in Volumes 2c or 2d.
 5. Exact completion and wait semantics for TLB invalidation are not specified beyond the command
-   bits. There is no documented status bit to poll for "invalidation complete".
+   bits. There is no documented status bit to poll for "invalidation complete"; the TLBPEND
+   registers report arbiter request throttling, not invalidation progress (Section 8).
 6. The actual GGTT aperture size, GSM base and stolen-memory layout on an HD Graphics 4600
    machine must be read from the device at runtime. The PRM says the size is programmed through
    `PGTBL_CTL`, but does not state which agent (firmware or OS) owns it on a given platform.
@@ -522,7 +553,8 @@ opcode 2h. Re-check them against Volume 2b when encoding.
    or any memory mapped through the GGTT, is not stated. i915 places it in GSM.
 8. Whether CPU writes to page tables require cache maintenance before the GPU reads them is not
    stated in Volume 5. The PRM only says "proper precautions".
-9. The 1024-versus-512 PDE entry-count conflict in 12.2 item 3.
+9. 1024-versus-512 PDE entry count: closed by 12.2 item 3 (512 directory entries, 1024 page-table
+   entries). The Volume 5 sentence is treated as a documentation error for the directory level.
 10. 32 KiB page support in the target SKU and the allocator changes it requires.
 
 ## 13. Ozero implementation mapping
@@ -559,12 +591,20 @@ The generic core must stay hardware-independent. Haswell encoding belongs to the
 8. PDE updates are permitted only when the address space is known inactive. Encode this as an
    explicit state on `o0_gpu_vm`, not as a comment.
 9. PTE updates to a live address space require an invalidation command and a completion wait.
-   Until Phase 4 exists, the backend must refuse to activate such an address space rather than
-   pretend the update is visible.
+   Until Phase 4 can emit one, the backend refuses map and unmap while a space is marked active
+   and records the outstanding invalidation, rather than pretending the update is visible.
 10. 32 KiB pages, page-fault repair and execlist submission are unsupported and must return a
     clear unsupported-status error, not a silent fallback.
 
-### 13.3 Deferred to later phases
+### 13.3 Implementation status
+
+`include/ozero/gpu_hsw.h` and `kernel/src/gpu_hsw.c` implement 13.1-13.2 for 4 KiB pages:
+two-level PPGTT with directory and on-demand page tables, single-level GGTT, encoding and
+validation helpers, map/unmap/teardown, and the invalidation obligation. `tests/gpu_test.c`
+covers them (10 tests). The page-directory allocation goes through a `o0_hsw_page_pool`
+callback, so the future GGTT-backed allocator can be substituted without touching the encoder.
+
+### 13.4 Deferred to later phases
 
 - Enabling `GFX_MODE` bit 9 and loading DCLV/base via LRI require ring buffers, which are
   Phase 4 work. Phase 3 can build, encode and test tables without touching hardware registers.
@@ -603,23 +643,28 @@ Each test must cite the PRM rule it enforces, so a later reviewer can audit it.
 | Checklist item (`docs/stage5-gpu.md` 6.1) | Evidence | Status |
 |---|---|---|
 | Review Haswell PRM memory-view material and generation-specific volumes | Vol 5, 2b, 2c, 2d, 3, 4 and 12 read; SHA-256 of the primary PDF recorded | Done |
-| Confirm Gen7.5 PPGTT hierarchy and entry formats | Vol 5 p.38-43 | Done, with the 1024/512 conflict open |
-| Confirm GGTT structure and programming requirements | Vol 5 p.35-36, p.46; `PGTBL_CTL` layout missing | Partial |
+| Confirm Gen7.5 PPGTT hierarchy and entry formats | Vol 5 p.38-43; Vol 2c p.88 (`PP_DCLV` 32 x 16) | Done: 512 PDEs, 1024 PTEs |
+| Confirm GGTT structure and programming requirements | Vol 5 p.33-36, p.46; GTTADR alias; `PGTBL_CTL`/`PGTBL_CTL2` layouts absent from Vol 2b/2c/5 | Partial |
 | Confirm address width and physical-address constraints | PTE 38:0, PDE 39:0, 2 GiB VA ceiling | Done, ceiling derived |
 | Confirm reserved bits, permissions and page sizes | PDE 3:2 reserved; no permission bits; 4 KiB and 32 KiB | Done |
 | Confirm directory/table alignment and allocation | 4 KiB base alignment; PD in GGTT; PT in main memory; 32 KiB page alignment | Done |
-| Confirm translation invalidation and ordering | `GFX_MODE` 13, `PIPE_CONTROL` 18, `MI_FLUSH_DW` 18, PDE cache caveat | Partial: no completion semantics |
+| Confirm translation invalidation and ordering | `GFX_MODE` 13, `PIPE_CONTROL` 18, `MI_FLUSH_DW` 18, PDE cache caveat; TLBPEND is throttling, not completion | Partial: no completion bit |
 | Record ambiguities and undocumented behavior | Section 12.3 | Done |
 
-Implementation items (6.2-6.5) remain open. They must not be marked complete until code and host
-tests exist and the open questions that block them are resolved.
+Implementation items 6.2, 6.3 and 6.5 are implemented and host-tested in
+`kernel/src/gpu_hsw.c` (see `docs/stage5-gpu.md`). Items 6.4 and the hardware-installation part
+of 6.3 remain open: they need engine MMIO and ring buffers, and the `PGTBL_CTL` bit layout is
+unpublished.
 
 ## 16. Required follow-up before implementation is accepted
 
-1. Obtain a full-text or OCR copy of Volume 2c and locate `PP_DIR_BASE` and `PGTBL_CTL2`
-   definitions. Until then, keep those offsets out of shipping code.
-2. Resolve the 1024-versus-512 PDE count question, preferably by reading the page-directory
-   section in the current PRM revision or by hardware experiment.
+1. `PP_DIR_BASE` and `PGTBL_CTL2` remain undocumented as register definitions. Volume 2c has now
+   been obtained and text-extracted (971 pages); both names appear only in prose. Structural
+   evidence narrows `PP_DIR_BASE` to `PP_DCLV` + 8 in all four engines, and `PGTBL_CTL` ownership
+   is platform-dependent. Confirm against a current PRM revision or hardware before either
+   offset reaches shipping code.
+2. 1024-versus-512 PDE count: resolved (512 directory entries, 1024 page-table entries). See
+   12.2 item 3.
 3. Confirm the exact GGTT aperture and GSM layout on the target HD 4600.
 4. Confirm cache-maintenance requirements for CPU writes to page tables.
 5. Decide the Ozero default cacheability policy for GPU-visible memory and record it in an ADR.
