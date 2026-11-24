@@ -1,6 +1,6 @@
 # Stage 5: GPU memory and Haswell submission
 
-- Status: **Active — Phase 1 corrected (open); Phase 2 implemented (unverified); Phase 3 specification review complete from the primary PRM (two items partial); implementation blocked on hardware verification**
+- Status: **Active — Phase 1 open; Phase 2 partial (code present, does not build, not integrated); Phase 3 specification review complete from the primary PRM (two items partial); implementation blocked on the Phase 2 build gap and on hardware verification**
 - Roadmap stage: 5
 - Initial hardware backend: Intel Haswell Gen7.5 integrated graphics
 - Concrete bring-up target: Intel HD Graphics 4600 (device ID and revision must be confirmed on the target machine)
@@ -91,6 +91,18 @@ This integration gap was corrected in commit [`be929464`](https://github.com/Mom
 **Exit evidence:** tests for supported/unsupported IDs, descriptor validation, BAR parsing and resource bounds; safe unsupported-device behavior; successful kernel integration without breaking boot.
 
 ## 5. Phase 2 — GPU-independent memory objects and address spaces
+
+**Phase status: PARTIAL — code exists but does not build.**
+
+`kernel/src/gpu.c` (189 lines) defines memory objects, a first-fit GPU virtual-address allocator
+and map/unmap helpers. It redefines `struct o0_gpu_vm` and its function signatures conflict with
+`include/ozero/gpu.h`. CI run
+[45368632161](https://github.com/Momegaii/Ozero/actions/runs/45368632161) on commit `452ccac`
+fails at "Build ELF64 kernel and bootable ISO" with `redefinition of 'struct o0_gpu_vm'` and
+conflicting types for `o0_gpu_vm_create`, `o0_gpu_vm_destroy`, `o0_gpu_vm_alloc`,
+`o0_gpu_vm_free`, `o0_gpu_vm_map` and `o0_gpu_vm_unmap`. The object is listed in `KERNEL_OBJS`,
+and no boot-path code calls it. No checklist item below is complete; treat Phase 2 as open until
+the code builds, is integrated and has host tests.
 
 ### 5.1 GPU memory objects and ownership
 

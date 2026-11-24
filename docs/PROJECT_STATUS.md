@@ -1,7 +1,7 @@
 # Ozero Project Status
 
 Last updated: 2026-11-24  
-Current stage: **Stage 5 — GPU memory and Haswell submission (active planning; Stage 4 storage substrate complete)**  
+Current stage: **Stage 5 — GPU memory and Haswell submission (active; specification review complete, Phase 2 code does not build yet; Stage 4 storage substrate complete)**  
 Stage 3 — processes, threads and scheduler: **implemented; boot-verified in QEMU BIOS for the Stage 3 revision**  
 Stage 2 — physical and virtual memory: **implemented, verified by build + host tests + QEMU boot**  
 Stage 1 — bootable x86-64 kernel: **implemented; see verification state**
@@ -95,6 +95,15 @@ Stage 1 — bootable x86-64 kernel: **implemented; see verification state**
 
 - Plan and phased task checklist: [docs/stage5-gpu.md](stage5-gpu.md).
 - **Phase 0 — agent inspection and preparation: complete by Project Director acceptance.**
+- Phase 1 is open: PCI enumeration exists and is called from the Stage 4 boot self-test, but GPU
+  discovery, BAR resource validation, device matching and capability reporting are not
+  implemented.
+- Phase 2 is partial: `kernel/src/gpu.c` defines memory objects and a first-fit GPU
+  virtual-address allocator, but it does not compile. It redefines `struct o0_gpu_vm` and its
+  signatures conflict with `include/ozero/gpu.h`. CI run
+  [45368632161](https://github.com/Momegaii/Ozero/actions/runs/45368632161) fails at "Build
+  ELF64 kernel and bootable ISO". No Phase 2 checklist item is complete and no boot-path code
+  calls the module.
 - Phase 3 specification review is complete from the primary Intel Haswell PRM Volume 5
   (2013-12-18) and the supporting 2013 command/register volumes, with two checklist items still
   partial (GGTT `PGTBL_CTL` layouts and TLB-invalidation completion semantics). Evidence and
@@ -111,6 +120,7 @@ Stage 1 — bootable x86-64 kernel: **implemented; see verification state**
 Truthful split by evidence type:
 
 - **Build:** `make check` passed in GitHub Actions run [#43](https://github.com/Momegaii/Ozero/actions/runs/45298240681) on commit `7bb6a446f1f81fefe2102b2ab7e79e34b36cc1ef`. This includes the freestanding `-Werror` kernel/ISO build and host test suite.
+- **Build (current Stage 5 branch):** the branch does not build. GitHub Actions run [45368632161](https://github.com/Momegaii/Ozero/actions/runs/45368632161) on commit `452ccac` fails at "Build ELF64 kernel and bootable ISO" because `kernel/src/gpu.c` redefines `struct o0_gpu_vm` and its signatures conflict with `include/ozero/gpu.h`. The passing build above refers to the Stage 4 revision `7bb6a44`.
 - **Host unit tests:** the same run passed PMM 7/7, slab 5/5, scheduler 5/5, CPU, block layer 6/6 and OzeroFS 10/10. New closing-fix regressions passed for late completion after timeout, driver-confirmed cancellation, transfer limits, checksummed malformed superblocks, directory lookup I/O errors, partial overwrite rollback and final inode persistence failure.
 - **QEMU / ISO boot (BIOS):** **Stage 4 revision boot-verified** by `tools/qemu-smoke.sh` in QEMU on `q35` with both `qemu64` and `Haswell-v1` CPU models in run #43. Both runs reached the storage self-test completion marker and reported `QEMU smoke test: PASS`. This validates the RAM-disk/OzeroFS boot self-test, not a persistent storage controller or disk image.
 - **UEFI boot:** **not performed for this revision.** The ISO carries a UEFI boot path (`limine-uefi-cd.bin`), but it has not been exercised under OVMF.

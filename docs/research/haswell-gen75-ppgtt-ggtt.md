@@ -11,13 +11,15 @@ promote a derived or unknown item to a verified fact without new evidence.
 ## 0. How to use this document
 
 - Section 12 is the authority list: verified, derived, unknown. Read it before writing code.
+- Section 1.1 states the verification boundary: every fact here is specification-verified, and
+  none is hardware-verified.
 - Section 13 maps the hardware contract onto Ozero-owned types and invariants.
 - Section 14 lists host tests that do not require hardware.
 - Section 15 traces the Stage 5 Phase 3 checklist to this evidence.
 - Short PRM quotes are included for traceability. The PRM is CC-BY-ND 3.0 US; keep quotations
   short and attributed. Do not paste whole sections into the repository.
 
-## 1. Source inventory (verified)
+## 1. Sources and verified device data
 
 | Item | Value |
 |---|---|
@@ -38,6 +40,8 @@ archive directory):
 | 2b, Command Reference: Instructions | `vol02b_intel-gfx-prm-osrc-hsw-commandreference-instructions_0.pdf` | `PIPE_CONTROL`, `MI_FLUSH_DW`, `MI_FLUSH`, `MI_UPDATE_GTT`, `MI_LOAD_REGISTER_IMM` |
 | 2c, Command Reference: Registers | `vol02c_intel-gfx-prm-osrc-hsw-commandreference-registers_0.pdf` | `GFX_MODE`, `PP_DCLV`, per-engine `PP_DCLV`, `ECOCHK`, `RING_BUFFER_CTL` |
 | 2d, Command Reference: Structures | `vol02d_intel-gfx-prm-osrc-hsw-commandreference-structures.pdf` | Context/fault structure cross-checks |
+| 3, GPU Overview | `vol03_intel-gfx-prm-osrc-hsw-gpu-overview_0.pdf` | Engine inventory, GT configurations, MMIO range map |
+| 4, Configurations | `vol04_intel-gfx-prm-osrc-hsw-configurations.pdf` | GT1/GT2/GT3 slice, subslice and EU differences |
 | 12, PCIe Config Registers | `vol12_intel-gfx-prm-osrc-hsw-pcie-config-registers.pdf` | BAR cross-checks |
 
 Reference implementation used only to cross-check arithmetic and register offsets: Linux i915
@@ -47,6 +51,59 @@ Ozero. Where i915 disagrees with the PRM, the PRM wins and the disagreement is r
 Section 12.
 
 Page numbers below are PDF page numbers of Volume 5 unless stated otherwise.
+
+### 1.1 Verification boundary
+
+Every claim in this document is specification-verified against the PRM text. None is
+hardware-verified. No Ozero code has run on a Haswell GPU, no register has been read back from
+silicon, and no GGTT or PPGTT has been programmed on real hardware. Statements about hardware
+behaviour are therefore statements about what the PRM specifies, not observations.
+
+These items specifically require hardware confirmation before they can be called verified:
+the `PP_DIR_BASE` offset and the `PGTBL_CTL`/`PGTBL_CTL2` layouts (Section 12.3 items 1-2), the
+0x4094/0x40A0 fault registers (item 3), the real GGTT aperture and GSM base (item 6), the actual
+PCI device ID and revision (item 6), and cache-maintenance behaviour for CPU page-table writes
+(item 8).
+
+### 1.2 Device and register map (verified)
+
+Vol 3 p.18 documents these graphics MMIO ranges for Haswell, described there as a subset of the
+complete MMIO space:
+
+| Range | Owner |
+|---|---|
+| 0x00002000-0x00002FFF | Render/Generic Media Engine |
+| 0x00004000-0x00004FFF | Render/Generic Media Graphics Memory Arbiter |
+| 0x00012000-0x000123FF | MFX Control Engine (Video Command Streamer) |
+| 0x00012400-0x00012FFF | Media Units (VIN unit) |
+| 0x00014000-0x00014FFF | MFX Memory Arbiter |
+| 0x00022000-0x00022FFF | Blitter Engine |
+| 0x00024000-0x00024FFF | Blitter Memory Arbiter |
+| 0x00100000-0x00107FFF | Fence Registers |
+| 0x00140000-0x0017FFFF | MCHBAR (SA) |
+
+Vol 3 p.18 also states that 0x8800-0x88FF is reserved for the GT and that IA accesses to that
+range have no effect. This is consistent with the `MI_LOAD_REGISTER_IMM` restriction in
+Volume 2b.
+
+GT configurations (Vol 4 p.8, with EU counts also in Vol 3 p.11):
+
+| Config | Slices | Subslices | EUs | Threads | L3 (URB + cache) |
+|---|---|---|---|---|---|
+| GT3 | 2 | 4 | 40 | 280 | 1024 KiB |
+| GT2 | 1 | 2 | 20 | 140 | 512 KiB |
+| GT1.5 | 1 | 2 | 12 | 84 | 512 KiB |
+| GT1 | 1 | 1 | 10 | 70 | 256 KiB |
+
+Each EU supports 7 threads (Vol 3 p.11). The PRM does not list PCI device IDs, so the HD
+Graphics 4600 device ID and revision must be read from PCI configuration space on the target
+machine; no PRM table can replace that. Vol 3 p.15 describes the fixed-function Video Codec
+Engine (VCE/MFX) and its internal units.
+
+Consequence for the backend: the documented engine ranges confirm that the reference
+implementation's `PP_DIR_BASE` offsets fall inside real engine windows (0x2228 inside
+0x2000-0x2FFF, 0x12228 inside 0x12000-0x123FF, 0x22228 inside 0x22000-0x22FFF). The VECS offset
+0x1A228 lies outside the ranges published in this volume and stays unverified.
 
 ## 2. Terminology and address spaces
 
@@ -381,7 +438,7 @@ encoder, not to the generic core.
 | `VCS_PP_DCLV` | 0x12220 | 64 | Video directory-cache valid groups | Vol 2c p.323 |
 | `VECS_PP_DCLV` | 0x1A220 | 64 | Video-enhance directory-cache valid groups | Vol 2c p.412 |
 | `BCS_PP_DCLV` | 0x22220 | 64 | Blitter directory-cache valid groups | Vol 2c p.446 |
-| `PP_DIR_BASE` | Not documented in Vol 2c | 32 (inferred) | Page-directory base, loaded by LRI | Vol 2c p.88 reference only |
+| `PP_DIR_BASE` | Not documented in Vol 2c | 32 (inferred) | Page-directory base, loaded by LRI; engine offsets fall inside Vol 3 p.18 ranges for render/VCS/BCS | Vol 2c p.88, Vol 3 p.18 |
 | `ECOCHK` | 0x4090 | 32 | Bit 14 global page-fault enable | Vol 2c p.221 |
 | `PIPE_CONTROL` | GFXPIPE type 3h, 3D opcode 2h | variable | DW1 bit 18 TLB invalidate, bit 20 stall | Vol 2b p.962-963 |
 | `MI_FLUSH_DW` | opcode 0x26 | variable | DW0 bit 18 TLB invalidate, post-sync 1h/3h | Vol 2b p.267-268 |
@@ -444,9 +501,11 @@ opcode 2h. Re-check them against Volume 2b when encoding.
 ### 12.3 Unknown or unverified
 
 1. `PP_DIR_BASE` MMIO offset is not documented in the extracted Volume 2c text. i915 uses
-   engine MMIO base + 0x228 (render 0x2228, VCS 0x12228, BCS 0x22228, VECS 0x1A228). This is a
-   reference-implementation value and must be confirmed against the full PRM or hardware before
-   use. Do not commit it as a fact.
+   engine MMIO base + 0x228 (render 0x2228, VCS 0x12228, BCS 0x22228, VECS 0x1A228). The render,
+   VCS and BCS offsets fall inside the engine ranges published in Vol 3 p.18 (Section 1.2), which
+   makes them plausible but still not documented register definitions; the VECS offset lies
+   outside those ranges. Confirm all four against the full PRM or hardware before use. Do not
+   commit them as facts.
 2. `PGTBL_CTL` and `PGTBL_CTL2` bit layouts are not present in the extracted Volume 2c register
    text. Their existence, base-address field and size encoding are only described in prose in
    Volume 5 p.33.
@@ -543,7 +602,7 @@ Each test must cite the PRM rule it enforces, so a later reviewer can audit it.
 
 | Checklist item (`docs/stage5-gpu.md` 6.1) | Evidence | Status |
 |---|---|---|
-| Review Haswell PRM memory-view material and generation-specific volumes | Vol 5, 2b, 2c, 2d, 12 downloaded and read | Done |
+| Review Haswell PRM memory-view material and generation-specific volumes | Vol 5, 2b, 2c, 2d, 3, 4 and 12 read; SHA-256 of the primary PDF recorded | Done |
 | Confirm Gen7.5 PPGTT hierarchy and entry formats | Vol 5 p.38-43 | Done, with the 1024/512 conflict open |
 | Confirm GGTT structure and programming requirements | Vol 5 p.35-36, p.46; `PGTBL_CTL` layout missing | Partial |
 | Confirm address width and physical-address constraints | PTE 38:0, PDE 39:0, 2 GiB VA ceiling | Done, ceiling derived |
