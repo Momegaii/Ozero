@@ -1,6 +1,6 @@
 # Stage 6 — Native Graphical Application Environment
 
-Status: **active; Phase 6.3 software-surface primitives authored; Phases 6.1, 6.2, and 6.4–6.8 remain open; no Stage 6 tests have been run for this change set**
+Status: **active; Phase 6.1 safe direct-map framebuffer path and boot pattern authored (unverified); Phase 6.3 surface primitives authored; Phases 6.2 and 6.4–6.8 remain open; no Stage 6 tests have been run**
 Last reviewed: 2026-11-24
 Repository: `Momegaii/Ozero`
 Working branch: `kilo/floral-eagle-2hb`
@@ -46,15 +46,15 @@ This document records the Stage 6 scope accepted by the Project Director in the 
 
 ### Actual implementation status
 
-**In progress; not complete.** The Limine framebuffer request and metadata validation are present. This change tightens validation of channel-mask overlap, pitch/extent overflow and the reported framebuffer byte length, and adds `tests/display_test.c` to the host-test target. No safe framebuffer mapping, pixel renderer, QEMU display validation or screenshot is present. The mapping must not be added until the architecture layer prevents conflicting cache-type aliases with the existing write-back direct map. Phase 6.1 remains open.
+**Implementation authored; not verified; phase remains open.** The kernel resolves the Limine framebuffer virtual address to a physical address before switching page tables. The new direct-map builder detects memory-map regions typed as framebuffer and maps every intersecting 2 MiB chunk with 4 KiB UC entries; ordinary chunks retain 2 MiB WB mappings. This avoids a simultaneous WB direct-map alias of framebuffer bytes. `o0_display_init` checks that the complete pixel extent lies inside a framebuffer memory-map region, obtains the kernel direct-map address, validates the descriptor, and draws an eight-band colored boot pattern. The 2 MiB chunk containing the framebuffer is conservatively UC in full. No build, host tests, QEMU boot, or screenshot has been run, so successful visible output is not yet confirmed. Phase 6.1 remains open.
 
 ### Phase 6.1 acceptance checklist
 
 - [x] Limine framebuffer request declared; response metadata is validated.
 - [x] Framebuffer dimensions, pitch, format and non-overlapping channel masks validated in the descriptor API.
 - [ ] Framebuffer extent arithmetic checked for overflow and checked against the boot memory map.
-- [ ] Safe mapping/cache policy implemented; no unsafe write-back alias used.
-- [ ] Minimal fallback renderer writes a known test pattern or status screen.
+- [x] Direct-map framebuffer chunks are mapped UC at 4 KiB granularity, avoiding a WB alias in the new kernel page tables (implementation authored; unverified).
+- [x] Minimal eight-band software boot pattern renderer authored (visible output not yet confirmed).
 - [ ] Host tests cover valid and invalid framebuffer descriptors (test source added; execution reserved for agent test pass).
 - [ ] QEMU boot log confirms the selected display path.
 - [ ] QEMU screenshot demonstrates stable visible output.
