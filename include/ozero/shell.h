@@ -1,6 +1,7 @@
 /* Stage 6.7: minimal native desktop shell state and layout. */
 #ifndef O0_SHELL_H
 #define O0_SHELL_H
+#include <stdbool.h>
 #include <stdint.h>
 #include "ozero/status.h"
 #include "ozero/window.h"
@@ -12,5 +13,5 @@ struct o0_shell {
 };
 o0_status o0_shell_init(struct o0_shell *shell,uint32_t width,uint32_t height);
 void o0_shell_pointer(struct o0_shell *shell,int32_t dx,int32_t dy);
-o0_window *o0_shell_pointer_target(struct o0_shell *shell);
+struct o0_window *o0_shell_pointer_target(struct o0_shell *shell);
 #endif
