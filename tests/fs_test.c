@@ -208,11 +208,40 @@ static void test_format_rules(void) {
     static uint8_t super[O0FS_BLOCK_SIZE];
     ASSERT(o0_block_read(fixture.dev, 0, super, sizeof(super)) == O0_OK,
            "superblock read failed");
-    super[20] ^= 0xffu; /* inside inode_count, covered by the checksum */
+    super[20] ^= 0xffu;
     ASSERT(o0_block_write(fixture.dev, 0, super, sizeof(super)) == O0_OK,
            "superblock corruption failed");
     ASSERT(o0fs_mount(fixture.dev, &bad) == O0_EINVAL,
            "mount accepted a bad checksum");
+
+    /* Recompute the checksum so the inode-count validator is actually tested. */
+    ASSERT(o0fs_format(fixture.dev) == O0_OK, "second reformat failed");
+    struct o0fs_super_disk malformed;
+    ASSERT(o0_block_read(fixture.dev, 0, super, sizeof(super)) == O0_OK,
+           "superblock reread failed");
+    memcpy(&malformed, super, sizeof(malformed));
+    malformed.inode_count = O0FS_INODES_PER_BLOCK + 1u;
+    malformed.checksum = fs_checksum(&malformed);
+    memset(super, 0, sizeof(super));
+    memcpy(super, &malformed, sizeof(malformed));
+    ASSERT(o0_block_write(fixture.dev, 0, super, sizeof(super)) == O0_OK,
+           "malformed inode-count write failed");
+    ASSERT(o0fs_mount(fixture.dev, &bad) == O0_EINVAL,
+           "mount accepted a checksummed invalid inode count");
+
+    /* Exercise overflow-safe layout validation with a valid checksum too. */
+    ASSERT(o0fs_format(fixture.dev) == O0_OK, "third reformat failed");
+    ASSERT(o0_block_read(fixture.dev, 0, super, sizeof(super)) == O0_OK,
+           "layout superblock reread failed");
+    memcpy(&malformed, super, sizeof(malformed));
+    malformed.inode_table_blocks = UINT32_MAX;
+    malformed.checksum = fs_checksum(&malformed);
+    memset(super, 0, sizeof(super));
+    memcpy(super, &malformed, sizeof(malformed));
+    ASSERT(o0_block_write(fixture.dev, 0, super, sizeof(super)) == O0_OK,
+           "malformed layout write failed");
+    ASSERT(o0fs_mount(fixture.dev, &bad) == O0_EINVAL,
+           "mount accepted a checksummed overflowing inode layout");
 
     fixture_close(&fixture);
     PASS();
@@ -411,6 +440,19 @@ static void test_directories(void) {
     reset_world();
     struct fixture fixture;
     ASSERT(fixture_open(&fixture), "fixture setup failed");
+
+    ASSERT(o0fs_create_file(fixture.fs, "/present") == O0_OK,
+           "lookup-I/O fixture create failed");
+    struct o0fs_inode_disk root_inode;
+    ASSERT(fs_read_inode(fixture.fs, fixture.fs->super.root_inode,
+                         &root_inode) == O0_OK,
+           "root inode read failed");
+    ASSERT(root_inode.direct[0] != 0, "root directory block missing");
+    ASSERT(o0_ramdisk_inject_fault(fixture.dev, O0_BLOCK_ERR_IO,
+                                   root_inode.direct[0], 1) == O0_OK,
+           "directory lookup fault injection failed");
+    ASSERT(o0fs_lookup(fixture.fs, "/present", &inode) == O0_EIO,
+           "directory I/O failure was misreported as missing file");
 
     ASSERT(o0fs_mkdir(fixture.fs, "/dir") == O0_OK, "mkdir failed");
     ASSERT(o0fs_create_file(fixture.fs, "/dir/file") == O0_OK,
