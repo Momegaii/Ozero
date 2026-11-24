@@ -10,7 +10,7 @@ Ozero must define its own native executable format, loader, runtime, process mod
 
 ## Current milestone
 
-**Stage 5: GPU software substrate and vendor-neutral graphics architecture (software closeout in progress).** Physical GPU installation, MMIO programming and hardware-target verification are not required for this software milestone; they remain optional future backend bring-up. The architecture decision is recorded in [docs/decisions/0004-stage5-software-graphics-architecture.md](docs/decisions/0004-stage5-software-graphics-architecture.md), and implementation/evidence tracking is in [docs/stage5-gpu.md](docs/stage5-gpu.md).
+**Stage 6: Native graphical application environment (active).** Stage 5 is closed as the software-foundation milestone; physical GPU execution and vendor-specific acceleration backends remain future work. Stage 6 begins with display and framebuffer support. Its scope, Phase 6.1 audit, implementation status and acceptance checklist are documented in [docs/stage6.md](docs/stage6.md); the roadmap is in [docs/ROADMAP.md](docs/ROADMAP.md).
 
 The approved implementation uses Limine + ELF64 for the current kernel boot image and a freestanding C kernel. The kernel resolves its physical load address, builds and activates its own page tables (HHDM direct map + 4 KiB kernel-image mappings), runs a slab kernel heap, routes interrupts through a remapped PIC with a 100 Hz PIT tick, and preemptively schedules kernel threads with priorities, sleep, join, spinlocks and a blocking mutex.
 
