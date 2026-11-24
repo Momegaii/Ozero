@@ -8,16 +8,7 @@
 #include "ozero/sync.h"
 #include "string.h"
 
-#define GPU_MAX_RANGES 64
-
-typedef struct { uint64_t base; uint64_t size; bool used; } va_range_t;
-
-struct o0_gpu_vm {
-    uint64_t base;
-    uint64_t size;
-    va_range_t ranges[GPU_MAX_RANGES];
-    o0_spinlock_t lock;
-};
+/* ranges defined in header */
 
 o0_status o0_gpu_memory_create(size_t size, struct o0_gpu_memory **out) {
     if (!out || size == 0) return O0_EINVAL;

@@ -21,10 +21,14 @@ struct o0_gpu_memory {
     o0_spinlock_t lock;
 };
 
+#define GPU_MAX_RANGES 64
+typedef struct { uint64_t base; uint64_t size; bool used; } o0_gpu_va_range_t;
+
 struct o0_gpu_vm {
     uint64_t base;
     uint64_t size;
     uint64_t next_va;
+    o0_gpu_va_range_t ranges[GPU_MAX_RANGES];
     o0_spinlock_t lock;
 };
 
