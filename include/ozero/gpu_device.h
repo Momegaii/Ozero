@@ -7,11 +7,11 @@
  * live behind each backend (see include/ozero/gpu_hsw.h).
  *
  * Honesty boundary: a device is reported "supported" only when a backend explicitly
- * matches a researched and verified device ID/revision. The Haswell backend currently
- * records no verified IDs (the PRM does not list them; see
- * docs/research/haswell-gen75-ppgtt-ggtt.md section 1.2), so every device is presently
- * reported unsupported. Discovery never fails the boot path: unknown devices are
- * recorded, not treated as errors.
+ * matches a researched device ID/revision. The current Haswell match table claims only
+ * Intel HD Graphics 4600 (PCI 8086:0412, observed revision 0x06); this is a software
+ * identification/capability match, not proof of MMIO installation or GPU execution.
+ * Every other device remains unsupported. Discovery never fails the boot path: unknown
+ * devices are recorded, not treated as errors.
  */
 #ifndef O0_GPU_DEVICE_H
 #define O0_GPU_DEVICE_H
