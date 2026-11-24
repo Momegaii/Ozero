@@ -53,7 +53,7 @@ Two consequences, both recorded rather than glossed over:
    and another in CI. Vendor firmware, Secure Boot and CSM interactions are untested and no
    result here may be read as evidence about them.
 
-## Wave 2 — Core kernel fundamentals (in progress)
+## Wave 2 — Core kernel fundamentals (verified in emulation)
 
 **Rule 0 for this wave:** no Wave 3+ work until a single-CPU user mode is verified. GPU
 (Stage 5) and Stage 6 stay paused. Evidence stays split into host, QEMU and physical, and none
@@ -62,13 +62,26 @@ is inferred from another.
 | Sub-wave | Scope | Status | Evidence |
 |---|---|---|---|
 | 2.0 | Housekeeping from Wave 1 | **Done** | This document and `docs/PROJECT_STATUS.md`: run numbers and URLs separated and verified, CI-versus-local emulator versions recorded, real UEFI firmware kept as an open box, stale LAPIC note corrected, SMP plan references ADR 0005. Run [#134](https://github.com/Momegaii/Ozero/actions/runs/45475446441) on commit `91af9fa` exercised all five jobs successfully. Later documentation-only commits are covered by the same matrix and are not cited run by run. |
-| 2.1 | Syscall and executable ABI decision | **Proposed — awaiting Director approval** | [ADR 0007](decisions/0007-user-abi-syscall-and-executable.md) with alternatives, open questions and a verification plan. No code lands before approval. |
-| 2.2 | Per-process page tables from the PMM, user/kernel split, null guard, stack guard page, fault classification, NX/WP/W^X | Not started | Blocked on 2.1 |
-| 2.3 | Ring 3: GDT ring-3 segments, TSS with `RSP0`, #DF IST, `iretq` entry, `syscall` stub with `SFMASK`, selector/`STAR` host test | Not started | Blocked on 2.1 |
-| 2.4 | `o0_copy_from_user`/`o0_copy_to_user` as the only user-memory path, SMAP-ready (`STAC`/`CLAC` hooks), argument validation helper | Not started | Blocked on 2.1 |
-| 2.5 | Static ELF64 `PT_LOAD` loader (no interpreters, relocations, overlaps or oversized segments), init process, syscalls `exit`/`yield`/`debug_write`/`getpid` | Not started | Blocked on 2.1 |
-| 2.6 | Negative tests: NULL dereference dies alone, privileged instruction / kernel jump / bad syscall pointer contained, ELF parser fuzz, process churn without PMM leaks | Not started | Required for sign-off |
-| 2.7 | Boot markers `user entry OK`, `syscall exit status=0`, `user fault contained` on the full BIOS/UEFI × `qemu64`/`Haswell-v1` matrix plus the sanitizer job; STATUS evidence by type | Not started | — |
+| 2.1 | Syscall and executable ABI decision | **Done** | [ADR 0007](decisions/0007-user-abi-syscall-and-executable.md) accepted by the Director's Wave 2 execution directive (2026-11-24) and implemented in the same change set. Alternatives, error model, register convention, address layout and ELF subset are recorded there; `tests/abi_test.c` asserts the frozen selector, `STAR`, `FMASK` and error-mapping values. |
+| 2.2 | Per-process page tables from the PMM, user/kernel split, null guard, stack guard page, fault classification, NX/WP/W^X | **Done** | Host: `tests/sched_test.c` still passes with the new address-space switch hook; the existing address-space map/protect/unmap self-test runs at boot. Emulator: every Wave 2 boot prints `OZERO: page tables active`, maps only 4 KiB user leaves with W^X, and contains the kernel-jump fault. Physical: not exercised. |
+| 2.3 | Ring 3: GDT ring-3 segments, TSS with `RSP0`, #DF IST, `iretq` entry, `syscall` stub with `SFMASK`, selector/`STAR` host test | **Done** | Host: `tests/abi_test.c` checks null descriptor, kernel/user access bytes, DPL, L bit, TSS base/limit, TSS and per-CPU offsets, `STAR` split and `FMASK = 0x700`. Emulator: `OZERO: gdt+tss installed`, then ring-3 `syscall` and `iretq` round trips in every matrix cell. |
+| 2.4 | `o0_copy_from_user`/`o0_copy_to_user` as the only user-memory path, SMAP-ready (`STAC`/`CLAC` hooks), argument validation helper | **Done** | `kernel/src/usercopy.c` validates the window and every page's U/S and write bits, then copies in the fixup-protected assembly core. The `badptr` user program exits 0 only if a kernel address returns `-O0_UE_FAULT`; every emulator cell prints `OZERO: syscall bad pointer rejected`. `STAC`/`CLAC` are not emitted yet: the cores are the single place to add them. |
+| 2.5 | Static ELF64 `PT_LOAD` loader (no interpreters, relocations, overlaps or oversized segments), init process, syscalls `exit`/`yield`/`debug_write`/`getpid` | **Done** | Host: `tests/elf_test.c` accepts the loader subset and rejects wrong class/machine/type, interpreters, dynamic/TLS/PHDR directives, W+X, misalignment, non-congruent `p_offset`/`p_vaddr`, overlaps, truncated and oversized input. Emulator: `OZERO: user entry OK` from the static init image, then `OZERO: syscall exit status=0`. |
+| 2.6 | Negative tests: NULL dereference dies alone, privileged instruction / kernel jump / bad syscall pointer contained, ELF parser fuzz, process churn without PMM leaks | **Done** | Host: `tests/elf_test.c` fuzzes 4 000 mutated and 1 000 random inputs plus random truncations, asserting parser invariants on every accepted result. Emulator: three contained user faults (`error=0x4`, `0x0`, `0x15`) with the scheduler continuing, the `badptr` rejection above, and `OZERO: user churn OK processes=16` after a free-page delta of zero. |
+| 2.7 | Boot markers `user entry OK`, `syscall exit status=0`, `user fault contained` on the full BIOS/UEFI × `qemu64`/`Haswell-v1` matrix plus the sanitizer job; STATUS evidence by type | **Done (local matrix and sanitizer; CI unobserved)** | `tools/qemu-smoke.sh` now requires the Wave 2 markers. All four cells pass locally on QEMU 10.0.13 with BIOS/firmware markers, and each log contains the full Wave 2 set. `make test-sanitize` (ASan + UBSan, leaks on) passes all suites. CI for this revision has not been run or observed; physical hardware has not been exercised. |
+
+Wave 2 verification detail:
+
+- **Host tests:** `make test` and `make test-sanitize` pass. New suites are `abi_test`
+  (ABI constants, selectors, TSS/per-CPU offsets, error table, user window) and `elf_test`
+  (accept/reject matrix, overlap, fuzz and truncation).
+- **Emulator:** `{bios, uefi} × {qemu64, Haswell-v1}` on QEMU 10.0.13, full marker set,
+  `QEMU smoke test: PASS` in every cell. This is emulator evidence only.
+- **Physical hardware:** never exercised. No user-mode result here is physical evidence.
+
+Sign-off is for the emulator scope of Rule 0: a single-CPU user mode is verified in QEMU on
+both firmwares and CPU models. Wave 3 may start, but no Wave 3 item is claimed by this change.
+
 
 Deferred until Wave 2 is verified: SMP, SMEP/SMAP, KASLR, signals, IPC, `mmap`, dynamic linking
 and `fork`.

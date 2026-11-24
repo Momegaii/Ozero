@@ -1,7 +1,7 @@
 # Ozero Project Status
 
 Last updated: 2026-11-24  
-Current stage: **Stage 6 — Native graphical application environment (active; Phase 6.1 verified — display/framebuffer boot tested in QEMU with screenshot evidence; Phase 6.2 implemented — PS/2 keyboard + pointer driver host-tested, driver initialized at boot; Phase 6.3 implemented and host-tested — software surface primitives; Phases 6.4–6.8 open; no full desktop/QEMU acceptance claimed). Stage 5 is closed as the software-foundation milestone; physical GPU execution and vendor-specific acceleration backends remain deferred. See docs/stage6.md for the three-agent handoff and test plan. New GPU/Stage 6 scope is paused by Rule 0; hardening Wave 1 (verification debt) is complete locally and Waves 2–6 are planned in docs/hardening-roadmap.md.**  
+Current stage: **Stage 6 — Native graphical application environment (active; Phase 6.1 verified — display/framebuffer boot tested in QEMU with screenshot evidence; Phase 6.2 implemented — PS/2 keyboard + pointer driver host-tested, driver initialized at boot; Phase 6.3 implemented and host-tested — software surface primitives; Phases 6.4–6.8 open; no full desktop/QEMU acceptance claimed). Stage 5 is closed as the software-foundation milestone; physical GPU execution and vendor-specific acceleration backends remain deferred. See docs/stage6.md for the three-agent handoff and test plan. New GPU/Stage 6 scope is paused by Rule 0; hardening Wave 1 (verification debt) is complete locally and **Wave 2 (single-CPU user mode) is implemented and verified in QEMU on BIOS/UEFI × qemu64/Haswell-v1**. No physical-hardware evidence exists for either wave. Waves 3–6 are planned in docs/hardening-roadmap.md.**  
 Stage 3 — processes, threads and scheduler: **implemented; boot-verified in QEMU BIOS for the Stage 3 revision**  
 Stage 2 — physical and virtual memory: **implemented, verified by build + host tests + QEMU boot**  
 Stage 1 — bootable x86-64 kernel: **implemented; see verification state**
@@ -141,6 +141,33 @@ Stage 1 — bootable x86-64 kernel: **implemented; see verification state**
 - The plan avoids Gen8+ page-table assumptions in the Haswell backend, Linux DRM as a native dependency, and Windows WDDM as Ozero's native graphics contract.
 - Host tests, QEMU boot, emulated GPU execution and physical GPU validation must be reported separately.
 
+### Wave 2 — single-CPU user mode (2026-11-24)
+
+The native user ABI decided in [ADR 0007](decisions/0007-user-abi-syscall-and-executable.md)
+is implemented. ELF64 is used only as the image container; the syscall interface, layout,
+error model and selector values are Ozero's own.
+
+- `include/ozero/uapi.h`, `abi.h`, `cpu_local.h`: frozen syscall numbers, user error table,
+  user address-space layout, selectors, `STAR = 0x0010_0008_0000_0000`, `FMASK = 0x700`, and
+  the `swapgs` per-CPU block.
+- `kernel/arch/x86_64/paging.c`: address spaces are allocated from the PMM (the static table
+  pool is gone), the kernel half is shared, the user half is per-process, and teardown frees
+  user leaf frames as well as page tables. `EFER.NXE` is enabled; leaves get W^X flags.
+- `include/ozero/gdt.h` + `kernel/arch/x86_64/gdt.c`: GDT with ring-3 code/data, 64-bit TSS
+  with `RSP0`, IST1 stack for the double fault; the IDT is reinstalled against it.
+- `kernel/arch/x86_64/syscall.S` + `kernel/src/syscall.c`: `SYSCALL` entry, iretq return,
+  `exit`, `yield`, `debug_write`, `getpid`. Interrupt and exception stubs `swapgs` on ring-3
+  transitions.
+- `kernel/src/usercopy.c` + `kernel/arch/x86_64/usercopy.S`: `o0_copy_from_user` /
+  `o0_copy_to_user`/`o0_syscall_arg_check` are the only user-memory path. They validate the
+  window and every page's U/S and write bits, then use fixup-protected copy cores.
+- `kernel/src/elf.c` + `kernel/src/user.c`: static `PT_LOAD` loader and user process creation
+  with a four-page stack and an unmapped guard page; `kernel/src/thread.c` gained user
+  threads, guarded kernel stacks and resource release on join.
+- Boot self-test: static `init` prints `user entry OK` and exits 0; three negative programs
+  (NULL dereference, `cli`, jump to a kernel address) die alone; a bad syscall pointer returns
+  `-O0_UE_FAULT`; 16-process churn returns the PMM to the same free-page count.
+
 ## Hardening wave (2026-11-24)
 
 The Project Director paused new GPU/Stage 6 scope (Rule 0) and ordered a six-wave hardening
@@ -158,7 +185,9 @@ roadmap. Plan and per-item status: [docs/hardening-roadmap.md](hardening-roadmap
   delivers the 8259 output, so the timer stopped after the first sleep. The kernel now uses the
   LAPIC ExtINT virtual-wire configuration (ADR 0005) and boots on QEMU 8.2.2 and 10.1.0.
 
-Waves 2–6 are **planned and not started**; none of their items is claimed.
+**Wave 2 (single-CPU user mode) is implemented and verified in emulation;** its evidence is in
+[hardening-roadmap.md](hardening-roadmap.md) and ADR 0007. Waves 3–6 are planned and not
+started; no Wave 3 item is claimed. Physical hardware remains unexercised for every wave.
 
 ## Verification state
 
@@ -220,7 +249,23 @@ Truthful split by evidence type:
   `ubuntu-latest`. The local matrix additionally covers QEMU 8.2.2, 10.0.13 and 10.1.0, and those
   results are **local-only**. QEMU 8.2 matters because it exposed the Wave 1 interrupt-delivery
   defect (ADR 0005) and CI does not run it.
-- **Physical hardware:** never performed.
+- **Host tests (Wave 2):** `make test` passes every suite, including the two new ones:
+  `abi_test` (selectors, `STAR`/`FMASK`, GDT access bytes, TSS/per-CPU offsets, error mapping
+  and user-window rules) and `elf_test` (accept/reject matrix, overlapping segments and fuzz of
+  4 000 mutated + 1 000 random + random-truncated inputs). `make test-sanitize` (ASan + UBSan,
+  leaks on) passes the same set.
+- **QEMU boot matrix (Wave 2, local):** the full marker set now includes `gdt+tss installed`,
+  `user entry OK`, `syscall exit status=0`, three `user fault contained` lines,
+  `syscall bad pointer rejected`, `user churn OK processes=16` and
+  `wave2 self-test complete`. All four cells (`{bios, uefi} × {qemu64, Haswell-v1}`) pass
+  locally on **QEMU 10.0.13** with `QEMU smoke test: PASS`. This is emulator evidence, not
+  physical evidence.
+- **CI (Wave 2):** not run or observed for this revision. The existing workflow and matrix
+  (`docs/decisions/0006-verification-matrix.md`) are unchanged, and the Wave 2 markers are now
+  required by the same `tools/qemu-smoke.sh` the workflow calls. The last observed runs remain
+  #132/#133/#134 for earlier commits.
+- **Physical hardware (Wave 2):** never exercised. No user-mode, fault-containment or
+  process-churn result here is physical evidence.
 Boot verification of this revision surfaced and fixed three defects that build +
 host tests alone could not catch:
 
@@ -317,28 +362,24 @@ stage scope, the QEMU BIOS verification above, or the decisions recorded in ADR 
 
 ## Immediate next engineering wave
 
-Wave 1 closed the emulator/firmware verification debt: the Stage 4 revision boots in BIOS and
-UEFI on both CPU models, the Stage 4 regressions are executed, and the host suites run under
-sanitizers. CI observation and physical hardware remain open.
+Wave 1 closed the emulator/firmware verification debt, and Wave 2 added and verified
+single-CPU user mode in emulation. Both waves remain without physical-hardware evidence, and
+CI has not yet observed the Wave 2 revision.
 
-The next wave is ordered by `docs/hardening-roadmap.md` and starts with **Wave 2 (core kernel
-fundamentals)**:
+The next wave is ordered by `docs/hardening-roadmap.md`:
 
-1. User-mode entry: GDT ring-3 segments, TSS with a kernel stack, `iretq` path, syscall ABI
-   decision and an Ozero-native loader. The ABI decision is
-   [ADR 0007](decisions/0007-user-abi-syscall-and-executable.md), **proposed and awaiting
-   approval**; no implementation lands before approval.
-2. Per-address-space page tables from the PMM, replacing the static table pool, with demand
-   paging and a page-fault handler.
-3. SMP: ACPI MADT, LAPIC/IOAPIC, AP trampoline, per-CPU data and runqueues, TLB shootdown,
-   then PIT → APIC timer. This builds on the Wave 1 LAPIC ExtINT configuration (ADR 0005) rather
-   than "removing a LAPIC disable" — the tree no longer disables the LAPIC, so AP bring-up has to
-   program LVT/TPR per CPU, keep the 8259 path only as a fallback and rely on the per-CPU/`swapgs`
-   reservation made in ADR 0007 so the ABI does not change. Deferred until Wave 2 is verified.
-4. Memory hardening: SMEP/SMAP/NX/WP, KASLR, stack guard pages, buddy PMM, and
+1. **Wave 3 — storage and filesystem:** virtio-blk first, then AHCI/NVMe with DMA and IRQ
+   completion; MBR/GPT partition discovery; crash consistency as an ADR; then a VFS with file
+   descriptors and a page cache. This is the next planned wave and no part of it is started.
+2. **SMP** (no longer blocked by Rule 0's user-mode gate, but not started): ACPI MADT,
+   LAPIC/IOAPIC, AP trampoline, per-CPU data and runqueues, TLB shootdown, then PIT → APIC
+   timer. It builds on the Wave 1 LAPIC ExtINT configuration (ADR 0005) rather than "removing a
+   LAPIC disable" — the tree no longer disables the LAPIC, so AP bring-up has to program
+   LVT/TPR per CPU, keep the 8259 path only as a fallback, and use the per-CPU/`swapgs`
+   reservation made in ADR 0007 so the ABI does not change.
+3. **Memory hardening (Wave 4 scope):** SMEP/SMAP, KASLR, buddy PMM, and
    bootloader-memory reclaim (`o0_pmm_release_bootloader_memory`).
 
-Storage protocol drivers (virtio-blk, AHCI/NVMe) and partition discovery follow in Wave 3;
 GPU engine work stays paused until Wave 6.
 
 ## Reporting standard
