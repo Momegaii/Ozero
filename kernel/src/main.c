@@ -58,6 +58,15 @@ static volatile struct limine_framebuffer_request framebuffer_request = {
     .revision = 0
 };
 
+/* Present only when the firmware that loaded Limine is UEFI. Limine leaves the
+ * response null under BIOS, so this is the firmware discriminator reported in
+ * the boot log and asserted by the UEFI smoke test. */
+__attribute__((used, section(".limine_requests")))
+static volatile struct limine_efi_system_table_request efi_system_table_request = {
+    .id = LIMINE_EFI_SYSTEM_TABLE_REQUEST_ID,
+    .revision = 0
+};
+
 __attribute__((used, section(".limine_requests_start"), aligned(8)))
 static volatile uint64_t limine_requests_start[] = LIMINE_REQUESTS_START_MARKER;
 
@@ -162,6 +171,7 @@ extern void o0_slab_init(void);
 extern uint64_t o0_kheap_total_bytes(void);
 extern uint64_t o0_kheap_live_objects(void);
 extern o0_status o0_pic_init(void);
+extern bool o0_pic_apic_extint_active(void);
 extern o0_status o0_pit_start(uint32_t hz);
 extern void o0_irq_dispatch_init(void);
 extern uint64_t o0_irq_count(o0_gsi_t gsi);
@@ -647,6 +657,9 @@ void kmain(void) {
     o0_serial_puts("\nOZERO: kernel entry reached\n");
     o0_serial_puts("OZERO: architecture=x86_64\n");
     o0_serial_puts("OZERO: boot protocol=Limine\n");
+    o0_serial_puts("OZERO: firmware=");
+    o0_serial_puts(efi_system_table_request.response != NULL ? "UEFI" : "BIOS");
+    o0_serial_puts("\n");
 
     if (!LIMINE_BASE_REVISION_SUPPORTED(limine_base_revision)) {
         panic("bootloader does not support requested Limine base revision 6");
@@ -789,6 +802,9 @@ void kmain(void) {
         panic("PIC initialisation failed");
     }
     o0_serial_puts("OZERO: PIC remapped to vectors 32-47\n");
+    o0_serial_puts("OZERO: interrupt delivery=");
+    o0_serial_puts(o0_pic_apic_extint_active() ? "lapic-extint" : "pic-legacy");
+    o0_serial_puts("\n");
 
     if (!o0_thread_init_system()) {
         panic("thread subsystem already initialised");
