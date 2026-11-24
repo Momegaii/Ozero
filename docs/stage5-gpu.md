@@ -1,6 +1,6 @@
 # Stage 5: GPU memory and Haswell submission
 
-- Status: **Active — Phase 1 GPU discovery implemented, host-tested and wired into the boot self-test (no verified device ID yet, so every device is reported unsupported); Phase 2 core builds, host-tested and now exercised on the boot path; Phase 3 specification review complete (two items partial) and the PPGTT/GGTT backend implemented and host-tested, with hardware installation and invalidation emission open**
+- Status: **Active — Phase 1 GPU discovery implemented, host-tested and wired into the boot self-test (the verified Intel HD 4600, PCI 8086:0412, is now matched; all other devices stay unsupported); Phase 2 core builds, host-tested and now exercised on the boot path; Phase 3 specification review complete (two items partial) and the PPGTT/GGTT backend implemented and host-tested, with hardware installation and invalidation emission open**
 - Roadmap stage: 5
 - Initial hardware backend: Intel Haswell Gen7.5 integrated graphics
 - Concrete bring-up target: Intel HD Graphics 4600 (device ID and revision must be confirmed on the target machine)
@@ -55,7 +55,7 @@ This integration gap was corrected in commit [`be929464`](https://github.com/Mom
 
 **Evidence boundary:** the call is present in source, but this does not yet prove successful runtime enumeration. Build and boot verification, inspection of actual discovered BDF/IDs, and the remaining PCI resource work are still required. The call currently lives in the Stage 4 self-test as an initial boot integration point; it is not a completed Stage 5 GPU discovery subsystem.
 
-**GPU discovery implementation (2026-11-24):** `kernel/src/gpu_device.c` adds a GPU-independent discovery walk over the kernel PCI layer (`include/ozero/gpu_device.h`). It classifies display functions (PCI base class 0x03), probes each BAR, selects a validated MMIO window, matches a registered backend, and records a capability set. It is wired into the boot path by `stage5_self_test` in `kernel/src/main.c` (`OZERO: gpu pci display devices=`, one `OZERO: gpu device ...` line per display function, then `OZERO: gpu discovery complete`). Verified under QEMU (`qemu64` and `Haswell-v1`): the emulated VGA is reported with its real MMIO window and `backend=none supported=no`. Two latent PCI defects surfaced and were fixed while wiring this up: `o0_pci_probe_bar` self-deadlocked on the non-recursive config lock (it now takes the lock once via locked accessors), and 32-bit memory-BAR sizes were computed in 64 bits (now computed in 32 bits). No Haswell device ID is verified yet, so discovery reports every device unsupported; that is deliberate.
+**GPU discovery implementation (2026-11-24):** `kernel/src/gpu_device.c` adds a GPU-independent discovery walk over the kernel PCI layer (`include/ozero/gpu_device.h`). It classifies display functions (PCI base class 0x03), probes each BAR, selects a validated MMIO window, matches a registered backend, and records a capability set. It is wired into the boot path by `stage5_self_test` in `kernel/src/main.c` (`OZERO: gpu pci display devices=`, one `OZERO: gpu device ...` line per display function, then `OZERO: gpu discovery complete`). Verified under QEMU (`qemu64` and `Haswell-v1`): the emulated VGA is reported with its real MMIO window and `backend=none supported=no`. Two latent PCI defects surfaced and were fixed while wiring this up: `o0_pci_probe_bar` self-deadlocked on the non-recursive config lock (it now takes the lock once via locked accessors), and 32-bit memory-BAR sizes were computed in 64 bits (now computed in 32 bits). The Haswell match now claims the verified Intel HD 4600 (PCI 8086:0412, revision 0x06) read from a real host; every other device is still reported unsupported. Under QEMU the emulated VGA is not the HD 4600, so the boot log shows `backend=none`, and the match is proven by a host unit test against the real 8086:0412 ID.
 
 - [x] Inspect existing PCI enumeration and configuration-space access.
 - [x] Implement or complete PCI enumeration if required; reuse existing kernel facilities where sound. (`kernel/src/gpu_device.c` reuses `ozero/pci.h` rather than duplicating it.)
@@ -72,8 +72,8 @@ This integration gap was corrected in commit [`be929464`](https://github.com/Mom
 
 - [x] Define a GPU device descriptor. (`struct o0_gpu_device` in `include/ozero/gpu_device.h`.)
 - [x] Match only explicitly researched and supported device IDs/revisions. (`o0_gpu_match_backend` consults registered backends; a device is `supported` only when a backend returns its id.)
-- [ ] Add the initial Haswell Gen7.5 backend match. (The backend is registered with a `match` hook and a `fill_caps` capability set, but `o0_gpu_hsw_backend.match` returns `O0_GPU_BACKEND_NONE` until a Haswell device ID/revision is verified on hardware — see the next item. Claiming support without a verified ID is not allowed.)
-- [ ] Confirm the actual HD Graphics 4600 device ID and revision on target hardware before device-specific bring-up. (Not done; needs target hardware. The PRM does not list PCI device IDs — `docs/research/haswell-gen75-ppgtt-ggtt.md` section 1.2.)
+- [x] Add the initial Haswell Gen7.5 backend match. (`o0_gpu_hsw_backend.match` claims the verified Intel HD 4600, PCI 8086:0412, and returns `O0_GPU_BACKEND_NONE` for everything else. Host-tested.)
+- [x] Confirm the actual HD Graphics 4600 device ID and revision on target hardware before device-specific bring-up. (Read from a real host: `PCI\VEN_8086&DEV_0412&SUBSYS_85341043&REV_06`, "Intel(R) HD Graphics 4600", driver 10.18.14.4264. The match table records vendor 0x8086 / device 0x0412 / observed revision 0x06. Other unresearched SKUs, e.g. 0x0416, stay unsupported until verified.)
 - [ ] Map only validated MMIO resources. (A validated MMIO window is selected and recorded, but not yet mapped into a CPU/GPU address space; that needs a matched device and a backend mapping path.)
 - [ ] Define initialization and shutdown/error unwind paths. (No device is initialized because none matches; the discovery record has no live device state to unwind.)
 - [x] Keep unknown devices safely unsupported. (`o0_gpu_describe` sets `supported=false`; `o0_gpu_discover` records and never aborts boot. Verified under QEMU: the emulated VGA is reported `backend=none supported=no`.)
@@ -81,8 +81,8 @@ This integration gap was corrected in commit [`be929464`](https://github.com/Mom
 
 ### 4.3 Capability description
 
-- [x] Record GPU generation and revision. (`struct o0_gpu_caps.generation` plus the descriptor `revision`; the Haswell capability set is defined in `o0_gpu_hsw_backend.fill_caps` and is host-tested.)
-- [x] Record GPU virtual-address width and supported page sizes. (Haswell capability set: 32-bit VA, 2 GiB ceiling, 4 KiB and 32 KiB pages; host-tested. Attached to a device only after a verified match.)
+- [x] Record GPU generation and revision. (`struct o0_gpu_caps.generation` plus the descriptor `revision`; the Haswell capability set from `o0_gpu_hsw_backend.fill_caps` is attached to the matched HD 4600 and host-tested.)
+- [x] Record GPU virtual-address width and supported page sizes. (Haswell capability set: 32-bit VA, 2 GiB ceiling, 4 KiB and 32 KiB pages; attached to the verified HD 4600 (8086:0412) and host-tested.)
 - [ ] Record memory domains and DMA constraints. (Not modelled yet; `struct o0_gpu_caps` has no memory-domain field and DMA constraints are not populated for GPUs.)
 - [x] Record detected engines and engine-specific capabilities. (Haswell capability set records render, blitter, video and media engines from the PRM register map.)
 - [x] Record submission/completion mechanisms. (`caps.submission_supported=false` is recorded; no submission path exists until Phase 4.)

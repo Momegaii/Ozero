@@ -510,20 +510,25 @@ static void test_mmio_selection(void) {
 }
 
 static void test_describe_unsupported(void) {
-    TEST("describe records identity but claims no support without a verified ID");
-    /* A plausible Intel Haswell-class display device. Even with a real-looking ID, no
-     * device is supported until the ID/revision is verified on hardware. */
-    struct o0_pci_device dev = make_pci(0x8086u, 0x0416u, 0x03u, 0x00u, 0x06u);
+    TEST("describe reports unknown devices unsupported");
     struct o0_gpu_device g;
-    CHECK(o0_gpu_describe(&dev, &g) == O0_OK, "describe must succeed");
-    CHECK(g.vendor_id == 0x8086u && g.device_id == 0x0416u && g.revision == 0x06u,
-          "identity must be copied");
-    CHECK(g.class_code == 0x03u && g.bdf.device == 2u, "class and BDF must be copied");
-    CHECK(g.backend == O0_GPU_BACKEND_NONE, "no backend may claim an unverified device");
-    CHECK(!g.supported, "unverified device must not be reported supported");
+
+    /* QEMU standard VGA: not a Haswell part, must stay unsupported. */
+    struct o0_pci_device qemu = make_pci(0x1234u, 0x1111u, 0x03u, 0x00u, 0x02u);
+    CHECK(o0_gpu_describe(&qemu, &g) == O0_OK, "describe must succeed");
+    CHECK(g.vendor_id == 0x1234u && g.class_code == 0x03u && g.bdf.device == 2u,
+          "identity and class must be copied");
+    CHECK(g.backend == O0_GPU_BACKEND_NONE, "unknown device must not match a backend");
+    CHECK(!g.supported, "unknown device must not be reported supported");
     CHECK(g.caps.generation == O0_GPU_GEN_UNKNOWN, "caps stay unknown when unmatched");
 
-    /* A non-display device still describes cleanly and is unsupported. */
+    /* A different Intel display part that is not a verified Haswell ID yet. */
+    struct o0_pci_device other = make_pci(0x8086u, 0x0416u, 0x03u, 0x00u, 0x06u);
+    CHECK(o0_gpu_describe(&other, &g) == O0_OK, "other Intel describe must succeed");
+    CHECK(g.backend == O0_GPU_BACKEND_NONE && !g.supported,
+          "an unverified Intel display part must stay unsupported");
+
+    /* A non-display device is still unsupported. */
     struct o0_pci_device net = make_pci(0x8086u, 0x1502u, 0x02u, 0x00u, 0x04u);
     CHECK(o0_gpu_describe(&net, &g) == O0_OK, "non-display describe must succeed");
     CHECK(g.backend == O0_GPU_BACKEND_NONE && !g.supported,
@@ -532,30 +537,41 @@ static void test_describe_unsupported(void) {
 }
 
 static void test_hsw_backend_caps(void) {
-    TEST("Haswell backend advertises the generation-correct capability set");
+    TEST("Haswell backend matches the verified HD 4600 and reports Gen7.5 caps");
     CHECK(o0_gpu_hsw_backend.id == O0_GPU_BACKEND_HSW, "backend id");
     CHECK(o0_gpu_hsw_backend.match != NULL && o0_gpu_hsw_backend.fill_caps != NULL,
           "backend ops must be wired");
 
-    /* The backend claims no device yet: no verified Haswell ID exists. */
-    struct o0_pci_device dev = make_pci(0x8086u, 0x0416u, 0x03u, 0x00u, 0x06u);
-    CHECK(o0_gpu_hsw_backend.match(&dev) == O0_GPU_BACKEND_NONE,
-          "Haswell match must return NONE until an ID is verified");
+    /* The verified HD 4600 read from a real host: PCI\\VEN_8086&DEV_0412&REV_06. */
+    struct o0_pci_device hsw = make_pci(0x8086u, 0x0412u, 0x03u, 0x00u, 0x06u);
+    CHECK(o0_gpu_hsw_backend.match(&hsw) == O0_GPU_BACKEND_HSW,
+          "the verified HD 4600 must match the Haswell backend");
+    struct o0_gpu_device g;
+    CHECK(o0_gpu_describe(&hsw, &g) == O0_OK, "describe verified device");
+    CHECK(g.backend == O0_GPU_BACKEND_HSW && g.supported,
+          "verified HD 4600 must be reported supported");
+    CHECK(g.revision == 0x06u && g.vendor_id == 0x8086u && g.device_id == 0x0412u,
+          "identity must be preserved on the matched device");
 
-    /* The capability record is still defined and must be correct for Gen7.5. */
-    struct o0_gpu_caps caps;
-    memset(&caps, 0, sizeof(caps));
-    o0_gpu_hsw_backend.fill_caps(&caps);
-    CHECK(caps.generation == O0_GPU_GEN_HASWELL, "generation must be Haswell");
-    CHECK(caps.va_width_bits == 32, "PPGTT virtual address width is 32 bits");
-    CHECK(caps.max_va_size == 2ull * 1024 * 1024 * 1024, "2 GiB VA ceiling");
-    CHECK(caps.min_page_size == 4096u, "4 KiB base page");
-    CHECK((caps.page_size_mask & (1u << 12)) != 0u && (caps.page_size_mask & (1u << 15)) != 0u,
+    /* A non-Haswell device must not match. */
+    struct o0_pci_device other = make_pci(0x1234u, 0x1111u, 0x03u, 0x00u, 0x02u);
+    CHECK(o0_gpu_hsw_backend.match(&other) == O0_GPU_BACKEND_NONE,
+          "non-Haswell device must not match");
+
+    /* The capability set attached to a matched device is correct for Gen7.5. */
+    memset(&g.caps, 0, sizeof(g.caps));
+    o0_gpu_hsw_backend.fill_caps(&g.caps);
+    CHECK(g.caps.generation == O0_GPU_GEN_HASWELL, "generation must be Haswell");
+    CHECK(g.caps.va_width_bits == 32, "PPGTT virtual address width is 32 bits");
+    CHECK(g.caps.max_va_size == 2ull * 1024 * 1024 * 1024, "2 GiB VA ceiling");
+    CHECK(g.caps.min_page_size == 4096u, "4 KiB base page");
+    CHECK((g.caps.page_size_mask & (1u << 12)) != 0u &&
+              (g.caps.page_size_mask & (1u << 15)) != 0u,
           "4 KiB and 32 KiB page sizes");
-    CHECK(caps.has_render && caps.has_blitter && caps.has_video && caps.has_media,
+    CHECK(g.caps.has_render && g.caps.has_blitter && g.caps.has_video && g.caps.has_media,
           "render, blitter, video and media engines");
-    CHECK(!caps.submission_supported, "submission is not implemented yet");
-    CHECK(!caps.preemption_reported && !caps.reset_reported,
+    CHECK(!g.caps.submission_supported, "submission is not implemented yet");
+    CHECK(!g.caps.preemption_reported && !g.caps.reset_reported,
           "preemption and reset are not claimed");
     PASS();
 }

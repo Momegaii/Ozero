@@ -98,9 +98,10 @@ Stage 1 — bootable x86-64 kernel: **implemented; see verification state**
 - Phase 1 is implemented and host-tested: `kernel/src/gpu_device.c` + `include/ozero/gpu_device.h`
   add a GPU-independent discovery walk over the kernel PCI layer (display-class detection, BAR
   probing, validated MMIO selection, backend match and a capability record), wired into the boot
-  self-test by `stage5_self_test` in `kernel/src/main.c`. Verified under QEMU: discovery reports
-  the emulated display device and `backend=none supported=no`, because no Haswell device ID is
-  verified yet (the PRM lists none; the HD 4600 ID/revision must be read from target hardware).
+  self-test by `stage5_self_test` in `kernel/src/main.c`. The Haswell match now claims the
+  verified Intel HD 4600 (PCI 8086:0412, revision 0x06) read from a real host; all other devices
+  stay unsupported. Under QEMU the emulated VGA is not the HD 4600, so boot reports
+  `backend=none supported=no`; the real match is proven by a host unit test against 8086:0412.
   Wiring it exposed and fixed two latent PCI defects: `o0_pci_probe_bar` self-deadlocked on the
   non-recursive config lock, and 32-bit memory-BAR sizes were computed in 64 bits.
 - Phase 2 is partial and integrated: `kernel/src/gpu.c` compiles against `include/ozero/gpu.h`
@@ -117,7 +118,8 @@ Stage 1 — bootable x86-64 kernel: **implemented; see verification state**
   partial (GGTT `PGTBL_CTL` bit layout and TLB-invalidation completion semantics). Evidence and
   open questions: [docs/research/haswell-gen75-ppgtt-ggtt.md](research/haswell-gen75-ppgtt-ggtt.md).
 - Phases 1–7 remain implementation work overall: Phase 1 discovery is now implemented and
-  host-tested (software only, no verified device); GPU memory objects/address spaces (Phase 2),
+  host-tested, with the verified HD 4600 (8086:0412) matched and its capability set attached;
+  GPU memory objects/address spaces (Phase 2),
   Haswell Gen7.5 PPGTT/GGTT (Phase 3), engine-specific submission/completion (Phase 4),
   contexts/queues/scheduling (Phase 5), backend boundaries (Phase 6) and final verification and
   integration (Phase 7) remain open.

@@ -483,13 +483,32 @@ const struct o0_hsw_page_pool *o0_hsw_kernel_pool(void) {
 
 /* ---- Backend registration for the GPU discovery walk ---- */
 
+/* Haswell PCI IDs Ozero has explicitly verified against real hardware. Each entry is a
+ * device Ozero will claim; anything not listed stays unsupported. The first entry was read
+ * from a real host: "Intel(R) HD Graphics 4600",
+ * PCI\VEN_8086&DEV_0412&SUBSYS_85341043&REV_06 (driver 10.18.14.4264), a Haswell GT2
+ * desktop part. Other unresearched SKUs (e.g. 0x0416) stay unsupported until verified. */
+struct hsw_id {
+    uint16_t vendor;
+    uint16_t device;
+    uint8_t revision; /* revision observed on the verification host (documentation only) */
+    const char *name;
+};
+
+static const struct hsw_id hsw_verified_ids[] = {
+    { 0x8086u, 0x0412u, 0x06u, "Intel HD Graphics 4600 (Haswell GT2, desktop)" },
+};
+
 static enum o0_gpu_backend_id hsw_match(const struct o0_pci_device *dev) {
-    /* No Haswell device ID/revision has been verified on target hardware yet, so the
-     * backend claims no device. This is deliberate: claiming support without a verified
-     * ID would violate the project's hardware-evidence rule (AGENTS.md). Read
-     * vendor/device/revision from the target's PCI configuration space and add the
-     * verified Haswell display IDs here before returning O0_GPU_BACKEND_HSW. */
-    (void)dev;
+    if (dev == NULL) {
+        return O0_GPU_BACKEND_NONE;
+    }
+    for (size_t i = 0; i < sizeof(hsw_verified_ids) / sizeof(hsw_verified_ids[0]); ++i) {
+        const struct hsw_id *id = &hsw_verified_ids[i];
+        if (dev->vendor_id == id->vendor && dev->device_id == id->device) {
+            return O0_GPU_BACKEND_HSW;
+        }
+    }
     return O0_GPU_BACKEND_NONE;
 }
 
