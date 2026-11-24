@@ -45,6 +45,13 @@ o0_status o0_ramdisk_inject_fault(struct o0_block_dev *dev,
                                   uint64_t fail_lba,
                                   int64_t count);
 
+/* Test-only variant that fails writes only, allowing metadata read/modify/write
+ * paths to target the persistence step rather than the preceding read. */
+o0_status o0_ramdisk_inject_write_fault(struct o0_block_dev *dev,
+                                        o0_block_status status,
+                                        uint64_t fail_lba,
+                                        int64_t count);
+
 #ifdef __cplusplus
 }
 #endif
