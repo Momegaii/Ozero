@@ -303,21 +303,63 @@ static o0_status block_status_to_status(o0_block_status status) {
     }
 }
 
-struct block_sync_state {
-    bool done;
+/*
+ * Synchronous requests use static bounce slots rather than caller-stack bios.
+ * A timed-out driver may still own the request and DMA buffer. Such a slot is
+ * quarantined until completion or a successful, quiescing timeout callback.
+ */
+#define O0_BLOCK_SYNC_SLOTS 8u
+#define BLOCK_SYNC_FREE       0u
+#define BLOCK_SYNC_WAITING    1u
+#define BLOCK_SYNC_COMPLETED  2u
+#define BLOCK_SYNC_ABANDONED  3u
+
+struct block_sync_slot {
+    volatile uint32_t state;
+    struct o0_bio bio;
+    struct o0_bio_vec vec;
     o0_block_status status;
     size_t bytes_done;
+    uint8_t buffer[O0_PAGE_SIZE] __attribute__((aligned(O0_PAGE_SIZE)));
 };
+
+static struct block_sync_slot block_sync_slots[O0_BLOCK_SYNC_SLOTS];
+
+static struct block_sync_slot *block_sync_slot_acquire(void) {
+    for (size_t i = 0; i < O0_BLOCK_SYNC_SLOTS; ++i) {
+        uint32_t expected = BLOCK_SYNC_FREE;
+        if (__atomic_compare_exchange_n(&block_sync_slots[i].state, &expected,
+                                        BLOCK_SYNC_WAITING, false,
+                                        __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) {
+            return &block_sync_slots[i];
+        }
+    }
+    return NULL;
+}
 
 static void block_sync_end(struct o0_bio *bio, o0_block_status status,
                            size_t bytes_done) {
-    struct block_sync_state *state = (struct block_sync_state *)bio->private;
-    if (state == NULL) {
+    struct block_sync_slot *slot =
+        (struct block_sync_slot *)bio->private;
+    if (slot == NULL) {
         return;
     }
-    state->done = true;
-    state->status = status;
-    state->bytes_done = bytes_done;
+
+    slot->status = status;
+    slot->bytes_done = bytes_done;
+
+    uint32_t expected = BLOCK_SYNC_WAITING;
+    if (__atomic_compare_exchange_n(&slot->state, &expected,
+                                    BLOCK_SYNC_COMPLETED, false,
+                                    __ATOMIC_RELEASE, __ATOMIC_ACQUIRE)) {
+        return;
+    }
+
+    /* The caller timed out. This callback is now the final owner of the slot. */
+    expected = BLOCK_SYNC_ABANDONED;
+    (void)__atomic_compare_exchange_n(&slot->state, &expected,
+                                       BLOCK_SYNC_FREE, false,
+                                       __ATOMIC_RELEASE, __ATOMIC_RELAXED);
 }
 
 static o0_status block_sync_transfer(struct o0_block_dev *dev, o0_block_op op,
@@ -337,44 +379,92 @@ static o0_status block_sync_transfer(struct o0_block_dev *dev, o0_block_op op,
         }
     }
 
-    struct block_sync_state state = { false, O0_BLOCK_OK, 0 };
-    struct o0_bio_vec vec = { buffer, 0, bytes };
-    struct o0_bio bio;
-    memset(&bio, 0, sizeof(bio));
-    bio.op = op;
-    bio.lba = lba;
-    bio.nr_vecs = (op == O0_BLOCK_FLUSH) ? 0 : 1;
-    bio.vecs = (op == O0_BLOCK_FLUSH) ? NULL : &vec;
-    bio.end_io = block_sync_end;
-    bio.private = &state;
+    struct block_sync_slot *slot = block_sync_slot_acquire();
+    if (slot == NULL) {
+        return O0_EBUSY;
+    }
 
-    o0_status st = o0_block_submit_bio(dev, &bio);
+    memset(&slot->bio, 0, sizeof(slot->bio));
+    memset(&slot->vec, 0, sizeof(slot->vec));
+    slot->status = O0_BLOCK_OK;
+    slot->bytes_done = 0;
+    if (op == O0_BLOCK_WRITE) {
+        memcpy(slot->buffer, buffer, bytes);
+    }
+
+    slot->bio.op = op;
+    slot->bio.lba = lba;
+    slot->bio.nr_vecs = (op == O0_BLOCK_FLUSH) ? 0 : 1;
+    slot->bio.vecs = (op == O0_BLOCK_FLUSH) ? NULL : &slot->vec;
+    slot->bio.end_io = block_sync_end;
+    slot->bio.private = slot;
+    if (op != O0_BLOCK_FLUSH) {
+        slot->vec.page = slot->buffer;
+        slot->vec.offset = 0;
+        slot->vec.len = bytes;
+    }
+
+    o0_status st = o0_block_submit_bio(dev, &slot->bio);
     if (st != O0_OK) {
+        __atomic_store_n(&slot->state, BLOCK_SYNC_FREE, __ATOMIC_RELEASE);
         return st;
     }
 
-    struct o0_block_queue *queue = &dev->queues[bio.queue_id];
-    for (uint32_t spin = 0; spin < O0_BLOCK_SYNC_SPINS && !state.done; ++spin) {
+    struct o0_block_queue *queue = &dev->queues[slot->bio.queue_id];
+    for (uint32_t spin = 0;
+         spin < O0_BLOCK_SYNC_SPINS &&
+         __atomic_load_n(&slot->state, __ATOMIC_ACQUIRE) ==
+             BLOCK_SYNC_WAITING;
+         ++spin) {
         if (queue->ops->poll != NULL) {
             (void)queue->ops->poll(queue, O0_BLOCK_SYNC_POLL_BUDGET);
         }
     }
 
-    if (!state.done) {
-        /* Cancel the request from the synchronous caller's point of view: drop
-         * the completion callback and private pointer so that a driver which
-         * completes the bio later cannot dereference the expired stack state. */
-        bio.end_io = NULL;
-        bio.private = NULL;
+    uint32_t state = __atomic_load_n(&slot->state, __ATOMIC_ACQUIRE);
+    if (state == BLOCK_SYNC_WAITING) {
+        uint32_t expected = BLOCK_SYNC_WAITING;
+        if (__atomic_compare_exchange_n(&slot->state, &expected,
+                                        BLOCK_SYNC_ABANDONED, false,
+                                        __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
+            /*
+             * O0_OK from timeout means the driver has canceled the request and
+             * quiesced DMA plus any in-flight completion callback. Otherwise
+             * the slot and its bounce buffer remain quarantined until late
+             * completion releases them.
+             */
+            if (queue->ops->timeout != NULL &&
+                queue->ops->timeout(queue, &slot->bio) == O0_OK) {
+                expected = BLOCK_SYNC_ABANDONED;
+                (void)__atomic_compare_exchange_n(
+                    &slot->state, &expected, BLOCK_SYNC_FREE, false,
+                    __ATOMIC_RELEASE, __ATOMIC_RELAXED);
+            }
+            return O0_ETIMEDOUT;
+        }
+        state = expected;
+    }
+
+    if (state != BLOCK_SYNC_COMPLETED) {
+        /* A concurrent completion may have won the timeout race. */
+        state = __atomic_load_n(&slot->state, __ATOMIC_ACQUIRE);
+    }
+    if (state != BLOCK_SYNC_COMPLETED) {
         return O0_ETIMEDOUT;
     }
-    if (state.status != O0_BLOCK_OK) {
-        return block_status_to_status(state.status);
+
+    st = slot->status == O0_BLOCK_OK
+             ? O0_OK
+             : block_status_to_status(slot->status);
+    if (st == O0_OK && op != O0_BLOCK_FLUSH) {
+        if (slot->bytes_done != bytes) {
+            st = O0_EIO;
+        } else if (op == O0_BLOCK_READ) {
+            memcpy(buffer, slot->buffer, bytes);
+        }
     }
-    if (op != O0_BLOCK_FLUSH && state.bytes_done != bytes) {
-        return O0_EIO;
-    }
-    return O0_OK;
+    __atomic_store_n(&slot->state, BLOCK_SYNC_FREE, __ATOMIC_RELEASE);
+    return st;
 }
 
 o0_status o0_block_read(struct o0_block_dev *dev, uint64_t lba, void *buffer,
