@@ -1,6 +1,12 @@
-/* Stage 6.1: framebuffer metadata validation only; mapping/cache policy is separate. */
+/* Stage 6.1: validated framebuffer and visible software fallback pattern. */
+#include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include "ozero/display.h"
+#include "ozero/mm.h"
+
+static struct o0_display_mode active_mode;
+static bool display_ready;
 
 static uint64_t channel_mask(uint8_t shift, uint8_t size) {
     return ((1ull << size) - 1ull) << shift;
@@ -10,7 +16,7 @@ o0_status o0_display_mode_validate(const struct o0_display_mode *m) {
     if (!m || !m->address || !m->width || !m->height || !m->pitch)
         return O0_EINVAL;
     if (m->bpp != 24 && m->bpp != 32) return O0_ENOTSUP;
-    if (m->memory_model != 1) return O0_ENOTSUP; /* Limine RGB */
+    if (m->memory_model != 1) return O0_ENOTSUP;
     const uint8_t sizes[] = {m->red_size, m->green_size, m->blue_size};
     const uint8_t shifts[] = {m->red_shift, m->green_shift, m->blue_shift};
     uint64_t masks[3];
@@ -23,7 +29,6 @@ o0_status o0_display_mode_validate(const struct o0_display_mode *m) {
     if ((masks[0] & masks[1]) || (masks[0] & masks[2]) ||
         (masks[1] & masks[2]))
         return O0_EINVAL;
-
     const uint64_t bytes_per_pixel = m->bpp / 8u;
     if (m->width > UINT64_MAX / bytes_per_pixel) return O0_EOVERFLOW;
     const uint64_t row_bytes = m->width * bytes_per_pixel;
@@ -32,4 +37,81 @@ o0_status o0_display_mode_validate(const struct o0_display_mode *m) {
     const uint64_t extent = m->pitch * m->height;
     if (m->bytes && extent > m->bytes) return O0_ERANGE;
     return O0_OK;
+}
+
+static uint32_t scale_channel(uint8_t value, uint8_t size, uint8_t shift) {
+    const uint32_t maximum = (1u << size) - 1u;
+    return (((uint32_t)value * maximum + 127u) / 255u) << shift;
+}
+
+static void draw_boot_pattern(void) {
+    volatile uint8_t *base = (volatile uint8_t *)active_mode.address;
+    const uint32_t bytes_per_pixel = active_mode.bpp / 8u;
+    static const uint8_t colors[8][3] = {
+        {24, 32, 72}, {24, 92, 150}, {20, 150, 120}, {72, 160, 48},
+        {210, 170, 32}, {210, 100, 32}, {160, 48, 72}, {220, 220, 220}
+    };
+    for (uint64_t y = 0; y < active_mode.height; ++y) {
+        volatile uint8_t *row = base + y * active_mode.pitch;
+        for (uint64_t x = 0; x < active_mode.width; ++x) {
+            const unsigned band = (unsigned)((x * 8u) / active_mode.width);
+            const unsigned stripe = ((x / 24u) + (y / 24u)) & 1u;
+            uint8_t r = colors[band][0], g = colors[band][1], b = colors[band][2];
+            if (stripe) {
+                r = (uint8_t)(r * 3u / 4u);
+                g = (uint8_t)(g * 3u / 4u);
+                b = (uint8_t)(b * 3u / 4u);
+            }
+            const uint32_t pixel =
+                scale_channel(r, active_mode.red_size, active_mode.red_shift) |
+                scale_channel(g, active_mode.green_size, active_mode.green_shift) |
+                scale_channel(b, active_mode.blue_size, active_mode.blue_shift);
+            volatile uint8_t *dst = row + x * bytes_per_pixel;
+            dst[0] = (uint8_t)pixel;
+            dst[1] = (uint8_t)(pixel >> 8);
+            dst[2] = (uint8_t)(pixel >> 16);
+            if (bytes_per_pixel == 4u) dst[3] = (uint8_t)(pixel >> 24);
+        }
+    }
+}
+
+o0_status o0_display_init(const struct o0_display_mode *mode,
+                          o0_paddr_t framebuffer_phys,
+                          const struct o0_boot_info *bi) {
+    if (mode == NULL || bi == NULL || bi->memmap == NULL) return O0_EINVAL;
+    if (mode->height == 0 || mode->pitch > UINT64_MAX / mode->height)
+        return O0_EOVERFLOW;
+    const uint64_t extent = mode->pitch * mode->height;
+    if (extent == 0 || extent > SIZE_MAX) return O0_ERANGE;
+    if (framebuffer_phys > UINT64_MAX - extent) return O0_EOVERFLOW;
+
+    bool covered = false;
+    for (uint64_t i = 0; i < bi->memmap_count; ++i) {
+        const struct o0_mem_region *r = &bi->memmap[i];
+        if (r->type != O0_MEM_FRAMEBUFFER || r->length == 0 ||
+            r->base > UINT64_MAX - r->length) continue;
+        if (framebuffer_phys >= r->base &&
+            framebuffer_phys + extent <= r->base + r->length) {
+            covered = true;
+            break;
+        }
+    }
+    if (!covered) return O0_EPERM;
+    if (!o0_hhdm_range_ok(framebuffer_phys, (size_t)extent)) return O0_ERANGE;
+    void *mapped = o0_phys_to_virt(framebuffer_phys);
+    if (mapped == NULL) return O0_ERANGE;
+
+    active_mode = *mode;
+    active_mode.address = mapped;
+    active_mode.bytes = extent;
+    o0_status status = o0_display_mode_validate(&active_mode);
+    if (status != O0_OK) return status;
+
+    display_ready = true;
+    draw_boot_pattern();
+    return O0_OK;
+}
+
+bool o0_display_ready(void) {
+    return display_ready;
 }
