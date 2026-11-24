@@ -1232,8 +1232,12 @@ static o0_status fs_create(struct o0fs *fs, const char *path, uint16_t mode) {
     }
 
     uint32_t existing = 0;
-    if (fs_dir_lookup(fs, parent, name, &existing) == O0_OK) {
+    o0_status lookup_st = fs_dir_lookup(fs, parent, name, &existing);
+    if (lookup_st == O0_OK) {
         return O0_EEXIST;
+    }
+    if (lookup_st != O0_ENOENT) {
+        return lookup_st;
     }
 
     uint32_t inode = 0;
