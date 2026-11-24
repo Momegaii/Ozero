@@ -282,7 +282,7 @@ void o0_block_complete_bio(struct o0_bio *bio,
     }
     /* Atomic claim: IRQ and poll completions cannot both invoke end_io. */
     o0_bio_end_t callback =
-        __atomic_exchange_n(&bio->end_io, NULL, __ATOMIC_ACQ_REL);
+        __atomic_exchange_n(&bio->end_io, (o0_bio_end_t)0, __ATOMIC_ACQ_REL);
     if (callback == NULL) {
         return;
     }
