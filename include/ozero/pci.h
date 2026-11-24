@@ -67,6 +67,7 @@ struct o0_pci_device {
 
 size_t o0_pci_init(void);
 size_t o0_pci_device_count(void);
+bool o0_pci_truncated(void);
 const struct o0_pci_device *o0_pci_device(size_t index);
 int o0_pci_find(uint16_t vendor_id, uint16_t device_id, struct o0_pci_device *out);
 

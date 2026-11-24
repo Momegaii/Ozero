@@ -113,37 +113,57 @@ int o0_pci_probe_bar(struct o0_pci_bdf bdf, uint8_t index,
     if (!out) return -1;
     if (index > 5) return -1;
     uint8_t off = 0x10u + index*4u;
-    if (index > 0 && /* 64-bit previous handled by caller */ 0) {}
-    uint32_t orig0, orig1=0, cmd;
-    int r;
-    r = o0_pci_config_read32(bdf, off, &orig0); if (r) return r;
-    if ((orig0 & 0x6u) == 0x4u) { /* 64-bit memory */
-        r = o0_pci_config_read32(bdf, off+4, &orig1); if (r) return r;
+
+    pci_lock_acquire();
+    uint32_t orig0=0, orig1=0, cmd=0;
+    int r = 0;
+    int restoration_failed = 0;
+    uint32_t size0=0, size1=0;
+    int is64 = 0;
+
+    r = o0_pci_config_read32(bdf, off, &orig0);
+    if (r == 0 && ((orig0 & 0x6u) == 0x4u)) {
+        is64 = 1;
+        r = o0_pci_config_read32(bdf, off+4, &orig1);
     }
-    r = o0_pci_config_read16(bdf, 0x04u, (uint16_t*)&cmd); if (r) return r;
-    /* disable decode */
-    o0_pci_config_write16(bdf, 0x04u, (uint16_t)(cmd & ~0x3u));
-    /* write all ones */
-    o0_pci_config_write32(bdf, off, 0xFFFFFFFFu);
-    if ((orig0 & 0x6u) == 0x4u) o0_pci_config_write32(bdf, off+4, 0xFFFFFFFFu);
-    uint32_t size0, size1=0;
-    r = o0_pci_config_read32(bdf, off, &size0); if (r) { /* restore */ }
-    if ((orig0 & 0x6u) == 0x4u) r = o0_pci_config_read32(bdf, off+4, &size1);
-    /* restore */
-    o0_pci_config_write32(bdf, off, orig0);
-    if ((orig0 & 0x6u) == 0x4u) o0_pci_config_write32(bdf, off+4, orig1);
-    o0_pci_config_write16(bdf, 0x04u, (uint16_t)cmd);
-    /* decode */
-    uint32_t raw1 = ((orig0 & 0x6u)==0x4u) ? orig1 : 0;
-    o0_pci_decode_bar(orig0, raw1, 0, index, out);
-    /* compute size */
+    if (r == 0) r = o0_pci_config_read16(bdf, 0x04u, (uint16_t*)&cmd);
+
+    if (r == 0) {
+        /* disable decode */
+        if (o0_pci_config_write16(bdf, 0x04u, (uint16_t)(cmd & ~0x3u)) != 0) r = -1;
+    }
+    if (r == 0) {
+        if (o0_pci_config_write32(bdf, off, 0xFFFFFFFFu) != 0) r = -1;
+        if (is64 && o0_pci_config_write32(bdf, off+4, 0xFFFFFFFFu) != 0) r = -1;
+    }
+    if (r == 0) {
+        if (o0_pci_config_read32(bdf, off, &size0) != 0) r = -1;
+        if (is64 && o0_pci_config_read32(bdf, off+4, &size1) != 0) r = -1;
+    }
+    /* restore always */
+    if (o0_pci_config_write32(bdf, off, orig0) != 0) restoration_failed = 1;
+    if (is64 && o0_pci_config_write32(bdf, off+4, orig1) != 0) restoration_failed = 1;
+    if (o0_pci_config_write16(bdf, 0x04u, (uint16_t)cmd) != 0) restoration_failed = 1;
+
+    pci_lock_release();
+
+    if (r != 0) return r;
+    if (restoration_failed) return -2;
+
+    uint32_t raw1 = is64 ? orig1 : 0;
+    o0_pci_decode_bar(orig0, raw1, header_type, index, out);
     if (out->is_memory) {
-        uint64_t mask = out->is_64bit ? (((uint64_t)size1 << 32) | size0) : size0;
+        uint64_t mask = is64 ? (((uint64_t)size1 << 32) | size0) : size0;
         mask &= ~0xFu;
         if (mask == 0) out->size = 0;
         else out->size = (~mask) + 1u;
+    } else {
+        uint32_t m = size0 & ~0x3u;
+        if (m == 0) out->size = 0;
+        else out->size = (~m) + 1u;
     }
     out->header_type = header_type;
+    out->assigned = out->base != 0;
     return 0;
 }
 
@@ -166,14 +186,22 @@ int o0_pci_find_capabilities(struct o0_pci_bdf bdf, struct o0_pci_resources *res
         r = o0_pci_config_read8(bdf, cap_ptr, &cap_id); if (r) return r;
         if (cap_id == 0x05u) { res->msi_supported = true; res->msi_cap_offset = cap_ptr; }
         if (cap_id == 0x11u) {
-            res->msix_supported = true; res->msix_cap_offset = cap_ptr;
-            uint32_t t; r = o0_pci_config_read32(bdf, cap_ptr+4, &t); if (!r) {
-                res->msix_table_offset = (uint16_t)(t & 0xFFF8u);
-                res->msix_table_bir = (uint8_t)(t & 0x7u);
-            }
-            r = o0_pci_config_read32(bdf, cap_ptr+8, &t); if (!r) {
-                res->msix_pba_offset = (uint16_t)(t & 0xFFF8u);
-                res->msix_pba_bir = (uint8_t)(t & 0x7u);
+            uint32_t t1=0,t2=0;
+            r = o0_pci_config_read32(bdf, cap_ptr+4, &t1);
+            r |= o0_pci_config_read32(bdf, cap_ptr+8, &t2);
+            if (r == 0) {
+                uint8_t bir_table = (uint8_t)(t1 & 0x7u);
+                uint8_t bir_pba = (uint8_t)(t2 & 0x7u);
+                if (bir_table < res->bar_count && bir_pba < res->bar_count) {
+                    res->msix_supported = true;
+                    res->msix_cap_offset = cap_ptr;
+                    res->msix_table_offset = (uint16_t)(t1 & 0xFFF8u);
+                    res->msix_table_bir = bir_table;
+                    res->msix_pba_offset = (uint16_t)(t2 & 0xFFF8u);
+                    res->msix_pba_bir = bir_pba;
+                } else {
+                    res->msix_supported = false;
+                }
             }
         }
         uint8_t next; r = o0_pci_config_read8(bdf, cap_ptr+1, &next); if (r) return r;
@@ -237,6 +265,7 @@ size_t o0_pci_init(void) {
 }
 
 size_t o0_pci_device_count(void) { return pci_device_count; }
+bool o0_pci_truncated(void) { return pci_truncated; }
 const struct o0_pci_device *o0_pci_device(size_t index) {
     if (index >= pci_device_count) return NULL;
     return &pci_devices[index];
