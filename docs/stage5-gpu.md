@@ -47,7 +47,15 @@ Project status: **accepted complete by the Project Director**.
 
 ### 4.1 PCI discovery prerequisites
 
-- [ ] Inspect existing PCI enumeration and configuration-space access.
+**Current PCI integration finding (2026-11-24):**
+
+The first PCI enumerator commit added `kernel/src/pci.c` and its public header, and added the object to the kernel build, but the kernel boot path did not include `ozero/pci.h` or call `o0_pci_init()`. The code was therefore compiled but never executed; a successful build alone could not demonstrate that PCI enumeration was happening.
+
+This integration gap was corrected in commit [`be929464`](https://github.com/Momegaii/Ozero/commit/be9294647e767ec4ad8780c78da55be7f5e3c6a6): `kernel/src/main.c` now includes `ozero/pci.h` and calls `o0_pci_init()` from the Stage 4 boot self-test, printing the returned device count as `OZERO: pci devices=<count>`.
+
+**Evidence boundary:** the call is present in source, but this does not yet prove successful runtime enumeration. Build and boot verification, inspection of actual discovered BDF/IDs, and the remaining PCI resource work are still required. The call currently lives in the Stage 4 self-test as an initial boot integration point; it is not a completed Stage 5 GPU discovery subsystem.
+
+- [x] Inspect existing PCI enumeration and configuration-space access.
 - [ ] Implement or complete PCI enumeration if required; reuse existing kernel facilities where sound.
 - [ ] Enumerate devices and functions deterministically.
 - [ ] Read vendor ID, device ID, revision, class and subclass.
