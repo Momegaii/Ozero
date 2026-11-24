@@ -537,13 +537,33 @@ o0_status o0_paging_init(const struct o0_boot_info *bi) {
         return O0_EFAULT;
     }
 
-    /* Direct map: [direct_base, direct_base + LIMIT) -> [0, LIMIT). */
-    uint64_t direct_virt = O0_ALIGN_DOWN((uint64_t)direct_base, 1ull << 21);
-    o0_status status = map_range_2mb(kernel_pml4, direct_virt, 0,
-                                     O0_DIRECT_MAP_LIMIT,
-                                     O0_MAP_READ | O0_MAP_WRITE | O0_MAP_GLOBAL);
-    if (status != O0_OK) {
-        return status;
+    /* Ordinary direct-map memory uses 2 MiB WB pages. Any 2 MiB chunk
+     * intersecting framebuffer memory is instead mapped with 4 KiB UC pages
+     * throughout that chunk. This prevents a conflicting WB alias of pixels. */
+    const uint64_t direct_virt = O0_ALIGN_DOWN((uint64_t)direct_base, 1ull << 21);
+    const uint64_t large_page = 1ull << 21;
+    o0_status status = O0_OK;
+    for (uint64_t phys = 0; phys < O0_DIRECT_MAP_LIMIT; phys += large_page) {
+        bool framebuffer_chunk = false;
+        const uint64_t chunk_end = phys + large_page;
+        for (uint64_t i = 0; i < bi->memmap_count; ++i) {
+            const struct o0_mem_region *region = &bi->memmap[i];
+            if (region->type != O0_MEM_FRAMEBUFFER || region->length == 0) continue;
+            if (region->base > UINT64_MAX - region->length) return O0_EOVERFLOW;
+            const uint64_t region_end = region->base + region->length;
+            if (region->base < chunk_end && region_end > phys) {
+                framebuffer_chunk = true;
+                break;
+            }
+        }
+        if (framebuffer_chunk) {
+            status = map_range_4kb(kernel_pml4, direct_virt + phys, phys, large_page,
+                O0_MAP_READ | O0_MAP_WRITE | O0_MAP_GLOBAL | O0_MAP_UC);
+        } else {
+            status = map_range_2mb(kernel_pml4, direct_virt + phys, phys, large_page,
+                O0_MAP_READ | O0_MAP_WRITE | O0_MAP_GLOBAL);
+        }
+        if (status != O0_OK) return status;
     }
 
     /* Kernel image at its linked high-half address. The physical load address
