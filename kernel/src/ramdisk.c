@@ -327,6 +327,7 @@ o0_status o0_ramdisk_inject_fault(struct o0_block_dev *dev,
         return O0_EINVAL;
     }
     rd->fault = status;
+    rd->fault_write_only = false;
     rd->fault_lba = fail_lba;
     rd->remaining = status == O0_BLOCK_OK ? 0 : count;
     return O0_OK;
