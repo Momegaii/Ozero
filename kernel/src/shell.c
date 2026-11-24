@@ -9,8 +9,10 @@ o0_status o0_shell_init(struct o0_shell *s,uint32_t w,uint32_t h){
 void o0_shell_pointer(struct o0_shell *s,int32_t dx,int32_t dy){
     if(!s||!s->initialized)return;
     int64_t x=(int64_t)s->pointer_x+dx,y=(int64_t)s->pointer_y+dy;
-    if(x<0)x=0;if(y<0)y=0;
-    if(x>=s->width)x=s->width-1u;if(y>=s->height)y=s->height-1u;
+    if(x<0)x=0;
+    if(y<0)y=0;
+    if(x>=s->width)x=(int64_t)s->width-1;
+    if(y>=s->height)y=(int64_t)s->height-1;
     s->pointer_x=(int32_t)x;s->pointer_y=(int32_t)y;
 }
 struct o0_window *o0_shell_pointer_target(struct o0_shell *s){
