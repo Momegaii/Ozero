@@ -1,7 +1,7 @@
 # Ozero Project Status
 
 Last updated: 2026-11-24  
-Current stage: **Stage 4 — storage, filesystem and drivers (substrate implemented; review and hardware work pending)**  
+Current stage: **Stage 5 — GPU memory and Haswell submission (active planning; Stage 4 storage substrate complete)**  
 Stage 3 — processes, threads and scheduler: **implemented; boot-verified in QEMU BIOS for the Stage 3 revision**  
 Stage 2 — physical and virtual memory: **implemented, verified by build + host tests + QEMU boot**  
 Stage 1 — bootable x86-64 kernel: **implemented; see verification state**
