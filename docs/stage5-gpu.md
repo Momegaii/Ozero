@@ -1,6 +1,6 @@
 # Stage 5: GPU memory and Haswell submission
 
-- Status: **Active — Phase 1 GPU discovery implemented, host-tested and wired into the boot self-test (the verified Intel HD 4600, PCI 8086:0412, is now matched; all other devices stay unsupported); Phase 2 core builds, host-tested and now exercised on the boot path; Phase 3 specification review complete (two items partial) and the PPGTT/GGTT backend implemented and host-tested, with hardware installation and invalidation emission open**
+- Status: **Software architecture closeout defined; hardware bring-up deferred — Phase 1 GPU discovery implemented, host-tested and wired into the boot self-test (the verified Intel HD 4600, PCI 8086:0412, is now matched; all other devices stay unsupported); Phase 2 core builds, host-tested and now exercised on the boot path; Phase 3 specification review complete (two items partial) and the PPGTT/GGTT backend implemented and host-tested, with hardware installation and invalidation emission open**
 - Roadmap stage: 5
 - Initial hardware backend: Intel Haswell Gen7.5 integrated graphics
 - Concrete bring-up target: Intel HD Graphics 4600 (device ID and revision must be confirmed on the target machine)
@@ -426,3 +426,21 @@ Stage 5 is complete only when:
 3. Intel, **Technical Library**: https://www.intel.com/content/www/us/en/developer/technical-library/overview.html. Starting point for generation-specific graphics programming reference volumes and revisions.
 
 The Intel Windows driver files supplied during this discussion are research artifacts only, subject to their licenses. They are not authoritative specifications and must not be copied into the kernel. Strings and symbols are investigative clues, not proof of register behavior or hardware support.
+
+
+## 14. Software-only architecture closeout decision (2026-11-24)
+
+The Project Director has directed that this Stage 5 closeout require **no physical GPU installation, MMIO programming, or hardware-target verification**. This is an explicit scope boundary for the software architecture milestone, not a claim of hardware support.
+
+The governing decision record is [0004-stage5-software-graphics-architecture.md](decisions/0004-stage5-software-graphics-architecture.md). It defines the GPU-independent Ozero contracts, backend onboarding requirements, software-only acceptance criteria, and the evidence boundary.
+
+For this software milestone:
+- The generic device/capability, memory/VM, and context/queue/fence layers are the architecture under review.
+- Haswell-specific page-table encodings, command validation and software ring state remain isolated in the Haswell backend.
+- Host tests and QEMU kernel self-tests may validate software behavior. They do not establish physical GPU execution.
+- MMIO installation, interrupt delivery, physical submission/completion, hardware reset, preemption and physical-device validation are deferred future work, not Stage 5 software-closeout blockers.
+- No Intel, AMD, NVIDIA or virtual adapter may be described as supported solely because a generic interface or backend name exists.
+
+**Important source-audit note:** the public header `include/ozero/gpu_device.h` previously contained a stale comment claiming that the Haswell backend matched no verified IDs. The implementation and tests contain a specific HD Graphics 4600 match (PCI 8086:0412, revision 0x06). The comment has been corrected to describe that narrow match accurately. It remains a software match-table claim, not proof of GPU operation.
+
+The older phase checklists below retain historical hardware bring-up items for traceability. They are superseded for software-milestone acceptance by this section and decision record; do not mark those hardware tasks complete.
