@@ -20,6 +20,7 @@
 #include "ozero/cpu.h"
 #include "ozero/fs.h"
 #include "ozero/irq.h"
+#include "ozero/pci.h"
 #include "ozero/ramdisk.h"
 #include "ozero/mm.h"
 #include "ozero/status.h"
@@ -259,6 +260,9 @@ static void stage4_self_test(void) {
     o0_serial_dec(o0_block_device_count());
     o0_serial_puts("\n");
 
+    o0_serial_puts("OZERO: pci devices=");
+    o0_serial_dec(o0_pci_init());
+    o0_serial_putc('\n');
     struct o0_block_dev *disk = NULL;
     if (o0_ramdisk_create("ram0", 2u * 1024u * 1024u, &disk) != O0_OK) {
         panic("RAM disk creation failed");
