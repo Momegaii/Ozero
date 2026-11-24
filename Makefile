@@ -22,8 +22,8 @@ KERNEL_OBJS := $(BUILD)/main.o $(BUILD)/serial.o $(BUILD)/string.o $(BUILD)/stat
                $(BUILD)/interrupts_c.o $(BUILD)/interrupts.o $(BUILD)/irq_stubs.o \
                $(BUILD)/context.o $(BUILD)/block.o $(BUILD)/ramdisk.o \
                $(BUILD)/o0fs.o $(BUILD)/pci.o $(BUILD)/gpu.o $(BUILD)/gpu_hsw.o \
-               $(BUILD)/gpu_device.o $(BUILD)/gpu_queue.o $(BUILD)/surface.o \\
-               $(BUILD)/display.o $(BUILD)/input.o $(BUILD)/window.o \\
+               $(BUILD)/gpu_device.o $(BUILD)/gpu_queue.o $(BUILD)/surface.o \
+               $(BUILD)/display.o $(BUILD)/input.o $(BUILD)/input_ps2.o $(BUILD)/window.o \
                $(BUILD)/compositor.o $(BUILD)/gfx_backend.o $(BUILD)/shell.o
 
 HOST_CFLAGS := -std=gnu11 -O1 -Wall -Wextra -Iinclude
@@ -129,12 +129,14 @@ test: $(BUILD)
 	./$(BUILD)/pci_test
 	$(CC) $(HOST_CFLAGS) -Ikernel/src -o $(BUILD)/gpu_test tests/gpu_test.c
 	./$(BUILD)/gpu_test
-	$(CC) $(HOST_CFLAGS) -o $(BUILD)/display_test tests/display_test.c kernel/src/display.c
+	$(CC) $(HOST_CFLAGS) -Ikernel -Ikernel/src -o $(BUILD)/display_test tests/display_test.c kernel/src/display.c kernel/arch/x86_64/paging.c
 	./$(BUILD)/display_test
 	$(CC) $(HOST_CFLAGS) -o $(BUILD)/input_test tests/input_test.c kernel/src/input.c
 	./$(BUILD)/input_test
 	$(CC) $(HOST_CFLAGS) -o $(BUILD)/surface_test tests/surface_test.c kernel/src/surface.c
 	./$(BUILD)/surface_test
+	$(CC) $(HOST_CFLAGS) -Ikernel -Ikernel/src -Ikernel/arch/x86_64 -o $(BUILD)/input_ps2_test tests/input_ps2_test.c kernel/src/input_ps2.c kernel/src/input.c
+	./$(BUILD)/input_ps2_test
 
 run: $(ISO)
 	$(QEMU) -machine q35 -m 512M -cdrom $(ISO) -boot d \

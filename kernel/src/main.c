@@ -24,6 +24,7 @@
 #include "ozero/gpu_device.h"
 #include "ozero/gpu_hsw.h"
 #include "ozero/gpu_queue.h"
+#include "ozero/input_ps2.h"
 #include "ozero/irq.h"
 #include "ozero/pci.h"
 #include "ozero/ramdisk.h"
@@ -164,6 +165,7 @@ extern o0_status o0_pic_init(void);
 extern o0_status o0_pit_start(uint32_t hz);
 extern void o0_irq_dispatch_init(void);
 extern uint64_t o0_irq_count(o0_gsi_t gsi);
+extern void o0_input_ps2_init(void);
 
 static void stage3_self_test(void) {
     o0_serial_puts("OZERO: stage3 self-test\n");
@@ -806,6 +808,8 @@ void kmain(void) {
     o0_serial_puts("OZERO: timer IRQ enabled at ");
     o0_serial_dec(o0_sched_hz());
     o0_serial_puts(" Hz\n");
+
+    o0_input_ps2_init();
 
     stage3_self_test();
     stage4_self_test();
