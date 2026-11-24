@@ -16,6 +16,7 @@
 #include <limine.h>
 
 #include "ozero/block.h"
+#include "ozero/display.h"
 #include "ozero/boot.h"
 #include "ozero/cpu.h"
 #include "ozero/fs.h"
@@ -47,6 +48,12 @@ static volatile struct limine_memmap_request memmap_request = {
 __attribute__((used, section(".limine_requests")))
 static volatile struct limine_hhdm_request hhdm_request = {
     .id = LIMINE_HHDM_REQUEST_ID,
+    .revision = 0
+};
+
+__attribute__((used, section(".limine_requests")))
+static volatile struct limine_framebuffer_request framebuffer_request = {
+    .id = LIMINE_FRAMEBUFFER_REQUEST_ID,
     .revision = 0
 };
 
@@ -722,6 +729,37 @@ void kmain(void) {
         panic("CR3 switch to kernel page tables failed");
     }
     o0_serial_puts("OZERO: page tables active\n");
+ 
+    /* Validate boot framebuffer metadata only. Pixel access remains disabled
+     * until an architecture-owned UC/WC mapping is installed. */
+    if (framebuffer_request.response != NULL &&
+        framebuffer_request.response->framebuffer_count != 0 &&
+        framebuffer_request.response->framebuffers != NULL &&
+        framebuffer_request.response->framebuffers[0] != NULL) {
+        const struct limine_framebuffer *fb = framebuffer_request.response->framebuffers[0];
+        struct o0_display_mode mode = {
+            .address = fb->address, .width = fb->width, .height = fb->height,
+            .pitch = fb->pitch, .bytes = 0, .bpp = fb->bpp,
+            .memory_model = fb->memory_model,
+            .red_size = fb->red_mask_size, .red_shift = fb->red_mask_shift,
+            .green_size = fb->green_mask_size, .green_shift = fb->green_mask_shift,
+            .blue_size = fb->blue_mask_size, .blue_shift = fb->blue_mask_shift
+        };
+        o0_status display_status = o0_display_mode_validate(&mode);
+        o0_serial_puts("OZERO: framebuffer metadata ");
+        o0_serial_puts(display_status == O0_OK ? "valid" : "rejected");
+        o0_serial_puts(" width=");
+        o0_serial_dec(fb->width);
+        o0_serial_puts(" height=");
+        o0_serial_dec(fb->height);
+        o0_serial_puts(" pitch=");
+        o0_serial_dec(fb->pitch);
+        o0_serial_puts(" bpp=");
+        o0_serial_dec(fb->bpp);
+        o0_serial_puts(" (pixel access disabled pending safe mapping)\\n");
+    } else {
+        o0_serial_puts("OZERO: no boot framebuffer; serial fallback\\n");
+    }
 
     o0_slab_init();
     o0_serial_puts("OZERO: kernel heap ready\n");
