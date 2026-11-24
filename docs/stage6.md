@@ -62,6 +62,19 @@ This document records the Stage 6 scope accepted by the Project Director in the 
 
 Phase 6.1 is complete only when all applicable checklist items above have evidence. A bootloader framebuffer descriptor alone is not proof that Ozero can safely render to it.
 
+## Phase 6.2 — Keyboard and pointer input
+
+### Actual implementation status
+
+**Partial; not complete.** `include/ozero/input.h` and `kernel/src/input.c` provide a bounded single-producer/single-consumer event queue with release/acquire publication and an explicit full-queue result. `tests/input_test.c` now covers empty/FIFO behavior, capacity, overflow accounting and invalid event types; it is registered in the host-test target. No PS/2 or USB HID discovery, keyboard scan-code decoder, pointer packet decoder, IRQ driver, or input-to-window routing is implemented. The queue is infrastructure, not a working keyboard or mouse.
+
+- [x] Bounded event queue API and overflow behavior authored.
+- [ ] Keyboard hardware discovery and driver.
+- [ ] Pointer hardware discovery and driver.
+- [ ] Key state/modifier and pointer packet decoding.
+- [ ] IRQ-safe event production and consumer integration.
+- [ ] QEMU interaction evidence.
+
 ## Phase 6.3 — Surfaces and graphics primitives
 
 ### Implemented in the repository (not yet verified)
