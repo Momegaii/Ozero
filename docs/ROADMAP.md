@@ -41,9 +41,9 @@ per-item status and evidence live in [docs/hardening-roadmap.md](hardening-roadm
   [ADR 0007](decisions/0007-user-abi-syscall-and-executable.md), accepted by the Director's
   execution directive; 2.2–2.6 are implemented (per-process page tables from the PMM, ring 3
   with TSS/IST, syscall ABI, usercopy, static ELF64 loader, negative tests) and 2.7 passes the
-  local `{bios, uefi} × {qemu64, Haswell-v1}` matrix plus the sanitizer job. CI for this
-  revision is not yet observed and there is no physical-hardware evidence. No Wave 3+ work is
-  claimed. Detail and evidence: [docs/hardening-roadmap.md](hardening-roadmap.md).
+  local `{bios, uefi} × {qemu64, Haswell-v1}` matrix plus the sanitizer job, and CI run
+  [#136](https://github.com/Momegaii/Ozero/actions/runs/45502990041) passed all five jobs.
+  There is no physical-hardware evidence. No Wave 3+ work is claimed. Detail and evidence: [docs/hardening-roadmap.md](hardening-roadmap.md).
 - **Waves 3–6 — planned, not started.** Wave 3 (virtio-blk/AHCI/NVMe, partitions, crash
   consistency, VFS), Wave 4 (IPC/signals/futex, PCI/MSI-X/ACPI, security model), Wave 5
   (fuzzing, concurrency testing, logging/backtraces, performance baselines), Wave 6 (resume

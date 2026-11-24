@@ -68,15 +68,19 @@ is inferred from another.
 | 2.4 | `o0_copy_from_user`/`o0_copy_to_user` as the only user-memory path, SMAP-ready (`STAC`/`CLAC` hooks), argument validation helper | **Done** | `kernel/src/usercopy.c` validates the window and every page's U/S and write bits, then copies in the fixup-protected assembly core. The `badptr` user program exits 0 only if a kernel address returns `-O0_UE_FAULT`; every emulator cell prints `OZERO: syscall bad pointer rejected`. `STAC`/`CLAC` are not emitted yet: the cores are the single place to add them. |
 | 2.5 | Static ELF64 `PT_LOAD` loader (no interpreters, relocations, overlaps or oversized segments), init process, syscalls `exit`/`yield`/`debug_write`/`getpid` | **Done** | Host: `tests/elf_test.c` accepts the loader subset and rejects wrong class/machine/type, interpreters, dynamic/TLS/PHDR directives, W+X, misalignment, non-congruent `p_offset`/`p_vaddr`, overlaps, truncated and oversized input. Emulator: `OZERO: user entry OK` from the static init image, then `OZERO: syscall exit status=0`. |
 | 2.6 | Negative tests: NULL dereference dies alone, privileged instruction / kernel jump / bad syscall pointer contained, ELF parser fuzz, process churn without PMM leaks | **Done** | Host: `tests/elf_test.c` fuzzes 4 000 mutated and 1 000 random inputs plus random truncations, asserting parser invariants on every accepted result. Emulator: three contained user faults (`error=0x4`, `0x0`, `0x15`) with the scheduler continuing, the `badptr` rejection above, and `OZERO: user churn OK processes=16` after a free-page delta of zero. |
-| 2.7 | Boot markers `user entry OK`, `syscall exit status=0`, `user fault contained` on the full BIOS/UEFI × `qemu64`/`Haswell-v1` matrix plus the sanitizer job; STATUS evidence by type | **Done (local matrix and sanitizer; CI unobserved)** | `tools/qemu-smoke.sh` now requires the Wave 2 markers. All four cells pass locally on QEMU 10.0.13 with BIOS/firmware markers, and each log contains the full Wave 2 set. `make test-sanitize` (ASan + UBSan, leaks on) passes all suites. CI for this revision has not been run or observed; physical hardware has not been exercised. |
+| 2.7 | Boot markers `user entry OK`, `syscall exit status=0`, `user fault contained` on the full BIOS/UEFI × `qemu64`/`Haswell-v1` matrix plus the sanitizer job; STATUS evidence by type | **Done** | `tools/qemu-smoke.sh` now requires the Wave 2 markers. All four cells pass locally on QEMU 10.0.13 and in CI. `make test-sanitize` (ASan + UBSan, leaks on) passes all suites locally and in CI. GitHub Actions run [#136](https://github.com/Momegaii/Ozero/actions/runs/45502990041) on commit `32c9e79` completed SUCCESS with all five jobs; its four boot logs show `user entry OK`, `syscall exit status=0`, `syscall bad pointer rejected`, `user churn OK processes=16`, `wave2 self-test complete` and `QEMU smoke test: PASS` on QEMU 10.2.1 / OVMF 2025.11. Physical hardware has not been exercised. |
 
 Wave 2 verification detail:
 
 - **Host tests:** `make test` and `make test-sanitize` pass. New suites are `abi_test`
   (ABI constants, selectors, TSS/per-CPU offsets, error table, user window) and `elf_test`
   (accept/reject matrix, overlap, fuzz and truncation).
-- **Emulator:** `{bios, uefi} × {qemu64, Haswell-v1}` on QEMU 10.0.13, full marker set,
-  `QEMU smoke test: PASS` in every cell. This is emulator evidence only.
+- **Emulator:** `{bios, uefi} × {qemu64, Haswell-v1}` on QEMU 10.0.13 locally, full marker
+  set, `QEMU smoke test: PASS` in every cell. This is emulator evidence only.
+- **CI:** run [#136](https://github.com/Momegaii/Ozero/actions/runs/45502990041) on commit
+  `32c9e79` completed SUCCESS with all five jobs (`boot` × 4 and `host-sanitizers`). The four
+  boot logs carry the Wave 2 markers and report QEMU 10.2.1 with OVMF 2025.11-3ubuntu7.4. The
+  logs were downloaded and inspected, not just the Actions summary page.
 - **Physical hardware:** never exercised. No user-mode result here is physical evidence.
 
 Sign-off is for the emulator scope of Rule 0: a single-CPU user mode is verified in QEMU on

@@ -260,10 +260,13 @@ Truthful split by evidence type:
   `wave2 self-test complete`. All four cells (`{bios, uefi} × {qemu64, Haswell-v1}`) pass
   locally on **QEMU 10.0.13** with `QEMU smoke test: PASS`. This is emulator evidence, not
   physical evidence.
-- **CI (Wave 2):** not run or observed for this revision. The existing workflow and matrix
-  (`docs/decisions/0006-verification-matrix.md`) are unchanged, and the Wave 2 markers are now
-  required by the same `tools/qemu-smoke.sh` the workflow calls. The last observed runs remain
-  #132/#133/#134 for earlier commits.
+- **CI (Wave 2):** GitHub Actions run
+  [#136](https://github.com/Momegaii/Ozero/actions/runs/45502990041) on commit `32c9e79`
+  completed SUCCESS with all five jobs (`boot` × 4 and `host-sanitizers`). The four boot logs
+  were downloaded and inspected: each shows the Wave 2 markers and
+  `QEMU smoke test: PASS (… qemu=QEMU emulator version 10.2.1 …)`, with OVMF
+  2025.11-3ubuntu7.4 in the UEFI cells. This confirms CI runs the same marker set as the local
+  matrix; it remains emulator evidence.
 - **Physical hardware (Wave 2):** never exercised. No user-mode, fault-containment or
   process-churn result here is physical evidence.
 Boot verification of this revision surfaced and fixed three defects that build +
@@ -363,8 +366,8 @@ stage scope, the QEMU BIOS verification above, or the decisions recorded in ADR 
 ## Immediate next engineering wave
 
 Wave 1 closed the emulator/firmware verification debt, and Wave 2 added and verified
-single-CPU user mode in emulation. Both waves remain without physical-hardware evidence, and
-CI has not yet observed the Wave 2 revision.
+single-CPU user mode in emulation (local matrix and CI run #136). Both waves remain without
+physical-hardware evidence.
 
 The next wave is ordered by `docs/hardening-roadmap.md`:
 

@@ -324,7 +324,9 @@ Deviations and defects found while implementing:
 
 Host evidence: `tests/abi_test.c` and `tests/elf_test.c` in `make test` and
 `make test-sanitize`. Emulator evidence: `tools/qemu-smoke.sh` requires the Wave 2 markers on
-the BIOS/UEFI × `qemu64`/`Haswell-v1` matrix. Physical evidence: none.
+the BIOS/UEFI × `qemu64`/`Haswell-v1` matrix, locally on QEMU 10.0.13 and in GitHub Actions run
+[#136](https://github.com/Momegaii/Ozero/actions/runs/45502990041) (commit `32c9e79`, QEMU
+10.2.1, OVMF 2025.11). Physical evidence: none.
 
 ## 8. References
 
