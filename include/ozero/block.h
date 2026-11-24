@@ -115,6 +115,8 @@ struct o0_block_geometry {
 struct o0_block_queue_ops {
     o0_status (*queue_rq)(struct o0_block_queue *queue, struct o0_bio *bio);
     o0_status (*poll)(struct o0_block_queue *queue, int budget);
+    /* Return O0_OK only after canceling the request and quiescing all DMA and
+     * completion callbacks; any other result leaves ownership with the driver. */
     o0_status (*timeout)(struct o0_block_queue *queue, struct o0_bio *bio);
 };
 
