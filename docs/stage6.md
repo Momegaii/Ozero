@@ -40,9 +40,9 @@ This document records the Stage 6 scope accepted by the Project Director in the 
 ### Repository audit performed
 
 - Inspected the active branch's README, roadmap, project status, boot entry point, Limine request declarations and paging implementation.
-- Confirmed the kernel entry point declares a Limine framebuffer request and validates the returned metadata after the paging switch. Pixel access remains disabled.
-- Confirmed `include/ozero/display.h` and `kernel/src/display.c` provide a metadata descriptor and validator, but no framebuffer mapping or pixel presentation API exists yet.
-- Identified an important safety constraint: the current kernel uses a write-back direct map. A framebuffer must not be written through that alias until a safe framebuffer mapping/cache policy is implemented.
+- Confirmed the kernel declares a Limine framebuffer request and resolves its physical address before replacing the bootloader page tables.
+- The kernel page-table builder now carves framebuffer-containing 2 MiB direct-map chunks into 4 KiB UC mappings; the old Limine mapping is replaced at the CR3 switch.
+- The display API verifies that the pixel extent is covered by a framebuffer memory-map region and writes only through the new direct-map mapping.
 
 ### Actual implementation status
 
@@ -52,7 +52,7 @@ This document records the Stage 6 scope accepted by the Project Director in the 
 
 - [x] Limine framebuffer request declared; response metadata is validated.
 - [x] Framebuffer dimensions, pitch, format and non-overlapping channel masks validated in the descriptor API.
-- [ ] Framebuffer extent arithmetic checked for overflow and checked against the boot memory map.
+- [x] Framebuffer extent arithmetic checked for overflow and the full extent checked against a framebuffer memory-map region (implementation authored; unverified).
 - [x] Direct-map framebuffer chunks are mapped UC at 4 KiB granularity, avoiding a WB alias in the new kernel page tables (implementation authored; unverified).
 - [x] Minimal eight-band software boot pattern renderer authored (visible output not yet confirmed).
 - [ ] Host tests cover valid and invalid framebuffer descriptors (test source added; execution reserved for agent test pass).
@@ -60,7 +60,7 @@ This document records the Stage 6 scope accepted by the Project Director in the 
 - [ ] QEMU screenshot demonstrates stable visible output.
 - [ ] Exact build/test/QEMU commands and results recorded.
 
-Phase 6.1 is complete only when all applicable checklist items above have evidence. A bootloader framebuffer descriptor alone is not proof that Ozero can safely render to it.
+Phase 6.1 is complete only when all applicable checklist items above have evidence. Source implementation is not proof that the kernel boots or that pixels are visible.
 
 ## Phase 6.2 — Keyboard and pointer input
 
