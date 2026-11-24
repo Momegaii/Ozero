@@ -441,19 +441,6 @@ static void test_directories(void) {
     struct fixture fixture;
     ASSERT(fixture_open(&fixture), "fixture setup failed");
 
-    ASSERT(o0fs_create_file(fixture.fs, "/present") == O0_OK,
-           "lookup-I/O fixture create failed");
-    struct o0fs_inode_disk root_inode;
-    ASSERT(fs_read_inode(fixture.fs, fixture.fs->super.root_inode,
-                         &root_inode) == O0_OK,
-           "root inode read failed");
-    ASSERT(root_inode.direct[0] != 0, "root directory block missing");
-    ASSERT(o0_ramdisk_inject_fault(fixture.dev, O0_BLOCK_ERR_IO,
-                                   root_inode.direct[0], 1) == O0_OK,
-           "directory lookup fault injection failed");
-    ASSERT(o0fs_lookup(fixture.fs, "/present", &inode) == O0_EIO,
-           "directory I/O failure was misreported as missing file");
-
     ASSERT(o0fs_mkdir(fixture.fs, "/dir") == O0_OK, "mkdir failed");
     ASSERT(o0fs_create_file(fixture.fs, "/dir/file") == O0_OK,
            "nested create failed");
@@ -519,6 +506,19 @@ static void test_error_paths(void) {
     long_path[sizeof(long_path) - 1u] = '\0';
     ASSERT(o0fs_lookup(fixture.fs, long_path, &inode) == O0_EINVAL,
            "overlong path accepted");
+
+    ASSERT(o0fs_create_file(fixture.fs, "/present") == O0_OK,
+           "lookup-I/O fixture create failed");
+    struct o0fs_inode_disk root_inode;
+    ASSERT(fs_read_inode(fixture.fs, fixture.fs->super.root_inode,
+                         &root_inode) == O0_OK,
+           "root inode read failed");
+    ASSERT(root_inode.direct[0] != 0, "root directory block missing");
+    ASSERT(o0_ramdisk_inject_fault(fixture.dev, O0_BLOCK_ERR_IO,
+                                   root_inode.direct[0], 1) == O0_OK,
+           "directory lookup fault injection failed");
+    ASSERT(o0fs_lookup(fixture.fs, "/present", &inode) == O0_EIO,
+           "directory I/O failure was misreported as missing file");
 
     ASSERT(o0fs_mkdir(fixture.fs, "/dir") == O0_OK, "mkdir failed");
     ASSERT(o0fs_mkdir(fixture.fs, "/dir") == O0_EEXIST,
