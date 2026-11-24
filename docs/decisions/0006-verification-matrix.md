@@ -58,6 +58,7 @@ on rather than assuming "QEMU" is uniform.
   asserted.
 - The matrix is still emulator evidence. It cannot mark a physical-hardware or GPU claim as
   verified.
-- GitHub Actions results for a branch still have to be observed in the repository UI/API. In
-  the Wave 1 sandbox that was not possible (`api.github.com` returned 403 without a token), so
-  local execution of the same cells is reported as such, not as a CI pass.
+- GitHub Actions results for a branch still have to be observed in the repository UI/API; the
+  REST API returned 403 from the Wave 1 sandbox, so run data was read from the server-rendered
+  Actions page. With that method, run #132 on `kilo/floral-eagle-2hb` (commit `d6626b4`)
+  completed SUCCESS with all four boot cells and `host-sanitizers` present.

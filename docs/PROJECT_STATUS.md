@@ -202,10 +202,12 @@ Truthful split by evidence type:
   `kernel/arch/x86_64/pic.c` or `kernel/src/main.c`.
 - **Real storage hardware:** never exercised. There is no ATA, AHCI or NVMe driver yet; the Stage 4 storage evidence comes from the RAM disk only.
 - **GitHub Actions:** run #43 passed build, all host tests and both QEMU BIOS smoke boots on an
-  earlier revision. For the Wave 1 branch, the workflow has been updated to the four-cell matrix
-  but **no Actions run could be observed from this environment** (`api.github.com` returns 403
-  without a token). CI status for this revision is unverified; the equivalent matrix was executed
-  locally instead and is reported as local evidence.
+  earlier revision. For the Wave 1 branch, run
+  [#132](https://github.com/Momegaii/Ozero/actions/runs/45462527735) on commit `d6626b4`
+  completed **SUCCESS** with the new matrix: `boot (bios, qemu64)`, `boot (uefi, qemu64)`,
+  `boot (bios, Haswell-v1)`, `boot (uefi, Haswell-v1)` and `host-sanitizers`. Run #131 on the
+  same branch was also SUCCESS. The REST API is blocked from the sandbox, so these were read
+  from the server-rendered Actions page; the job logs themselves were not downloaded.
 - **Physical hardware:** never performed.
 Boot verification of this revision surfaced and fixed three defects that build +
 host tests alone could not catch:
