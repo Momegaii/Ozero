@@ -10,8 +10,40 @@ permissions:
   contents: read
 
 jobs:
-  x86_64-kernel:
+  # Host-side suites under AddressSanitizer and UndefinedBehaviorSanitizer.
+  # Separate from the boot matrix so a sanitizer finding is attributable and
+  # does not depend on emulator availability.
+  host-sanitizers:
     runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes build-essential binutils curl xorriso
+      - name: Compile developer tooling
+        run: python -m compileall -q tools
+      - name: Check host readiness
+        run: make doctor
+      - name: Run host tests under ASan/UBSan
+        run: make test-sanitize
+
+  # Boot matrix: both firmware paths and both CPU models. Each cell asserts the
+  # full serial marker set, including the timer/scheduler markers that only pass
+  # when interrupts are actually delivered.
+  kernel-and-boot:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        cpu: [qemu64, Haswell-v1]
+        firmware: [bios, uefi]
+    name: boot (${{ matrix.firmware }}, ${{ matrix.cpu }})
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -22,32 +54,28 @@ jobs:
       - name: Install build and emulator dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install --yes build-essential binutils curl xorriso qemu-system-x86
+          sudo apt-get install --yes build-essential binutils curl xorriso qemu-system-x86 ovmf
       - name: Compile developer tooling
         run: python -m compileall -q tools
       - name: Check host readiness
         run: make doctor
-      - name: Build ELF64 kernel and bootable ISO
+      - name: Build ELF64 kernel, ISO and host tests
         run: make check
       - name: Verify ELF header and save disassembly
         run: |
           readelf -h build/kernel.elf
           objdump -d -Mintel build/kernel.elf > build/kernel.disasm.txt
-      - name: Boot kernel with generic x86-64 CPU
+      - name: Boot kernel (${{ matrix.firmware }}, ${{ matrix.cpu }})
         env:
-          QEMU_CPU: qemu64
-          QEMU_DEBUG_LOG: build/qemu-debug-qemu64.log
-        run: bash tools/qemu-smoke.sh build/ozero.iso build/qemu-serial-qemu64.log
-      - name: Boot kernel with Intel Haswell CPU model
-        env:
-          QEMU_CPU: Haswell-v1
-          QEMU_DEBUG_LOG: build/qemu-debug-haswell.log
-        run: bash tools/qemu-smoke.sh build/ozero.iso build/qemu-serial-haswell.log
+          QEMU_CPU: ${{ matrix.cpu }}
+          QEMU_FIRMWARE: ${{ matrix.firmware }}
+          QEMU_DEBUG_LOG: build/qemu-debug-${{ matrix.firmware }}-${{ matrix.cpu }}.log
+        run: bash tools/qemu-smoke.sh build/ozero.iso build/qemu-serial-${{ matrix.firmware }}-${{ matrix.cpu }}.log
       - name: Upload QEMU diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ozero-qemu-diagnostics
+          name: ozero-qemu-${{ matrix.firmware }}-${{ matrix.cpu }}
           path: |
             build/qemu-serial-*.log
             build/qemu-debug-*.log

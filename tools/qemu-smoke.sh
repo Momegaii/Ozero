@@ -3,10 +3,16 @@ set -euo pipefail
 
 QEMU="${QEMU:-qemu-system-x86_64}"
 CPU_MODEL="${QEMU_CPU:-qemu64}"
+# QEMU_FIRMWARE selects the firmware path: "bios" (default) or "uefi" (OVMF).
+# The ISO is the same hybrid image in both cases; only the emulated firmware
+# differs, so the serial evidence must state which one produced it.
+FIRMWARE="${QEMU_FIRMWARE:-bios}"
 ISO="${1:-build/ozero.iso}"
 LOG="${2:-build/qemu-serial.log}"
 DEBUG_LOG="${QEMU_DEBUG_LOG:-build/qemu-debug.log}"
 TIMEOUT_SECONDS="${QEMU_TIMEOUT_SECONDS:-15}"
+OVMF_CODE_PATH="${QEMU_OVMF_CODE:-/usr/share/OVMF/OVMF_CODE_4M.fd}"
+OVMF_VARS_PATH="${QEMU_OVMF_VARS:-/usr/share/OVMF/OVMF_VARS_4M.fd}"
 
 if ! command -v "$QEMU" >/dev/null 2>&1; then
     echo "error: $QEMU is not installed" >&2
@@ -17,12 +23,39 @@ if [[ ! -f "$ISO" ]]; then
     exit 2
 fi
 
+firmware_args=()
+firmware_marker="OZERO: firmware=BIOS"
+case "$FIRMWARE" in
+    bios)
+        ;;
+    uefi)
+        firmware_marker="OZERO: firmware=UEFI"
+        if [[ ! -f "$OVMF_CODE_PATH" || ! -f "$OVMF_VARS_PATH" ]]; then
+            echo "error: OVMF firmware not found ($OVMF_CODE_PATH, $OVMF_VARS_PATH)" >&2
+            echo "       install the 'ovmf' package or set QEMU_OVMF_CODE / QEMU_OVMF_VARS" >&2
+            exit 2
+        fi
+        # The variable store is written by the firmware, so use a per-run copy.
+        vars_copy="$(dirname "$LOG")/OVMF_VARS-${CPU_MODEL}-${FIRMWARE}.fd"
+        cp "$OVMF_VARS_PATH" "$vars_copy"
+        firmware_args=(
+            -drive "if=pflash,format=raw,unit=0,readonly=on,file=$OVMF_CODE_PATH"
+            -drive "if=pflash,format=raw,unit=1,file=$vars_copy"
+        )
+        ;;
+    *)
+        echo "error: QEMU_FIRMWARE must be 'bios' or 'uefi', got '$FIRMWARE'" >&2
+        exit 2
+        ;;
+esac
+
 mkdir -p "$(dirname "$LOG")" "$(dirname "$DEBUG_LOG")"
 rm -f "$LOG" "$DEBUG_LOG"
 
 set +e
 timeout "${TIMEOUT_SECONDS}s" "$QEMU" \
-    -machine q35 -cpu "$CPU_MODEL" -m 512M -cdrom "$ISO" -boot d \
+    -machine q35 -cpu "$CPU_MODEL" -m 512M "${firmware_args[@]}" \
+    -cdrom "$ISO" -boot d \
     -display none -serial "file:$LOG" -monitor none \
     -no-reboot -no-shutdown \
     -d int,in_asm,guest_errors,cpu_reset -D "$DEBUG_LOG"
@@ -39,13 +72,22 @@ if [[ "$status" -ne 124 && "$status" -ne 0 ]]; then
     exit "$status"
 fi
 
+# Markers below are serial output only: they prove the kernel reached that
+# point in this emulator and firmware, not that it works on physical hardware.
 required_markers=(
     "OZERO: kernel entry reached"
+    "$firmware_marker"
     "OZERO: Limine base revision accepted"
     "OZERO: memory map entries="
     "OZERO: boot success"
+    # Interrupt delivery: the 8259 output must reach the CPU through a
+    # configured local APIC (ExtINT virtual wire) or, where no APIC is
+    # available, directly. The marker records which configuration ran.
+    "OZERO: interrupt delivery="
     # Stage 3 execution model: page tables, heap, scheduler, self-tests, and
     # the demo threads running to completion under the preemptive scheduler.
+    # These last markers are what prove the timer interrupt is actually being
+    # delivered, so they must never be dropped to make a boot "pass".
     "OZERO: page tables active"
     "OZERO: kernel heap ready"
     "OZERO: scheduler initialised"
@@ -90,4 +132,4 @@ for marker in "${required_markers[@]}"; do
 done
 
 cat "$LOG"
-echo "QEMU smoke test: PASS"
+echo "QEMU smoke test: PASS (firmware=$FIRMWARE cpu=$CPU_MODEL qemu=$("$QEMU" --version | head -n 1))"

@@ -27,8 +27,14 @@ KERNEL_OBJS := $(BUILD)/main.o $(BUILD)/serial.o $(BUILD)/string.o $(BUILD)/stat
                $(BUILD)/compositor.o $(BUILD)/gfx_backend.o $(BUILD)/shell.o
 
 HOST_CFLAGS := -std=gnu11 -O1 -Wall -Wextra -Iinclude
+# Extra flags and per-test environment let the same recipes run under sanitizers
+# (see test-sanitize) without duplicating every test invocation.
+HOST_EXTRA_CFLAGS ?=
+HOST_RUN_ENV ?=
+SAN_CFLAGS := -fsanitize=address,undefined -fno-omit-frame-pointer -g
+SAN_ENV := ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1
 
-.PHONY: help doctor check kernel iso run run-debug test clean
+.PHONY: help doctor check kernel iso run run-debug test test-sanitize clean
 
 help:
 	@printf '%s\n' 'Ozero targets:' \
@@ -37,6 +43,7 @@ help:
 	  '  make kernel     Build freestanding ELF64 kernel' \
 	  '  make iso        Build BIOS/UEFI bootable ISO' \
 	  '  make test       Run host-side unit tests' \
+	  '  make test-sanitize  Run host tests under ASan/UBSan' \
 	  '  make run        Boot ISO in QEMU with serial console' \
 	  '  make run-debug  Start QEMU paused with GDB on :1234' \
 	  '  make clean      Remove generated artifacts'
@@ -113,30 +120,40 @@ $(ISO): $(KERNEL) $(LIMINE_DIR)/limine
 # Host-side unit tests: the allocator and the scheduler queue are pure C and
 # run on the build host; the kernel image itself is never executed here.
 test: $(BUILD)
-	$(CC) $(HOST_CFLAGS) -o $(BUILD)/pmm_test tests/pmm_test.c
-	./$(BUILD)/pmm_test
-	$(CC) $(HOST_CFLAGS) -o $(BUILD)/slab_test tests/slab_test.c
-	./$(BUILD)/slab_test
-	$(CC) $(HOST_CFLAGS) -o $(BUILD)/sched_test tests/sched_test.c
-	./$(BUILD)/sched_test
-	$(CC) $(HOST_CFLAGS) -o $(BUILD)/cpu_test tests/cpu_test.c
-	./$(BUILD)/cpu_test
-	$(CC) $(HOST_CFLAGS) -o $(BUILD)/block_test tests/block_test.c
-	./$(BUILD)/block_test
-	$(CC) $(HOST_CFLAGS) -o $(BUILD)/fs_test tests/fs_test.c
-	./$(BUILD)/fs_test
-	$(CC) $(HOST_CFLAGS) -Ikernel/src -o $(BUILD)/pci_test tests/pci_test.c
-	./$(BUILD)/pci_test
-	$(CC) $(HOST_CFLAGS) -Ikernel/src -o $(BUILD)/gpu_test tests/gpu_test.c
-	./$(BUILD)/gpu_test
-	$(CC) $(HOST_CFLAGS) -Ikernel -Ikernel/src -o $(BUILD)/display_test tests/display_test.c kernel/src/display.c kernel/arch/x86_64/paging.c
-	./$(BUILD)/display_test
-	$(CC) $(HOST_CFLAGS) -o $(BUILD)/input_test tests/input_test.c kernel/src/input.c
-	./$(BUILD)/input_test
-	$(CC) $(HOST_CFLAGS) -o $(BUILD)/surface_test tests/surface_test.c kernel/src/surface.c
-	./$(BUILD)/surface_test
-	$(CC) $(HOST_CFLAGS) -Ikernel -Ikernel/src -Ikernel/arch/x86_64 -o $(BUILD)/input_ps2_test tests/input_ps2_test.c kernel/src/input_ps2.c kernel/src/input.c
-	./$(BUILD)/input_ps2_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/pmm_test tests/pmm_test.c
+	$(HOST_RUN_ENV) ./$(BUILD)/pmm_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/slab_test tests/slab_test.c
+	$(HOST_RUN_ENV) ./$(BUILD)/slab_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/sched_test tests/sched_test.c
+	$(HOST_RUN_ENV) ./$(BUILD)/sched_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/cpu_test tests/cpu_test.c
+	$(HOST_RUN_ENV) ./$(BUILD)/cpu_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/block_test tests/block_test.c
+	$(HOST_RUN_ENV) ./$(BUILD)/block_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/fs_test tests/fs_test.c
+	$(HOST_RUN_ENV) ./$(BUILD)/fs_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/pci_test tests/pci_test.c
+	$(HOST_RUN_ENV) ./$(BUILD)/pci_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/gpu_test tests/gpu_test.c
+	$(HOST_RUN_ENV) ./$(BUILD)/gpu_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel -Ikernel/src -o $(BUILD)/display_test tests/display_test.c kernel/src/display.c kernel/arch/x86_64/paging.c
+	$(HOST_RUN_ENV) ./$(BUILD)/display_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/input_test tests/input_test.c kernel/src/input.c
+	$(HOST_RUN_ENV) ./$(BUILD)/input_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/surface_test tests/surface_test.c kernel/src/surface.c
+	$(HOST_RUN_ENV) ./$(BUILD)/surface_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel -Ikernel/src -Ikernel/arch/x86_64 -o $(BUILD)/input_ps2_test tests/input_ps2_test.c kernel/src/input_ps2.c kernel/src/input.c
+	$(HOST_RUN_ENV) ./$(BUILD)/input_ps2_test
+
+# Same suites, compiled and run under AddressSanitizer and
+# UndefinedBehaviorSanitizer. Leak detection is on: a test binary that leaks is a
+# failure, not a warning.
+test-sanitize: $(BUILD)
+	rm -f $(BUILD)/pmm_test $(BUILD)/slab_test $(BUILD)/sched_test \
+	      $(BUILD)/cpu_test $(BUILD)/block_test $(BUILD)/fs_test \
+	      $(BUILD)/pci_test $(BUILD)/gpu_test $(BUILD)/display_test \
+	      $(BUILD)/input_test $(BUILD)/surface_test $(BUILD)/input_ps2_test
+	$(MAKE) test HOST_EXTRA_CFLAGS="$(SAN_CFLAGS)" HOST_RUN_ENV="$(SAN_ENV)"
 
 run: $(ISO)
 	$(QEMU) -machine q35 -m 512M -cdrom $(ISO) -boot d \
