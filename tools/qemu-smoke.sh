@@ -67,6 +67,15 @@ required_markers=(
     "OZERO: gpu core self-test complete"
     "OZERO: gpu pci display devices="
     "OZERO: gpu discovery complete"
+    # Stage 5 submission model: validated batch submission, fences, timeout safety
+    # and context isolation. No device is claimed, so the fence must time out.
+    "OZERO: gpu context isolation OK"
+    "OZERO: gpu submit seqno=1"
+    "OZERO: gpu fence timeout OK"
+    "OZERO: gpu faulted queue refused work"
+    "OZERO: gpu recovery refused without verified reset"
+    "OZERO: gpu unconsumed work quarantined"
+    "OZERO: gpu submission self-test complete"
 )
 
 for marker in "${required_markers[@]}"; do

@@ -13,19 +13,15 @@
 #include "ozero/types.h"
 #include "string.h"
 
-struct o0_hsw_page_table {
-    o0_paddr_t phys;
-    uint32_t *entries;
-    bool present;
-};
-
+/* The directory page is the single source of truth: a valid PDE means the page table it
+ * points at exists. A parallel table array would duplicate that state and, at 512 entries,
+ * would not fit the kernel slab's 4 KiB maximum object size. */
 struct o0_hsw_ppgtt {
     struct o0_hsw_page_pool pool;
     uint64_t va_size;
     uint32_t dclv;
     o0_paddr_t dir_phys;
     uint32_t *dir;
-    struct o0_hsw_page_table tables[O0_HSW_PD_ENTRIES];
     bool active;
     bool tlb_dirty;
 };
@@ -167,6 +163,18 @@ o0_status o0_hsw_ppgtt_create(const struct o0_hsw_page_pool *pool, uint64_t va_s
     return O0_OK;
 }
 
+/* Page table for `pd_index`, or NULL when the directory entry is absent or unusable. */
+static uint32_t *ppgtt_table_lookup(const struct o0_hsw_ppgtt *ppgtt, uint32_t pd_index) {
+    o0_paddr_t table_phys = 0;
+    bool valid = false;
+    bool big_page = false;
+    if (o0_hsw_decode_pde(ppgtt->dir[pd_index], &table_phys, &valid, &big_page) != O0_OK ||
+        !valid || big_page) {
+        return NULL;
+    }
+    return o0_phys_to_virt(table_phys);
+}
+
 void o0_hsw_ppgtt_destroy(struct o0_hsw_ppgtt *ppgtt) {
     if (ppgtt == NULL) {
         return;
@@ -175,9 +183,13 @@ void o0_hsw_ppgtt_destroy(struct o0_hsw_ppgtt *ppgtt) {
         return; /* hardware may still walk these tables */
     }
     for (uint32_t i = 0; i < O0_HSW_PD_ENTRIES; ++i) {
-        if (ppgtt->tables[i].present) {
-            ppgtt->pool.free_pages(ppgtt->pool.ctx, ppgtt->tables[i].phys, 1u,
-                                   ppgtt->tables[i].entries);
+        o0_paddr_t table_phys = 0;
+        bool valid = false;
+        bool big_page = false;
+        if (o0_hsw_decode_pde(ppgtt->dir[i], &table_phys, &valid, &big_page) == O0_OK &&
+            valid) {
+            ppgtt->pool.free_pages(ppgtt->pool.ctx, table_phys, 1u,
+                                   o0_phys_to_virt(table_phys));
         }
     }
     if (ppgtt->dir != NULL) {
@@ -215,21 +227,21 @@ o0_status o0_hsw_ppgtt_map(struct o0_hsw_ppgtt *ppgtt, uint64_t va, o0_paddr_t p
         return O0_ERANGE;
     }
 
-    if (!ppgtt->tables[pd_index].present) {
+    uint32_t *table = ppgtt_table_lookup(ppgtt, pd_index);
+    if (table == NULL) {
         o0_paddr_t table_phys = 0;
-        void *table = NULL;
-        o0_status status = ppgtt->pool.alloc_pages(ppgtt->pool.ctx, 1u, &table_phys, &table);
+        void *fresh = NULL;
+        o0_status status =
+            ppgtt->pool.alloc_pages(ppgtt->pool.ctx, 1u, &table_phys, &fresh);
         if (status != O0_OK) {
             return status;
         }
-        hsw_zero_page(table);
-        ppgtt->tables[pd_index].phys = table_phys;
-        ppgtt->tables[pd_index].entries = table;
-        ppgtt->tables[pd_index].present = true;
+        hsw_zero_page(fresh);
         ppgtt->dir[pd_index] = o0_hsw_encode_pde(table_phys);
+        table = fresh;
     }
 
-    ppgtt->tables[pd_index].entries[pt_index] = o0_hsw_encode_pte(phys, cache);
+    table[pt_index] = o0_hsw_encode_pte(phys, cache);
     ppgtt->tlb_dirty = true;
     return O0_OK;
 }
@@ -246,11 +258,11 @@ o0_status o0_hsw_ppgtt_unmap(struct o0_hsw_ppgtt *ppgtt, uint64_t va) {
     }
     uint32_t pd_index = (uint32_t)(va / O0_HSW_PDE_COVERAGE);
     uint32_t pt_index = (uint32_t)((va / O0_HSW_PAGE_SIZE) % O0_HSW_PT_ENTRIES);
-    if (!ppgtt->tables[pd_index].present ||
-        (ppgtt->tables[pd_index].entries[pt_index] & 1u) == 0u) {
+    uint32_t *table = ppgtt_table_lookup(ppgtt, pd_index);
+    if (table == NULL || (table[pt_index] & 1u) == 0u) {
         return O0_ENOENT;
     }
-    ppgtt->tables[pd_index].entries[pt_index] = 0u;
+    table[pt_index] = 0u;
     ppgtt->tlb_dirty = true;
     return O0_OK;
 }
@@ -266,19 +278,15 @@ o0_status o0_hsw_ppgtt_translate(const struct o0_hsw_ppgtt *ppgtt, uint64_t va,
     uint32_t pd_index = (uint32_t)(va / O0_HSW_PDE_COVERAGE);
     uint32_t pt_index = (uint32_t)((va / O0_HSW_PAGE_SIZE) % O0_HSW_PT_ENTRIES);
 
-    o0_paddr_t table_phys = 0;
-    bool valid = false;
-    bool big_page = false;
-    if (o0_hsw_decode_pde(ppgtt->dir[pd_index], &table_phys, &valid, &big_page) != O0_OK ||
-        !valid || big_page || !ppgtt->tables[pd_index].present) {
+    const uint32_t *table = ppgtt_table_lookup(ppgtt, pd_index);
+    if (table == NULL) {
         return O0_ENOENT;
     }
 
     o0_paddr_t page = 0;
     enum o0_hsw_cache cache = O0_HSW_CACHE_UC;
-    if (o0_hsw_decode_pte(ppgtt->tables[pd_index].entries[pt_index], &page, &cache,
-                          &valid) != O0_OK ||
-        !valid) {
+    bool valid = false;
+    if (o0_hsw_decode_pte(table[pt_index], &page, &cache, &valid) != O0_OK || !valid) {
         return O0_ENOENT;
     }
     *phys = page | (va & (O0_HSW_PAGE_SIZE - 1u));
@@ -525,9 +533,10 @@ static void hsw_fill_caps(struct o0_gpu_caps *caps) {
     caps->has_blitter = true;                        /* blitter engine, 0x22000 window */
     caps->has_video = true;                          /* VCS video engine, 0x12000 */
     caps->has_media = true;                          /* VECS media engine, 0x1A000 */
-    caps->submission_supported = false;              /* Phase 4: no ring/command emission */
+    caps->submission_supported = true;               /* ring submission + fences implemented */
+    caps->submission_hardware_verified = false;      /* never executed on real hardware */
     caps->preemption_reported = false;
-    caps->reset_reported = false;
+    caps->reset_reported = false;                    /* reset sequence not documented */
 }
 
 const struct o0_gpu_backend_ops o0_gpu_hsw_backend = {
@@ -672,7 +681,54 @@ uint32_t o0_hsw_encode_ppgtt_context_lri(enum o0_hsw_engine engine, uint32_t dcl
     return written;
 }
 
-/* ---- Ring buffer abstraction ---- */
+/* ---- Ring buffer state ---- */
+
+static uint32_t hsw_ring_regs(enum o0_hsw_engine engine, uint32_t *tail, uint32_t *head,
+                              uint32_t *start, uint32_t *ctl) {
+    switch (engine) {
+    case O0_HSW_ENGINE_RENDER:
+        *tail = O0_HSW_RENDER_RING_TAIL;
+        *head = O0_HSW_RENDER_RING_HEAD;
+        *start = O0_HSW_RENDER_RING_START;
+        *ctl = O0_HSW_RENDER_RING_CTL;
+        return true;
+    case O0_HSW_ENGINE_BCS:
+        *tail = O0_HSW_BCS_RING_TAIL;
+        *head = O0_HSW_BCS_RING_HEAD;
+        *start = O0_HSW_BCS_RING_START;
+        *ctl = O0_HSW_BCS_RING_CTL;
+        return true;
+    case O0_HSW_ENGINE_VCS:
+        *tail = O0_HSW_VCS_RING_TAIL;
+        *head = O0_HSW_VCS_RING_HEAD;
+        *start = O0_HSW_VCS_RING_START;
+        *ctl = O0_HSW_VCS_RING_CTL;
+        return true;
+    case O0_HSW_ENGINE_VECS:
+        *tail = O0_HSW_VECS_RING_TAIL;
+        *head = O0_HSW_VECS_RING_HEAD;
+        *start = O0_HSW_VECS_RING_START;
+        *ctl = O0_HSW_VECS_RING_CTL;
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool o0_hsw_ring_regs(enum o0_hsw_engine engine, uint32_t *tail, uint32_t *head,
+                      uint32_t *start, uint32_t *ctl) {
+    if (tail == NULL || head == NULL || start == NULL || ctl == NULL) {
+        return false;
+    }
+    return hsw_ring_regs(engine, tail, head, start, ctl);
+}
+
+uint32_t o0_hsw_ring_ctl_value(uint32_t size_bytes) {
+    if (size_bytes < O0_HSW_PAGE_SIZE || !O0_IS_ALIGNED(size_bytes, O0_HSW_PAGE_SIZE)) {
+        return 0u;
+    }
+    return ((size_bytes - O0_HSW_PAGE_SIZE) << 0) | O0_HSW_RING_CTL_VALID;
+}
 
 void o0_hsw_ring_init(struct o0_hsw_ring *ring, uint32_t *buffer, uint32_t capacity_dwords) {
     if (ring == NULL || buffer == NULL || capacity_dwords == 0u) {
@@ -685,14 +741,41 @@ void o0_hsw_ring_init(struct o0_hsw_ring *ring, uint32_t *buffer, uint32_t capac
 }
 
 uint32_t o0_hsw_ring_space(const struct o0_hsw_ring *ring) {
-    if (ring == NULL) {
+    if (ring == NULL || ring->capacity_dwords == 0u) {
+        return 0u;
+    }
+    return ring->capacity_dwords - o0_hsw_ring_used(ring) - 1u;
+}
+
+uint32_t o0_hsw_ring_used(const struct o0_hsw_ring *ring) {
+    if (ring == NULL || ring->capacity_dwords == 0u) {
         return 0u;
     }
     if (ring->head >= ring->tail) {
-        return ring->capacity_dwords - (ring->head - ring->tail) - 1u;
-    } else {
-        return ring->tail - ring->head - 1u;
+        return ring->head - ring->tail;
     }
+    return ring->capacity_dwords - (ring->tail - ring->head);
+}
+
+o0_status o0_hsw_ring_put(struct o0_hsw_ring *ring, const uint32_t *dwords, uint32_t count) {
+    if (ring == NULL || dwords == NULL || count == 0u || ring->capacity_dwords == 0u) {
+        return O0_EINVAL;
+    }
+    if (count > o0_hsw_ring_space(ring)) {
+        return O0_ENOSPC;
+    }
+    for (uint32_t i = 0; i < count; ++i) {
+        ring->buffer[(ring->head + i) % ring->capacity_dwords] = dwords[i];
+    }
+    ring->head = (ring->head + count) % ring->capacity_dwords;
+    return O0_OK;
+}
+
+void o0_hsw_ring_set_tail(struct o0_hsw_ring *ring, uint32_t tail) {
+    if (ring == NULL || ring->capacity_dwords == 0u) {
+        return;
+    }
+    ring->tail = tail % ring->capacity_dwords;
 }
 
 /* ---- Invalidation emission ---- */
@@ -703,50 +786,32 @@ uint32_t o0_hsw_emit_ppgtt_invalidation(struct o0_hsw_ring *ring, enum o0_hsw_en
         return 0u;
     }
     if (!ppgtt->active || !ppgtt->tlb_dirty) {
-        return 0u;  /* Nothing to invalidate */
+        return 0u; /* Nothing to invalidate */
     }
 
-    uint32_t space = o0_hsw_ring_space(ring);
-    uint32_t needed = 0u;
-
+    uint32_t command[4];
+    uint32_t dwords;
     if (engine == O0_HSW_ENGINE_RENDER) {
-        /* PIPE_CONTROL: 4 dwords (DW0-DW3) */
-        needed = 4u;
+        /* PIPE_CONTROL: header, flags, address, immediate data. */
+        command[0] = O0_HSW_PIPE_CONTROL_OPCODE | O0_HSW_PIPE_CONTROL_TYPE | 2u;
+        command[1] = O0_HSW_PIPE_CONTROL_TLB_INV | O0_HSW_PIPE_CONTROL_STALL |
+                     O0_HSW_PIPE_CONTROL_POST_SYNC;
+        command[2] = 0u;
+        command[3] = 0u;
+        dwords = 4u;
     } else {
-        /* MI_FLUSH_DW: 2 dwords (DW0-DW1) + optional post-sync data */
-        needed = 2u;
+        /* MI_FLUSH_DW with post-sync 1h writes an immediate dword: header, address,
+         * data. The TLB-invalidate bit is only valid with post-sync 1h or 3h. */
+        command[0] = O0_HSW_MI_INSTR(O0_HSW_MI_FLUSH_DW_OPCODE, 1u) |
+                     O0_HSW_MI_FLUSH_DW_TLB_INV | O0_HSW_MI_FLUSH_DW_POST_SYNC_1;
+        command[1] = 0u;
+        command[2] = 0u;
+        dwords = 3u;
     }
-
-    if (space < needed) {
-        return 0u;  /* Not enough space */
+    if (o0_hsw_ring_put(ring, command, dwords) != O0_OK) {
+        return 0u;
     }
-
-    uint32_t written = 0u;
-    uint32_t *buf = &ring->buffer[ring->head];
-
-    if (engine == O0_HSW_ENGINE_RENDER) {
-        /* PIPE_CONTROL with TLB invalidate and stall.
-         * DW0: opcode + type + length (2 dwords after DW0 = 3 total including DW0)
-         * DW1: TLB invalidate | stall | post-sync
-         * DW2: address (0 for TLB invalidate)
-         * DW3: immediate data (0) */
-        buf[0] = O0_HSW_PIPE_CONTROL_OPCODE | O0_HSW_PIPE_CONTROL_TYPE | 2u;
-        buf[1] = O0_HSW_PIPE_CONTROL_TLB_INV | O0_HSW_PIPE_CONTROL_STALL | O0_HSW_PIPE_CONTROL_POST_SYNC;
-        buf[2] = 0u;  /* Address */
-        buf[3] = 0u;  /* Immediate data */
-        written = 4u;
-    } else {
-        /* MI_FLUSH_DW with TLB invalidate and post-sync write.
-         * DW0: opcode | TLB invalidate | post-sync 1h (write immediate data)
-         * DW1: address (0 for TLB invalidate)
-         * Note: MI_FLUSH_DW is 2 dwords minimum, but with post-sync it may need more. */
-        buf[0] = O0_HSW_MI_FLUSH_DW_OPCODE | O0_HSW_MI_FLUSH_DW_TLB_INV | O0_HSW_MI_FLUSH_DW_POST_SYNC_1;
-        buf[1] = 0u;  /* Address */
-        written = 2u;
-    }
-
-    ring->head = (ring->head + written) % ring->capacity_dwords;
-    return written;
+    return dwords;
 }
 
 uint32_t o0_hsw_emit_ggtt_invalidation(struct o0_hsw_ring *ring, enum o0_hsw_engine engine) {
@@ -754,29 +819,26 @@ uint32_t o0_hsw_emit_ggtt_invalidation(struct o0_hsw_ring *ring, enum o0_hsw_eng
         return 0u;
     }
 
-    uint32_t space = o0_hsw_ring_space(ring);
-    /* MI_FLUSH_DW: 2 dwords */
-    if (space < 2u) {
+    uint32_t command[4];
+    uint32_t dwords;
+    if (engine == O0_HSW_ENGINE_RENDER) {
+        command[0] = O0_HSW_PIPE_CONTROL_OPCODE | O0_HSW_PIPE_CONTROL_TYPE | 2u;
+        command[1] = O0_HSW_PIPE_CONTROL_TLB_INV | O0_HSW_PIPE_CONTROL_STALL |
+                     O0_HSW_PIPE_CONTROL_POST_SYNC;
+        command[2] = 0u;
+        command[3] = 0u;
+        dwords = 4u;
+    } else {
+        command[0] = O0_HSW_MI_INSTR(O0_HSW_MI_FLUSH_DW_OPCODE, 1u) |
+                     O0_HSW_MI_FLUSH_DW_TLB_INV | O0_HSW_MI_FLUSH_DW_POST_SYNC_1;
+        command[1] = 0u;
+        command[2] = 0u;
+        dwords = 3u;
+    }
+    if (o0_hsw_ring_put(ring, command, dwords) != O0_OK) {
         return 0u;
     }
-
-    uint32_t *buf = &ring->buffer[ring->head];
-
-    if (engine == O0_HSW_ENGINE_RENDER) {
-        /* Render uses PIPE_CONTROL */
-        buf[0] = O0_HSW_PIPE_CONTROL_OPCODE | O0_HSW_PIPE_CONTROL_TYPE | 2u;
-        buf[1] = O0_HSW_PIPE_CONTROL_TLB_INV | O0_HSW_PIPE_CONTROL_STALL | O0_HSW_PIPE_CONTROL_POST_SYNC;
-        buf[2] = 0u;
-        buf[3] = 0u;
-        ring->head = (ring->head + 4u) % ring->capacity_dwords;
-        return 4u;
-    } else {
-        /* Non-render uses MI_FLUSH_DW */
-        buf[0] = O0_HSW_MI_FLUSH_DW_OPCODE | O0_HSW_MI_FLUSH_DW_TLB_INV | O0_HSW_MI_FLUSH_DW_POST_SYNC_1;
-        buf[1] = 0u;
-        ring->head = (ring->head + 2u) % ring->capacity_dwords;
-        return 2u;
-    }
+    return dwords;
 }
 
 uint32_t o0_hsw_emit_mi_update_gtt(struct o0_hsw_ring *ring, uint64_t gfx_addr,
@@ -791,22 +853,440 @@ uint32_t o0_hsw_emit_mi_update_gtt(struct o0_hsw_ring *ring, uint64_t gfx_addr,
         return 0u;
     }
 
-    uint32_t space = o0_hsw_ring_space(ring);
-    /* MI_UPDATE_GTT: 3 dwords (DW0=opcode, DW1=gfx_addr, DW2=entry) */
-    if (space < 3u) {
+    /* MI_UPDATE_GTT: header, graphics address, PTE entry. */
+    uint32_t command[3];
+    command[0] = O0_HSW_MI_INSTR(O0_HSW_MI_UPDATE_GTT_OPCODE, 0u) | O0_HSW_MI_UPDATE_GTT_USE_GGTT;
+    command[1] = (uint32_t)(gfx_addr & 0xFFFFF000u);
+    command[2] = o0_hsw_encode_pte(phys, cache);
+    if (o0_hsw_ring_put(ring, command, 3u) != O0_OK) {
         return 0u;
     }
-
-    uint32_t *buf = &ring->buffer[ring->head];
-    uint32_t entry = o0_hsw_encode_pte(phys, cache);
-
-    /* DW0: opcode | use global GTT */
-    buf[0] = O0_HSW_MI_UPDATE_GTT_OPCODE | O0_HSW_MI_UPDATE_GTT_USE_GGTT;
-    /* DW1: graphics address (32-bit, 4 KiB aligned) */
-    buf[1] = (uint32_t)(gfx_addr & 0xFFFFF000u);
-    /* DW2: PTE entry */
-    buf[2] = entry;
-
-    ring->head = (ring->head + 3u) % ring->capacity_dwords;
     return 3u;
+}
+
+/* ---- Batch encoding and validation ---- */
+
+uint32_t o0_hsw_encode_batch_buffer_start(uint64_t gpu_va, bool use_ggtt,
+                                          uint32_t *out_dwords) {
+    if (out_dwords == NULL || !O0_IS_ALIGNED(gpu_va, 8u) || gpu_va > 0xFFFFFFFFull) {
+        return 0u;
+    }
+    out_dwords[0] = O0_HSW_MI_BATCH_BUFFER_START | (use_ggtt ? O0_HSW_MI_BATCH_GTT : 0u);
+    out_dwords[1] = (uint32_t)gpu_va;
+    return 2u;
+}
+
+/* Payload size for the initial supported command set, or 0 for an unsupported opcode.
+ * Sizes are total dwords including the header. */
+static uint32_t hsw_command_dwords(uint32_t header) {
+    uint32_t opcode = (header & O0_HSW_MI_OPCODE_MASK) >> O0_HSW_MI_OPCODE_SHIFT;
+    switch (opcode) {
+    case 0x00u: /* MI_NOOP */
+    case 0x02u: /* MI_USER_INTERRUPT */
+    case 0x0Au: /* MI_BATCH_BUFFER_END */
+        return 1u;
+    case 0x20u: /* MI_STORE_DWORD_IMM: header, address, data */
+        return 3u;
+    case 0x22u: /* MI_LOAD_REGISTER_IMM: header + register/value pairs */
+        return ((header & O0_HSW_MI_LENGTH_MASK) + 1u) / 2u * 2u + 1u;
+    case 0x23u: /* MI_UPDATE_GTT: header, address, entry */
+        return 3u;
+    case 0x26u: { /* MI_FLUSH_DW: header, address, data when post-sync is set */
+        uint32_t post_sync = (header >> 14) & 3u;
+        return post_sync != 0u ? 3u : 2u;
+    }
+    case 0x31u: /* MI_BATCH_BUFFER_START: header, address */
+        return 2u;
+    default:
+        return 0u;
+    }
+}
+
+/* MI_LOAD_REGISTER_IMM may only touch registers this backend understands. Anything else
+ * would let a batch reprogram state the driver does not track. */
+static bool hsw_lri_allowed(uint32_t reg) {
+    switch (reg) {
+    case O0_HSW_RENDER_PP_DCLV:
+    case O0_HSW_RENDER_PP_DIR_BASE:
+    case O0_HSW_VCS_PP_DCLV:
+    case O0_HSW_VCS_PP_DIR_BASE:
+    case O0_HSW_VECS_PP_DCLV:
+    case O0_HSW_VECS_PP_DIR_BASE:
+    case O0_HSW_BCS_PP_DCLV:
+    case O0_HSW_BCS_PP_DIR_BASE:
+    case O0_HSW_GFX_MODE:
+        return true;
+    default:
+        return false;
+    }
+}
+
+o0_status o0_hsw_validate_batch(const uint32_t *dwords, uint32_t count,
+                                struct o0_hsw_ggtt *ggtt, uint64_t batch_va,
+                                const struct o0_hsw_ppgtt *ppgtt) {
+    if (dwords == NULL || count == 0u || ggtt == NULL || ppgtt == NULL) {
+        return O0_EINVAL;
+    }
+    if (!O0_IS_ALIGNED(batch_va, 8u)) {
+        return O0_EINVAL;
+    }
+    o0_paddr_t batch_phys = 0;
+    if (o0_hsw_ggtt_translate(ggtt, batch_va, &batch_phys) != O0_OK) {
+        return O0_ERANGE;
+    }
+
+    uint32_t index = 0;
+    while (index < count) {
+        uint32_t header = dwords[index];
+        if ((header & 0xC0000000u) != 0u) {
+            return O0_ENOTSUP; /* Not an MI command: 3D/media packets are unsupported. */
+        }
+        uint32_t opcode = (header & O0_HSW_MI_OPCODE_MASK) >> O0_HSW_MI_OPCODE_SHIFT;
+        uint32_t size = hsw_command_dwords(header);
+        if (size == 0u) {
+            return O0_ENOTSUP;
+        }
+        if (index + size > count) {
+            return O0_EINVAL; /* Truncated command. */
+        }
+
+        switch (opcode) {
+        case 0x20u: { /* MI_STORE_DWORD_IMM: the target must be mapped in this context. */
+            uint64_t target = dwords[index + 1u];
+            o0_paddr_t phys = 0;
+            if (!O0_IS_ALIGNED(target, 4u)) {
+                return O0_EINVAL;
+            }
+            if (o0_hsw_ppgtt_translate(ppgtt, target, &phys) != O0_OK) {
+                return O0_ERANGE;
+            }
+            break;
+        }
+        case 0x22u: { /* MI_LOAD_REGISTER_IMM: only the PPGTT setup registers. */
+            for (uint32_t pair = 0; pair < (size - 1u) / 2u; ++pair) {
+                uint32_t reg = dwords[index + 1u + pair * 2u];
+                if (!hsw_lri_allowed(reg)) {
+                    return O0_ENOTSUP;
+                }
+            }
+            break;
+        }
+        case 0x31u: { /* Nested batch start: must be a mapped GGTT address. */
+            uint64_t target = dwords[index + 1u];
+            o0_paddr_t phys = 0;
+            if (!O0_IS_ALIGNED(target, 8u)) {
+                return O0_EINVAL;
+            }
+            if (o0_hsw_ggtt_translate(ggtt, target, &phys) != O0_OK) {
+                return O0_ERANGE;
+            }
+            break;
+        }
+        case 0x0Au:
+            return O0_OK; /* Terminated batch. */
+        default:
+            break;
+        }
+        index += size;
+    }
+    return O0_EINVAL; /* Unterminated batch. */
+}
+
+/* ---- Engine submission ---- */
+
+static struct o0_hsw_fence *engine_find_fence(struct o0_hsw_engine_state *engine,
+                                              uint64_t seqno) {
+    for (uint32_t i = 0; i < engine->fence_count; ++i) {
+        if (engine->fences[i].seqno == seqno) {
+            return &engine->fences[i];
+        }
+    }
+    return NULL;
+}
+
+static void engine_drop_fence(struct o0_hsw_engine_state *engine, uint32_t index) {
+    for (uint32_t i = index + 1u; i < engine->fence_count; ++i) {
+        engine->fences[i - 1u] = engine->fences[i];
+    }
+    engine->fence_count--;
+}
+
+o0_status o0_hsw_engine_binding_init(struct o0_hsw_engine_binding *binding,
+                                     struct o0_hsw_engine_state *engine,
+                                     struct o0_hsw_ggtt *ggtt,
+                                     struct o0_hsw_ppgtt *ppgtt) {
+    if (binding == NULL || engine == NULL || ggtt == NULL || ppgtt == NULL) {
+        return O0_EINVAL;
+    }
+    if (!engine->initialized) {
+        return O0_EINVAL;
+    }
+    binding->engine = engine;
+    binding->ggtt = ggtt;
+    binding->ppgtt = ppgtt;
+    return O0_OK;
+}
+
+o0_status o0_hsw_engine_init(struct o0_hsw_engine_state *engine, enum o0_hsw_engine id,
+                             struct o0_gpu_memory *ring_mem, uint64_t ring_gpu_va,
+                             uint32_t ring_size_dwords) {
+    if (engine == NULL || ring_mem == NULL || ring_size_dwords == 0u) {
+        return O0_EINVAL;
+    }
+    if (id >= O0_HSW_ENGINE_COUNT) {
+        return O0_EINVAL;
+    }
+    if (!O0_IS_ALIGNED(ring_gpu_va, O0_HSW_PAGE_SIZE)) {
+        return O0_EINVAL;
+    }
+    if ((ring_size_dwords & (ring_size_dwords - 1u)) != 0u) {
+        return O0_EINVAL; /* Ring size must be a power of two. */
+    }
+    if (ring_mem->residency != O0_GPU_RESIDENT) {
+        return O0_EBUSY;
+    }
+    if (!o0_gpu_memory_is_contiguous(ring_mem)) {
+        return O0_EINVAL; /* A ring must be one physically contiguous run. */
+    }
+    if ((uint64_t)ring_size_dwords * 4u > ring_mem->size) {
+        return O0_ERANGE;
+    }
+
+    memset(engine, 0, sizeof(*engine));
+    o0_spin_init(&engine->lock);
+    engine->id = id;
+    engine->ring_mem = ring_mem;
+    engine->ring_gpu_va = ring_gpu_va;
+    engine->ring_phys = ring_mem->phys_pages[0];
+    engine->ring_buffer = ring_mem->backing;
+    engine->ring_size_dwords = ring_size_dwords;
+    memset(engine->ring_buffer, 0, ring_mem->size);
+    o0_hsw_ring_init(&engine->ring, engine->ring_buffer, ring_size_dwords);
+    engine->initialized = true;
+    return O0_OK;
+}
+
+void o0_hsw_engine_destroy(struct o0_hsw_engine_state *engine) {
+    if (engine == NULL) {
+        return;
+    }
+    engine->initialized = false;
+    engine->ring_buffer = NULL;
+    engine->ring_mem = NULL;
+    engine->fence_count = 0u;
+}
+
+o0_status o0_hsw_engine_update_tail(struct o0_hsw_engine_state *engine, uint32_t hw_tail) {
+    if (engine == NULL || !engine->initialized) {
+        return O0_EINVAL;
+    }
+    uint32_t tail_dwords = (hw_tail & O0_HSW_RING_TAIL_ADDR_MASK) / 4u;
+    if (tail_dwords >= engine->ring.capacity_dwords) {
+        return O0_ERANGE;
+    }
+
+    /* A tail equal to the head means "nothing outstanding" because the space policy never
+     * fills the ring, and the bounded fence table keeps outstanding work far below the
+     * capacity, so the wrap ambiguity cannot hide live submissions here. */
+    o0_spin_lock(&engine->lock);
+    o0_hsw_ring_set_tail(&engine->ring, tail_dwords);
+    engine->consumed = engine->submitted - o0_hsw_ring_used(&engine->ring);
+    for (uint32_t i = 0; i < engine->fence_count;) {
+        struct o0_hsw_fence *fence = &engine->fences[i];
+        if (fence->end <= engine->consumed) {
+            fence->consumed = true;
+            if (fence->seqno > engine->consumed_seqno) {
+                engine->consumed_seqno = fence->seqno;
+            }
+            engine_drop_fence(engine, i);
+            continue;
+        }
+        ++i;
+    }
+    o0_spin_unlock(&engine->lock);
+    return O0_OK;
+}
+
+o0_status o0_hsw_engine_signal(struct o0_hsw_engine_state *engine, uint64_t seqno) {
+    if (engine == NULL || !engine->initialized || seqno == 0u) {
+        return O0_EINVAL;
+    }
+    o0_spin_lock(&engine->lock);
+    if (seqno > engine->signaled_seqno) {
+        engine->signaled_seqno = seqno;
+    }
+    for (uint32_t i = 0; i < engine->fence_count;) {
+        if (engine->fences[i].seqno <= seqno) {
+            engine->fences[i].consumed = true;
+            if (engine->fences[i].seqno > engine->consumed_seqno) {
+                engine->consumed_seqno = engine->fences[i].seqno;
+            }
+            engine_drop_fence(engine, i);
+            continue;
+        }
+        ++i;
+    }
+    o0_spin_unlock(&engine->lock);
+    return O0_OK;
+}
+
+bool o0_hsw_engine_poll(const struct o0_hsw_engine_state *engine, uint64_t seqno) {
+    if (engine == NULL || !engine->initialized || seqno == 0u) {
+        return false;
+    }
+    return seqno <= engine->signaled_seqno;
+}
+
+bool o0_hsw_engine_retired(const struct o0_hsw_engine_state *engine, uint64_t seqno) {
+    if (engine == NULL || !engine->initialized || seqno == 0u) {
+        return false;
+    }
+    if (seqno <= engine->consumed_seqno) {
+        return true;
+    }
+    for (uint32_t i = 0; i < engine->fence_count; ++i) {
+        if (engine->fences[i].seqno == seqno) {
+            return engine->fences[i].consumed || engine->fences[i].end <= engine->consumed;
+        }
+    }
+    return false;
+}
+
+bool o0_hsw_engine_quarantined(const struct o0_hsw_engine_state *engine) {
+    return engine != NULL && engine->quarantined;
+}
+
+uint32_t o0_hsw_engine_pending(const struct o0_hsw_engine_state *engine) {
+    return engine != NULL ? engine->fence_count : 0u;
+}
+
+/* ---- Backend ops for the GPU-independent queue layer ---- */
+
+static o0_status hsw_ops_validate(void *ctx, const struct o0_gpu_cmd *cmd) {
+    struct o0_hsw_engine_binding *binding = ctx;
+    if (binding == NULL || binding->engine == NULL || binding->ggtt == NULL ||
+        binding->ppgtt == NULL) {
+        return O0_EINVAL;
+    }
+    if (!binding->engine->initialized) {
+        return O0_EINVAL;
+    }
+    if (binding->engine->quarantined) {
+        return O0_EIO;
+    }
+    if (!o0_gpu_memory_is_contiguous(cmd->memory)) {
+        return O0_EINVAL; /* The device reads the batch linearly. */
+    }
+    const uint32_t *dwords = cmd->memory->backing;
+    return o0_hsw_validate_batch(dwords, cmd->used_dwords, binding->ggtt, cmd->gpu_va,
+                                 binding->ppgtt);
+}
+
+static o0_status hsw_ops_submit(void *ctx, const struct o0_gpu_cmd *cmd, uint64_t seqno) {
+    struct o0_hsw_engine_binding *binding = ctx;
+    if (binding == NULL || binding->engine == NULL || cmd == NULL) {
+        return O0_EINVAL;
+    }
+    struct o0_hsw_engine_state *engine = binding->engine;
+    if (!engine->initialized) {
+        return O0_EINVAL;
+    }
+
+    uint32_t start[2];
+    if (o0_hsw_encode_batch_buffer_start(cmd->gpu_va, true, start) != 2u) {
+        return O0_EINVAL;
+    }
+
+    o0_spin_lock(&engine->lock);
+    if (engine->quarantined) {
+        o0_spin_unlock(&engine->lock);
+        return O0_EIO;
+    }
+    if (engine->fence_count >= O0_HSW_MAX_PENDING) {
+        o0_spin_unlock(&engine->lock);
+        return O0_ENOSPC;
+    }
+    if (o0_hsw_ring_put(&engine->ring, start, 2u) != O0_OK) {
+        o0_spin_unlock(&engine->lock);
+        return O0_EBUSY; /* Ring full: the caller retries after completions retire. */
+    }
+    engine->submitted += 2u;
+    struct o0_hsw_fence *fence = &engine->fences[engine->fence_count++];
+    memset(fence, 0, sizeof(*fence));
+    o0_spin_init(&fence->lock);
+    fence->seqno = seqno;
+    fence->end = engine->submitted;
+    o0_spin_unlock(&engine->lock);
+    return O0_OK;
+}
+
+static o0_status hsw_ops_poll(void *ctx, uint64_t seqno, bool *complete) {
+    struct o0_hsw_engine_binding *binding = ctx;
+    if (binding == NULL || binding->engine == NULL || complete == NULL) {
+        return O0_EINVAL;
+    }
+    *complete = o0_hsw_engine_poll(binding->engine, seqno);
+    return O0_OK;
+}
+
+static o0_status hsw_ops_retired(void *ctx, uint64_t seqno, bool *retired) {
+    struct o0_hsw_engine_binding *binding = ctx;
+    if (binding == NULL || binding->engine == NULL || retired == NULL) {
+        return O0_EINVAL;
+    }
+    *retired = o0_hsw_engine_retired(binding->engine, seqno);
+    return O0_OK;
+}
+
+static o0_status hsw_ops_cancel(void *ctx, uint64_t seqno) {
+    struct o0_hsw_engine_binding *binding = ctx;
+    if (binding == NULL || binding->engine == NULL) {
+        return O0_EINVAL;
+    }
+    struct o0_hsw_engine_state *engine = binding->engine;
+    o0_spin_lock(&engine->lock);
+    struct o0_hsw_fence *fence = engine_find_fence(engine, seqno);
+    if (fence != NULL) {
+        fence->cancelled = true;
+    }
+    /* The commands are already in the stream and cannot be withdrawn without a verified
+     * reset, so ownership is uncertain from here on. */
+    engine->quarantined = true;
+    o0_spin_unlock(&engine->lock);
+    return O0_OK;
+}
+
+static o0_status hsw_ops_reset(void *ctx) {
+    struct o0_hsw_engine_binding *binding = ctx;
+    if (binding == NULL || binding->engine == NULL) {
+        return O0_EINVAL;
+    }
+    /* The Haswell engine-reset sequence is not documented in the PRM volumes available
+     * to this project. Returning ENOTSUP keeps the engine quarantined rather than
+     * pretending it was recovered. */
+    binding->engine->quarantined = true;
+    return O0_ENOTSUP;
+}
+
+static bool hsw_ops_quarantined(void *ctx) {
+    struct o0_hsw_engine_binding *binding = ctx;
+    if (binding == NULL || binding->engine == NULL) {
+        return true;
+    }
+    return binding->engine->quarantined;
+}
+
+static const struct o0_gpu_engine_ops hsw_engine_ops = {
+    .name = "haswell-ring",
+    .validate = hsw_ops_validate,
+    .submit = hsw_ops_submit,
+    .poll = hsw_ops_poll,
+    .retired = hsw_ops_retired,
+    .cancel = hsw_ops_cancel,
+    .reset = hsw_ops_reset,
+    .is_quarantined = hsw_ops_quarantined,
+};
+
+const struct o0_gpu_engine_ops *o0_hsw_engine_ops(void) {
+    return &hsw_engine_ops;
 }

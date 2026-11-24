@@ -556,6 +556,12 @@ opcode 2h. Re-check them against Volume 2b when encoding.
 9. 1024-versus-512 PDE entry count: closed by 12.2 item 3 (512 directory entries, 1024 page-table
    entries). The Volume 5 sentence is treated as a documentation error for the directory level.
 10. 32 KiB page support in the target SKU and the allocator changes it requires.
+11. Ring register layout. The extracted Volume 2b documents the `RING_BUFFER_CTL`
+    programming requirement but not the register's bit layout. The values used in
+    `include/ozero/gpu_hsw.h` (TAIL = engine base + 0x30, HEAD + 0x34, START + 0x38,
+    CTL + 0x3c; CTL bit 0 = enable, bits 31:12 = size - 4096; TAIL/HEAD masked to 21 bits)
+    follow the reference implementation, not the specification. They are used only to
+    compute values for host tests; no code writes them.
 
 ## 13. Ozero implementation mapping
 
@@ -604,12 +610,60 @@ validation helpers, map/unmap/teardown, and the invalidation obligation. `tests/
 covers them (10 tests). The page-directory allocation goes through a `o0_hsw_page_pool`
 callback, so the future GGTT-backed allocator can be substituted without touching the encoder.
 
+The directory page is the single source of truth for which page tables exist: a valid PDE
+means the table it points at was allocated. An earlier version kept a parallel
+`tables[512]` array, which both duplicated state and made the PPGTT object roughly 12 KiB.
+The kernel slab tops out at 4 KiB per object, so PPGTT creation failed at boot with
+`O0_ENOMEM` while the host tests (which use `calloc`) passed. Deriving the tables from the
+directory fixes both problems and is what the boot self-test now exercises.
+
 ### 13.4 Deferred to later phases
 
 - Enabling `GFX_MODE` bit 9 and loading DCLV/base via LRI require ring buffers, which are
   Phase 4 work. Phase 3 can build, encode and test tables without touching hardware registers.
 - TLB invalidation command emission and completion waits likewise belong with submission.
 - Residency and eviction policy belong to Phase 2/5 and must not be inferred from the PRM.
+
+### 13.5 Phase 4 submission mapping
+
+`include/ozero/gpu_queue.h` + `kernel/src/gpu_queue.c` hold the vendor-neutral model:
+`o0_gpu_cmd`, `o0_gpu_fence` (1-based seqno, PENDING/SIGNALED/FAILED/CANCELLED), bounded
+waits with a caller-supplied clock, queue states (READY/FAULTED/CANCELLED), and a context
+that owns its queues and references them. The core never touches a register: everything
+engine-specific goes through `struct o0_gpu_engine_ops`.
+
+`struct o0_hsw_engine_state` in the Haswell backend owns ring state, a bounded fence table
+(32 entries) and two progress watermarks. A submission is a single
+`MI_BATCH_BUFFER_START` in the ring; the fence records the absolute dword position just past
+it, so retirement is decided by the hardware read pointer (`o0_hsw_engine_update_tail`).
+Absolute positions avoid the wrap ambiguity of comparing masked ring indices.
+
+Retirement and completion are deliberately distinct. The read pointer passing a submission
+only proves the commands were fetched, not that they executed, and the available PRM
+volumes document no per-submission completion mechanism that can be implemented without
+interrupts. Completion therefore comes only from `o0_hsw_engine_signal`, the entry point an
+interrupt handler would call (a batch would need `MI_USER_INTERRUPT` plus a seqno). A
+retired submission with no completion report is reported as `O0_EIO`; it is never reported
+as successful, and its memory is unpinned only once retirement is observed.
+
+Batch validation walks the command stream and accepts only: `MI_NOOP`, `MI_USER_INTERRUPT`,
+`MI_STORE_DWORD_IMM` (target must translate in the executing PPGTT),
+`MI_LOAD_REGISTER_IMM` (only the PPGTT setup registers), `MI_UPDATE_GTT`,
+`MI_FLUSH_DW` and `MI_BATCH_BUFFER_START` (target must be a mapped GGTT address), terminated
+by `MI_BATCH_BUFFER_END`. Anything else returns `O0_ENOTSUP`; a malformed stream returns
+`O0_EINVAL`; an unmapped or unaligned address returns `O0_ERANGE`. Opcode numbers and flag
+bits match Intel's published command definitions; the semantic descriptions for the commands
+the backend emits come from Volume 2b. None of this is executed on hardware.
+
+Safety rules that follow from having no verified reset sequence:
+
+- An unbounded wait is refused (`O0_EINVAL`); every wait needs a timeout.
+- A timeout marks the fence failed, faults the queue and quarantines the engine.
+- Cancellation also quarantines the engine: commands already in the stream cannot be
+  withdrawn without a verified reset.
+- `reset` returns `O0_ENOTSUP`; a queue cannot return to READY without it.
+- Unconsumed submissions keep their memory pinned, so queue destruction returns `O0_EBUSY`
+  and the backing cannot be freed or re-pinned while ownership is uncertain.
 
 ## 14. Host-test plan for Phase 3
 

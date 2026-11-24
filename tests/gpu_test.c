@@ -20,7 +20,7 @@
 #include "ozero/sync.h"
 #include "ozero/types.h"
 
-#define MOCK_PAGES 64u
+#define MOCK_PAGES 128u
 #define MOCK_BASE 0x100000ull
 
 static uint8_t mock_arena[MOCK_PAGES][O0_HSW_PAGE_SIZE];
@@ -106,6 +106,7 @@ int o0_pci_probe_bar(struct o0_pci_bdf bdf, uint8_t index, uint8_t header_type,
 #include "../kernel/src/gpu.c"
 #include "../kernel/src/gpu_hsw.c"
 #include "../kernel/src/gpu_device.c"
+#include "../kernel/src/gpu_queue.c"
 
 static int failures;
 static int tests_run;
@@ -645,9 +646,442 @@ static void test_hsw_backend_caps(void) {
           "4 KiB and 32 KiB page sizes");
     CHECK(g.caps.has_render && g.caps.has_blitter && g.caps.has_video && g.caps.has_media,
           "render, blitter, video and media engines");
-    CHECK(!g.caps.submission_supported, "submission is not implemented yet");
+    CHECK(g.caps.submission_supported, "ring submission and fences are implemented");
+    CHECK(!g.caps.submission_hardware_verified,
+          "submission must not be claimed as hardware-verified");
     CHECK(!g.caps.preemption_reported && !g.caps.reset_reported,
           "preemption and reset are not claimed");
+    PASS();
+}
+
+/* ---- Phase 4/5: ring state, submission, fences, contexts and queues ---- */
+
+struct test_env {
+    struct o0_gpu_memory *ring_mem;
+    struct o0_gpu_memory *batch_mem;
+    struct o0_hsw_ggtt *ggtt;
+    struct o0_hsw_ppgtt *ppgtt;
+    struct o0_hsw_engine_state *engine;
+    struct o0_hsw_engine_binding *binding;
+    struct o0_gpu_vm *vm;
+    struct o0_gpu_mapping *mapping;
+    struct o0_gpu_context *ctx;
+    struct o0_gpu_queue *queue;
+    struct o0_gpu_cmd cmd;
+};
+
+/* The write target used by the test batch is a PPGTT address, not a GGTT one: the batch
+ * itself is located through the GGTT, its commands address the context's PPGTT. */
+static void env_write_batch(struct test_env *e) {
+    uint32_t *batch = e->batch_mem->backing;
+    batch[0] = O0_HSW_MI_NOOP;
+    batch[1] = O0_HSW_MI_INSTR(0x20u, 1u); /* MI_STORE_DWORD_IMM */
+    batch[2] = 0x400000u;
+    batch[3] = 1u;
+    batch[4] = O0_HSW_MI_BATCH_BUFFER_END;
+    e->cmd.memory = e->batch_mem;
+    e->cmd.gpu_va = 0x200000ull;
+    e->cmd.size_dwords = 1024u;
+    e->cmd.used_dwords = 5u;
+}
+
+static bool env_create(struct test_env *e, bool map_target) {
+    memset(e, 0, sizeof(*e));
+    const struct o0_hsw_page_pool *pool = o0_hsw_kernel_pool();
+    if (o0_gpu_memory_create_contiguous(0x4000u, &e->ring_mem) != O0_OK ||
+        o0_gpu_memory_create_contiguous(0x1000u, &e->batch_mem) != O0_OK) {
+        return false;
+    }
+    if (o0_hsw_ggtt_create(pool, 1024u, &e->ggtt) != O0_OK) {
+        return false;
+    }
+    for (uint32_t i = 0; i < 4u; ++i) {
+        if (o0_hsw_ggtt_map(e->ggtt, 0x100000ull + (uint64_t)i * 0x1000ull,
+                            e->ring_mem->phys_pages[i], O0_HSW_CACHE_WB_AGE0) != O0_OK) {
+            return false;
+        }
+    }
+    if (o0_hsw_ggtt_map(e->ggtt, 0x200000ull, e->batch_mem->phys_pages[0],
+                        O0_HSW_CACHE_WB_AGE0) != O0_OK) {
+        return false;
+    }
+    e->engine = calloc(1, sizeof(*e->engine));
+    e->binding = calloc(1, sizeof(*e->binding));
+    if (e->engine == NULL || e->binding == NULL) {
+        return false;
+    }
+    if (o0_hsw_engine_init(e->engine, O0_HSW_ENGINE_RENDER, e->ring_mem, 0x100000ull,
+                           4096u) != O0_OK) {
+        return false;
+    }
+    if (o0_hsw_ppgtt_create(pool, 0x10000000ull, &e->ppgtt) != O0_OK) {
+        return false;
+    }
+    if (map_target &&
+        o0_hsw_ppgtt_map(e->ppgtt, 0x400000ull, e->batch_mem->phys_pages[0],
+                         O0_HSW_CACHE_WB_AGE0) != O0_OK) {
+        return false;
+    }
+    o0_hsw_ppgtt_set_active(e->ppgtt, true);
+
+    if (o0_gpu_vm_create(0x0ull, 0x10000000ull, &e->vm) != O0_OK) {
+        return false;
+    }
+    if (map_target &&
+        o0_gpu_vm_map(e->vm, e->batch_mem, 0x400000ull, O0_GPU_PERM_WRITE,
+                      &e->mapping) != O0_OK) {
+        return false;
+    }
+    if (o0_gpu_context_create(e->vm, &e->ctx) != O0_OK) {
+        return false;
+    }
+    if (o0_hsw_engine_binding_init(e->binding, e->engine, e->ggtt, e->ppgtt) != O0_OK) {
+        return false;
+    }
+    if (o0_gpu_queue_create(e->ctx, o0_hsw_engine_ops(), e->binding, &e->queue) != O0_OK) {
+        return false;
+    }
+    env_write_batch(e);
+    return true;
+}
+
+static void env_destroy(struct test_env *e) {
+    if (e->queue != NULL) {
+        (void)o0_gpu_queue_destroy(e->queue);
+    }
+    if (e->ctx != NULL) {
+        (void)o0_gpu_context_destroy(e->ctx);
+    }
+    if (e->mapping != NULL && e->vm != NULL) {
+        (void)o0_gpu_vm_unmap(e->vm, e->mapping);
+    }
+    if (e->vm != NULL) {
+        o0_gpu_vm_destroy(e->vm);
+    }
+    free(e->binding);
+    free(e->engine);
+    if (e->ppgtt != NULL) {
+        o0_hsw_ppgtt_set_active(e->ppgtt, false);
+        o0_hsw_ppgtt_destroy(e->ppgtt);
+    }
+    if (e->ggtt != NULL) {
+        o0_hsw_ggtt_destroy(e->ggtt);
+    }
+    if (e->batch_mem != NULL) {
+        o0_gpu_memory_destroy(e->batch_mem);
+    }
+    if (e->ring_mem != NULL) {
+        o0_gpu_memory_destroy(e->ring_mem);
+    }
+}
+
+struct fake_clock {
+    uint64_t now;
+};
+
+static uint64_t fake_now_ns(void *ctx) {
+    return ((struct fake_clock *)ctx)->now;
+}
+
+static void fake_sleep_ns(void *ctx, uint64_t ns) {
+    ((struct fake_clock *)ctx)->now += ns;
+}
+
+static void test_contiguous_memory(void) {
+    TEST("contiguous memory objects require a power-of-two page count");
+    mock_reset();
+    struct o0_gpu_memory *mem = NULL;
+    CHECK(o0_gpu_memory_create_contiguous(0x3000u, &mem) == O0_EINVAL,
+          "three pages cannot be one power-of-two run");
+    CHECK(o0_gpu_memory_create_contiguous(0x4000u, &mem) == O0_OK && mem != NULL,
+          "four pages must be allocatable as one run");
+    CHECK(o0_gpu_memory_is_contiguous(mem), "the run must be physically contiguous");
+    CHECK(mem->order == 2u, "order must record the run size");
+    o0_gpu_memory_destroy(mem);
+    PASS();
+}
+
+static void test_ring_state(void) {
+    TEST("ring tracks head/tail, rejects partial writes and wraps correctly");
+    uint32_t buffer[16];
+    struct o0_hsw_ring ring;
+    o0_hsw_ring_init(&ring, buffer, 16u);
+    CHECK(o0_hsw_ring_space(&ring) == 15u, "one slot stays free");
+    CHECK(o0_hsw_ring_used(&ring) == 0u, "empty ring has no used dwords");
+
+    uint32_t first[10];
+    for (uint32_t i = 0; i < 10u; ++i) {
+        first[i] = 0xA0u + i;
+    }
+    CHECK(o0_hsw_ring_put(&ring, first, 10u) == O0_OK, "ten dwords must fit");
+    CHECK(o0_hsw_ring_used(&ring) == 10u, "used must track the write");
+    CHECK(o0_hsw_ring_space(&ring) == 5u, "five slots remain");
+
+    uint32_t too_many[6] = {1, 2, 3, 4, 5, 6};
+    CHECK(o0_hsw_ring_put(&ring, too_many, 6u) == O0_ENOSPC,
+          "a write that does not fit must be rejected whole");
+    CHECK(ring.head == 10u, "a rejected write must not move the head");
+
+    uint32_t four[4] = {0xB0u, 0xB1u, 0xB2u, 0xB3u};
+    CHECK(o0_hsw_ring_put(&ring, four, 4u) == O0_OK, "four more dwords fit");
+    CHECK(ring.head == 14u, "head advances without wrapping yet");
+    CHECK(o0_hsw_ring_put(&ring, four, 4u) == O0_ENOSPC,
+          "only one slot is left, so a four-dword write cannot fit");
+    o0_hsw_ring_set_tail(&ring, 6u);
+    CHECK(o0_hsw_ring_put(&ring, four, 4u) == O0_OK, "after the tail advances the write wraps");
+    CHECK(ring.head == 2u, "head wraps to the start");
+    CHECK(buffer[14] == 0xB0u && buffer[15] == 0xB1u && buffer[0] == 0xB2u &&
+              buffer[1] == 0xB3u,
+          "a wrapped write must be split across the end of the ring");
+
+    o0_hsw_ring_set_tail(&ring, 4u);
+    CHECK(o0_hsw_ring_used(&ring) == 14u, "used must be wrap-aware");
+
+    CHECK(o0_hsw_ring_ctl_value(0x4000u) == 0x3001u,
+          "RING_CTL must encode (size - 4096) plus the valid bit");
+    CHECK(o0_hsw_ring_ctl_value(0x1800u) == 0u, "unaligned ring sizes are rejected");
+
+    uint32_t tail = 0, head = 0, start = 0, ctl = 0;
+    CHECK(o0_hsw_ring_regs(O0_HSW_ENGINE_RENDER, &tail, &head, &start, &ctl),
+          "the render engine has ring registers");
+    CHECK(tail == 0x2030u && head == 0x2034u && start == 0x2038u && ctl == 0x203Cu,
+          "render ring register offsets");
+    CHECK(!o0_hsw_ring_regs(O0_HSW_ENGINE_COUNT, &tail, &head, &start, &ctl),
+          "an unknown engine has no ring registers");
+    PASS();
+}
+
+static void test_batch_validation(void) {
+    mock_reset();
+    TEST("batch validation accepts only the supported MI subset and mapped addresses");
+    struct test_env env;
+    CHECK(env_create(&env, true), "test environment must build");
+
+    uint32_t batch[16] = {0};
+    batch[0] = O0_HSW_MI_NOOP;
+    batch[1] = O0_HSW_MI_INSTR(0x20u, 1u);
+    batch[2] = 0x400000u;
+    batch[3] = 1u;
+    batch[4] = O0_HSW_MI_BATCH_BUFFER_END;
+    CHECK(o0_hsw_validate_batch(batch, 5u, env.ggtt, 0x200000ull, env.ppgtt) == O0_OK,
+          "a well-formed batch must validate");
+
+    uint32_t unmapped[5] = {O0_HSW_MI_NOOP, O0_HSW_MI_INSTR(0x20u, 1u), 0x500000u, 1u,
+                            O0_HSW_MI_BATCH_BUFFER_END};
+    CHECK(o0_hsw_validate_batch(unmapped, 5u, env.ggtt, 0x200000ull, env.ppgtt) == O0_ERANGE,
+          "a write to an unmapped context address must be rejected");
+
+    uint32_t unsupported[2] = {O0_HSW_MI_INSTR(0x30u, 1u), O0_HSW_MI_BATCH_BUFFER_END};
+    CHECK(o0_hsw_validate_batch(unsupported, 2u, env.ggtt, 0x200000ull, env.ppgtt) ==
+              O0_ENOTSUP,
+          "an unsupported opcode must be rejected, not guessed");
+
+    uint32_t gfx[2] = {0x60000000u, O0_HSW_MI_BATCH_BUFFER_END};
+    CHECK(o0_hsw_validate_batch(gfx, 2u, env.ggtt, 0x200000ull, env.ppgtt) == O0_ENOTSUP,
+          "3D/media packets are outside the supported set");
+
+    CHECK(o0_hsw_validate_batch(batch, 2u, env.ggtt, 0x200000ull, env.ppgtt) == O0_EINVAL,
+          "a truncated command must be rejected");
+    CHECK(o0_hsw_validate_batch(batch, 4u, env.ggtt, 0x200000ull, env.ppgtt) == O0_EINVAL,
+          "an unterminated batch must be rejected");
+    CHECK(o0_hsw_validate_batch(batch, 5u, env.ggtt, 0x300000ull, env.ppgtt) == O0_ERANGE,
+          "a batch outside the GGTT must be rejected");
+    CHECK(o0_hsw_validate_batch(batch, 5u, env.ggtt, 0x200002ull, env.ppgtt) == O0_EINVAL,
+          "an unaligned batch address must be rejected");
+
+    uint32_t bad_lri[4] = {O0_HSW_MI_INSTR(0x22u, 1u), 0x9999u, 0u,
+                           O0_HSW_MI_BATCH_BUFFER_END};
+    CHECK(o0_hsw_validate_batch(bad_lri, 4u, env.ggtt, 0x200000ull, env.ppgtt) ==
+              O0_ENOTSUP,
+          "LRI to a register the driver does not track must be rejected");
+    uint32_t good_lri[4] = {O0_HSW_MI_INSTR(0x22u, 1u), O0_HSW_RENDER_PP_DCLV, 0xFFFFFFFFu,
+                            O0_HSW_MI_BATCH_BUFFER_END};
+    CHECK(o0_hsw_validate_batch(good_lri, 4u, env.ggtt, 0x200000ull, env.ppgtt) == O0_OK,
+          "LRI to a tracked PPGTT register must validate");
+
+    env_destroy(&env);
+    PASS();
+}
+
+static void test_engine_submission(void) {
+    mock_reset();
+    TEST("engine submission records fences and retires them on hardware progress");
+    struct test_env env;
+    CHECK(env_create(&env, true), "test environment must build");
+
+    uint64_t seqno = 0;
+    CHECK(o0_gpu_queue_submit(env.queue, &env.cmd, &seqno) == O0_OK, "submit must succeed");
+    CHECK(seqno == 1u, "the first submission gets seqno 1");
+    CHECK(o0_hsw_engine_pending(env.engine) == 1u, "the engine must record the submission");
+    CHECK(!o0_hsw_engine_poll(env.engine, seqno), "an unretired submission is not complete");
+
+    /* Two dwords were emitted, so a hardware read pointer of 8 bytes consumes them. */
+    CHECK(o0_hsw_engine_update_tail(env.engine, 8u) == O0_OK, "tail update must be accepted");
+    CHECK(o0_hsw_engine_retired(env.engine, seqno),
+          "read-pointer progress must retire the work");
+    CHECK(!o0_hsw_engine_poll(env.engine, seqno),
+          "retirement is not completion evidence");
+
+    CHECK(o0_gpu_queue_reap(env.queue) == O0_OK, "reaping must release retired work");
+    CHECK(o0_hsw_engine_pending(env.engine) == 0u, "retired records are dropped");
+
+    struct fake_clock clock = {0};
+    struct o0_gpu_clock source = {fake_now_ns, fake_sleep_ns, &clock};
+    CHECK(o0_gpu_queue_wait(env.queue, seqno, 0u, &source) == O0_EIO,
+          "retired work without completion evidence must not report success");
+
+    uint64_t second = 0;
+    CHECK(o0_gpu_queue_submit(env.queue, &env.cmd, &second) == O0_OK && second == 2u,
+          "the second submission gets seqno 2");
+    CHECK(!o0_hsw_engine_poll(env.engine, second), "no completion before the report");
+    CHECK(o0_hsw_engine_signal(env.engine, second) == O0_OK, "a completion report is accepted");
+    CHECK(o0_hsw_engine_poll(env.engine, second), "a signalled submission reports complete");
+    CHECK(o0_gpu_queue_wait(env.queue, second, 0u, &source) == O0_OK,
+          "the signalled fence must wait successfully");
+
+    env_destroy(&env);
+    PASS();
+}
+
+static void test_fence_timeout_faults_queue(void) {
+    mock_reset();
+    TEST("a timeout faults the queue, refuses work and cannot claim recovery");
+    struct test_env env;
+    CHECK(env_create(&env, true), "test environment must build");
+
+    uint64_t seqno = 0;
+    CHECK(o0_gpu_queue_submit(env.queue, &env.cmd, &seqno) == O0_OK, "submit must succeed");
+
+    struct fake_clock clock = {0};
+    struct o0_gpu_clock source = {fake_now_ns, fake_sleep_ns, &clock};
+    CHECK(o0_gpu_queue_wait(env.queue, seqno, 1000u, &source) == O0_ETIMEDOUT,
+          "an uncompleting fence must time out");
+
+    struct o0_gpu_fence fence;
+    CHECK(o0_gpu_fence_query(env.queue, seqno, &fence) == O0_OK, "the fence stays queryable");
+    CHECK(fence.state == O0_GPU_FENCE_FAILED && fence.error == O0_ETIMEDOUT,
+          "the fence must record the timeout");
+    CHECK(o0_gpu_queue_state(env.queue) == O0_GPU_QUEUE_FAULTED, "the queue must fault");
+    CHECK(o0_hsw_engine_quarantined(env.engine), "ownership is uncertain after a timeout");
+
+    uint64_t again = 0;
+    CHECK(o0_gpu_queue_submit(env.queue, &env.cmd, &again) == O0_EIO,
+          "a faulted queue must refuse work");
+    CHECK(o0_gpu_queue_recover(env.queue) == O0_ENOTSUP,
+          "recovery must be refused without a verified reset");
+    CHECK(o0_gpu_queue_destroy(env.queue) == O0_EBUSY,
+          "unconsumed work must not be released");
+
+    env_destroy(&env);
+    PASS();
+}
+
+static void test_fence_signal_and_cancel(void) {
+    mock_reset();
+    TEST("fences complete in order and cancellation never releases live work");
+    struct test_env env;
+    CHECK(env_create(&env, true), "test environment must build");
+
+    uint64_t first = 0, second = 0;
+    CHECK(o0_gpu_queue_submit(env.queue, &env.cmd, &first) == O0_OK && first == 1u,
+          "first submit");
+    CHECK(o0_gpu_queue_submit(env.queue, &env.cmd, &second) == O0_OK && second == 2u,
+          "second submit");
+
+    CHECK(o0_gpu_queue_signal(env.queue, first) == O0_OK, "signal the first fence");
+    struct fake_clock clock = {0};
+    struct o0_gpu_clock source = {fake_now_ns, fake_sleep_ns, &clock};
+    CHECK(o0_gpu_queue_wait(env.queue, first, 0u, &source) == O0_OK,
+          "the signalled fence must wait successfully");
+    CHECK(o0_gpu_queue_wait(env.queue, second, 0u, &source) == O0_ETIMEDOUT,
+          "the later fence must not be considered complete");
+
+    /* That wait faulted the queue, so use a fresh environment for cancellation. */
+    env_destroy(&env);
+    CHECK(env_create(&env, true), "second test environment must build");
+    CHECK(o0_gpu_queue_submit(env.queue, &env.cmd, &first) == O0_OK, "submit again");
+    CHECK(o0_gpu_queue_cancel(env.queue, first) == O0_OK, "cancel must be accepted");
+    CHECK(o0_gpu_queue_state(env.queue) == O0_GPU_QUEUE_CANCELLED,
+          "a fully cancelled queue records the state");
+    struct o0_gpu_fence fence;
+    CHECK(o0_gpu_fence_query(env.queue, first, &fence) == O0_OK &&
+              fence.state == O0_GPU_FENCE_CANCELLED,
+          "the fence must report cancellation");
+    CHECK(o0_gpu_queue_wait(env.queue, first, 0u, &source) == O0_EIO,
+          "cancelled work must not report success");
+    CHECK(o0_gpu_queue_destroy(env.queue) == O0_EBUSY,
+          "cancelled but unconsumed work must not be released");
+
+    /* Once the hardware read pointer passes the submission, the pin can be dropped. */
+    CHECK(o0_hsw_engine_update_tail(env.engine, 8u) == O0_OK, "hardware consumes the work");
+    CHECK(o0_gpu_queue_reap(env.queue) == O0_OK, "reaping must succeed");
+    CHECK(o0_gpu_queue_destroy(env.queue) == O0_OK, "consumed work may be released");
+    env.queue = NULL;
+
+    env_destroy(&env);
+    PASS();
+}
+
+static void test_context_queue_lifecycle(void) {
+    mock_reset();
+    TEST("contexts and queues refuse teardown while work or queues remain");
+    struct o0_gpu_vm *vm = NULL;
+    struct o0_gpu_context *ctx = NULL;
+    CHECK(o0_gpu_vm_create(0x0ull, 0x10000000ull, &vm) == O0_OK, "vm creation");
+    CHECK(o0_gpu_context_create(vm, &ctx) == O0_OK, "context creation");
+    CHECK(o0_gpu_context_queue_count(ctx) == 0u, "a new context has no queues");
+
+    struct o0_gpu_engine_ops incomplete = {0};
+    struct o0_gpu_queue *queue = NULL;
+    CHECK(o0_gpu_queue_create(ctx, &incomplete, (void *)1, &queue) == O0_EINVAL,
+          "a backend without the full contract must be refused");
+    CHECK(o0_gpu_context_destroy(ctx) == O0_OK, "an empty context may be destroyed");
+
+    CHECK(o0_gpu_context_create(vm, &ctx) == O0_OK, "context recreation");
+    struct test_env env;
+    CHECK(env_create(&env, true), "test environment must build");
+    CHECK(o0_gpu_queue_create(ctx, o0_hsw_engine_ops(), env.binding, &queue) == O0_OK,
+          "queue creation");
+    CHECK(o0_gpu_context_queue_count(ctx) == 1u, "the queue is attached to the context");
+    CHECK(o0_gpu_context_destroy(ctx) == O0_EBUSY, "a context with queues must not vanish");
+    CHECK(o0_gpu_queue_destroy(queue) == O0_OK, "an idle queue may be destroyed");
+    CHECK(o0_gpu_context_destroy(ctx) == O0_OK, "the context may now be destroyed");
+
+    /* The bounded queue table fails deterministically. */
+    CHECK(o0_gpu_context_create(vm, &ctx) == O0_OK, "context for the queue limit");
+    struct o0_gpu_queue *queues[O0_GPU_MAX_QUEUES];
+    for (uint32_t i = 0; i < O0_GPU_MAX_QUEUES; ++i) {
+        CHECK(o0_gpu_queue_create(ctx, o0_hsw_engine_ops(), env.binding, &queues[i]) == O0_OK,
+              "queues up to the limit must be created");
+    }
+    struct o0_gpu_queue *overflow = NULL;
+    CHECK(o0_gpu_queue_create(ctx, o0_hsw_engine_ops(), env.binding, &overflow) == O0_ENOSPC,
+          "the queue limit must fail with ENOSPC");
+    for (uint32_t i = 0; i < O0_GPU_MAX_QUEUES; ++i) {
+        CHECK(o0_gpu_queue_destroy(queues[i]) == O0_OK, "queue cleanup");
+    }
+    CHECK(o0_gpu_context_destroy(ctx) == O0_OK, "context cleanup");
+    o0_gpu_vm_destroy(vm);
+    env_destroy(&env);
+    PASS();
+}
+
+static void test_context_isolation(void) {
+    mock_reset();
+    TEST("a context cannot reference an address mapped only in another context");
+    struct test_env owner;
+    struct test_env stranger;
+    CHECK(env_create(&owner, true), "owning environment must build");
+    CHECK(env_create(&stranger, false), "stranger environment must build");
+
+    uint64_t seqno = 0;
+    CHECK(o0_gpu_queue_submit(owner.queue, &owner.cmd, &seqno) == O0_OK,
+          "the owning context may submit");
+    CHECK(o0_gpu_queue_submit(stranger.queue, &stranger.cmd, &seqno) == O0_ERANGE,
+          "the stranger context must be rejected");
+
+    env_destroy(&owner);
+    env_destroy(&stranger);
     PASS();
 }
 
@@ -670,6 +1104,14 @@ int main(void) {
     test_mmio_selection();
     test_describe_unsupported();
     test_hsw_backend_caps();
+    test_contiguous_memory();
+    test_ring_state();
+    test_batch_validation();
+    test_engine_submission();
+    test_fence_timeout_faults_queue();
+    test_fence_signal_and_cancel();
+    test_context_queue_lifecycle();
+    test_context_isolation();
     printf("\n%d test(s) run, %d failure(s)\n", tests_run, failures);
     return failures == 0 ? 0 : 1;
 }

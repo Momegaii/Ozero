@@ -79,6 +79,10 @@ struct o0_gpu_mapping {
 };
 
 o0_status o0_gpu_memory_create(size_t size, struct o0_gpu_memory **out);
+/* Backing that is one physically contiguous run, as hardware rings and page tables
+ * require. `size` must be a power-of-two multiple of the page size. */
+o0_status o0_gpu_memory_create_contiguous(size_t size, struct o0_gpu_memory **out);
+bool o0_gpu_memory_is_contiguous(const struct o0_gpu_memory *mem);
 void o0_gpu_memory_destroy(struct o0_gpu_memory *mem);
 
 /* Residency management. */

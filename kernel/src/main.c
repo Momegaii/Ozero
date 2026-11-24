@@ -21,6 +21,8 @@
 #include "ozero/fs.h"
 #include "ozero/gpu.h"
 #include "ozero/gpu_device.h"
+#include "ozero/gpu_hsw.h"
+#include "ozero/gpu_queue.h"
 #include "ozero/irq.h"
 #include "ozero/pci.h"
 #include "ozero/ramdisk.h"
@@ -342,6 +344,163 @@ static void stage4_self_test(void) {
     o0_serial_puts("OZERO: storage self-test complete\n");
 }
 
+/* Stage 5 Phase 4/5: ring submission, fences, timeout safety and context isolation.
+ *
+ * Everything here is the software model: no GPU register is written and no device is
+ * claimed, so a submitted fence cannot complete on its own. The self-test therefore
+ * checks the safety properties that follow from that: a bounded wait times out, the
+ * timeout faults the queue, a faulted queue refuses further work, recovery is refused
+ * because the Haswell reset sequence is not verified, and teardown of unconsumed work is
+ * refused. Address-space isolation is checked by submitting a batch that writes to an
+ * address mapped only in a different context's PPGTT.
+ */
+static uint64_t gpu_clock_now_ns(void *ctx) {
+    (void)ctx;
+    uint32_t hz = o0_sched_hz();
+    if (hz == 0u) {
+        return 0u;
+    }
+    return o0_sched_ticks() * (1000000000ull / hz);
+}
+
+static void gpu_clock_sleep_ns(void *ctx, uint64_t ns) {
+    (void)ctx;
+    o0_thread_sleep_ns(ns);
+}
+
+static struct o0_hsw_engine_state gpu_engine;
+static struct o0_hsw_engine_binding gpu_binding;
+static struct o0_hsw_engine_binding gpu_other_binding;
+
+static void stage5_submission_self_test(void) {
+    const struct o0_hsw_page_pool *pool = o0_hsw_kernel_pool();
+    struct o0_gpu_memory *ring_mem = NULL;
+    struct o0_gpu_memory *batch_mem = NULL;
+    struct o0_hsw_ggtt *ggtt = NULL;
+    struct o0_hsw_ppgtt *ppgtt = NULL;
+    struct o0_hsw_ppgtt *other_ppgtt = NULL;
+    struct o0_gpu_vm *vm = NULL;
+    struct o0_gpu_vm *other_vm = NULL;
+    struct o0_gpu_mapping *mapping = NULL;
+    struct o0_gpu_context *ctx = NULL;
+    struct o0_gpu_context *other_ctx = NULL;
+    struct o0_gpu_queue *queue = NULL;
+    struct o0_gpu_queue *other_queue = NULL;
+
+    if (o0_gpu_memory_create_contiguous(0x4000u, &ring_mem) != O0_OK ||
+        o0_gpu_memory_create_contiguous(0x1000u, &batch_mem) != O0_OK) {
+        panic("GPU submission memory allocation failed");
+    }
+    if (o0_hsw_ggtt_create(pool, 1024u, &ggtt) != O0_OK) {
+        panic("GPU GGTT creation failed");
+    }
+    for (uint32_t i = 0; i < 4u; ++i) {
+        if (o0_hsw_ggtt_map(ggtt, 0x100000ull + (uint64_t)i * 0x1000ull,
+                            ring_mem->phys_pages[i], O0_HSW_CACHE_WB_AGE0) != O0_OK) {
+            panic("GPU ring GGTT mapping failed");
+        }
+    }
+    if (o0_hsw_ggtt_map(ggtt, 0x200000ull, batch_mem->phys_pages[0],
+                        O0_HSW_CACHE_WB_AGE0) != O0_OK) {
+        panic("GPU batch GGTT mapping failed");
+    }
+    if (o0_hsw_engine_init(&gpu_engine, O0_HSW_ENGINE_RENDER, ring_mem, 0x100000ull,
+                           4096u) != O0_OK) {
+        panic("GPU engine initialisation failed");
+    }
+
+    /* Two contexts with independent PPGTTs: only the first maps the write target. */
+    if (o0_hsw_ppgtt_create(pool, 0x10000000ull, &ppgtt) != O0_OK ||
+        o0_hsw_ppgtt_create(pool, 0x10000000ull, &other_ppgtt) != O0_OK) {
+        panic("GPU PPGTT creation failed");
+    }
+    if (o0_hsw_ppgtt_map(ppgtt, 0x400000ull, batch_mem->phys_pages[0],
+                         O0_HSW_CACHE_WB_AGE0) != O0_OK) {
+        panic("GPU PPGTT mapping failed");
+    }
+    o0_hsw_ppgtt_set_active(ppgtt, true);
+    o0_hsw_ppgtt_set_active(other_ppgtt, true);
+
+    if (o0_gpu_vm_create(0x0ull, 0x10000000ull, &vm) != O0_OK ||
+        o0_gpu_vm_create(0x0ull, 0x10000000ull, &other_vm) != O0_OK) {
+        panic("GPU context address space creation failed");
+    }
+    if (o0_gpu_vm_map(vm, batch_mem, 0x400000ull, O0_GPU_PERM_WRITE, &mapping) != O0_OK) {
+        panic("GPU context mapping failed");
+    }
+
+    /* NOP, a write to a context-local address, then the batch terminator. */
+    uint32_t *batch = batch_mem->backing;
+    batch[0] = O0_HSW_MI_NOOP;
+    batch[1] = O0_HSW_MI_INSTR(0x20u, 1u); /* MI_STORE_DWORD_IMM */
+    batch[2] = 0x400000u;
+    batch[3] = 1u;
+    batch[4] = O0_HSW_MI_BATCH_BUFFER_END;
+    struct o0_gpu_cmd cmd = {
+        .memory = batch_mem,
+        .gpu_va = 0x200000ull, /* GGTT address of the batch */
+        .size_dwords = 1024u,
+        .used_dwords = 5u,
+    };
+
+    if (o0_gpu_context_create(vm, &ctx) != O0_OK ||
+        o0_gpu_context_create(other_vm, &other_ctx) != O0_OK) {
+        panic("GPU context creation failed");
+    }
+    if (o0_hsw_engine_binding_init(&gpu_binding, &gpu_engine, ggtt, ppgtt) != O0_OK ||
+        o0_hsw_engine_binding_init(&gpu_other_binding, &gpu_engine, ggtt, other_ppgtt) != O0_OK) {
+        panic("GPU engine binding failed");
+    }
+    if (o0_gpu_queue_create(ctx, o0_hsw_engine_ops(), &gpu_binding, &queue) != O0_OK ||
+        o0_gpu_queue_create(other_ctx, o0_hsw_engine_ops(), &gpu_other_binding,
+                            &other_queue) != O0_OK) {
+        panic("GPU queue creation failed");
+    }
+
+    /* Isolation: the second context does not map the write target, so validation fails. */
+    uint64_t rejected = 0;
+    if (o0_gpu_queue_submit(other_queue, &cmd, &rejected) != O0_ERANGE) {
+        panic("GPU context isolation check failed");
+    }
+    o0_serial_puts("OZERO: gpu context isolation OK\n");
+
+    uint64_t seqno = 0;
+    if (o0_gpu_queue_submit(queue, &cmd, &seqno) != O0_OK || seqno != 1u) {
+        panic("GPU submission failed");
+    }
+    o0_serial_puts("OZERO: gpu submit seqno=");
+    o0_serial_dec(seqno);
+    o0_serial_putc('\n');
+
+    struct o0_gpu_clock clock = {gpu_clock_now_ns, gpu_clock_sleep_ns, NULL};
+    if (o0_gpu_queue_wait(queue, seqno, 0u, &clock) != O0_ETIMEDOUT) {
+        panic("GPU fence did not time out without a device");
+    }
+    o0_serial_puts("OZERO: gpu fence timeout OK\n");
+
+    uint64_t again = 0;
+    if (o0_gpu_queue_submit(queue, &cmd, &again) != O0_EIO) {
+        panic("GPU faulted queue accepted work");
+    }
+    o0_serial_puts("OZERO: gpu faulted queue refused work\n");
+
+    if (o0_gpu_queue_recover(queue) != O0_ENOTSUP) {
+        panic("GPU recovery claimed success without a verified reset");
+    }
+    o0_serial_puts("OZERO: gpu recovery refused without verified reset\n");
+
+    if (o0_gpu_queue_destroy(queue) != O0_EBUSY) {
+        panic("GPU released unconsumed work");
+    }
+    o0_serial_puts("OZERO: gpu unconsumed work quarantined\n");
+
+    if (o0_gpu_queue_destroy(other_queue) != O0_OK ||
+        o0_gpu_context_destroy(other_ctx) != O0_OK) {
+        panic("GPU queue teardown failed");
+    }
+    o0_serial_puts("OZERO: gpu submission self-test complete\n");
+}
+
 /* Stage 5 self-test: the GPU-independent core (memory objects, GPU virtual-address
  * allocator) exercised once on the real kernel heap, then GPU discovery over the PCI
  * layer. Discovery never aborts boot: unknown or unsupported devices are recorded, not
@@ -411,6 +570,9 @@ static void stage5_self_test(void) {
         o0_serial_putc('\n');
     }
     o0_serial_puts("OZERO: gpu discovery complete\n");
+
+    /* Phase 4/5: submission, fences, timeout safety and context isolation. */
+    stage5_submission_self_test();
 }
 
 static o0_mutex_t demo_mutex = O0_MUTEX_INIT;

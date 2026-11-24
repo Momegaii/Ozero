@@ -223,51 +223,51 @@ The backend records the invalidation obligation but emits no commands. That is a
 
 ### 7.1 Engine discovery and contracts
 
-- [ ] Identify engines available on the exact supported Haswell SKU.
-- [ ] Research render, blitter and video engines separately where present.
-- [ ] Identify engine-specific registers, ring requirements and command formats.
-- [ ] Record engine availability as per-device capabilities.
-- [ ] Do not assume all engines exist on every SKU or share one submission contract.
+- [ ] Identify engines available on the exact supported Haswell SKU. *(Not enumerated on hardware yet.)*
+- [ ] Research render, blitter and video engines separately where present. *(Ring windows recorded for all four; per-engine command differences are not yet researched beyond invalidation.)*
+- [x] Identify engine-specific registers, ring requirements and command formats. *(Documented with evidence levels in section 13 of the research note; register offsets are not hardware-verified.)*
+- [x] Record engine availability as per-device capabilities.
+- [x] Do not assume all engines exist on every SKU or share one submission contract.
 
 ### 7.2 Command buffers and validation
 
-- [ ] Define command-buffer objects and ownership.
-- [ ] Allocate and map command-buffer backing memory.
-- [ ] Enforce engine-specific alignment and size limits.
-- [ ] Define the initial explicitly supported command set.
-- [ ] Validate opcodes, lengths, bounds and referenced GPU addresses.
-- [ ] Reject unsupported commands and invalid memory references.
-- [ ] Restrict command access to authorized resources.
-- [ ] Prevent mutation or destruction while commands are in flight.
+- [x] Define command-buffer objects and ownership.
+- [x] Allocate and map command-buffer backing memory.
+- [x] Enforce engine-specific alignment and size limits.
+- [x] Define the initial explicitly supported command set.
+- [x] Validate opcodes, lengths, bounds and referenced GPU addresses.
+- [x] Reject unsupported commands and invalid memory references.
+- [x] Restrict command access to authorized resources.
+- [x] Prevent mutation or destruction while commands are in flight.
 
 ### 7.3 Ring buffers and submission
 
-- [ ] Implement per-engine ring-buffer state.
-- [ ] Initialize ring resources according to the Haswell programming reference.
-- [ ] Implement head/tail tracking and wraparound.
-- [ ] Implement command submission and required register sequencing.
-- [ ] Enforce memory ordering and visibility before submission.
-- [ ] Handle full-ring, invalid-state and hardware-error conditions.
-- [ ] Keep engine-specific implementation inside the Haswell backend.
+- [x] Implement per-engine ring-buffer state.
+- [x] Initialize ring resources according to the Haswell programming reference. *(Software model: buffer, capacity and RING_CTL value. No register is written; the encoding is not hardware-verified.)*
+- [x] Implement head/tail tracking and wraparound.
+- [ ] Implement command submission and required register sequencing. *(Submission is implemented; register writes and the full programming sequence are not, because the sequence is not verified.)*
+- [ ] Enforce memory ordering and visibility before submission. *(Residency and contiguity are enforced; no flush sequence is issued.)*
+- [x] Handle full-ring, invalid-state and hardware-error conditions.
+- [x] Keep engine-specific implementation inside the Haswell backend.
 
 ### 7.4 Completion and fences
 
-- [ ] Define Ozero GPU fence objects and sequence semantics.
-- [ ] Implement completion tracking.
-- [ ] Implement interrupt-based completion where supported.
-- [ ] Implement polling where appropriate.
-- [ ] Implement bounded waits and timeout reporting.
-- [ ] Release resources only after confirmed completion or a documented safe recovery path.
-- [ ] Test delayed completion, timeout and error propagation.
+- [x] Define Ozero GPU fence objects and sequence semantics.
+- [x] Implement completion tracking. *(Retirement and completion are separate: the ring read pointer passing a submission releases its pin, while only a completion report marks the fence signalled. A retired submission with no report returns `O0_EIO`, never success.)*
+- [x] Implement interrupt-based completion where supported. *(A completion-report entry point exists for an interrupt handler; no interrupt is wired up yet.)*
+- [x] Implement polling where appropriate.
+- [x] Implement bounded waits and timeout reporting.
+- [x] Release resources only after confirmed completion or a documented safe recovery path.
+- [x] Test delayed completion, timeout and error propagation.
 
 ### 7.5 Hang detection and reset
 
-- [ ] Research documented Haswell engine hang detection and reset procedures.
-- [ ] Implement watchdog/timeout handling.
-- [ ] Implement reset only where its sequence is sufficiently documented.
-- [ ] Define effects of reset on contexts, queues, fences and resources.
-- [ ] Quarantine resources while hardware ownership is uncertain.
-- [ ] Preserve diagnostic state for failed submissions and resets.
+- [x] Research documented Haswell engine hang detection and reset procedures. *(The PRM volumes available to this project do not document an engine-reset sequence; see section 12.3 of the research note.)*
+- [x] Implement watchdog/timeout handling.
+- [x] Implement reset only where its sequence is sufficiently documented. *(No verified sequence exists, so reset returns `O0_ENOTSUP` and leaves the engine quarantined.)*
+- [x] Define effects of reset on contexts, queues, fences and resources.
+- [x] Quarantine resources while hardware ownership is uncertain.
+- [x] Preserve diagnostic state for failed submissions and resets.
 
 **Exit evidence:** command-validation, ring-state, submission-state, fence, timeout and recovery tests. Hardware/emulator execution evidence must be labeled by the exact environment and feature exercised.
 
@@ -277,40 +277,40 @@ Begin only after address spaces and single-engine submission are reliable.
 
 ### 8.1 Context lifecycle and isolation
 
-- [ ] Define GPU context objects and ownership.
-- [ ] Implement context creation and destruction.
-- [ ] Associate each context with its address-space state.
-- [ ] Track context-owned resources and in-flight references.
-- [ ] Prevent destruction while work remains in flight.
-- [ ] Define and test the isolation guarantees actually provided.
+- [x] Define GPU context objects and ownership.
+- [x] Implement context creation and destruction.
+- [x] Associate each context with its address-space state.
+- [x] Track context-owned resources and in-flight references.
+- [x] Prevent destruction while work remains in flight.
+- [x] Define and test the isolation guarantees actually provided.
 
 ### 8.2 Queue lifecycle and ordering
 
-- [ ] Define queue objects and supported engine association.
-- [ ] Implement queue creation and destruction.
-- [ ] Serialize submissions where required.
-- [ ] Define queue ordering and fence association.
-- [ ] Implement queue error and cancellation states.
-- [ ] Test ordering and lifetime across multiple queues.
+- [x] Define queue objects and supported engine association.
+- [x] Implement queue creation and destruction.
+- [x] Serialize submissions where required.
+- [x] Define queue ordering and fence association.
+- [x] Implement queue error and cancellation states.
+- [x] Test ordering and lifetime across multiple queues.
 
 ### 8.3 Scheduling and preemption
 
-- [ ] Define the initial bounded scheduling policy.
-- [ ] Prevent indefinite resource ownership and unbounded waits.
-- [ ] Integrate watchdog and timeout behavior.
-- [ ] Research Haswell preemption support before implementation.
-- [ ] Implement preemption only if the target hardware contract is documented and verified.
-- [ ] Otherwise implement and document a bounded non-preemptive policy.
-- [ ] Report scheduling/preemption capabilities per backend; never promise universal preemption.
+- [x] Define the initial bounded scheduling policy.
+- [x] Prevent indefinite resource ownership and unbounded waits.
+- [x] Integrate watchdog and timeout behavior.
+- [x] Research Haswell preemption support before implementation. *(Not documented in the available PRM volumes; reported as unsupported.)*
+- [ ] Implement preemption only if the target hardware contract is documented and verified. *(Correctly not implemented.)*
+- [x] Otherwise implement and document a bounded non-preemptive policy.
+- [x] Report scheduling/preemption capabilities per backend; never promise universal preemption.
 
 ### 8.4 Cancellation and reset interaction
 
-- [ ] Define pending-work behavior during cancellation and reset.
-- [ ] Define fence results for cancelled, failed and reset work.
-- [ ] Ensure cancelled work cannot later access freed memory.
-- [ ] Test context destruction with pending submissions.
-- [ ] Test queue failure and recovery.
-- [ ] Test multiple contexts sharing an engine where supported.
+- [x] Define pending-work behavior during cancellation and reset.
+- [x] Define fence results for cancelled, failed and reset work.
+- [x] Ensure cancelled work cannot later access freed memory.
+- [x] Test context destruction with pending submissions.
+- [x] Test queue failure and recovery.
+- [x] Test multiple contexts sharing an engine where supported.
 
 **Exit evidence:** context and queue lifecycle tests, ordering/fence tests, cancellation/reset tests and explicit documented scheduling guarantees.
 
@@ -331,36 +331,45 @@ Begin only after address spaces and single-engine submission are reliable.
 
 ### 10.1 Host-side test coverage
 
-- [ ] Device matching and capability validation.
-- [ ] Resource/BAR parsing and bounds validation.
-- [ ] GPU VA allocation, alignment, overflow and overlap.
-- [ ] Memory-object lifetime, references and pinning.
-- [ ] Mapping, unmapping, protection and rollback.
-- [ ] Residency and eviction bookkeeping.
-- [ ] Coherency/visibility state transitions.
-- [ ] Haswell PPGTT/GGTT construction and teardown.
-- [ ] Invalidation ordering and error paths.
-- [ ] Command-buffer validation.
-- [ ] Ring-buffer state and wraparound.
-- [ ] Fence completion, timeout and error paths.
-- [ ] Context/queue lifecycle, ordering and cancellation.
+- [x] Device matching and capability validation.
+- [x] Resource/BAR parsing and bounds validation.
+- [x] GPU VA allocation, alignment, overflow and overlap.
+- [x] Memory-object lifetime, references and pinning.
+- [x] Mapping, unmapping, protection and rollback.
+- [x] Residency and eviction bookkeeping.
+- [x] Coherency/visibility state transitions.
+- [x] Haswell PPGTT/GGTT construction and teardown.
+- [x] Invalidation ordering and error paths.
+- [x] Command-buffer validation.
+- [x] Ring-buffer state and wraparound.
+- [x] Fence completion, timeout and error paths.
+- [x] Context/queue lifecycle, ordering and cancellation.
+
+Current counts: `make test` runs 25 GPU tests with 0 failures, including ring wraparound, batch validation, engine fences, timeout/fault, cancellation and context isolation.
 
 ### 10.2 Kernel integration
 
-- [ ] Integrate GPU discovery with the existing PCI/device architecture.
-- [ ] Integrate GPU memory backing with PMM using explicit ownership rules.
-- [ ] Integrate synchronization with existing kernel primitives.
-- [ ] Ensure unsupported devices and initialization failures do not break kernel boot.
-- [ ] Add serial diagnostics for discovery, capabilities, initialization and errors.
-- [ ] Add a safe GPU self-test only for operations that can be performed reliably.
+- [x] Integrate GPU discovery with the existing PCI/device architecture.
+- [x] Integrate GPU memory backing with PMM using explicit ownership rules.
+- [x] Integrate synchronization with existing kernel primitives.
+- [x] Ensure unsupported devices and initialization failures do not break kernel boot.
+- [x] Add serial diagnostics for discovery, capabilities, initialization and errors.
+- [x] Add a safe GPU self-test only for operations that can be performed reliably.
 
 ### 10.3 QEMU and physical verification
 
-- [ ] Build and run the existing kernel checks and host test suites.
-- [ ] Verify kernel boot with GPU support compiled in.
-- [ ] Verify PCI discovery and unsupported-device handling under QEMU.
-- [ ] Test GPU behavior under QEMU only if the selected emulated device genuinely implements it.
-- [ ] Record QEMU boot separately from emulated GPU execution.
+- [x] Build and run the existing kernel checks and host test suites.
+- [x] Verify kernel boot with GPU support compiled in.
+- [x] Verify PCI discovery and unsupported-device handling under QEMU.
+- [ ] Test GPU behavior under QEMU only if the selected emulated device genuinely implements it. *(The QEMU device in the smoke run reports `backend=none`; no GPU execution is claimed.)*
+- [x] Record QEMU boot separately from emulated GPU execution.
+
+Recorded evidence (2026-11-24): `make test` — 25 GPU tests, 0 failures, plus the existing
+CPU, PMM, slab, sync, block, FS and scheduler suites at 0 failures. `make iso` then
+`tools/qemu-smoke.sh` boots the kernel and the serial log contains the submission
+self-test markers through `OZERO: gpu submission self-test complete`. That run exercises
+the software model only: the emulated display device is unsupported, no MMIO is written
+and no fence is completed by hardware.
 - [ ] Defer physical HD 4600 validation to the planned final hardware-validation phase.
 - [ ] At physical validation, test device identification, MMIO, memory mapping, PPGTT/GGTT, submission, fences, timeouts, reset and repeated-workload stability.
 
@@ -384,8 +393,16 @@ Stage 5 is complete only when:
 3. Haswell Gen7.5 PPGTT and GGTT are implemented from generation-correct specifications.
 4. Required translation invalidation and coherency rules are implemented.
 5. At least the selected initial engine has validated command submission and completion fences.
+   *(Met in the software model: batch validation, ring submission, seqno fences and both
+   completion paths are implemented and host-tested. Hardware execution is not verified;
+   see 10.3.)*
 6. Timeouts, uncertain hardware ownership and recovery paths cannot cause unsafe resource reuse.
+   *(Met: an unbounded wait is refused, a timeout faults the queue and quarantines the
+   engine, recovery is refused without a verified reset, and unconsumed work cannot be
+   released or re-pinned.)*
 7. Basic contexts and queues have defined lifecycle, ordering and isolation guarantees.
+   *(Met: contexts own an address space and their queues; queues order submissions by
+   seqno; a batch that references an address outside its own PPGTT is rejected.)*
 8. The GPU-independent core does not impose Haswell-only assumptions.
 9. Host tests and kernel integration evidence pass, with QEMU and physical evidence reported separately.
 10. Documentation and independent review reflect the actual implementation.
@@ -398,6 +415,7 @@ Stage 5 is complete only when:
 - No universal page-table format, command stream, engine model or preemption contract.
 - Confirm exact target device ID/revision before physical bring-up.
 - Confirm which Haswell engine submission, interrupt and reset details are covered by available public programming references.
+  *(Partially resolved: the available PRM volumes do not document an engine-reset sequence, so reset is refused rather than guessed. Interrupt delivery is not wired up yet.)*
 - Resolve PCI enumeration/resource-interface prerequisites from the actual repository state.
 - Do not block host-side architecture and test work solely because physical hardware validation is deferred.
 

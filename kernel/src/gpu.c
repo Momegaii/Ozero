@@ -21,6 +21,9 @@ static bool gpu_is_pow2(uint64_t value) {
     return value != 0u && (value & (value - 1u)) == 0u;
 }
 
+static o0_status gpu_memory_alloc(size_t size, bool contiguous,
+                                  struct o0_gpu_memory **out);
+
 static void insert_range_locked(struct o0_gpu_vm *vm, uint64_t base, uint64_t size) {
     uint32_t i = vm->range_count;
     while (i > 0u && vm->ranges[i - 1u].base > base) {
@@ -47,9 +50,43 @@ static bool remove_range_locked(struct o0_gpu_vm *vm, uint64_t base, uint64_t si
 }
 
 o0_status o0_gpu_memory_create(size_t size, struct o0_gpu_memory **out) {
+    return gpu_memory_alloc(size, false, out);
+}
+
+o0_status o0_gpu_memory_create_contiguous(size_t size, struct o0_gpu_memory **out) {
+    return gpu_memory_alloc(size, true, out);
+}
+
+bool o0_gpu_memory_is_contiguous(const struct o0_gpu_memory *mem) {
+    if (mem == NULL || mem->phys_pages == NULL || mem->page_count == 0u) {
+        return false;
+    }
+    for (uint32_t i = 1; i < mem->page_count; ++i) {
+        if (mem->phys_pages[i] != mem->phys_pages[i - 1u] + O0_PAGE_SIZE) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static o0_status gpu_memory_alloc(size_t size, bool contiguous,
+                                  struct o0_gpu_memory **out) {
     if (out == NULL || size == 0u) {
         return O0_EINVAL;
     }
+    size_t pages = (size + O0_PAGE_SIZE - 1u) / O0_PAGE_SIZE;
+    uint32_t order = 0;
+    if (contiguous) {
+        /* Hardware rings and page tables must be one physically contiguous run, so the
+         * page count has to be a power of two. */
+        if (!gpu_is_pow2(pages)) {
+            return O0_EINVAL;
+        }
+        while ((1ull << order) < pages) {
+            ++order;
+        }
+    }
+
     struct o0_gpu_memory *mem = o0_kalloc(sizeof(*mem), 0);
     if (mem == NULL) {
         return O0_ENOMEM;
@@ -57,7 +94,6 @@ o0_status o0_gpu_memory_create(size_t size, struct o0_gpu_memory **out) {
     memset(mem, 0, sizeof(*mem));
     o0_spin_init(&mem->lock);
 
-    size_t pages = (size + O0_PAGE_SIZE - 1u) / O0_PAGE_SIZE;
     mem->phys_pages = o0_kalloc(pages * sizeof(o0_paddr_t), 0);
     if (mem->phys_pages == NULL) {
         o0_kfree(mem, sizeof(*mem));
@@ -65,23 +101,36 @@ o0_status o0_gpu_memory_create(size_t size, struct o0_gpu_memory **out) {
     }
     memset(mem->phys_pages, 0, pages * sizeof(o0_paddr_t));
 
-    for (size_t i = 0; i < pages; ++i) {
-        o0_paddr_t page = o0_pmm_alloc_pages(0);
-        if (page == 0u) {
-            for (size_t j = 0; j < i; ++j) {
-                o0_pmm_free_pages(mem->phys_pages[j], 0);
-            }
+    if (contiguous) {
+        o0_paddr_t base = o0_pmm_alloc_pages(order);
+        if (base == 0u) {
             o0_kfree(mem->phys_pages, pages * sizeof(o0_paddr_t));
             o0_kfree(mem, sizeof(*mem));
             return O0_ENOMEM;
         }
-        mem->phys_pages[i] = page;
+        for (size_t i = 0; i < pages; ++i) {
+            mem->phys_pages[i] = base + (o0_paddr_t)i * O0_PAGE_SIZE;
+        }
+        mem->order = order;
+    } else {
+        for (size_t i = 0; i < pages; ++i) {
+            o0_paddr_t page = o0_pmm_alloc_pages(0);
+            if (page == 0u) {
+                for (size_t j = 0; j < i; ++j) {
+                    o0_pmm_free_pages(mem->phys_pages[j], 0);
+                }
+                o0_kfree(mem->phys_pages, pages * sizeof(o0_paddr_t));
+                o0_kfree(mem, sizeof(*mem));
+                return O0_ENOMEM;
+            }
+            mem->phys_pages[i] = page;
+        }
     }
 
     mem->size = size;
     mem->page_count = (uint32_t)pages;
-    /* Direct-map alias of the first page only. Pages are not guaranteed contiguous;
-     * consumers must walk phys_pages per page. */
+    /* Direct-map alias of the first page only. Non-contiguous objects must be walked
+     * per page; contiguous ones are safe to read linearly for `size` bytes. */
     mem->backing = o0_phys_to_virt(mem->phys_pages[0]);
     mem->refcount = 1u;
     mem->pinned = 0u;
@@ -104,9 +153,13 @@ void o0_gpu_memory_destroy(struct o0_gpu_memory *mem) {
     o0_spin_unlock(&mem->lock);
 
     if (mem->phys_pages != NULL) {
-        for (uint32_t i = 0; i < mem->page_count; ++i) {
-            if (mem->phys_pages[i] != 0u) {
-                o0_pmm_free_pages(mem->phys_pages[i], 0);
+        if (mem->order != 0u && o0_gpu_memory_is_contiguous(mem)) {
+            o0_pmm_free_pages(mem->phys_pages[0], mem->order);
+        } else {
+            for (uint32_t i = 0; i < mem->page_count; ++i) {
+                if (mem->phys_pages[i] != 0u) {
+                    o0_pmm_free_pages(mem->phys_pages[i], 0);
+                }
             }
         }
         o0_kfree(mem->phys_pages, mem->page_count * sizeof(o0_paddr_t));

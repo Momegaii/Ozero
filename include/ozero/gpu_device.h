@@ -64,6 +64,7 @@ struct o0_gpu_caps {
     bool has_video;
     bool has_media;
     bool submission_supported; /* command submission + completion implemented */
+    bool submission_hardware_verified; /* submission executed on real hardware */
     bool preemption_reported;  /* documented and implemented for this backend */
     bool reset_reported;       /* documented and implemented for this backend */
 };
