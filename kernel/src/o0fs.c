@@ -88,9 +88,17 @@ _Static_assert(sizeof(struct o0fs_dirent_disk) == O0FS_DIRENT_SIZE,
 _Static_assert(O0FS_INODES_PER_BLOCK * O0FS_INODE_SIZE == O0FS_BLOCK_SIZE,
                "inode table packing mismatch");
 
+struct o0fs_write_backup {
+    uint32_t block;
+    void *page;
+};
+
 struct o0fs {
     struct o0_block_dev *dev;
     struct o0fs_super_disk super;
+    /* Per-mount undo pages for one in-flight write transaction. */
+    struct o0fs_write_backup write_backups[O0FS_MAX_FILE_BLOCKS];
+    uint32_t write_backup_count;
     uint8_t *blk;  /* inode table blocks and file data */
     uint8_t *dir;  /* directory blocks */
     uint8_t *ind;  /* indirect block */
@@ -828,31 +836,104 @@ static o0_status fs_write_range(struct o0fs *fs, struct o0fs_inode_disk *inode,
     return O0_OK;
 }
 
-/* Write path with an allocation rollback. fs_write_range links newly allocated
- * blocks into the in-memory inode before the transfer can fail, so a failure
- * (out of space, device error) would otherwise leave those blocks allocated but
- * unreachable from the on-disk inode. On failure every block beyond the
- * pre-write size is released and the previous inode is restored. The data of a
- * failed write is unspecified; the volume stays consistent. */
+/*
+ * Writes are staged with an undo image for every already-allocated data block
+ * the operation may touch. This is not a journal and cannot survive power loss,
+ * but it lets the live filesystem restore old contents after a reported I/O
+ * failure, provided the device accepts the rollback writes.
+ */
+static void fs_write_backups_release(struct o0fs *fs) {
+    for (uint32_t i = 0; i < fs->write_backup_count; ++i) {
+        fs_page_free(fs->write_backups[i].page);
+        fs->write_backups[i].page = NULL;
+        fs->write_backups[i].block = 0;
+    }
+    fs->write_backup_count = 0;
+}
+
 static o0_status fs_write_checked(struct o0fs *fs, uint32_t inode_no,
                                   struct o0fs_inode_disk *inode,
                                   uint64_t offset, const uint8_t *buffer,
                                   size_t len) {
+    if (len == 0) {
+        return O0_OK;
+    }
+    if (offset > O0FS_MAX_FILE_BYTES ||
+        (uint64_t)len > O0FS_MAX_FILE_BYTES - offset) {
+        return O0_ERANGE;
+    }
+
     struct o0fs_inode_disk snapshot = *inode;
+    fs_write_backups_release(fs);
+
+    uint64_t first_byte = offset < snapshot.size ? offset : snapshot.size;
+    uint64_t end_byte = offset + len;
+    uint32_t first_block = (uint32_t)(first_byte / O0FS_BLOCK_SIZE);
+    uint32_t last_block = (uint32_t)((end_byte - 1u) / O0FS_BLOCK_SIZE);
+
+    /*
+     * Capture all old blocks before the first mutation. The page-backed undo
+     * set is bounded by O0FS_MAX_FILE_BLOCKS and allocation failure is safe:
+     * no disk contents have changed yet.
+     */
+    for (uint32_t index = first_block; index <= last_block; ++index) {
+        uint32_t block = 0;
+        bool created = false;
+        o0_status st = fs_bmap(fs, &snapshot, index, false, &block, &created);
+        if (st != O0_OK) {
+            fs_write_backups_release(fs);
+            return st;
+        }
+        if (block == 0) {
+            continue;
+        }
+        void *backup = fs_page_alloc();
+        if (backup == NULL) {
+            fs_write_backups_release(fs);
+            return O0_ENOMEM;
+        }
+        st = fs_read_block(fs, block, backup);
+        if (st != O0_OK) {
+            fs_page_free(backup);
+            fs_write_backups_release(fs);
+            return st;
+        }
+        uint32_t slot = fs->write_backup_count++;
+        fs->write_backups[slot].block = block;
+        fs->write_backups[slot].page = backup;
+    }
+
     o0_status st = fs_write_range(fs, inode, offset, buffer, len);
     if (st == O0_OK) {
-        o0_status write_st = fs_write_inode(fs, inode_no, inode);
-        if (write_st == O0_OK) {
+        st = fs_write_inode(fs, inode_no, inode);
+        if (st == O0_OK) {
+            fs_write_backups_release(fs);
             return O0_OK;
         }
-        st = write_st;
+    }
+
+    o0_status rollback_status = O0_OK;
+    for (uint32_t i = 0; i < fs->write_backup_count; ++i) {
+        o0_status restore_st =
+            fs_write_block(fs, fs->write_backups[i].block,
+                           fs->write_backups[i].page);
+        if (restore_st != O0_OK) {
+            rollback_status = O0_EIO;
+        }
     }
 
     struct o0fs_inode_disk rollback = *inode;
-    uint32_t keep = (snapshot.size + O0FS_BLOCK_SIZE - 1u) / O0FS_BLOCK_SIZE;
-    (void)fs_inode_release_blocks(fs, &rollback, keep);
-    (void)fs_write_inode(fs, inode_no, &snapshot);
-    return st;
+    uint32_t keep =
+        (snapshot.size + O0FS_BLOCK_SIZE - 1u) / O0FS_BLOCK_SIZE;
+    if (fs_inode_release_blocks(fs, &rollback, keep) != O0_OK) {
+        rollback_status = O0_EIO;
+    }
+    if (fs_write_inode(fs, inode_no, &snapshot) != O0_OK) {
+        rollback_status = O0_EIO;
+    }
+    *inode = snapshot;
+    fs_write_backups_release(fs);
+    return rollback_status == O0_OK ? st : O0_EIO;
 }
 
 /* ---- path resolution ---- */
