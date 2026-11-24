@@ -61,7 +61,7 @@ is inferred from another.
 
 | Sub-wave | Scope | Status | Evidence |
 |---|---|---|---|
-| 2.0 | Housekeeping from Wave 1 | **Done** | This document and `docs/PROJECT_STATUS.md`: run numbers and URLs separated and verified, CI-versus-local emulator versions recorded, real UEFI firmware kept as an open box, stale LAPIC note corrected, SMP plan references ADR 0005. |
+| 2.0 | Housekeeping from Wave 1 | **Done** | This document and `docs/PROJECT_STATUS.md`: run numbers and URLs separated and verified, CI-versus-local emulator versions recorded, real UEFI firmware kept as an open box, stale LAPIC note corrected, SMP plan references ADR 0005. Run [#134](https://github.com/Momegaii/Ozero/actions/runs/45475446441) on commit `91af9fa` exercised all five jobs successfully. Later documentation-only commits are covered by the same matrix and are not cited run by run. |
 | 2.1 | Syscall and executable ABI decision | **Proposed — awaiting Director approval** | [ADR 0007](decisions/0007-user-abi-syscall-and-executable.md) with alternatives, open questions and a verification plan. No code lands before approval. |
 | 2.2 | Per-process page tables from the PMM, user/kernel split, null guard, stack guard page, fault classification, NX/WP/W^X | Not started | Blocked on 2.1 |
 | 2.3 | Ring 3: GDT ring-3 segments, TSS with `RSP0`, #DF IST, `iretq` entry, `syscall` stub with `SFMASK`, selector/`STAR` host test | Not started | Blocked on 2.1 |
