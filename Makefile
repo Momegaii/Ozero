@@ -20,7 +20,8 @@ KERNEL_OBJS := $(BUILD)/main.o $(BUILD)/serial.o $(BUILD)/string.o $(BUILD)/stat
                $(BUILD)/sched.o $(BUILD)/thread.o $(BUILD)/sync.o \
                $(BUILD)/irq.o $(BUILD)/paging.o $(BUILD)/cpu.o $(BUILD)/pic.o \
                $(BUILD)/interrupts_c.o $(BUILD)/interrupts.o $(BUILD)/irq_stubs.o \
-               $(BUILD)/context.o
+               $(BUILD)/context.o $(BUILD)/block.o $(BUILD)/ramdisk.o \
+               $(BUILD)/o0fs.o
 
 HOST_CFLAGS := -std=gnu11 -O1 -Wall -Wextra -Iinclude
 
@@ -117,6 +118,10 @@ test: $(BUILD)
 	./$(BUILD)/sched_test
 	$(CC) $(HOST_CFLAGS) -o $(BUILD)/cpu_test tests/cpu_test.c
 	./$(BUILD)/cpu_test
+	$(CC) $(HOST_CFLAGS) -o $(BUILD)/block_test tests/block_test.c
+	./$(BUILD)/block_test
+	$(CC) $(HOST_CFLAGS) -o $(BUILD)/fs_test tests/fs_test.c
+	./$(BUILD)/fs_test
 
 run: $(ISO)
 	$(QEMU) -machine q35 -m 512M -cdrom $(ISO) -boot d \

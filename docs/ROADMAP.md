@@ -22,7 +22,8 @@ These are development stages, not delivery-date promises. The order is intention
 - **Stage 1** — Boot verified in QEMU (BIOS) at the time of the Stage 2 wave; serial/debug workflow documented. Remaining: UEFI path exercise re-run, physical hardware tests. Re-verification is required for the current revision because the Stage 3 change set was produced without a local emulator.
 - **Stage 2** — Implemented: physical page allocator, normalised boot memory map, 4-level page-table construction, page-fault error-code decoding, CPU feature discovery (CPUID). The CR3 switch, the HHDM direct map, `virt_to_phys`/`phys_to_virt` and the address-space API landed with Stage 3. Remaining: memory reclaim.
 - **Stage 3** — Implemented and boot-verified in QEMU (BIOS): kernel runs on its own page tables; slab kernel heap; processes, kernel threads and per-thread stacks; assembly context switch; PIT-driven preemptive priority round-robin scheduler (demo threads run to completion under the timer); spinlocks and blocking mutexes; host unit tests for the allocator and scheduler. Remaining: UEFI boot verification (OVMF) and physical hardware validation.
-- **Stages 4–10** — Not started.
+- **Stage 4** — Implemented at the substrate level: block layer with validated registration, bio submission and a synchronous single-segment API; RAM disk as the first storage driver with fault injection; the draft OzeroFS filesystem (format, mount, files, directories, read/write/truncate/unlink, free-space accounting, mounted read-write); boot self-test with an injected storage fault; host unit tests for the block layer and the filesystem. Remaining: real hardware protocol drivers (AHCI/NVMe), partition discovery, the asynchronous I/O model, an approved filesystem format, crash-consistency work, UEFI boot and physical validation. See `docs/decisions/0003-stage4-storage.md`.
+- **Stages 5–10** — Not started.
 
 ## Dependency rules
 

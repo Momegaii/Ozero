@@ -55,6 +55,14 @@ required_markers=(
     "OZERO: worker-b iteration=2"
     "OZERO: worker-a exiting"
     "OZERO: worker-b exiting"
+    # Stage 4 storage: block layer, RAM disk, OzeroFS and the fault path.
+    "OZERO: block layer ready devices="
+    "OZERO: ramdisk registered name=ram0"
+    "OZERO: o0fs formatted blocks="
+    "OZERO: o0fs mounted free blocks="
+    "OZERO: o0fs file OK bytes="
+    "OZERO: o0fs fault test OK"
+    "OZERO: storage self-test complete"
 )
 
 for marker in "${required_markers[@]}"; do

@@ -161,10 +161,36 @@ void o0_block_unregister(struct o0_block_dev *dev);
 /* Submit a bio.  The caller must not touch it until end_io runs. */
 o0_status o0_block_submit_bio(struct o0_block_dev *dev, struct o0_bio *bio);
 
-/* Called by the protocol driver from IRQ, poll or process context. */
+/* Called by the protocol driver from IRQ, poll or process context. Exactly one
+ * completion is delivered per submitted bio; a second call is ignored. */
 void o0_block_complete_bio(struct o0_bio *bio,
                            o0_block_status status,
                            size_t bytes_done);
+
+/* ---- Synchronous single-segment I/O (Stage 4) ----
+ *
+ * Builds and submits one bio over one contiguous buffer, then waits for the
+ * completion. `bytes` must be a non-zero multiple of the logical block size and
+ * at most one page, and the transfer must stay inside the device. The driver
+ * must either complete the bio before queue_rq returns or provide a poll
+ * callback; otherwise the wait ends with O0_ETIMEDOUT. The caller's buffer must
+ * remain valid until the call returns.
+ *
+ * This is the Stage 4 interface: it exists so the block layer and the
+ * filesystem can be exercised without an asynchronous I/O scheduler. It is not
+ * the future native I/O ABI. */
+O0_NODISCARD o0_status o0_block_read(struct o0_block_dev *dev, uint64_t lba,
+                                     void *buffer, size_t bytes);
+O0_NODISCARD o0_status o0_block_write(struct o0_block_dev *dev, uint64_t lba,
+                                      const void *buffer, size_t bytes);
+O0_NODISCARD o0_status o0_block_flush(struct o0_block_dev *dev);
+
+/* ---- Registry inspection ---- */
+
+/* Registered devices, in registration order. Used for diagnostics and tests;
+ * registration itself is a single-threaded boot-time operation. */
+size_t o0_block_device_count(void);
+struct o0_block_dev *o0_block_device_by_index(size_t index);
 
 static inline uint64_t o0_block_lba_to_bytes(const struct o0_block_dev *dev,
                                               uint64_t lba)

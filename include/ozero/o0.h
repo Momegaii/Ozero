@@ -11,5 +11,8 @@
 #include "ozero/thread.h"
 #include "ozero/ipc.h"
 #include "ozero/driver.h"
+#include "ozero/block.h"
+#include "ozero/ramdisk.h"
+#include "ozero/fs.h"
 
 #endif /* O0_H */

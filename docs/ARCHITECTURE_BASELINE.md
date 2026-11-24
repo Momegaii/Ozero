@@ -68,7 +68,9 @@ The following are not yet approved and must not be silently assumed:
 - Interrupt, timer, SMP, and early platform initialization design.
 - Driver model and user/kernel driver boundary.
 - Native executable format and system-call ABI.
-- Filesystem selection and on-disk format.
+- Filesystem selection and on-disk format. A Stage 4 draft (OzeroFS) exists for
+  testing and is documented in `docs/o0fs-format.md`; it remains a proposal, not an
+  approved decision.
 - Windows compatibility isolation boundary and initial API milestone.
 - CI matrix, emulation strategy, and physical hardware lab baseline.
 

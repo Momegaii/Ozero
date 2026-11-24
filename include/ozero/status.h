@@ -26,7 +26,12 @@ typedef enum o0_status {
     O0_ETIMEDOUT = 10,
     O0_EAGAIN = 11,  /* retry later */
     O0_EOVERFLOW = 12,
-    O0_ENOTSUP = 13  /* valid request the current interface cannot express */
+    O0_ENOTSUP = 13, /* valid request the current interface cannot express */
+    O0_EEXIST = 14,  /* object already exists */
+    O0_ENOTDIR = 15, /* path component is not a directory */
+    O0_EISDIR = 16,  /* operation requires a non-directory */
+    O0_ENOTEMPTY = 17, /* directory still has entries */
+    O0_ENOSPC = 18   /* no space left on the storage object */
 } o0_status;
 
 const char *o0_status_name(o0_status status);

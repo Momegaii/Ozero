@@ -18,6 +18,11 @@ const char *o0_status_name(o0_status status) {
         case O0_EAGAIN: return "EAGAIN";
         case O0_EOVERFLOW: return "EOVERFLOW";
         case O0_ENOTSUP: return "ENOTSUP";
+        case O0_EEXIST: return "EEXIST";
+        case O0_ENOTDIR: return "ENOTDIR";
+        case O0_EISDIR: return "EISDIR";
+        case O0_ENOTEMPTY: return "ENOTEMPTY";
+        case O0_ENOSPC: return "ENOSPC";
         default: return "UNKNOWN";
     }
 }

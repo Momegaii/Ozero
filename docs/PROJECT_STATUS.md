@@ -1,7 +1,8 @@
 # Ozero Project Status
 
 Last updated: 2026-11-23  
-Current stage: **Stage 3 — processes, threads and scheduler (implemented; boot-verified in QEMU BIOS)**  
+Current stage: **Stage 4 — storage, filesystem and drivers (substrate implemented; review and hardware work pending)**  
+Stage 3 — processes, threads and scheduler: **implemented; boot-verified in QEMU BIOS for the Stage 3 revision**  
 Stage 2 — physical and virtual memory: **implemented, verified by build + host tests + QEMU boot**  
 Stage 1 — bootable x86-64 kernel: **implemented; see verification state**
 
@@ -59,21 +60,53 @@ Stage 1 — bootable x86-64 kernel: **implemented; see verification state**
 - `tests/slab_test.c` and `tests/sched_test.c`: host unit tests for the allocator and the
   scheduler rules; `make test` runs all three suites.
 
+### Stage 4 — storage substrate
+
+- `kernel/src/block.c`: block layer core. Validates device names, geometry, queues and
+  every bio (op, vector bounds, block alignment, LBA range, feature flags), delivers one
+  completion per bio, and provides the synchronous single-segment read/write/flush API
+  used by Stage 4 clients.
+- `kernel/src/ramdisk.c`: RAM disk, the first `o0_block_dev` driver. PMM-page backing
+  reached through the direct map, 4 KiB logical blocks, two devices of up to 4 MiB, and
+  a test-only fault-injection hook.
+- `kernel/src/o0fs.c` + `include/ozero/fs.h`: the draft OzeroFS filesystem — superblock
+  with checksum, block/inode bitmaps, 128-byte inodes with 12 direct and one indirect
+  block, 32-byte directory entries, and format/mount/sync/unmount/stat/lookup/create/
+  mkdir/read/write/truncate/unlink/rmdir/list operations. A failed write releases the
+  blocks it allocated and restores the previous inode.
+- `kernel/src/main.c`: Stage 4 boot self-test — registers a RAM disk, formats and mounts
+  OzeroFS, creates a directory and file, writes and verifies data, injects a storage
+  I/O error (which `o0fs_sync` must report), clears the fault, syncs again, then removes
+  the tree and unmounts.
+- `tests/block_test.c` and `tests/fs_test.c`: host unit tests (4 block-layer tests and 9
+  filesystem tests) covering registration validation, I/O round-trips, range and type
+  errors, duplicate names, device limits, format rules, mount validation, indirect
+  blocks, truncate and zero fill, directory listing, `ENOSPC`, persistence across a
+  remount, injected I/O faults and the mount pool limit.
+- Documentation: `docs/o0fs-format.md` specifies the draft on-disk format;
+  `docs/decisions/0003-stage4-storage.md` records the storage decisions, alternatives
+  and open questions. The filesystem format remains a proposal for Project Director
+  review, not an approved architecture decision.
+
 ## Verification state
 
 Truthful split by evidence type:
 
 - **Build:** the kernel links cleanly with `-Werror` on the documented flags
   (`make kernel`, ELF64 x86-64). Performed in the current work environment.
-- **Host unit tests:** `make test` — PMM 7/7, slab 5/5, scheduler 5/5, CPU pass.
-- **QEMU / ISO boot (BIOS):** **performed and passing for this revision** with
+- **Host unit tests:** `make test` — PMM 7/7, slab 5/5, scheduler 5/5, CPU pass,
+  block layer 4/4, OzeroFS 9/9.
+- **QEMU / ISO boot (BIOS):** **performed and passing for the Stage 3 revision** with
   `make iso` + `tools/qemu-smoke.sh` on QEMU 10 (both `q35` and `pc` machines).
-  The smoke test asserts the Stage 1/2 boot milestones plus the Stage 3 execution
-  model: page tables active, kernel heap ready, scheduler initialised, Stage 3
-  self-test complete, two kernel threads created, and both demo workers running
-  all three iterations and exiting under the preemptive PIT scheduler.
+  That run predates the Stage 4 change set. The smoke test also asserts the Stage 4
+  storage markers (block layer ready, RAM disk registered, OzeroFS formatted/mounted,
+  file read-back, fault test, storage self-test complete), but **the Stage 4 revision
+  has not been booted in an emulator here** because QEMU is unavailable in this
+  environment.
 - **UEFI boot:** **not performed for this revision.** The ISO carries a UEFI
   boot path (`limine-uefi-cd.bin`), but it has not been exercised under OVMF here.
+- **Real storage hardware:** never exercised. There is no ATA, AHCI or NVMe driver yet;
+  the Stage 4 storage evidence comes from the RAM disk only.
 - **GitHub Actions:** not confirmed for this revision.
 - **Physical hardware:** never performed.
 
@@ -147,16 +180,34 @@ stage scope, the QEMU BIOS verification above, or the decisions recorded in ADR 
 - [ ] Boot verification in QEMU (UEFI) on a machine with OVMF installed.
 - [ ] Physical hardware validation.
 
+## Stage 4 exit criteria
+
+- [x] Device-independent block layer with validated registration and request checking.
+- [x] An initial storage driver behind the block layer (RAM disk) plus a synchronous
+      client path.
+- [x] Filesystem operations: format, mount, create, read, write, truncate, unlink,
+      rmdir and directory listing, with a checksummed on-disk superblock.
+- [x] Fault tests: bad superblock/checksum, path and type errors, `ENOSPC`, injected
+      block I/O errors, failed-write block release and remount persistence.
+- [x] Host unit tests for the block layer and the filesystem; boot self-test added to
+      `kmain` and to the smoke markers.
+- [ ] Boot verification of the Stage 4 revision in QEMU (BIOS and UEFI).
+- [ ] A real storage protocol driver (AHCI/NVMe) and partition discovery.
+- [ ] An approved filesystem format and crash-consistency/recovery design.
+
 ## Immediate next engineering wave
 
-1. Run a UEFI boot under OVMF (the BIOS smoke test now passes); add the same
-   Stage 3 serial markers to any UEFI smoke path.
-2. User-mode entry: GDT ring-3 segments, TSS with a kernel stack, `iretq` path and a
+1. Boot the Stage 4 revision in QEMU (BIOS, then OVMF) and confirm the storage markers
+   and the injected-fault path on real emulated hardware.
+2. Run a UEFI boot under OVMF; add the same serial markers to any UEFI smoke path.
+3. PCI enumeration plus AHCI/NVMe storage drivers with DMA and IRQ completion, then
+   partition discovery (MBR/GPT) on top of the block layer.
+4. User-mode entry: GDT ring-3 segments, TSS with a kernel stack, `iretq` path and a
    syscall ABI decision (ADR 0002 follow-ups).
-3. Replace the static page-table pool with PMM-backed per-address-space tables.
-4. AP bring-up (ACPI MADT, local APIC, SMP trampoline) and the PIT → APIC timer
+5. Replace the static page-table pool with PMM-backed per-address-space tables.
+6. AP bring-up (ACPI MADT, local APIC, SMP trampoline) and the PIT → APIC timer
    migration; the LAPIC disable added for the PIC path is removed here.
-5. Memory-map reclaim (`o0_pmm_release_bootloader_memory`) per `docs/boot-contract.md`.
+7. Memory-map reclaim (`o0_pmm_release_bootloader_memory`) per `docs/boot-contract.md`.
 
 ## Reporting standard
 

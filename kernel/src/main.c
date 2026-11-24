@@ -1,12 +1,13 @@
 /* Ozero kernel - entry point and boot sequence.
  *
- * Stage 3 boot order:
+ * Boot order:
  *   1. serial console, Limine base revision check, exception IDT
  *   2. direct-map offset, boot info, physical page allocator
  *   3. CPU feature detection
  *   4. page tables + CR3 switch (kernel now runs on its own tables)
  *   5. kernel heap (slab), IRQ dispatch, PIC/PIT
  *   6. scheduler, kernel threads, preemption on
+ *   7. Stage 3 and Stage 4 self-tests (execution model, then storage)
  */
 
 #include <stdbool.h>
@@ -14,15 +15,19 @@
 #include <stdint.h>
 #include <limine.h>
 
+#include "ozero/block.h"
 #include "ozero/boot.h"
 #include "ozero/cpu.h"
+#include "ozero/fs.h"
 #include "ozero/irq.h"
+#include "ozero/ramdisk.h"
 #include "ozero/mm.h"
 #include "ozero/status.h"
 #include "ozero/sync.h"
 #include "ozero/thread.h"
 
 #include "serial.h"
+#include "string.h"
 #include "thread_internal.h"
 
 __attribute__((used, section(".limine_requests")))
@@ -245,6 +250,92 @@ static void stage3_self_test(void) {
     o0_serial_puts("OZERO: stage3 self-test complete\n");
 }
 
+/* Stage 4 storage self-test: block layer, RAM disk driver, OzeroFS and its
+ * error paths. The RAM disk is the reference driver until a real storage
+ * protocol driver and PCI/DMA support exist, so this verifies the block and
+ * filesystem contracts, not hardware. */
+static void stage4_self_test(void) {
+    o0_serial_puts("OZERO: block layer ready devices=");
+    o0_serial_dec(o0_block_device_count());
+    o0_serial_puts("\n");
+
+    struct o0_block_dev *disk = NULL;
+    if (o0_ramdisk_create("ram0", 2u * 1024u * 1024u, &disk) != O0_OK) {
+        panic("RAM disk creation failed");
+    }
+    o0_serial_puts("OZERO: ramdisk registered name=ram0 blocks=");
+    o0_serial_dec(disk->geo.nr_sectors);
+    o0_serial_puts("\n");
+
+    if (o0fs_format(disk) != O0_OK) {
+        panic("o0fs format failed");
+    }
+    o0_serial_puts("OZERO: o0fs formatted blocks=");
+    o0_serial_dec(disk->geo.nr_sectors);
+    o0_serial_puts("\n");
+
+    struct o0fs *fs = NULL;
+    if (o0fs_mount(disk, &fs) != O0_OK) {
+        panic("o0fs mount failed");
+    }
+    o0_serial_puts("OZERO: o0fs mounted free blocks=");
+    o0_serial_dec(o0fs_free_blocks(fs));
+    o0_serial_puts(" inodes=");
+    o0_serial_dec(o0fs_free_inodes(fs));
+    o0_serial_puts("\n");
+
+    if (o0fs_mkdir(fs, "/sys") != O0_OK ||
+        o0fs_create_file(fs, "/sys/log") != O0_OK) {
+        panic("o0fs directory creation failed");
+    }
+
+    static const char text[] = "o0fs online";
+    size_t written = 0;
+    if (o0fs_write(fs, "/sys/log", 0, text, sizeof(text) - 1u, &written) !=
+            O0_OK ||
+        written != sizeof(text) - 1u) {
+        panic("o0fs write failed");
+    }
+    static uint8_t read_back[sizeof(text)];
+    size_t got = 0;
+    if (o0fs_read(fs, "/sys/log", 0, read_back, sizeof(read_back), &got) !=
+            O0_OK ||
+        got != sizeof(text) - 1u || memcmp(read_back, text, got) != 0) {
+        panic("o0fs read-back mismatch");
+    }
+    o0_serial_puts("OZERO: o0fs file OK bytes=");
+    o0_serial_dec(got);
+    o0_serial_puts("\n");
+
+    /* Injected storage error must reach the filesystem, and the device must
+     * recover once the fault is cleared. */
+    if (o0_ramdisk_inject_fault(disk, O0_BLOCK_ERR_IO, 0, 1) != O0_OK) {
+        panic("storage fault injection failed");
+    }
+    if (o0fs_sync(fs) != O0_EIO) {
+        panic("injected storage fault was not reported");
+    }
+    if (o0_ramdisk_inject_fault(disk, O0_BLOCK_OK, 0, 0) != O0_OK) {
+        panic("storage fault clear failed");
+    }
+    if (o0fs_sync(fs) != O0_OK) {
+        panic("storage did not recover after the fault");
+    }
+    o0_serial_puts("OZERO: o0fs fault test OK\n");
+
+    if (o0fs_unlink(fs, "/sys/log") != O0_OK ||
+        o0fs_rmdir(fs, "/sys") != O0_OK) {
+        panic("o0fs cleanup failed");
+    }
+    if (o0fs_unmount(fs) != O0_OK) {
+        panic("o0fs unmount failed");
+    }
+    if (o0_ramdisk_destroy(disk) != O0_OK) {
+        panic("RAM disk destruction failed");
+    }
+    o0_serial_puts("OZERO: storage self-test complete\n");
+}
+
 static o0_mutex_t demo_mutex = O0_MUTEX_INIT;
 static volatile uint32_t demo_counter;
 
@@ -423,6 +514,7 @@ void kmain(void) {
     o0_serial_puts(" Hz\n");
 
     stage3_self_test();
+    stage4_self_test();
     report_memory_map();
     stage3_demo();
 

@@ -10,9 +10,13 @@ Ozero must define its own native executable format, loader, runtime, process mod
 
 ## Current milestone
 
-**Stage 3: processes, threads and scheduler (kernel threads only).**
+**Stage 4: storage, filesystem and drivers (substrate).**
 
-The approved implementation uses Limine + ELF64 for the current kernel boot image and a freestanding C kernel. The kernel resolves its physical load address, builds and activates its own page tables (HHDM direct map + 4 KiB kernel-image mappings), runs a slab kernel heap, routes interrupts through a remapped PIC with a 100 Hz PIT tick, and preemptively schedules kernel threads with priorities, sleep, join, spinlocks and a blocking mutex. The current kernel boot-image format does **not** decide or constrain Ozero's future native user-executable format. There is still no user mode, no syscall interface, no storage and no graphics, and the project is not a general-purpose OS.
+The approved implementation uses Limine + ELF64 for the current kernel boot image and a freestanding C kernel. The kernel resolves its physical load address, builds and activates its own page tables (HHDM direct map + 4 KiB kernel-image mappings), runs a slab kernel heap, routes interrupts through a remapped PIC with a 100 Hz PIT tick, and preemptively schedules kernel threads with priorities, sleep, join, spinlocks and a blocking mutex.
+
+On top of that, Stage 4 adds a device-independent block layer with validated device registration and request checking, a RAM disk as the first block driver (with fault injection for tests), and a draft native filesystem, OzeroFS: 4 KiB blocks, checksummed superblock, bitmap allocation, direct and single-indirect file blocks, directory entries, and format/mount/create/read/write/truncate/unlink/mkdir/rmdir/list operations. The filesystem format is a **proposal under review**, not an approved final format: see [docs/o0fs-format.md](docs/o0fs-format.md) and [docs/decisions/0003-stage4-storage.md](docs/decisions/0003-stage4-storage.md).
+
+The current kernel boot-image format does **not** decide or constrain Ozero's future native user-executable format. There is still no user mode, no syscall interface, no real storage protocol driver (ATA/AHCI/NVMe), no partitions and no graphics, and the project is not a general-purpose OS.
 
 ## Build and run on Linux
 
@@ -31,7 +35,7 @@ Then:
 git clone https://github.com/Momegaii/Ozero.git
 cd Ozero
 make doctor
-make test      # host unit tests: PMM, slab allocator, scheduler
+make test      # host unit tests: PMM, slab, scheduler, CPU, block, OzeroFS
 make check
 make run
 ```
@@ -79,6 +83,13 @@ Boot log markers (in order):
 | `OZERO: kernel threads created=<n>` | Demo kernel threads queued |
 | `OZERO: boot success; starting scheduler` | Boot complete, scheduler takes over |
 | `OZERO: worker-a iteration=...` | Scheduler is running kernel threads |
+| `OZERO: block layer ready devices=<n>` | Block layer core initialised |
+| `OZERO: ramdisk registered name=ram0 blocks=<n>` | RAM disk driver registered |
+| `OZERO: o0fs formatted blocks=<n>` | Draft OzeroFS volume written |
+| `OZERO: o0fs mounted free blocks=<n> inodes=<n>` | Volume mounted |
+| `OZERO: o0fs file OK bytes=<n>` | Create/write/read-back through the filesystem |
+| `OZERO: o0fs fault test OK` | Injected storage error reported and cleared |
+| `OZERO: storage self-test complete` | Stage 4 boot self-test finished |
 
 On exception, `OZERO: EXCEPTION vector=<n> error=<e> rip=<r>` is printed.
 For page faults (vector 14), `cr2=<a>` and the fault type
@@ -103,9 +114,9 @@ Press Ctrl+C to stop QEMU.
 - `boot/`: Limine configuration and image integration.
 - `third_party/limine/`: official protocol header and license.
 - `tools/`: host-side checks and QEMU smoke test.
-- `docs/`: architecture, roadmap, governance, and decisions.
+- `docs/`: architecture, roadmap, governance, decisions and the draft OzeroFS format.
 - `AGENTS.md`: mandatory project-wide instructions for every human and AI agent.
 
 ## Honest status
 
-The latest Stage 3 commit reports successful BIOS-mode QEMU boot verification and a smoke test that checks paging, heap, scheduler, kernel-thread execution and worker exit. This is evidence for the tested emulated configuration only. It does not prove physical hardware support, UEFI/OVMF support, user-mode isolation, storage, graphics, or Windows compatibility. Check `docs/PROJECT_STATUS.md` and the current smoke-test script for the exact tested configuration; do not claim broader validation than the evidence supports.
+The Stage 3 revision was boot-verified in BIOS-mode QEMU with a smoke test that checks paging, heap, scheduler, kernel-thread execution and worker exit. The Stage 4 revision builds cleanly with `-Werror` and its host test suites pass (block layer 4/4, OzeroFS 9/9, plus the existing suites), and its boot self-test and smoke markers are in place, but the Stage 4 revision has **not** been booted in an emulator in this environment: QEMU is not installed there. The storage evidence covers the RAM disk, not real hardware; there is no ATA/AHCI/NVMe driver yet. None of this proves physical hardware support, UEFI/OVMF support, user-mode isolation, graphics, or Windows compatibility. Check `docs/PROJECT_STATUS.md` and the current smoke-test script for the exact tested configuration; do not claim broader validation than the evidence supports.
