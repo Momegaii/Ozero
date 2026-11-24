@@ -84,7 +84,7 @@ Phase 6.1 is complete only when all applicable checklist items above have eviden
 - `tests/surface_test.c`: host test source covering descriptor errors, fill, clipping, format conversion and overlapping self-blits.
 - `Makefile`: links the surface implementation into the kernel and adds the host surface test to `make test`.
 
-The surface layer does not allocate memory, map physical memory, or access a boot framebuffer. It operates only on caller-supplied pixel buffers. This deliberate boundary prevents Phase 6.3 from bypassing the still-open display mapping/cache-safety work in Phase 6.1.
+The surface layer does not allocate memory, map physical memory, or access a boot framebuffer. It operates only on caller-supplied pixel buffers. The display layer owns framebuffer mapping and presentation; the compositor will later present its output through that boundary.
 
 **Verification state:** These changes were committed to the working branch, but no build, host test, QEMU boot, or display test was run after the changes, as requested. Treat the test source as authored—not as passing evidence. Review overlap behavior and large-dimension edge cases during the agent test pass.
 
@@ -98,7 +98,7 @@ The Project Director requested that implementation/documentation proceed without
 - Add and validate the Limine framebuffer request.
 - Validate address, width, height, pitch, bpp, memory model and channel masks.
 - Check byte-extent arithmetic and verify the range against the boot memory map.
-- Implement an explicit safe framebuffer mapping/cache policy. Do not write through the existing write-back HHDM alias without proving compatible memory type and alias handling.
+- Review the new UC direct-map carveout and framebuffer presentation path during the final Stage 6 verification pass; do not add a second framebuffer alias or bypass the display API.
 - Connect the validated display descriptor to the Phase 6.3 surface API.
 - Implement a minimal fallback status screen; no GPU acceleration is required.
 
