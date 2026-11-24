@@ -353,7 +353,7 @@ static void block_sync_end(struct o0_bio *bio, o0_block_status status,
     uint32_t expected = BLOCK_SYNC_WAITING;
     if (__atomic_compare_exchange_n(&slot->state, &expected,
                                     BLOCK_SYNC_COMPLETED, false,
-                                    __ATOMIC_RELEASE, __ATOMIC_ACQUIRE)) {
+                                    __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
         return;
     }
 
@@ -372,7 +372,7 @@ static void block_sync_end(struct o0_bio *bio, o0_block_status status,
 
 static o0_status block_sync_transfer(struct o0_block_dev *dev, o0_block_op op,
                                      uint64_t lba, void *buffer, size_t bytes) {
-    if (dev == NULL) {
+    if (dev == NULL || dev->geo.logical_block_size == 0) {
         return O0_EINVAL;
     }
     if (op != O0_BLOCK_FLUSH) {
