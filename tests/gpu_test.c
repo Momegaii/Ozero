@@ -13,6 +13,8 @@
 
 #include "ozero/gpu.h"
 #include "ozero/gpu_hsw.h"
+#include "ozero/gpu_device.h"
+#include "ozero/pci.h"
 #include "ozero/mm.h"
 #include "ozero/status.h"
 #include "ozero/sync.h"
@@ -90,8 +92,20 @@ void o0_spin_lock(o0_spinlock_t *lock) { (void)lock; }
 bool o0_spin_trylock(o0_spinlock_t *lock) { (void)lock; return true; }
 void o0_spin_unlock(o0_spinlock_t *lock) { (void)lock; }
 
+/* The discovery walk talks to the kernel PCI layer. The host test exercises the pure
+ * classification/matching paths, so discovery sees an empty PCI bus and BAR probing is
+ * unavailable. */
+size_t o0_pci_device_count(void) { return 0; }
+const struct o0_pci_device *o0_pci_device(size_t index) { (void)index; return NULL; }
+int o0_pci_probe_bar(struct o0_pci_bdf bdf, uint8_t index, uint8_t header_type,
+                     struct o0_pci_bar *out) {
+    (void)bdf; (void)index; (void)header_type; (void)out;
+    return -1;
+}
+
 #include "../kernel/src/gpu.c"
 #include "../kernel/src/gpu_hsw.c"
+#include "../kernel/src/gpu_device.c"
 
 static int failures;
 static int tests_run;
@@ -385,6 +399,167 @@ static void test_pool_exhaustion(void) {
     PASS();
 }
 
+/* ---- Stage 5 Phase 1: GPU discovery and capability model ---- */
+
+static struct o0_pci_device make_pci(uint16_t vendor, uint16_t device, uint8_t class_code,
+                                     uint8_t subclass, uint8_t revision) {
+    struct o0_pci_device dev;
+    memset(&dev, 0, sizeof(dev));
+    dev.bdf.bus = 0;
+    dev.bdf.device = 2;
+    dev.bdf.function = 0;
+    dev.vendor_id = vendor;
+    dev.device_id = device;
+    dev.class_code = class_code;
+    dev.subclass = subclass;
+    dev.revision = revision;
+    dev.resources.header_type = 0;
+    dev.resources.bar_count = 6;
+    return dev;
+}
+
+static void test_display_classification(void) {
+    TEST("discovery classifies only PCI display-class functions");
+    struct o0_pci_device display = make_pci(0x8086u, 0x0416u, 0x03u, 0x00u, 0x06u);
+    struct o0_pci_device network = make_pci(0x8086u, 0x1502u, 0x02u, 0x00u, 0x04u);
+    CHECK(o0_gpu_is_display_class(&display), "display class must be detected");
+    CHECK(!o0_gpu_is_display_class(&network), "non-display class must be rejected");
+    CHECK(!o0_gpu_is_display_class(NULL), "NULL must not be a display device");
+    PASS();
+}
+
+static void test_mmio_bar_validation(void) {
+    TEST("MMIO BAR validation accepts aligned power-of-two memory windows only");
+    struct o0_pci_bar bar;
+    struct o0_gpu_mmio mmio;
+
+    memset(&bar, 0, sizeof(bar));
+    bar.valid = true;
+    bar.is_memory = true;
+    bar.prefetchable = false;
+    bar.is_64bit = true;
+    bar.base = 0x20000000ull; /* 512 MiB */
+    bar.size = 0x2000000ull;  /* 32 MiB */
+    bar.assigned = true;
+    CHECK(o0_gpu_validate_mmio_bar(&bar, &mmio) == O0_OK, "valid 64-bit memory BAR");
+    CHECK(mmio.valid && mmio.base == 0x20000000ull && mmio.size == 0x2000000ull,
+          "validated window copied out");
+
+    struct o0_pci_bar io_bar = bar;
+    io_bar.is_memory = false;
+    CHECK(o0_gpu_validate_mmio_bar(&io_bar, &mmio) == O0_ENOENT, "I/O BAR is not MMIO");
+
+    struct o0_pci_bar unassigned = bar;
+    unassigned.assigned = false;
+    unassigned.base = 0;
+    CHECK(o0_gpu_validate_mmio_bar(&unassigned, &mmio) == O0_ENOENT,
+          "unassigned BAR must be rejected");
+
+    struct o0_pci_bar odd_size = bar;
+    odd_size.size = 0x3000ull;
+    CHECK(o0_gpu_validate_mmio_bar(&odd_size, &mmio) == O0_EINVAL,
+          "non power-of-two size must be rejected");
+
+    struct o0_pci_bar misaligned = bar;
+    misaligned.base = 0x1000ull; /* not 32 MiB aligned */
+    CHECK(o0_gpu_validate_mmio_bar(&misaligned, &mmio) == O0_EINVAL,
+          "base not aligned to size must be rejected");
+
+    struct o0_pci_bar overflow = bar;
+    overflow.base = 0xFFFFFFFFFFFFE000ull; /* 0x2000-aligned, near the top */
+    overflow.size = 0x2000ull;
+    CHECK(o0_gpu_validate_mmio_bar(&overflow, &mmio) == O0_EOVERFLOW,
+          "window past the top of the address space must be rejected");
+    PASS();
+}
+
+static void test_mmio_selection(void) {
+    TEST("primary MMIO selection picks the lowest-index usable memory BAR");
+    struct o0_pci_bar bars[3];
+    memset(bars, 0, sizeof(bars));
+    /* index 0: I/O BAR */
+    bars[0].valid = true;
+    bars[0].is_memory = false;
+    bars[0].assigned = true;
+    bars[0].size = 0x10ull;
+    bars[0].base = 0xC000ull;
+    /* index 1: valid memory BAR */
+    bars[1].valid = true;
+    bars[1].is_memory = true;
+    bars[1].is_64bit = true;
+    bars[1].assigned = true;
+    bars[1].base = 0xE0000000ull;
+    bars[1].size = 0x10000000ull;
+    /* index 2: also valid but must not be chosen over index 1 */
+    bars[2] = bars[1];
+    bars[2].base = 0xF0000000ull;
+
+    struct o0_gpu_mmio mmio;
+    CHECK(o0_gpu_select_mmio(bars, 3, &mmio) == O0_OK, "selection must succeed");
+    CHECK(mmio.base == 0xE0000000ull, "selection must pick the first memory BAR");
+
+    struct o0_pci_bar none[1];
+    memset(none, 0, sizeof(none));
+    none[0].valid = true;
+    none[0].is_memory = false;
+    none[0].assigned = true;
+    none[0].size = 0x10ull;
+    CHECK(o0_gpu_select_mmio(none, 1, &mmio) == O0_ENOENT,
+          "no memory BAR must report ENOENT");
+    PASS();
+}
+
+static void test_describe_unsupported(void) {
+    TEST("describe records identity but claims no support without a verified ID");
+    /* A plausible Intel Haswell-class display device. Even with a real-looking ID, no
+     * device is supported until the ID/revision is verified on hardware. */
+    struct o0_pci_device dev = make_pci(0x8086u, 0x0416u, 0x03u, 0x00u, 0x06u);
+    struct o0_gpu_device g;
+    CHECK(o0_gpu_describe(&dev, &g) == O0_OK, "describe must succeed");
+    CHECK(g.vendor_id == 0x8086u && g.device_id == 0x0416u && g.revision == 0x06u,
+          "identity must be copied");
+    CHECK(g.class_code == 0x03u && g.bdf.device == 2u, "class and BDF must be copied");
+    CHECK(g.backend == O0_GPU_BACKEND_NONE, "no backend may claim an unverified device");
+    CHECK(!g.supported, "unverified device must not be reported supported");
+    CHECK(g.caps.generation == O0_GPU_GEN_UNKNOWN, "caps stay unknown when unmatched");
+
+    /* A non-display device still describes cleanly and is unsupported. */
+    struct o0_pci_device net = make_pci(0x8086u, 0x1502u, 0x02u, 0x00u, 0x04u);
+    CHECK(o0_gpu_describe(&net, &g) == O0_OK, "non-display describe must succeed");
+    CHECK(g.backend == O0_GPU_BACKEND_NONE && !g.supported,
+          "non-display device is unsupported");
+    PASS();
+}
+
+static void test_hsw_backend_caps(void) {
+    TEST("Haswell backend advertises the generation-correct capability set");
+    CHECK(o0_gpu_hsw_backend.id == O0_GPU_BACKEND_HSW, "backend id");
+    CHECK(o0_gpu_hsw_backend.match != NULL && o0_gpu_hsw_backend.fill_caps != NULL,
+          "backend ops must be wired");
+
+    /* The backend claims no device yet: no verified Haswell ID exists. */
+    struct o0_pci_device dev = make_pci(0x8086u, 0x0416u, 0x03u, 0x00u, 0x06u);
+    CHECK(o0_gpu_hsw_backend.match(&dev) == O0_GPU_BACKEND_NONE,
+          "Haswell match must return NONE until an ID is verified");
+
+    /* The capability record is still defined and must be correct for Gen7.5. */
+    struct o0_gpu_caps caps;
+    memset(&caps, 0, sizeof(caps));
+    o0_gpu_hsw_backend.fill_caps(&caps);
+    CHECK(caps.generation == O0_GPU_GEN_HASWELL, "generation must be Haswell");
+    CHECK(caps.va_width_bits == 32, "PPGTT virtual address width is 32 bits");
+    CHECK(caps.max_va_size == 2ull * 1024 * 1024 * 1024, "2 GiB VA ceiling");
+    CHECK(caps.min_page_size == 4096u, "4 KiB base page");
+    CHECK((caps.page_size_mask & (1u << 12)) != 0u && (caps.page_size_mask & (1u << 15)) != 0u,
+          "4 KiB and 32 KiB page sizes");
+    CHECK(caps.has_render && caps.has_blitter && caps.has_video && caps.has_media,
+          "render, blitter, video and media engines");
+    CHECK(!caps.submission_supported, "submission is not implemented yet");
+    CHECK(!caps.preemption_reported && !caps.reset_reported,
+          "preemption and reset are not claimed");
+    PASS();
+}
+
 int main(void) {
     printf("Ozero GPU and Haswell page-table unit tests\n\n");
     test_pte_encoding();
@@ -397,6 +572,11 @@ int main(void) {
     test_ggtt_validation();
     test_core_allocator();
     test_pool_exhaustion();
+    test_display_classification();
+    test_mmio_bar_validation();
+    test_mmio_selection();
+    test_describe_unsupported();
+    test_hsw_backend_caps();
     printf("\n%d test(s) run, %d failure(s)\n", tests_run, failures);
     return failures == 0 ? 0 : 1;
 }

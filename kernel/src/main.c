@@ -19,6 +19,8 @@
 #include "ozero/boot.h"
 #include "ozero/cpu.h"
 #include "ozero/fs.h"
+#include "ozero/gpu.h"
+#include "ozero/gpu_device.h"
 #include "ozero/irq.h"
 #include "ozero/pci.h"
 #include "ozero/ramdisk.h"
@@ -340,6 +342,77 @@ static void stage4_self_test(void) {
     o0_serial_puts("OZERO: storage self-test complete\n");
 }
 
+/* Stage 5 self-test: the GPU-independent core (memory objects, GPU virtual-address
+ * allocator) exercised once on the real kernel heap, then GPU discovery over the PCI
+ * layer. Discovery never aborts boot: unknown or unsupported devices are recorded, not
+ * treated as failures. No GPU register is touched and no page table is installed; this
+ * validates Ozero's software model only, not hardware. */
+static void stage5_self_test(void) {
+    o0_serial_puts("OZERO: stage5 self-test\n");
+
+    /* Phase 2 core: memory object + VA range + mapping lifecycle. */
+    struct o0_gpu_memory *mem = NULL;
+    if (o0_gpu_memory_create(0x3000u, &mem) != O0_OK || mem == NULL) {
+        panic("GPU memory object creation failed");
+    }
+    struct o0_gpu_vm *vm = NULL;
+    if (o0_gpu_vm_create(0x20000000ull, 0x10000000ull, &vm) != O0_OK || vm == NULL) {
+        panic("GPU address space creation failed");
+    }
+    uint64_t va = 0;
+    if (o0_gpu_vm_alloc(vm, 0x1000u, 0x1000u, &va) != O0_OK) {
+        panic("GPU VA allocation failed");
+    }
+    struct o0_gpu_mapping *mapping = NULL;
+    /* Map at a distinct VA so it does not collide with the reserved allocation. */
+    if (o0_gpu_vm_map(vm, mem, 0x20010000ull, &mapping) != O0_OK) {
+        panic("GPU mapping failed");
+    }
+    if (o0_gpu_vm_unmap(vm, mapping) != O0_OK) {
+        panic("GPU unmap failed");
+    }
+    if (o0_gpu_vm_free(vm, va, 0x1000u) != O0_OK) {
+        panic("GPU VA free failed");
+    }
+    o0_gpu_vm_destroy(vm);
+    o0_gpu_memory_destroy(mem);
+    o0_serial_puts("OZERO: gpu core self-test complete\n");
+
+    /* Phase 1: GPU discovery and capability reporting. */
+    size_t count = o0_gpu_discover();
+    o0_serial_puts("OZERO: gpu pci display devices=");
+    o0_serial_dec(count);
+    o0_serial_putc('\n');
+    for (size_t i = 0; i < count; ++i) {
+        const struct o0_gpu_device *g = o0_gpu_device(i);
+        if (g == NULL) {
+            continue;
+        }
+        o0_serial_puts("OZERO: gpu device bdf=");
+        o0_serial_dec(g->bdf.bus);
+        o0_serial_putc(':');
+        o0_serial_dec(g->bdf.device);
+        o0_serial_putc('.');
+        o0_serial_dec(g->bdf.function);
+        o0_serial_puts(" vendor=");
+        o0_serial_hex(g->vendor_id);
+        o0_serial_puts(" device=");
+        o0_serial_hex(g->device_id);
+        o0_serial_puts(" class=");
+        o0_serial_hex(g->class_code);
+        o0_serial_puts(" rev=");
+        o0_serial_hex(g->revision);
+        o0_serial_puts(" mmio=");
+        o0_serial_puts(g->mmio.valid ? "yes" : "no");
+        o0_serial_puts(" backend=");
+        o0_serial_puts(g->backend == O0_GPU_BACKEND_NONE ? "none" : "haswell");
+        o0_serial_puts(" supported=");
+        o0_serial_puts(g->supported ? "yes" : "no");
+        o0_serial_putc('\n');
+    }
+    o0_serial_puts("OZERO: gpu discovery complete\n");
+}
+
 static o0_mutex_t demo_mutex = O0_MUTEX_INIT;
 static volatile uint32_t demo_counter;
 
@@ -519,6 +592,7 @@ void kmain(void) {
 
     stage3_self_test();
     stage4_self_test();
+    stage5_self_test();
     report_memory_map();
     stage3_demo();
 

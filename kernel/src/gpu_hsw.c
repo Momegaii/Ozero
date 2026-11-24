@@ -480,3 +480,40 @@ const struct o0_hsw_page_pool *o0_hsw_kernel_pool(void) {
     };
     return &pool;
 }
+
+/* ---- Backend registration for the GPU discovery walk ---- */
+
+static enum o0_gpu_backend_id hsw_match(const struct o0_pci_device *dev) {
+    /* No Haswell device ID/revision has been verified on target hardware yet, so the
+     * backend claims no device. This is deliberate: claiming support without a verified
+     * ID would violate the project's hardware-evidence rule (AGENTS.md). Read
+     * vendor/device/revision from the target's PCI configuration space and add the
+     * verified Haswell display IDs here before returning O0_GPU_BACKEND_HSW. */
+    (void)dev;
+    return O0_GPU_BACKEND_NONE;
+}
+
+static void hsw_fill_caps(struct o0_gpu_caps *caps) {
+    /* Generation-correct capability set for Intel Haswell Gen7.5, grounded in
+     * docs/research/haswell-gen75-ppgtt-ggtt.md. Recorded here so the capability model
+     * is exercised and tested, not because any device is currently claimed. */
+    caps->generation = O0_GPU_GEN_HASWELL;
+    caps->va_width_bits = 32;                        /* 2 GiB PPGTT, PP_DCLV 32 x 16 */
+    caps->max_va_size = O0_HSW_MAX_VA_SIZE;          /* 2 GiB */
+    caps->min_page_size = O0_HSW_PAGE_SIZE;          /* 4 KiB base page */
+    caps->page_size_mask = (1u << 12) | (1u << 15);  /* 4 KiB and 32 KiB big page */
+    caps->has_render = true;                         /* render engine, 0x2000 window */
+    caps->has_blitter = true;                        /* blitter engine, 0x22000 window */
+    caps->has_video = true;                          /* VCS video engine, 0x12000 */
+    caps->has_media = true;                          /* VECS media engine, 0x1A000 */
+    caps->submission_supported = false;              /* Phase 4: no ring/command emission */
+    caps->preemption_reported = false;
+    caps->reset_reported = false;
+}
+
+const struct o0_gpu_backend_ops o0_gpu_hsw_backend = {
+    .name = "haswell-gen7.5",
+    .id = O0_GPU_BACKEND_HSW,
+    .match = hsw_match,
+    .fill_caps = hsw_fill_caps,
+};

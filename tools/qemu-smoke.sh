@@ -63,6 +63,10 @@ required_markers=(
     "OZERO: o0fs file OK bytes="
     "OZERO: o0fs fault test OK"
     "OZERO: storage self-test complete"
+    # Stage 5 GPU: core memory objects and GPU discovery over the PCI layer.
+    "OZERO: gpu core self-test complete"
+    "OZERO: gpu pci display devices="
+    "OZERO: gpu discovery complete"
 )
 
 for marker in "${required_markers[@]}"; do

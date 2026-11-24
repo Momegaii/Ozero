@@ -13,6 +13,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "ozero/gpu_device.h"
 #include "ozero/mm.h"
 #include "ozero/status.h"
 #include "ozero/types.h"
@@ -109,5 +110,12 @@ uint64_t o0_hsw_ggtt_aperture(const struct o0_hsw_ggtt *ggtt);
 
 /* Pool backed by the kernel page allocator and direct map. */
 const struct o0_hsw_page_pool *o0_hsw_kernel_pool(void);
+
+/* Backend registration for the Stage 5 discovery walk (see include/ozero/gpu_device.h).
+ * The match function returns O0_GPU_BACKEND_NONE until a Haswell device ID/revision is
+ * verified on hardware (docs/research/haswell-gen75-ppgtt-ggtt.md section 1.2), so no
+ * device is claimed yet. fill_caps records the generation-correct capability set the
+ * backend would provide once a device is matched. */
+extern const struct o0_gpu_backend_ops o0_gpu_hsw_backend;
 
 #endif /* O0_GPU_HSW_H */
