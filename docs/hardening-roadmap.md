@@ -170,8 +170,8 @@ Wave 3 verification detail:
   `docs/PROJECT_STATUS.md`; no result is inferred from another cell.
 - **CI:** the uploaded workflow still runs four BIOS/UEFI × `qemu64`/`Haswell-v1`
   cells at `-smp 1`; run
-  [#45640696740](https://github.com/Momegaii/Ozero/actions/runs/45640696740) on
-  `6891dd1` passed all five jobs and its artifacts were inspected. The Wave 3.5 patch
+  [#45642000355](https://github.com/Momegaii/Ozero/actions/runs/45642000355) on
+  `803d84c` passed all five jobs and its artifacts were inspected. The Wave 3.5 patch
   would extend `kernel-and-boot` to `{bios, uefi} × {qemu64, Haswell-v1, max} ×
   -smp {1, 2}` and add a separate BIOS/`qemu64` `lock-order-boot` job, but the supplied
   token lacks workflow scope, so it is not active. The `-smp 4` cells remain local-only.
@@ -193,13 +193,13 @@ threads while a user process churns on the BSP.
 | Item | Status | Evidence |
 |---|---|---|
 | CI `-smp 2` and `-cpu max` | **Local patch only; blocked by token scope** | The supplied fine-grained token can read and write code but not `.github/workflows` (GitHub returns "without `workflow` scope"). The prepared `.github/workflows/quality.yml` patch sets `{bios, uefi} × {qemu64, Haswell-v1, max} × -smp {1, 2}` and adds `lock-order-boot`; it is not active on GitHub. Local 18-cell matrix, including `-smp 4`, is PASS. |
-| Inspect final-commit CI logs | **Done for the existing matrix; new cells blocked** | Run [#45640696740](https://github.com/Momegaii/Ozero/actions/runs/45640696740) on `6891dd1` succeeds; its four `-smp 1` boot artifacts and `host-sanitizers` log were downloaded and inspected. It cannot exercise `-smp 2`/`max`/lock-order without the workflow-scoped token. |
+| Inspect final-commit CI logs | **Done for the existing matrix; new cells blocked** | Run [#45642000355](https://github.com/Momegaii/Ozero/actions/runs/45642000355) on `803d84c` succeeds; its four `-smp 1` boot artifacts and `host-sanitizers` log were downloaded and inspected. It cannot exercise `-smp 2`/`max`/lock-order without the workflow-scoped token. |
 | Wave 2.7 item-by-item answer | **Done** | `docs/PROJECT_STATUS.md` records the three items and the exact marker counts. The smoke test now rejects a run with fewer than three `user fault contained` markers. |
 | Stack-randomization rename and entropy | **Done** | Docs call it kernel-stack randomization (KSR), not KASLR. Entropy is `RDRAND` (16 attempts) mixed with `RDTSC`, else `RDTSC` XOR a data address; TSC fallback is low-entropy. ADR 0011 and roadmap 3.11 record the limit. |
 | Lock-order checker by default | **Done locally; CI cell blocked** | Host tests compile with `O0_LOCK_ORDER_CHECK`; the checker-enable build gives every `o0_spin_init()` lock class 1, except the IRQ-safe runqueue locks, which stay class 0. Local BIOS/`qemu64` `-smp 1` and `-smp 2` boots pass with `lock order check=on`. The prepared CI job would boot it, but the token cannot push the workflow. Nested GPU locks were given explicit inner classes. |
 | PR #6 scope and base | **Recorded in STATUS** | Base is `kilo/floral-eagle-2hb`, not `main`; the PR is a combined Wave 2.7 + Wave 5.0 + Wave 3 diff. |
 | Director-observed rows | **Reserved, not fabricated** | STATUS has rows for the Director's Windows 8.1 / i5-4460 / `q35` host; every Wave 3 row says not run / not reported until the Director supplies a log. |
-| `-smp 2` migration + user churn | **Done locally** | `wave3_smp_stress()` runs 16 quiet user churn processes on the BSP while one kernel worker per online CPU migrates itself across CPUs. QEMU `-smp 2`: `smp user churn OK processes=16` and `smp scheduling OK cpus=2 ... migrations=6..7`; `-smp 4`: `cpus=4 ... migrations=9..11`. The PMM free-byte count must be unchanged. |
+| `-smp 2` migration + user churn | **Done locally** | `wave3_smp_stress()` runs 16 quiet user churn processes on the BSP while one kernel worker per online CPU migrates itself across CPUs. QEMU `-smp 2`: `smp user churn OK processes=16` and `smp scheduling OK cpus=2 ... migrations=7`; `-smp 4`: `cpus=4 ... migrations=7..11`. The PMM free-byte count must be unchanged. |
 
 ## Wave 4 — Storage and filesystem (not started)
 
