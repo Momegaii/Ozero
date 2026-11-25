@@ -17,19 +17,45 @@ results stay with the Director and are never a gate.
 
 1. Confirm the Wave 3 sign-off in STATUS, citing the `main` commit and CI run.
 2. Write ADRs, each with alternatives, marked `Accepted-provisional` for end-of-run
-   Director review:
+   Director review (completed 2026-11-25: approved as `Accepted`):
    - Crash consistency: journal versus copy-on-write for O0FS.
    - On-disk format revision and versioning.
    - Block-layer async completion and DMA ownership rules.
 3. Update the O0FS format doc. The format stays a proposal until the Director approves it.
 
-Status 2026-11-25: item 1 is recorded in `docs/PROJECT_STATUS.md` and
-`docs/handoff.md` (run `45697656276` on `e066168`); item 2 is drafted as ADRs
+Status 2026-11-25: **Wave 4.0 is closed.** Item 1 is recorded in
+`docs/PROJECT_STATUS.md` and `docs/handoff.md` (run `45697656276` on `e066168`); the
+Director confirmed the Wave 3 sign-off. Item 2 is ADRs
 [0012](decisions/0012-o0fs-crash-consistency.md),
 [0013](decisions/0013-o0fs-format-versioning.md) and
-[0014](decisions/0014-block-async-completion-dma-ownership.md), all
-`Accepted-provisional`; item 3 is recorded in `docs/o0fs-format.md` §8. No Wave 4 code has
-started.
+[0014](decisions/0014-block-async-completion-dma-ownership.md), approved by the Director
+on 2026-11-25 and now `Accepted`; ADR 0012 carries the condition that its crash-injection
+matrix covers every write point. Item 3 is recorded in `docs/o0fs-format.md` §8, and the
+format remains a **proposal**: it is not approved.
+
+ADR [0015](decisions/0015-per-cpu-tss-ist.md) is the per-CPU TSS/IST design note the
+Director required before Stage 6 uses SMP. It is design only and changes no current
+behaviour.
+
+## Wave 4.1 status
+
+1. PCI: the header type is masked to its layout bits (the multi-function bit no longer
+   zeroes the BAR count), the capability list is walked from one config-space snapshot
+   (status bit 4 required, bounded walk, self-referential list rejected), and BAR size is
+   decoded from the all-ones mask. MSI and MSI-X can be programmed for one vector with
+   fixed delivery and a physical destination, and device vectors are dispatched through
+   the LAPIC vector path; the I/O APIC stays the route for legacy lines.
+2. DMA: `kernel/src/dma.c` returns physically contiguous, alignment-aware PMM runs,
+   checks the device's `addr_mask`, and keeps a per-buffer pin count. `o0_dma_free()`
+   returns `O0_EBUSY` and frees nothing while a pin is held. Bounce buffers remain the
+   block layer's default; no driver uses the allocator yet.
+3. Host tests: `tests/pci_test.c` covers BAR sizing, capability parsing over constructed
+   config-space images and MSI/MSI-X encoding; `tests/dma_test.c` covers page rounding,
+   alignment, constraints, the pinned-free refusal, nested pins and double free.
+4. Boot marker `OZERO: pci caps msi=<n> msix=<n>` is emitted after enumeration and
+   required by `tools/qemu-smoke.sh`. Commit hash and CI run are recorded under Wave 4.1
+   evidence below once the run is green. Nothing in 4.1 is claimed as verified before
+   that.
 
 ## Wave 4.1 — PCI and DMA foundations
 
@@ -41,6 +67,12 @@ started.
    explicit ownership. Use bounce buffers by default, since no IOMMU is configured.
 3. Tests: host tests for BAR and capability parsing against recorded config-space dumps,
    and a negative test that a DMA buffer is never freed while a request is in flight.
+
+### Wave 4.1 evidence
+
+Recorded after the commit lands on `main`: commit hash, CI run URL, job conclusions, and
+whether logs were inspected. Until then Wave 4.1 is implemented, host-tested and
+locally boot-marked only.
 
 ## Wave 4.2 — virtio-blk first
 

@@ -26,6 +26,9 @@ Single source of truth for "where are we now". Every claim here cites a commit o
 ## Wave 3 sign-off (2026-11-25)
 
 Wave 3 (SMP and memory hardening) is signed off on `main` at `e066168`.
+**Director sign-off confirmed 2026-11-25**: the evidence below is the CI run the Director
+accepted, and the two open items (BSP-pinned user threads, Ring 3/SMAP untested on other
+CPUs) are explicitly *not* covered by it.
 
 - **CI:** [run 45697656276](https://github.com/Momegaii/Ozero/actions/runs/45697656276)
   on `e066168` — `completed` / `success`, 14/14 jobs: 12 boot cells
@@ -44,14 +47,16 @@ Wave 3 (SMP and memory hardening) is signed off on `main` at `e066168`.
 
 ## Open items
 
-- Wave 3 sign-off is recorded below: run `45697656276` on `e066168` is green for the 12
-  boot cells (`{bios, uefi} × {qemu64, Haswell-v1, max} × smp {1, 2}`), the
-  `lock-order-boot` cell (`make LOCK_ORDER=1`, `-smp 2`) and `host-sanitizers`.
-- CI status for the current `main` HEAD has **not** been inspected by an agent. No CI run
-  URL is recorded here yet, and no CI-built ISO artifact has been published.
-- User threads remain BSP-pinned until per-CPU TSS/IST exists.
+- CI was inspected on the Wave 4.0 HEAD `3b48810`: 14/14 jobs `success` in run
+  `45700432451`. No CI-built ISO artifact has been published.
+- User threads remain BSP-pinned until per-CPU TSS/IST exists. [ADR 0015](decisions/0015-per-cpu-tss-ist.md)
+  is the design note for that work; it is a blocking dependency before Stage 6 uses SMP
+  beyond the BSP. Ring 3 and SMAP on non-boot CPUs are untested.
 - No physical-hardware evidence exists for any wave.
-- Stage 7–10 not started. Wave 4.0 (ADRs 0012–0014) is open; no Wave 4 code has started.
+- Stage 7–10 not started. Wave 4.0 is closed: ADRs 0012–0014 were approved by the
+  Director on 2026-11-25 and the O0FS format is still a proposal. Wave 4.1 (PCI/MSI-X and
+  DMA foundation) is implemented and host-tested; its CI evidence is recorded in
+  `docs/wave4.md` once the commit run is green. Wave 4.2 has not started.
 
 ## Rules that stay in force
 

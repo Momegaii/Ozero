@@ -1,7 +1,7 @@
 # ADR 0014: Block-layer async completion and DMA ownership
 
-- **Status:** Accepted-provisional (design only; nothing implemented beyond the current
-  synchronous core; Director review requested)
+- **Status:** Accepted (design only for the asynchronous drivers; the synchronous core is
+  implemented). Director approved 2026-11-25.
 - **Date:** 2026-11-25
 - **Wave:** 4.0 (design), implemented from 4.1–4.3
 - **Related:** ADR 0003 (Stage 4 substrate), ADR 0012 (crash consistency),
@@ -43,7 +43,7 @@ CPU. Those drivers make every one of the gaps above reachable.
 | Polling only, no interrupts | Removes IRQ-context rules and is easy to test, but wastes a CPU, defeats the `-smp 2` completion test, and does not exercise MSI/MSI-X routing from Wave 3. Rejected as the primary path. |
 | Caller frees buffers on timeout | Simple to write, but a late DMA write after free corrupts unrelated memory. Rejected explicitly: this is the defect this ADR exists to prevent. |
 
-## 3. Decision (proposed)
+## 3. Decision
 
 ### Ownership states
 
@@ -102,6 +102,14 @@ the block layer owns neither the bio nor its buffers.
 - Host tests must prove: a pinned buffer cannot be freed; unpinning after completion
   frees exactly once; a doubly-completed bio is detected; and a partial multi-segment
   transfer of a bio does not release the whole buffer early.
+
+Implementation status (Wave 4.1, 2026-11-25): `kernel/src/dma.c` implements the
+allocator with contiguous power-of-two PMM runs, an alignment-aware order, a
+`addr_mask` check, and a pin count per buffer. `o0_dma_free()` returns `O0_EBUSY` and
+frees nothing while a pin is held, so the buffer cannot be returned to the PMM under an
+in-flight request. `tests/dma_test.c` covers the pinned-free refusal, nested pins, double
+free and constraint rejection. The allocator is not yet wired to a driver; that is Wave
+4.2.
 
 ## 4. Consequences
 

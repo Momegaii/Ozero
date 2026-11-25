@@ -1,6 +1,7 @@
 # ADR 0012: O0FS crash consistency — redo journal versus copy-on-write
 
-- **Status:** Accepted-provisional (design only; nothing implemented; Director review requested)
+- **Status:** Accepted (design only; nothing implemented). Director approved 2026-11-25
+  with the condition recorded in §4.
 - **Date:** 2026-11-25
 - **Wave:** 4.0 (design), implemented in 4.5
 - **Related:** ADR 0003 (Stage 4 storage substrate), ADR 0013 (format versioning),
@@ -40,7 +41,7 @@ recovery rules and metadata layout below are Ozero's own.
 | **Ordering plus fsck only (soft updates style)** | Careful write order, no journal; a checker repairs after a crash. | Cheapest on disk space, but the guarantee is "eventually consistent after a full scan" and every ordering rule must be proved by hand. Also needs a checker anyway, which we need regardless. |
 | **No change (keep rollback only)** | Today's behaviour. | Does not survive power loss, which is the Stage 4 exit criterion being closed. Rejected. |
 
-## 3. Decision (proposed)
+## 3. Decision
 
 1. **Redo journal, metadata only.** Data blocks are written in place; metadata blocks
    (superblock, both bitmaps, inode blocks, indirect blocks, directory blocks) are
@@ -84,6 +85,11 @@ future option once a VFS and larger volumes exist.
   flush; acceptable for the emulator-first stage, and measured before any claim.
 - Power-loss testing becomes mandatory: crash injection at every block write, flush and
   reorder point, then remount and run the checker.
+- **Director condition (2026-11-25):** the crash-injection matrix must cover *every*
+  write point — each block write, each flush, and every reorder window between them —
+  with a remount and a consistency-checker pass after each injected crash. The design is
+  not "implemented" until that matrix exists and passes; a sample of write points is not
+  enough.
 
 ## 5. Open questions for the Director
 

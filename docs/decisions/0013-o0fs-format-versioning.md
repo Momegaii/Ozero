@@ -1,6 +1,6 @@
 # ADR 0013: O0FS on-disk format revision and versioning
 
-- **Status:** Accepted-provisional (design only; Director review requested)
+- **Status:** Accepted (design only; nothing implemented). Director approved 2026-11-25.
 - **Date:** 2026-11-25
 - **Wave:** 4.0 (design), enforced from 4.5
 - **Related:** ADR 0003 (Stage 4 storage substrate), ADR 0012 (crash consistency),
@@ -41,7 +41,7 @@ than after a mistake.
 | Never version; keep reserved bytes for future use | Guarantees silent misreads the first time a reserved byte becomes meaningful. Rejected. |
 | Auto-migrate on mount | Convenient, but a mount that rewrites the format is a write path that must itself be crash-safe (ADR 0012), and it destroys the ability to inspect the old image. Rejected: migration is an explicit offline operation. |
 
-## 3. Decision (proposed)
+## 3. Decision
 
 1. **Version layout.** `version` stays `uint16_t`: high byte = major, low byte = minor.
    Version 1 today is `0x0001`; the journal format of ADR 0012 is `0x0002`.

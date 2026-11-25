@@ -1,7 +1,7 @@
 # Ozero Project Status
 
 Last updated: 2026-11-25  
-Current stage: **Stage 6 — Native graphical application environment (active; Phase 6.1 verified — display/framebuffer boot tested in QEMU with screenshot evidence; Phase 6.2 implemented — PS/2 keyboard + pointer driver host-tested, driver initialized at boot; Phase 6.3 implemented and host-tested — software surface primitives; Phases 6.4–6.8 implemented, host-tested and wired into the boot path (window manager, compositor, input router, desktop shell loop); no full desktop/QEMU acceptance claimed). Stage 5 is closed as the software-foundation milestone; physical GPU execution and vendor-specific acceleration backends remain deferred. See docs/stage6.md for the three-agent handoff and test plan. New GPU/Stage 6 scope is paused by Rule 0; hardening Wave 1 (verification debt) is complete locally, **Wave 2 (single-CPU user mode) is implemented and verified in QEMU on BIOS/UEFI × qemu64/Haswell-v1**, and **Wave 3 is now SMP and memory hardening under the Director's 2026-11-25 reorder: AP bring-up, xAPIC IPIs, range TLB shootdown, I/O APIC routing, per-CPU runqueues with kernel-thread migration, the LAPIC scheduler timer on every CPU, SMEP/SMAP, kernel-stack randomization (KSR), an aligned buddy PMM and bootloader-memory reclaim are implemented and verified in local QEMU; user threads remain BSP-pinned until per-CPU TSS/IST exists, and the wave was signed off on 2026-11-25 (run `45697656276` on `e066168`). The capability-handle, budget and synchronous-IPC work previously numbered Wave 3 is complete and is now recorded as Wave 5.0.** Wave Q adds the Director-observed evidence table, the self-describing boot header and an independent framebuffer screendump check; the Wave 2.7 sign-off is recorded below. No physical-hardware evidence exists for any wave. Wave 4.0 design is open; Waves 5–7 are planned in docs/hardening-roadmap.md.**
+Current stage: **Stage 6 — Native graphical application environment (active; Phase 6.1 verified — display/framebuffer boot tested in QEMU with screenshot evidence; Phase 6.2 implemented — PS/2 keyboard + pointer driver host-tested, driver initialized at boot; Phase 6.3 implemented and host-tested — software surface primitives; Phases 6.4–6.8 implemented, host-tested and wired into the boot path (window manager, compositor, input router, desktop shell loop); no full desktop/QEMU acceptance claimed). Stage 5 is closed as the software-foundation milestone; physical GPU execution and vendor-specific acceleration backends remain deferred. See docs/stage6.md for the three-agent handoff and test plan. New GPU/Stage 6 scope is paused by Rule 0; hardening Wave 1 (verification debt) is complete locally, **Wave 2 (single-CPU user mode) is implemented and verified in QEMU on BIOS/UEFI × qemu64/Haswell-v1**, and **Wave 3 is now SMP and memory hardening under the Director's 2026-11-25 reorder: AP bring-up, xAPIC IPIs, range TLB shootdown, I/O APIC routing, per-CPU runqueues with kernel-thread migration, the LAPIC scheduler timer on every CPU, SMEP/SMAP, kernel-stack randomization (KSR), an aligned buddy PMM and bootloader-memory reclaim are implemented and verified in local QEMU; user threads remain BSP-pinned until per-CPU TSS/IST exists, and the wave was signed off on 2026-11-25 (run `45697656276` on `e066168`). The capability-handle, budget and synchronous-IPC work previously numbered Wave 3 is complete and is now recorded as Wave 5.0.** Wave Q adds the Director-observed evidence table, the self-describing boot header and an independent framebuffer screendump check; the Wave 2.7 sign-off is recorded below. No physical-hardware evidence exists for any wave. Wave 4.0 is closed (ADRs 0012–0014 approved, ADR 0015 written) and Wave 4.1 (PCI/MSI-X, DMA allocator) is implemented with host tests; Waves 4.2–7 are planned in docs/hardening-roadmap.md.**
 Stage 3 — processes, threads and scheduler: **implemented; boot-verified in QEMU BIOS for the Stage 3 revision**  
 Stage 2 — physical and virtual memory: **implemented, verified by build + host tests + QEMU boot**  
 Stage 1 — bootable x86-64 kernel: **implemented; see verification state**
@@ -415,7 +415,7 @@ No agent may treat this list as a schedule or as permission to boot physical har
 operator checklist for the eventual physical boot is in
 [physical-boot-gate.md](physical-boot-gate.md).
 
-Wave 4.0 (design ADRs 0012–0014) is open as of 2026-11-25; Waves 4.1–7 have not started. Physical hardware remains unexercised for every wave.
+Wave 4.0 closed on 2026-11-25: ADRs 0012–0014 were approved by the Director (0012 with the every-write-point crash-injection condition) and ADR 0015 (per-CPU TSS/IST) was written as a design note. Wave 4.1 (PCI/MSI-X and the DMA allocator) is implemented with host tests and a boot marker; its CI evidence is recorded in docs/wave4.md once the commit run is green. Waves 4.2–7 have not started. Physical hardware remains unexercised for every wave.
 The capability/IPC implementation is complete as Wave 5.0. Wave 3 (SMP and memory hardening) is signed off as of 2026-11-25; the items that remain
 open are listed in the roadmap.
 
@@ -635,9 +635,10 @@ Ordered by `docs/hardening-roadmap.md`:
    threads leave the BSP. I/O APIC routing, per-CPU runqueues, kernel-thread migration, range
    shootdown, kernel-stack randomization (KSR), aligned buddy allocation and bootloader reclaim are
    implemented and locally verified.
-2. **Wave 4 — storage and filesystem:** virtio-blk first, then AHCI/NVMe with DMA and IRQ
-   completion; MBR/GPT partition discovery; crash consistency as an ADR; then a VFS with file
-   descriptors and a page cache. No part of Wave 4 is started.
+2. **Wave 4 — storage and filesystem:** PCI/MSI-X and the DMA allocator (4.1) are
+   implemented with host tests; virtio-blk is next, then AHCI/NVMe with DMA and IRQ
+   completion; MBR/GPT partition discovery; crash consistency per ADR 0012; then a VFS with
+   file descriptors and a page cache. Waves 4.2–4.7 have not started.
 3. **Wave 5 — remaining platform services:** IPC extensions, futex-style primitives, timers,
    signals, PCI/MSI-X, device probe/remove, syscall-argument audit, `mmap` and `spawn` ADRs.
    The capability-handle/budget/IPC core is already complete.

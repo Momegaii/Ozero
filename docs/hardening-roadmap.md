@@ -203,12 +203,18 @@ threads while a user process churns on the BSP.
 | Director-observed rows | **Reserved, not fabricated** | STATUS has rows for the Director's Windows 8.1 / i5-4460 / `q35` host; every Wave 3 row says not run / not reported until the Director supplies a log. |
 | `-smp 2` migration + user churn | **Done locally** | `wave3_smp_stress()` runs 16 quiet user churn processes on the BSP while one kernel worker per online CPU migrates itself across CPUs. QEMU `-smp 2`: `smp user churn OK processes=16` and `smp scheduling OK cpus=2 ... migrations=7`; `-smp 4`: `cpus=4 ... migrations=7..11`. The PMM free-byte count must be unchanged. |
 
-## Wave 4 — Storage and filesystem (4.0 design in progress)
+## Wave 4 — Storage and filesystem (4.0 closed; 4.1 implemented)
 
+0. Wave 4.1 (implemented, awaiting its commit's CI run): PCI/MSI-X foundations, BAR
+   sizing and capability walking, and the DMA allocator with explicit pinning. The
+   per-CPU TSS/IST design is [ADR 0015](decisions/0015-per-cpu-tss-ist.md), a blocking
+   dependency before Stage 6 uses SMP.
 1. virtio-blk first, then AHCI/NVMe with DMA and IRQ completion.
 2. MBR/GPT partition discovery.
-3. Crash consistency: [ADR 0012](decisions/0012-o0fs-crash-consistency.md) (accepted-provisional: redo journal with ordered data writes); implementation tested with
-   injected power loss at every write point.
+3. Crash consistency: [ADR 0012](decisions/0012-o0fs-crash-consistency.md) (accepted
+   2026-11-25: redo journal with ordered data writes); implementation tested with
+   injected power loss at every write point, which the Director made a condition of
+   approval. The O0FS format itself stays a proposal.
 4. VFS, file descriptors, a page cache and file syscalls through an ABI ADR revision.
 
 ## Wave 5 — Platform services and security (partially complete ahead of order)
