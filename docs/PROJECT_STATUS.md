@@ -247,6 +247,14 @@ logs identify their own build. The commit is not reconstructed after the fact.
 
 **Pending cells:** UEFI/`Haswell-v1` and HAXM/`Haswell-v1` have not been run by the Director.
 
+**Wave Q CI observation:** GitHub Actions run
+[#143](https://github.com/Momegaii/Ozero/actions/runs/45604746811) on branch head `4333352`
+(PR merge commit `289f8057`) completed SUCCESS with all five jobs. The downloaded job logs
+were inspected: each of the four boot cells contains `OZERO: build commit=289f80573815`, the
+new CPU/platform header, the Wave 2 markers and `QEMU smoke test: PASS` on QEMU 10.2.1. Each
+cell also contains `framebuffer-check: PASS width=1280 height=800 bar_width=160 bars=8
+checksum=0x8acf6953`. This is CI evidence, not Director-observed and not physical evidence.
+
 **Environment findings, not Ozero defects:**
 
 - QEMU 8.1.0 aborts in the HAX accelerator before guest start. No guest marker was produced,
@@ -263,7 +271,7 @@ A real boot of the i5-4460 (HD 4600, `8086:0412` rev 06) waits for all five cond
    the eight-bar pattern are implemented; fault text is serial-only.
 2. **Self-describing boot header.** Implemented: `build commit=`, `cpu vendor=… family=…
    model=… brand=…` and `platform=… hypervisor=… firmware=…` are the first kernel lines.
-3. **Wave 2 sign-off complete.** Pending the final CI run and log inspection recorded below.
+3. **Wave 2 sign-off complete.** Complete: CI run [#143](https://github.com/Momegaii/Ozero/actions/runs/45604746811) passed all five jobs, and its four boot logs were inspected. This is emulator evidence; it does not satisfy items 1 or 5.
 4. **Kernel holds its final screen instead of rebooting.** Implemented in emulation: the
    kernel halts forever after the self-tests; QEMU uses `-no-reboot`. Not exercised on
    physical hardware.
@@ -361,13 +369,15 @@ Truthful split by evidence type:
   `build/qemu-serial-*.log` artifact glob. The PPM is not uploaded by the current workflow
   because this sandbox's token cannot update workflow files; that is an artifact-retention
   gap, not a missing check.
-- **CI (Wave 2):** GitHub Actions run
-  [#136](https://github.com/Momegaii/Ozero/actions/runs/45502990041) on commit `32c9e79`
-  completed SUCCESS with all five jobs (`boot` × 4 and `host-sanitizers`). The four boot logs
-  were downloaded and inspected: each shows the Wave 2 markers and
-  `QEMU smoke test: PASS (… qemu=QEMU emulator version 10.2.1 …)`, with OVMF
-  2025.11-3ubuntu7.4 in the UEFI cells. This confirms CI runs the same marker set as the local
-  matrix; it remains emulator evidence.
+- **CI (Wave 2 and Wave Q):** GitHub Actions run
+  [#143](https://github.com/Momegaii/Ozero/actions/runs/45604746811) on branch head `4333352`
+  (PR merge commit `289f8057`) completed SUCCESS with all five jobs (`boot` × 4 and
+  `host-sanitizers`). The four boot logs were downloaded and inspected: each shows
+  `OZERO: build commit=289f80573815`, the CPU/platform header, the Wave 2 markers,
+  `framebuffer-check: PASS` and `QEMU smoke test: PASS` on QEMU 10.2.1, with OVMF
+  2025.11-3ubuntu7.4 in the UEFI cells. The `host-sanitizers` log shows `usercopy_test`
+  compiled and run under ASan/UBSan with no sanitizer report. This is CI evidence, not
+  physical evidence.
 - **Physical hardware (Wave 2):** never exercised. No user-mode, fault-containment or
   process-churn result here is physical evidence.
 Boot verification of this revision surfaced and fixed three defects that build +
