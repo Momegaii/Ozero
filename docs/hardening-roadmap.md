@@ -128,7 +128,7 @@ Notes carried into the wave:
 | Q.3 | Self-describing boot header | **Done** | The first kernel lines are `OZERO: build commit=`, `OZERO: cpu vendor=… family=… model=… brand=…` and `OZERO: platform=… hypervisor=… signature=… firmware=…`. The commit is compiled in from `git rev-parse --short=12 HEAD`. |
 | Q.4 | Pending Director cells | **Open** | UEFI/`Haswell-v1` and HAXM/`Haswell-v1` have not been run by the Director. |
 | Q.8.1 | Sampled-pixel/checksum marker for the eight bars | **Done** | The kernel prints `framebuffer bars=8`, eight `framebuffer sample bar=N pixel=… expected=…` lines and `framebuffer checksum=… expected=…`. Host `display_test` asserts the reference pixels and checksum. |
-| Q.8.2 | CI screendump comparison against the eight-bar layout | **Done** | `tools/framebuffer-check.py` boots QEMU, takes a QMP `screendump`, validates all eight bar centres at three heights, checks both edges for margins, and compares the FNV checksum with the kernel marker. The BIOS/`qemu64` CI cell runs it. |
+| Q.8.2 | CI screendump comparison against the eight-bar layout | **Done** | `tools/framebuffer-check.py` boots QEMU, takes a QMP `screendump`, validates all eight bar centres at three heights, checks both edges for margins, and compares the FNV checksum with the kernel marker. `make check` runs it when QEMU is installed, so the `kernel-and-boot` CI job exercises it. The serial log matches the existing `build/qemu-serial-*.log` artifact glob; the PPM remains in the job workspace. |
 
 **P.0 physical boot gate:** recorded in `docs/PROJECT_STATUS.md`. It is not scheduled here and
 no agent may boot the physical i5-4460 on the strength of emulator evidence. Items 1 and 5 of

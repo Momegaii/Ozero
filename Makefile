@@ -49,7 +49,7 @@ HOST_RUN_ENV ?=
 SAN_CFLAGS := -fsanitize=address,undefined -fno-omit-frame-pointer -g
 SAN_ENV := ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1
 
-.PHONY: help doctor check kernel iso run run-debug test test-sanitize clean
+.PHONY: help doctor check kernel iso run run-debug test test-sanitize clean framebuffer-check
 
 help:
 	@printf '%s\n' 'Ozero targets:' \
@@ -67,6 +67,16 @@ doctor:
 	$(PYTHON) tools/doctor.py
 
 check: doctor iso test
+	@if command -v $(QEMU) >/dev/null 2>&1; then \
+		$(MAKE) framebuffer-check; \
+	else \
+		echo "SKIP: framebuffer check ($(QEMU) not installed)"; \
+	fi
+
+framebuffer-check: $(ISO)
+	$(PYTHON) tools/framebuffer-check.py --iso $(ISO) \
+		--serial $(BUILD)/qemu-serial-framebuffer.log \
+		--screendump $(BUILD)/qemu-framebuffer.ppm
 
 kernel: $(KERNEL)
 

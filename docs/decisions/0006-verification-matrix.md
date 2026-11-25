@@ -48,10 +48,12 @@ on rather than assuming "QEMU" is uniform.
    serial and QEMU diagnostic logs.
 4. The smoke test prints the emulator version and the firmware/CPU it validated in its PASS
    line, so copied evidence cannot be mistaken for another cell.
-5. The BIOS/`qemu64` cell also runs `tools/framebuffer-check.py`. That tool boots the same ISO
-   under QMP, takes a raw `screendump`, validates the eight bar centres at three heights and
-   both edges, and compares an FNV checksum with the kernel's `framebuffer checksum=` marker.
-   This is a separate CI assertion from the serial markers.
+5. `make check` runs `tools/framebuffer-check.py` when QEMU is installed, so every
+   `kernel-and-boot` cell exercises it. The tool boots the same ISO under QMP, takes a raw
+   `screendump`, validates the eight bar centres at three heights and both edges, and compares
+   an FNV checksum with the kernel's `framebuffer checksum=` marker. This is a separate CI
+   assertion from the serial markers. Its serial log matches the existing
+   `build/qemu-serial-*.log` artifact glob; the PPM is left in the job workspace.
 
 ## Consequences
 

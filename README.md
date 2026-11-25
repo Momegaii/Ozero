@@ -64,7 +64,8 @@ python3 tools/framebuffer-check.py --iso build/ozero.iso
 ```
 
 It boots QEMU, takes a QMP `screendump`, checks the eight bar centres and both
-edges, and compares the FNV checksum with the kernel's log marker.
+edges, and compares the FNV checksum with the kernel's log marker. `make check`
+runs the same check automatically when `qemu-system-x86_64` is installed.
 
 For GDB debugging, run `make run-debug`, then connect GDB to `localhost:1234`.
 

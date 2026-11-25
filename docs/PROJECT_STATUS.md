@@ -356,7 +356,11 @@ Truthful split by evidence type:
   and UEFI on QEMU 10.0.13: `width=1280 height=800 bar_width=160 bars=8
   checksum=0x8acf6953`. It validates the eight bar centres at three heights, both edges and
   the kernel's FNV checksum. This is an independent raw-framebuffer check, not a host-window
-  screenshot.
+  screenshot. `make check` runs it automatically when QEMU is installed, so the CI
+  `kernel-and-boot` job exercises it; the serial log is covered by the existing
+  `build/qemu-serial-*.log` artifact glob. The PPM is not uploaded by the current workflow
+  because this sandbox's token cannot update workflow files; that is an artifact-retention
+  gap, not a missing check.
 - **CI (Wave 2):** GitHub Actions run
   [#136](https://github.com/Momegaii/Ozero/actions/runs/45502990041) on commit `32c9e79`
   completed SUCCESS with all five jobs (`boot` × 4 and `host-sanitizers`). The four boot logs
