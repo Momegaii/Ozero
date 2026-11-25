@@ -1209,6 +1209,59 @@ static struct o0_display_mode boot_display_mode;
 static o0_paddr_t boot_framebuffer_phys;
 static bool boot_framebuffer_valid;
 
+/* Stage 6.4-6.8 desktop integration, run as a scheduled kernel thread.
+ *
+ * It must not run inline in kmain: the compositor loop never returns, so an
+ * inline loop would keep o0_sched_start() from executing and suppress the
+ * `boot success` milestone that tools/qemu-smoke.sh requires. */
+static void desktop_main(void *arg) {
+    (void)arg;
+    static struct o0_shell desktop_shell;
+    static struct o0_surface backbuffer;
+    static struct o0_surface win1, win2;
+
+    uint32_t w = (uint32_t)boot_display_mode.width;
+    uint32_t h = (uint32_t)boot_display_mode.height;
+    size_t pitch = (size_t)w * 4u;
+
+    void *bb = o0_kalloc((size_t)h * pitch, 64);
+    if (bb == NULL) {
+        o0_serial_puts("OZERO: stage6 desktop backbuffer unavailable\n");
+        return;
+    }
+    o0_surface_init(&backbuffer, bb, w, h, pitch, O0_PIXEL_RGBX8888);
+    if (o0_shell_init(&desktop_shell, w, h) != O0_OK) {
+        o0_serial_puts("OZERO: stage6 shell init failed\n");
+        return;
+    }
+
+    void *p1 = o0_kalloc(200u * 4u * 150u, 64);
+    void *p2 = p1 != NULL ? o0_kalloc(200u * 4u * 150u, 64) : NULL;
+    if (p1 != NULL && p2 != NULL) {
+        o0_surface_init(&win1, p1, 200, 150, 200 * 4, O0_PIXEL_RGBX8888);
+        o0_surface_init(&win2, p2, 200, 150, 200 * 4, O0_PIXEL_RGBX8888);
+        o0_surface_fill(&win1, 0xff4060a0u);
+        o0_surface_fill(&win2, 0xffa04060u);
+        o0_window_id id1, id2;
+        o0_wm_create(&desktop_shell.windows, &win1, 10, 10, &id1);
+        o0_wm_create(&desktop_shell.windows, &win2, 220, 10, &id2);
+    }
+
+    o0_serial_puts("OZERO: stage6 desktop active\n");
+    for (;;) {
+        o0_shell_poll_input(&desktop_shell);
+        o0_compositor_compose(&backbuffer, &desktop_shell.windows, desktop_shell.background);
+        if (boot_display_mode.address != NULL) {
+            uint8_t *fb = (uint8_t *)boot_display_mode.address;
+            for (uint32_t y = 0; y < h; y++) {
+                memcpy(fb + (size_t)y * boot_display_mode.pitch,
+                       (uint8_t *)bb + (size_t)y * pitch, pitch);
+            }
+        }
+        o0_thread_sleep_ns(16000000ull);
+    }
+}
+
 static bool text_starts_with(const char *text, const char *prefix) {
     while (*prefix != '\0') {
         if (*text++ != *prefix++) {
@@ -1582,43 +1635,24 @@ void kmain(void) {
     stage3_demo();
     wave2_demo();
 
-    /* Stage 6.4-6.8 desktop integration. This loop never returns, so it runs
-     * only after every boot self-test has emitted its serial marker; placing it
-     * earlier would suppress the Stage 3-5 milestones that the QEMU boot gate
-     * (tools/qemu-smoke.sh) requires. */
-    static struct o0_shell desktop_shell;
-    static struct o0_surface backbuffer;
+    /* Stage 6.4-6.8 desktop integration. The compositor loop runs as its own
+     * kernel thread so the scheduler still starts and every Stage 3-6 boot
+     * marker, including `boot success`, is emitted for the QEMU boot gate. */
     if (boot_framebuffer_valid) {
-        uint32_t w = (uint32_t)boot_display_mode.width;
-        uint32_t h = (uint32_t)boot_display_mode.height;
-        size_t pitch = (size_t)w * 4u;
-        void *bb = o0_kalloc((size_t)h * pitch, 64);
-        if (bb != NULL) {
-            o0_surface_init(&backbuffer, bb, w, h, pitch, O0_PIXEL_RGBX8888);
-            o0_status shell_status = o0_shell_init(&desktop_shell, w, h);
-            if (shell_status == O0_OK) {
-                static struct o0_surface win1, win2;
-                void *p1 = o0_kalloc(200u*4u*150u, 64);
-                void *p2 = p1 != NULL ? o0_kalloc(200u*4u*150u, 64) : NULL;
-                if (p1 != NULL && p2 != NULL) {
-                    o0_surface_init(&win1, p1, 200, 150, 200*4, O0_PIXEL_RGBX8888);
-                    o0_surface_init(&win2, p2, 200, 150, 200*4, O0_PIXEL_RGBX8888);
-                    o0_surface_fill(&win1, 0xff4060a0u);
-                    o0_surface_fill(&win2, 0xffa04060u);
-                    o0_window_id id1, id2;
-                    o0_wm_create(&desktop_shell.windows, &win1, 10, 10, &id1);
-                    o0_wm_create(&desktop_shell.windows, &win2, 220, 10, &id2);
-                }
-                o0_serial_puts("OZERO: stage6 desktop active\n");
-                for (;;) {
-                    o0_shell_poll_input(&desktop_shell);
-                    o0_compositor_compose(&backbuffer, &desktop_shell.windows, desktop_shell.background);
-                    if (boot_display_mode.address != NULL) {
-                        uint8_t *fb = (uint8_t *)boot_display_mode.address;
-                        for (uint32_t y = 0; y < h; y++)
-                            memcpy(fb + (size_t)y*boot_display_mode.pitch, (uint8_t*)bb + (size_t)y*pitch, pitch);
-                    }
-                }
+        o0_process_t *desktop_proc = NULL;
+        if (o0_process_create("desktop", o0_as_kernel(), o0_budget_root(),
+                              &desktop_proc) == O0_OK) {
+            struct o0_thread_attr desktop_attr = {
+                .name = "desktop",
+                .entry = desktop_main,
+                .arg = NULL,
+                .stack_size = 0,
+                .priority = 0,
+                .flags = 0,
+            };
+            o0_thread_t *desktop_thread = NULL;
+            if (o0_thread_create(desktop_proc, &desktop_attr, &desktop_thread) != O0_OK) {
+                o0_serial_puts("OZERO: stage6 desktop thread creation failed\n");
             }
         }
     }

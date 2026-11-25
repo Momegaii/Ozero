@@ -3,7 +3,7 @@
 Status: **paused by Rule 0 of the hardening directive (`docs/hardening-roadmap.md`). Phase 6.1 verified (display/framebuffer boot tested in QEMU); Phase 6.2 implemented (PS/2 keyboard + pointer driver, host-tested, not end-to-end evidenced); Phase 6.3 implemented and host-tested (surface primitives); Phases 6.4–6.8 are implemented, host-tested and wired into the boot path (window manager, compositor, input router, desktop shell loop); no desktop/QEMU acceptance is claimed. No new Stage 6 scope is started until Wave 7.**
 Last reviewed: 2026-11-24
 Repository: `Momegaii/Ozero`
-Working branch: `kilo/floral-eagle-2hb`
+Working branch: `main` — the only branch of record; Phases 6.4–6.8 merged at `7e26d26`
 
 ## Purpose
 

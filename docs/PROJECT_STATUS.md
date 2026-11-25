@@ -266,18 +266,19 @@ checksum=0x8acf6953`. This is CI evidence, not Director-observed and not physica
   screendump shows eight 160 px bars with no margins. The CI screendump check now verifies
   the raw framebuffer layout independently of any host window.
 
-### PR #6 scope and base
+### PR #6 scope and base (merged into `main`)
 
 - **PR:** [#6](https://github.com/Momegaii/Ozero/pull/6), head `wave3-capability-ipc`.
-- **Base:** `kilo/floral-eagle-2hb` at `599bda1`, **not `main`**. The PR merges into that
-  integration branch; merging it does not put the Wave 2/3/5 work on `main`.
+- **History:** the PR was based on `kilo/floral-eagle-2hb` at `599bda1`, not `main`, so at
+  the time of review it did not put the Wave 2/3/5 work on `main`. That integration branch
+  has since been merged: `main` at `5636e83` is the line of record and contains this work.
 - **Scope at `c9a6a9e`:** 13 commits and 94 files, not a Wave 3-only diff. It carries:
   - Wave 5.0 capability handles, budgets and synchronous IPC (`521bc04`);
   - the Wave 2.7 sign-off and framebuffer work (`1488830`, `4333352`, `274f9fb`);
   - Wave 3 SMP/memory hardening (`51dde72` through `d6b28d8`);
   - documentation and the scheduler migration validation (`a0e9e4c`, `c9a6a9e`).
-- **Review consequence:** the PR must be reviewed as the combined Wave 2.7 + Wave 5.0 +
-  Wave 3 change. A Wave 3-only review of the diff would miss the capability/IPC and
+- **Review consequence:** the PR had to be reviewed as the combined Wave 2.7 + Wave 5.0 +
+  Wave 3 change. A Wave 3-only review of the diff would have missed the capability/IPC and
   Wave 2.7 material.
 
 ### Director-observed rows
