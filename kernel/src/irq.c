@@ -19,6 +19,7 @@
 #define O0_IRQ_LINES 16u
 #define O0_VECTOR_FIRST 32u
 #define O0_VECTOR_COUNT 208u /* 32..239 */
+#define O0_VECTOR_DEVICE_FIRST (O0_VECTOR_FIRST + O0_IRQ_LINES) /* 48 */
 
 struct o0_irq_slot {
     o0_irq_handler_t handler;
@@ -27,8 +28,17 @@ struct o0_irq_slot {
     bool in_use;
 };
 
+/* MSI/MSI-X vectors have no I/O APIC line, so they get their own table. */
+struct o0_vector_slot {
+    o0_irq_handler_t handler;
+    void *ctx;
+    uint64_t count;
+    bool in_use;
+};
+
 static struct o0_irq_slot irq_table[O0_IRQ_LINES];
 static uint64_t irq_counts[O0_IRQ_LINES];
+static struct o0_vector_slot vector_table[O0_VECTOR_COUNT];
 static uint8_t vector_bitmap[O0_VECTOR_COUNT / 8u];
 static bool dispatch_ready;
 
@@ -58,12 +68,22 @@ void o0_irq_dispatch_init(void) {
     for (size_t i = 0; i < sizeof(vector_bitmap); ++i) {
         vector_bitmap[i] = 0;
     }
+    /* The 16 legacy line vectors stay with the I/O APIC/PIC path. */
+    for (uint32_t v = 0; v < O0_IRQ_LINES; ++v) {
+        vector_bitmap[v / 8u] |= (uint8_t)(1u << (v % 8u));
+    }
     /* Vectors 0x40 (IPI) and 0x41 (LAPIC timer) have dedicated stubs and must
      * never be handed to a device through the generic allocator. */
     vector_bitmap[(0x40u - O0_VECTOR_FIRST) / 8u] |=
         (uint8_t)(1u << ((0x40u - O0_VECTOR_FIRST) % 8u));
     vector_bitmap[(0x41u - O0_VECTOR_FIRST) / 8u] |=
         (uint8_t)(1u << ((0x41u - O0_VECTOR_FIRST) % 8u));
+    for (size_t i = 0; i < O0_VECTOR_COUNT; ++i) {
+        vector_table[i].handler = NULL;
+        vector_table[i].ctx = NULL;
+        vector_table[i].count = 0;
+        vector_table[i].in_use = false;
+    }
     dispatch_ready = true;
 }
 
@@ -73,6 +93,22 @@ void x86_irq_dispatch(struct x86_64_interrupt_frame *frame) {
         return;
     }
     uint64_t vector = frame->vector;
+
+    /* Device vectors delivered by MSI/MSI-X: no I/O APIC line, so no PIC/IOAPIC
+     * acknowledge step, just the local APIC EOI. */
+    if (vector >= O0_VECTOR_DEVICE_FIRST &&
+        vector < O0_VECTOR_FIRST + O0_VECTOR_COUNT) {
+        if (o0_lapic_available()) {
+            o0_lapic_eoi();
+        }
+        struct o0_vector_slot *vslot = &vector_table[vector - O0_VECTOR_FIRST];
+        ++vslot->count;
+        if (vslot->in_use && vslot->handler != NULL) {
+            (void)vslot->handler(O0_GSI_NONE, vslot->ctx);
+        }
+        return;
+    }
+
     if (vector < O0_VECTOR_FIRST || vector >= O0_VECTOR_FIRST + O0_IRQ_LINES) {
         if (dispatch_ready) {
             o0_serial_puts("OZERO: unexpected interrupt vector=");
@@ -215,6 +251,52 @@ void o0_irq_free_vectors(o0_vector_t first, uint32_t count) {
         uint32_t bit = start + i;
         vector_bitmap[bit / 8u] &= (uint8_t)~(1u << (bit % 8u));
     }
+}
+
+O0_NODISCARD o0_status o0_irq_register_vector(o0_vector_t vector,
+                                              o0_irq_handler_t handler, void *ctx) {
+    if (handler == NULL) {
+        return O0_EINVAL;
+    }
+    if (vector < O0_VECTOR_DEVICE_FIRST ||
+        vector >= O0_VECTOR_FIRST + O0_VECTOR_COUNT) {
+        return O0_EINVAL;
+    }
+    uint32_t bit = vector - O0_VECTOR_FIRST;
+    if ((vector_bitmap[bit / 8u] & (uint8_t)(1u << (bit % 8u))) == 0u) {
+        return O0_EPERM; /* not reserved through o0_irq_alloc_vectors */
+    }
+    struct o0_vector_slot *slot = &vector_table[bit];
+    if (slot->in_use) {
+        return O0_EBUSY;
+    }
+    slot->handler = handler;
+    slot->ctx = ctx;
+    slot->in_use = true;
+    return O0_OK;
+}
+
+o0_status o0_irq_unregister_vector(o0_vector_t vector,
+                                   o0_irq_handler_t handler, void *ctx) {
+    if (vector < O0_VECTOR_DEVICE_FIRST ||
+        vector >= O0_VECTOR_FIRST + O0_VECTOR_COUNT) {
+        return O0_EINVAL;
+    }
+    struct o0_vector_slot *slot = &vector_table[vector - O0_VECTOR_FIRST];
+    if (!slot->in_use || slot->handler != handler || slot->ctx != ctx) {
+        return O0_ENOENT;
+    }
+    slot->handler = NULL;
+    slot->ctx = NULL;
+    slot->in_use = false;
+    return O0_OK;
+}
+
+uint64_t o0_irq_vector_count(o0_vector_t vector) {
+    if (vector < O0_VECTOR_FIRST || vector >= O0_VECTOR_FIRST + O0_VECTOR_COUNT) {
+        return 0;
+    }
+    return vector_table[vector - O0_VECTOR_FIRST].count;
 }
 
 o0_irq_state_t o0_irq_save(void) {

@@ -345,7 +345,30 @@ static void stage4_self_test(void) {
     o0_serial_puts("\n");
 
     o0_serial_puts("OZERO: pci devices=");
-    o0_serial_dec(o0_pci_init());
+    size_t pci_devices = o0_pci_init();
+    o0_serial_dec(pci_devices);
+    o0_serial_putc('\n');
+    /* Wave 4.1: report how many enumerated devices expose an MSI or MSI-X
+     * capability. This is emulator evidence that the capability walk ran over
+     * real config space; it does not claim any device driver works. */
+    size_t msi_devices = 0;
+    size_t msix_devices = 0;
+    for (size_t i = 0; i < pci_devices; ++i) {
+        const struct o0_pci_device *pci_dev = o0_pci_device(i);
+        if (pci_dev == NULL) {
+            continue;
+        }
+        if (pci_dev->resources.msi_supported) {
+            ++msi_devices;
+        }
+        if (pci_dev->resources.msix_supported) {
+            ++msix_devices;
+        }
+    }
+    o0_serial_puts("OZERO: pci caps msi=");
+    o0_serial_dec(msi_devices);
+    o0_serial_puts(" msix=");
+    o0_serial_dec(msix_devices);
     o0_serial_putc('\n');
     struct o0_block_dev *disk = NULL;
     if (o0_ramdisk_create("ram0", 2u * 1024u * 1024u, &disk) != O0_OK) {

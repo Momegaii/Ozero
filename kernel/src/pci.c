@@ -188,24 +188,26 @@ int o0_pci_probe_bar(struct o0_pci_bdf bdf, uint8_t index,
 
     uint32_t raw1 = is64 ? orig1 : 0;
     o0_pci_decode_bar(orig0, raw1, header_type, index, out);
-    if (out->is_memory) {
-        if (is64) {
-            uint64_t mask = (((uint64_t)size1 << 32) | size0) & ~(uint64_t)0xFu;
-            out->size = (mask == 0u) ? 0u : (~mask) + 1u;
-        } else {
-            /* 32-bit BAR: compute the size in 32 bits so ~mask does not flip the
-             * high half and produce an enormous value. */
-            uint32_t mask = size0 & ~0xFu;
-            out->size = (mask == 0u) ? 0u : ((uint64_t)(~mask) + 1u);
-        }
-    } else {
-        uint32_t m = size0 & ~0x3u;
-        if (m == 0) out->size = 0;
-        else out->size = (~m) + 1u;
-    }
+    out->size = o0_pci_bar_size_from_mask(out->is_memory, out->is_64bit,
+                                          size0, is64 ? size1 : 0u);
     out->header_type = header_type;
     out->assigned = out->base != 0;
     return 0;
+}
+
+uint64_t o0_pci_bar_size_from_mask(bool is_memory, bool is_64bit,
+                                   uint32_t mask_low, uint32_t mask_high) {
+    if (!is_memory) {
+        uint32_t mask = mask_low & ~0x3u;
+        return mask == 0u ? 0u : (uint64_t)(~mask) + 1u;
+    }
+    if (is_64bit) {
+        uint64_t mask = (((uint64_t)mask_high << 32) | mask_low) & ~(uint64_t)0xFu;
+        return mask == 0u ? 0u : (~mask) + 1u;
+    }
+    /* 32-bit BAR: compute in 32 bits so ~mask does not flip the high half. */
+    uint32_t mask = mask_low & ~0xFu;
+    return mask == 0u ? 0u : (uint64_t)(~mask) + 1u;
 }
 
 int o0_pci_validate_mmio(uint64_t base, uint64_t size) {
@@ -215,40 +217,247 @@ int o0_pci_validate_mmio(uint64_t base, uint64_t size) {
     return 0;
 }
 
-int o0_pci_find_capabilities(struct o0_pci_bdf bdf, struct o0_pci_resources *res) {
-    if (!res) return -1;
-    uint8_t cap_ptr; uint8_t status;
-    int r = o0_pci_config_read8(bdf, 0x06u, &status); /* not exact; placeholder */
-    (void)status;
-    r = o0_pci_config_read8(bdf, 0x34u, &cap_ptr);
-    if (r) return r;
-    while (cap_ptr != 0 && cap_ptr >= 0x40u) {
-        uint8_t cap_id;
-        r = o0_pci_config_read8(bdf, cap_ptr, &cap_id); if (r) return r;
-        if (cap_id == 0x05u) { res->msi_supported = true; res->msi_cap_offset = cap_ptr; }
-        if (cap_id == 0x11u) {
-            uint32_t t1=0,t2=0;
-            r = o0_pci_config_read32(bdf, cap_ptr+4, &t1);
-            r |= o0_pci_config_read32(bdf, cap_ptr+8, &t2);
-            if (r == 0) {
-                uint8_t bir_table = (uint8_t)(t1 & 0x7u);
-                uint8_t bir_pba = (uint8_t)(t2 & 0x7u);
-                if (bir_table < res->bar_count && bir_pba < res->bar_count) {
-                    res->msix_supported = true;
-                    res->msix_cap_offset = cap_ptr;
-                    res->msix_table_offset = (uint16_t)(t1 & 0xFFF8u);
-                    res->msix_table_bir = bir_table;
-                    res->msix_pba_offset = (uint16_t)(t2 & 0xFFF8u);
-                    res->msix_pba_bir = bir_pba;
-                } else {
-                    res->msix_supported = false;
-                }
+#define O0_PCI_CFG_BYTES 0x100u
+#define O0_PCI_CAP_MAX_WALK 48u
+
+int o0_pci_parse_capabilities(const uint8_t *cfg, size_t len,
+                              struct o0_pci_resources *res) {
+    if (cfg == NULL || res == NULL || len < O0_PCI_CFG_BYTES) {
+        return -1;
+    }
+    /* Status register bit 4 says the capability list is present; without it the
+     * pointer at 0x34 is reserved and must not be followed. */
+    if ((cfg[0x06] & 0x10u) == 0u) {
+        return 0;
+    }
+
+    uint8_t cap_ptr = cfg[0x34];
+    for (uint32_t walk = 0; walk < O0_PCI_CAP_MAX_WALK; ++walk) {
+        if (cap_ptr < 0x40u) {
+            break; /* 0 terminates; below 0x40 is reserved/invalid */
+        }
+        if ((size_t)cap_ptr + 2u > len) {
+            return -1; /* truncated list */
+        }
+        uint8_t cap_id = cfg[cap_ptr];
+        uint8_t next = cfg[cap_ptr + 1u];
+
+        if (cap_id == 0x05u) { /* MSI */
+            if ((size_t)cap_ptr + 0x0Au > len) return -1;
+            uint16_t ctrl = (uint16_t)(cfg[cap_ptr + 2u] | (cfg[cap_ptr + 3u] << 8));
+            res->msi_supported = true;
+            res->msi_cap_offset = cap_ptr;
+            res->msi_64bit = (ctrl & 0x0080u) != 0u;
+            res->msi_per_vector_mask = (ctrl & 0x0100u) != 0u;
+        } else if (cap_id == 0x11u) { /* MSI-X */
+            if ((size_t)cap_ptr + 0x0Cu > len) return -1;
+            uint16_t ctrl = (uint16_t)(cfg[cap_ptr + 2u] | (cfg[cap_ptr + 3u] << 8));
+            uint32_t table = (uint32_t)cfg[cap_ptr + 4u] |
+                             ((uint32_t)cfg[cap_ptr + 5u] << 8) |
+                             ((uint32_t)cfg[cap_ptr + 6u] << 16) |
+                             ((uint32_t)cfg[cap_ptr + 7u] << 24);
+            uint32_t pba = (uint32_t)cfg[cap_ptr + 8u] |
+                           ((uint32_t)cfg[cap_ptr + 9u] << 8) |
+                           ((uint32_t)cfg[cap_ptr + 10u] << 16) |
+                           ((uint32_t)cfg[cap_ptr + 11u] << 24);
+            uint8_t bir_table = (uint8_t)(table & 0x7u);
+            uint8_t bir_pba = (uint8_t)(pba & 0x7u);
+            if (bir_table < res->bar_count && bir_pba < res->bar_count) {
+                res->msix_supported = true;
+                res->msix_cap_offset = cap_ptr;
+                res->msix_table_offset = (uint16_t)(table & 0xFFF8u);
+                res->msix_table_bir = bir_table;
+                res->msix_pba_offset = (uint16_t)(pba & 0xFFF8u);
+                res->msix_pba_bir = bir_pba;
+                res->msix_table_size = (uint16_t)((ctrl & 0x07FFu) + 1u);
             }
         }
-        uint8_t next; r = o0_pci_config_read8(bdf, cap_ptr+1, &next); if (r) return r;
+
+        if (next == cap_ptr) {
+            return -1; /* self-referential list */
+        }
         cap_ptr = next;
     }
     return 0;
+}
+
+int o0_pci_find_capabilities(struct o0_pci_bdf bdf, struct o0_pci_resources *res) {
+    if (res == NULL) {
+        return -1;
+    }
+    uint8_t cfg[O0_PCI_CFG_BYTES];
+
+    /* One snapshot under one lock so the list cannot change mid-walk. */
+    pci_lock_acquire();
+    for (uint32_t off = 0; off < O0_PCI_CFG_BYTES; off += 4u) {
+        uint32_t value = 0;
+        if (pci_read32_locked(bdf, (uint8_t)off, &value) != 0) {
+            pci_lock_release();
+            return -1;
+        }
+        cfg[off + 0u] = (uint8_t)(value & 0xFFu);
+        cfg[off + 1u] = (uint8_t)((value >> 8) & 0xFFu);
+        cfg[off + 2u] = (uint8_t)((value >> 16) & 0xFFu);
+        cfg[off + 3u] = (uint8_t)((value >> 24) & 0xFFu);
+    }
+    pci_lock_release();
+
+    return o0_pci_parse_capabilities(cfg, sizeof(cfg), res);
+}
+
+uint64_t o0_pci_msi_address(uint32_t dest_apic_id) {
+    /* xAPIC format: 0xFEE in bits 31:20, destination APIC ID in bits 19:12. */
+    return 0xFEE00000u | ((uint64_t)(dest_apic_id & 0xFFu) << 12);
+}
+
+uint32_t o0_pci_msi_data(uint32_t vector, bool level_assert) {
+    uint32_t data = vector & 0xFFu; /* fixed delivery, physical destination */
+    if (level_assert) {
+        data |= 1u << 14;
+    }
+    return data;
+}
+
+int o0_pci_msix_encode(uint32_t dest_apic_id, uint32_t vector, bool masked,
+                       struct o0_pci_msix_entry *out) {
+    if (out == NULL || vector > 0xFFu) {
+        return -1;
+    }
+    out->address = o0_pci_msi_address(dest_apic_id);
+    out->data = o0_pci_msi_data(vector, false);
+    out->vector_control = masked ? 1u : 0u;
+    return 0;
+}
+
+int o0_pci_msi_enable(struct o0_pci_bdf bdf, uint8_t cap_offset,
+                      uint32_t dest_apic_id, uint32_t vector) {
+    if (cap_offset < 0x40u || vector > 0xFFu) {
+        return -1;
+    }
+    uint16_t ctrl = 0;
+    if (o0_pci_config_read16(bdf, (uint8_t)(cap_offset + 2u), &ctrl) != 0) {
+        return -1;
+    }
+    bool is64 = (ctrl & 0x0080u) != 0u;
+    bool per_vector_mask = (ctrl & 0x0100u) != 0u;
+    uint8_t mask_offset = (uint8_t)(cap_offset + (is64 ? 0x10u : 0x0Cu));
+
+    /* Quiesce the capability while its message is rewritten. */
+    if (o0_pci_config_write16(bdf, (uint8_t)(cap_offset + 2u),
+                              (uint16_t)(ctrl & ~0x0001u)) != 0) {
+        return -1;
+    }
+    if (per_vector_mask &&
+        o0_pci_config_write32(bdf, mask_offset, 0xFFFFFFFFu) != 0) {
+        return -1;
+    }
+    if (o0_pci_config_write32(bdf, (uint8_t)(cap_offset + 4u),
+                              (uint32_t)o0_pci_msi_address(dest_apic_id)) != 0) {
+        return -1;
+    }
+    if (is64) {
+        /* Destination lives in the low address word for xAPIC MSI. */
+        if (o0_pci_config_write32(bdf, (uint8_t)(cap_offset + 8u), 0u) != 0) {
+            return -1;
+        }
+    }
+    uint8_t data_offset = (uint8_t)(cap_offset + (is64 ? 0x0Cu : 0x08u));
+    if (o0_pci_config_write32(bdf, data_offset,
+                              o0_pci_msi_data(vector, false)) != 0) {
+        return -1;
+    }
+    if (per_vector_mask &&
+        o0_pci_config_write32(bdf, mask_offset, 0u) != 0) {
+        return -1;
+    }
+    /* One message: multiple-message-enable stays zero. */
+    if (o0_pci_config_write16(bdf, (uint8_t)(cap_offset + 2u),
+                              (uint16_t)((ctrl & ~0x0070u) | 0x0001u)) != 0) {
+        return -1;
+    }
+    uint16_t after = 0;
+    if (o0_pci_config_read16(bdf, (uint8_t)(cap_offset + 2u), &after) != 0) {
+        return -1;
+    }
+    return (after & 0x0001u) != 0u ? 0 : -1;
+}
+
+int o0_pci_msi_disable(struct o0_pci_bdf bdf, uint8_t cap_offset) {
+    if (cap_offset < 0x40u) {
+        return -1;
+    }
+    uint16_t ctrl = 0;
+    if (o0_pci_config_read16(bdf, (uint8_t)(cap_offset + 2u), &ctrl) != 0) {
+        return -1;
+    }
+    return o0_pci_config_write16(bdf, (uint8_t)(cap_offset + 2u),
+                                 (uint16_t)(ctrl & ~0x0001u));
+}
+
+int o0_pci_msix_program(volatile void *table, uint16_t table_entries, uint16_t index,
+                        uint32_t dest_apic_id, uint32_t vector, bool masked) {
+    if (table == NULL || table_entries == 0u || index >= table_entries ||
+        vector > 0xFFu) {
+        return -1;
+    }
+    struct o0_pci_msix_entry entry;
+    if (o0_pci_msix_encode(dest_apic_id, vector, masked, &entry) != 0) {
+        return -1;
+    }
+    volatile uint32_t *words = (volatile uint32_t *)table;
+    size_t base = (size_t)index * 4u;
+    words[base + 0u] = (uint32_t)(entry.address & 0xFFFFFFFFu);
+    words[base + 1u] = (uint32_t)(entry.address >> 32);
+    words[base + 2u] = entry.data;
+    words[base + 3u] = entry.vector_control;
+    return 0;
+}
+
+int o0_pci_msix_enable(struct o0_pci_bdf bdf, uint8_t cap_offset,
+                       volatile void *table, uint16_t index,
+                       uint32_t dest_apic_id, uint32_t vector) {
+    if (cap_offset < 0x40u || table == NULL) {
+        return -1;
+    }
+    uint16_t ctrl = 0;
+    if (o0_pci_config_read16(bdf, (uint8_t)(cap_offset + 2u), &ctrl) != 0) {
+        return -1;
+    }
+    uint16_t entries = (uint16_t)((ctrl & 0x07FFu) + 1u);
+    if (o0_pci_msix_program(table, entries, index, dest_apic_id, vector, false) != 0) {
+        return -1;
+    }
+    /* Enable, then clear the function mask. */
+    if (o0_pci_config_write16(bdf, (uint8_t)(cap_offset + 2u),
+                              (uint16_t)(ctrl | 0x8000u)) != 0) {
+        return -1;
+    }
+    if (o0_pci_config_write16(bdf, (uint8_t)(cap_offset + 2u),
+                              (uint16_t)((ctrl | 0x8000u) & ~0x4000u)) != 0) {
+        return -1;
+    }
+    uint16_t after = 0;
+    if (o0_pci_config_read16(bdf, (uint8_t)(cap_offset + 2u), &after) != 0) {
+        return -1;
+    }
+    return ((after & 0x8000u) != 0u && (after & 0x4000u) == 0u) ? 0 : -1;
+}
+
+int o0_pci_msix_disable(struct o0_pci_bdf bdf, uint8_t cap_offset) {
+    if (cap_offset < 0x40u) {
+        return -1;
+    }
+    uint16_t ctrl = 0;
+    if (o0_pci_config_read16(bdf, (uint8_t)(cap_offset + 2u), &ctrl) != 0) {
+        return -1;
+    }
+    /* Mask the function first, then clear enable. */
+    if (o0_pci_config_write16(bdf, (uint8_t)(cap_offset + 2u),
+                              (uint16_t)(ctrl | 0x4000u)) != 0) {
+        return -1;
+    }
+    return o0_pci_config_write16(bdf, (uint8_t)(cap_offset + 2u),
+                                 (uint16_t)(ctrl & ~0x8000u));
 }
 
 size_t o0_pci_init(void) {
@@ -283,7 +492,9 @@ size_t o0_pci_init(void) {
                 d->subclass = (uint8_t)((classrev >> 16) & 0xFFu);
                 d->class_code = (uint8_t)((classrev >> 24) & 0xFFu);
                 uint32_t hdr; o0_pci_config_read32(bdf, 0x0C, &hdr);
-                d->resources.header_type = (uint8_t)((hdr >> 16) & 0xFFu);
+                /* Bits 6:0 are the header layout; bit 7 is multi-function and is
+                 * not part of the layout number. */
+                d->resources.header_type = (uint8_t)(((hdr >> 16) & 0x7Fu));
                 /* bar count by header type */
                 if (d->resources.header_type == 0) d->resources.bar_count = 6;
                 else if (d->resources.header_type == 1) d->resources.bar_count = 2;

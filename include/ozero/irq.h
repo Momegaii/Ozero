@@ -41,9 +41,19 @@ o0_status o0_irq_unregister(o0_gsi_t gsi, o0_irq_handler_t handler, void *ctx);
 o0_status o0_irq_mask(o0_gsi_t gsi);
 o0_status o0_irq_unmask(o0_gsi_t gsi);
 
-/* Contiguous vector allocation for MSI/MSI-X or per-CPU interrupts. */
+/* Contiguous vector allocation for MSI/MSI-X or per-CPU interrupts. The 16 legacy
+ * line vectors and the IPI/timer stubs are never handed out. */
 O0_NODISCARD o0_status o0_irq_alloc_vectors(uint32_t count, o0_vector_t *out_first);
 void o0_irq_free_vectors(o0_vector_t first, uint32_t count);
+
+/* Registers a handler for one allocated device vector (MSI/MSI-X). The GSI argument
+ * passed to the handler is O0_GSI_NONE: the vector is not an I/O APIC line. The LAPIC
+ * EOI is issued before the handler runs. */
+O0_NODISCARD o0_status o0_irq_register_vector(o0_vector_t vector,
+                                              o0_irq_handler_t handler, void *ctx);
+o0_status o0_irq_unregister_vector(o0_vector_t vector,
+                                   o0_irq_handler_t handler, void *ctx);
+uint64_t o0_irq_vector_count(o0_vector_t vector);
 
 /* Disables interrupts and returns the previous state. Nesting-safe. */
 o0_irq_state_t o0_irq_save(void);

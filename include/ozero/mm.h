@@ -131,6 +131,10 @@ struct o0_dma_constraint {
     uint32_t reserved;
 };
 
+/* o0_dma_buffer.flags. */
+#define O0_DMA_F_COHERENT (1u << 0) /* allocated with coherent = true */
+#define O0_DMA_F_PINNED   (1u << 1) /* at least one pin is held (ADR 0014) */
+
 struct o0_dma_buffer {
     o0_paddr_t phys;
     void *virt;
@@ -153,12 +157,25 @@ O0_NODISCARD o0_status o0_dma_alloc(const struct o0_dma_constraint *constraint,
 
 /* Cache maintenance for non-coherent buffers; a no-op for coherent ones. Call after
  * writing before a to-device transfer, and before reading after a from-device transfer.
- * offset and len must lie inside the buffer. */
+ * offset and len must lie inside the buffer. On x86-64 the caches are coherent with
+ * DMA, so this only orders CPU accesses before the device doorbell. */
 o0_status o0_dma_sync(struct o0_dma_buffer *buf, size_t offset, size_t len,
                       enum o0_dma_dir dir);
 
-/* The caller must ensure no DMA is in flight; the device must be quiesced first. */
-void o0_dma_free(struct o0_dma_buffer *buf);
+/* Marks the buffer as owned by an in-flight request. Pins nest: each o0_dma_pin must
+ * be matched by exactly one o0_dma_unpin, normally in the completion callback. */
+O0_NODISCARD o0_status o0_dma_pin(struct o0_dma_buffer *buf);
+O0_NODISCARD o0_status o0_dma_unpin(struct o0_dma_buffer *buf);
+
+/* Releases the buffer. Returns O0_EBUSY and frees nothing while a pin is held, so a
+ * buffer can never be returned to the page allocator underneath a request that is
+ * still in flight. O0_ENOENT means the physical address is not owned by the DMA
+ * allocator; O0_EINVAL means the buffer is already cleared. The device must still be
+ * quiesced before the final release. */
+O0_NODISCARD o0_status o0_dma_free(struct o0_dma_buffer *buf);
+
+/* Number of buffers currently owned by the allocator (diagnostics and tests). */
+size_t o0_dma_live_buffers(void);
 
 #ifdef __cplusplus
 }

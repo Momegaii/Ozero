@@ -31,7 +31,7 @@ KERNEL_OBJS := $(BUILD)/main.o $(BUILD)/serial.o $(BUILD)/string.o $(BUILD)/stat
                $(BUILD)/irq.o $(BUILD)/ioapic.o $(BUILD)/paging.o $(BUILD)/cpu.o $(BUILD)/pic.o $(BUILD)/smp.o $(BUILD)/ap_entry.o $(BUILD)/apic_timer.o $(BUILD)/kaslr.o \
                $(BUILD)/interrupts_c.o $(BUILD)/interrupts.o $(BUILD)/irq_stubs.o \
                $(BUILD)/context.o $(BUILD)/block.o $(BUILD)/ramdisk.o \
-               $(BUILD)/o0fs.o $(BUILD)/pci.o $(BUILD)/gpu.o $(BUILD)/gpu_hsw.o \
+               $(BUILD)/o0fs.o $(BUILD)/pci.o $(BUILD)/dma.o $(BUILD)/gpu.o $(BUILD)/gpu_hsw.o \
                $(BUILD)/gpu_device.o $(BUILD)/gpu_queue.o $(BUILD)/surface.o \
                $(BUILD)/display.o $(BUILD)/input.o $(BUILD)/input_ps2.o $(BUILD)/input_router.o $(BUILD)/window.o \
                $(BUILD)/compositor.o $(BUILD)/gfx_backend.o $(BUILD)/shell.o \
@@ -208,6 +208,8 @@ test: $(BUILD)
 	$(HOST_RUN_ENV) ./$(BUILD)/fs_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/pci_test tests/pci_test.c
 	$(HOST_RUN_ENV) ./$(BUILD)/pci_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/dma_test tests/dma_test.c
+	$(HOST_RUN_ENV) ./$(BUILD)/dma_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/gpu_test tests/gpu_test.c
 	$(HOST_RUN_ENV) ./$(BUILD)/gpu_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel -Ikernel/src -o $(BUILD)/display_test tests/display_test.c kernel/src/display.c kernel/arch/x86_64/paging.c
@@ -234,7 +236,7 @@ test-sanitize: $(BUILD)
 	rm -f $(BUILD)/pmm_test $(BUILD)/slab_test $(BUILD)/sched_test \
 	      $(BUILD)/cpu_test $(BUILD)/abi_test $(BUILD)/elf_test $(BUILD)/acpi_test $(BUILD)/ioapic_test $(BUILD)/lock_order_test $(BUILD)/kaslr_test $(BUILD)/cap_test \
 	      $(BUILD)/block_test $(BUILD)/fs_test \
-	      $(BUILD)/pci_test $(BUILD)/gpu_test $(BUILD)/display_test \
+	      $(BUILD)/pci_test $(BUILD)/dma_test $(BUILD)/gpu_test $(BUILD)/display_test \
 	      $(BUILD)/input_test $(BUILD)/surface_test $(BUILD)/input_ps2_test \
 	      $(BUILD)/window_test $(BUILD)/compositor_test $(BUILD)/gfx_backend_test $(BUILD)/shell_test
 	$(MAKE) test HOST_EXTRA_CFLAGS="$(SAN_CFLAGS)" HOST_RUN_ENV="$(SAN_ENV)"

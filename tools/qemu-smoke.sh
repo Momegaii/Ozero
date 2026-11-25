@@ -109,6 +109,8 @@ required_markers=(
     "OZERO: kernel threads created="
     # Stage 4 storage: block layer, RAM disk, OzeroFS and the fault path.
     "OZERO: block layer ready devices="
+    # Wave 4.1: PCI capability walk over real config space in the emulator.
+    "OZERO: pci caps msi="
     "OZERO: ramdisk registered name=ram0"
     "OZERO: o0fs formatted blocks="
     "OZERO: o0fs mounted free blocks="
