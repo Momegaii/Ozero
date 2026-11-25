@@ -16,7 +16,9 @@
 #include <limine.h>
 
 #include "ozero/block.h"
+#include "ozero/budget.h"
 #include "ozero/display.h"
+#include "ozero/endpoint.h"
 #include "ozero/boot.h"
 #include "ozero/cpu.h"
 #include "ozero/cpu_local.h"
@@ -26,7 +28,10 @@
 #include "ozero/gpu_device.h"
 #include "ozero/gpu_hsw.h"
 #include "ozero/gpu_queue.h"
+#include "ozero/handle.h"
 #include "ozero/input_ps2.h"
+#include "ozero/memory.h"
+#include "ozero/object.h"
 #include "ozero/irq.h"
 #include "ozero/pci.h"
 #include "ozero/ramdisk.h"
@@ -237,7 +242,7 @@ static void stage3_self_test(void) {
 
     /* Address spaces: map, translate, protect, unmap. */
     o0_as_t *as = NULL;
-    if (o0_as_create(&as) != O0_OK || as == NULL) {
+    if (o0_as_create(o0_budget_root(), &as) != O0_OK || as == NULL) {
         panic("address space creation failed");
     }
     o0_paddr_t page = o0_pmm_alloc_pages(0);
@@ -646,7 +651,7 @@ static void worker_thread(void *arg) {
 
 static void stage3_demo(void) {
     o0_process_t *proc = NULL;
-    if (o0_process_create("init", o0_as_kernel(), &proc) != O0_OK) {
+    if (o0_process_create("init", o0_as_kernel(), o0_budget_root(), &proc) != O0_OK) {
         panic("process creation failed");
     }
 
@@ -695,7 +700,11 @@ static int wave2_run_user(const char *name, const unsigned char *start,
     o0_serial_puts(name);
     o0_serial_putc('\n');
     o0_thread_t *thread = NULL;
-    if (o0_user_spawn(name, start, size, &thread) != O0_OK) {
+    o0_status spawn_status = o0_user_spawn(name, start, size, &thread);
+    if (spawn_status != O0_OK) {
+        o0_serial_puts("OZERO: wave2 spawn status=");
+        o0_serial_puts(o0_status_name(spawn_status));
+        o0_serial_putc('\n');
         panic("user image load failed");
     }
     int status = -1234;
@@ -709,6 +718,8 @@ static int wave2_run_user(const char *name, const unsigned char *start,
     o0_serial_putc('\n');
     return status;
 }
+
+static void wave3_self_test(void *arg);
 
 static void wave2_self_test(void *arg) {
     (void)arg;
@@ -755,11 +766,280 @@ static void wave2_self_test(void *arg) {
     }
     o0_serial_puts("OZERO: user churn OK processes=16\n");
     o0_serial_puts("OZERO: wave2 self-test complete\n");
+
+    wave3_self_test(NULL);
+}
+
+/* ---------- Wave 3: handles, budgets and synchronous IPC ---------- */
+
+extern const unsigned char _binary_build_user_spawner_elf_start[];
+extern const unsigned char _binary_build_user_spawner_elf_end[];
+extern const unsigned char _binary_build_user_spawn_child_elf_start[];
+extern const unsigned char _binary_build_user_spawn_child_elf_end[];
+extern const unsigned char _binary_build_user_ipc_server_elf_start[];
+extern const unsigned char _binary_build_user_ipc_server_elf_end[];
+extern const unsigned char _binary_build_user_ipc_client_elf_start[];
+extern const unsigned char _binary_build_user_ipc_client_elf_end[];
+extern const unsigned char _binary_build_user_handles_elf_start[];
+extern const unsigned char _binary_build_user_handles_elf_end[];
+extern const unsigned char _binary_build_user_budget_elf_start[];
+extern const unsigned char _binary_build_user_budget_elf_end[];
+extern const unsigned char _binary_build_user_ipcneg_elf_start[];
+extern const unsigned char _binary_build_user_ipcneg_elf_end[];
+extern const unsigned char _binary_build_user_peer_server_elf_start[];
+extern const unsigned char _binary_build_user_peer_server_elf_end[];
+
+static struct o0_memory *wave3_image(const unsigned char *start,
+                                     const unsigned char *end) {
+    size_t size = (size_t)(end - start);
+    struct o0_memory *memory = NULL;
+    if (o0_memory_create_from(o0_budget_root(), start, size,
+                              O0_RIGHT_MEMORY_IMAGE | O0_RIGHT_TRANSFER,
+                              &memory) != O0_OK) {
+        panic("wave3 image object creation failed");
+    }
+    return memory;
+}
+
+static o0_thread_t *wave3_spawn_image(const char *name,
+                                      const unsigned char *start,
+                                      const unsigned char *end,
+                                      const struct o0_spawn_grant *extra,
+                                      size_t extra_count, uint32_t flags,
+                                      bool grant_image) {
+    struct o0_memory *image = wave3_image(start, end);
+    struct o0_spawn_grant grants[8];
+    size_t count = 0;
+    if (grant_image) {
+        o0_object_ref(&image->obj);
+        grants[count].object = &image->obj;
+        grants[count].rights = O0_RIGHT_READ | O0_RIGHT_MAP | O0_RIGHT_INFO;
+        grants[count].reserved = 0;
+        ++count;
+    }
+    if (count + extra_count > O0_ARRAY_SIZE(grants)) {
+        panic("too many spawn grants");
+    }
+    for (size_t i = 0; i < extra_count; ++i) {
+        grants[count + i] = extra[i];
+    }
+    count += extra_count;
+
+    o0_thread_t *thread = NULL;
+    o0_status st = o0_user_spawn_memory(name, image, o0_budget_root(), grants,
+                                        count, flags, &thread);
+    o0_object_unref(&image->obj);
+    if (st != O0_OK) {
+        o0_serial_puts("OZERO: wave3 spawn failed ");
+        o0_serial_puts(name);
+        o0_serial_puts(" status=");
+        o0_serial_puts(o0_status_name(st));
+        o0_serial_putc('\n');
+        panic("wave3 user spawn failed");
+    }
+    return thread;
+}
+
+static o0_thread_t *wave3_spawn(const char *name, const unsigned char *start,
+                                const unsigned char *end,
+                                const struct o0_spawn_grant *extra,
+                                size_t extra_count, uint32_t flags) {
+    return wave3_spawn_image(name, start, end, extra, extra_count, flags, false);
+}
+
+static int wave3_join(o0_thread_t *thread, const char *name) {
+    int status = -1234;
+    if (o0_thread_join(thread, &status) != O0_OK) {
+        panic("wave3 join failed");
+    }
+    o0_serial_puts("OZERO: wave3 done ");
+    o0_serial_puts(name);
+    o0_serial_puts(" status=");
+    o0_serial_dec((uint64_t)(int64_t)status);
+    o0_serial_putc('\n');
+    return status;
+}
+
+static void wave3_wait_threads(uint32_t target) {
+    uint64_t deadline = o0_sched_ticks() + (uint64_t)o0_sched_hz() * 3u;
+    while (o0_thread_count() > target) {
+        if (o0_sched_ticks() > deadline) {
+            panic("wave3 detached child did not exit");
+        }
+        o0_thread_yield();
+    }
+}
+
+static void wave3_run_ipc_pair(const char *tag) {
+    struct o0_endpoint *endpoint = NULL;
+    if (o0_endpoint_create(o0_budget_root(), false, &endpoint) != O0_OK) {
+        panic("wave3 endpoint creation failed");
+    }
+
+    struct o0_spawn_grant server_grant;
+    server_grant.object = &endpoint->obj;
+    server_grant.rights = O0_RIGHT_SEND | O0_RIGHT_RECV | O0_RIGHT_INFO;
+    server_grant.reserved = 0;
+    o0_object_ref(&endpoint->obj);
+    o0_thread_t *server = wave3_spawn("ipc-server",
+                                      _binary_build_user_ipc_server_elf_start,
+                                      _binary_build_user_ipc_server_elf_end,
+                                      &server_grant, 1, 0);
+
+    struct o0_spawn_grant client_grant = server_grant;
+    o0_object_ref(&endpoint->obj);
+    o0_thread_t *client = wave3_spawn("ipc-client",
+                                      _binary_build_user_ipc_client_elf_start,
+                                      _binary_build_user_ipc_client_elf_end,
+                                      &client_grant, 1, 0);
+    o0_object_unref(&endpoint->obj);
+
+    if (wave3_join(server, tag) != 0 || wave3_join(client, tag) != 0) {
+        panic("wave3 IPC pair failed");
+    }
+    o0_serial_puts("OZERO: ipc pair OK ");
+    o0_serial_puts(tag);
+    o0_serial_putc('\n');
+}
+
+static void wave3_self_test(void *arg) {
+    (void)arg;
+
+    o0_serial_puts("OZERO: handle table ready\n");
+    o0_serial_puts("OZERO: budget accounting ready\n");
+
+    /* Spawner: user space splits a budget and spawns a child through the
+     * process_spawn syscall. The child is detached, so it is reaped by the
+     * scheduler after it exits. */
+    struct o0_budget *spawner_budget = NULL;
+    if (o0_budget_split(o0_budget_root(), 8u << 20, &spawner_budget) != O0_OK) {
+        panic("wave3 spawner budget split failed");
+    }
+    struct o0_spawn_grant spawner_grants[1];
+    spawner_grants[0].object = &spawner_budget->obj;
+    spawner_grants[0].rights = O0_RIGHT_SPLIT | O0_RIGHT_INFO;
+    spawner_grants[0].reserved = 0;
+    uint32_t baseline_threads = o0_thread_count();
+    o0_thread_t *spawner = wave3_spawn_image(
+        "spawner", _binary_build_user_spawner_elf_start,
+        _binary_build_user_spawner_elf_end, spawner_grants, 1, 0, true);
+    if (wave3_join(spawner, "spawner") != 0) {
+        panic("spawner did not exit with status 0");
+    }
+    o0_object_unref(&spawner_budget->obj);
+    wave3_wait_threads(baseline_threads);
+    o0_serial_puts("OZERO: spawn syscall child reaped\n");
+
+    /* Request/reply over a synchronous endpoint. */
+    wave3_run_ipc_pair("pair-1");
+    o0_serial_puts("OZERO: ipc self-test complete\n");
+
+    /* Handle, rights, budget and memory negative tests. */
+    struct o0_endpoint *endpoint = NULL;
+    if (o0_endpoint_create(o0_budget_root(), false, &endpoint) != O0_OK) {
+        panic("wave3 handle endpoint creation failed");
+    }
+    struct o0_budget *handle_budget = NULL;
+    if (o0_budget_split(o0_budget_root(), 4u << 20, &handle_budget) != O0_OK) {
+        panic("wave3 handle budget split failed");
+    }
+    struct o0_memory *handle_memory = NULL;
+    if (o0_memory_create(o0_budget_root(), O0_PAGE_SIZE,
+                         O0_RIGHT_MEMORY_DEFAULT, &handle_memory) != O0_OK) {
+        panic("wave3 handle memory creation failed");
+    }
+    struct o0_spawn_grant handle_grants[3];
+    handle_grants[0].object = &endpoint->obj;
+    handle_grants[0].rights = O0_RIGHT_ENDPOINT_DEFAULT;
+    handle_grants[0].reserved = 0;
+    handle_grants[1].object = &handle_budget->obj;
+    handle_grants[1].rights = O0_RIGHT_BUDGET_DEFAULT;
+    handle_grants[1].reserved = 0;
+    handle_grants[2].object = &handle_memory->obj;
+    handle_grants[2].rights = O0_RIGHT_MEMORY_DEFAULT;
+    handle_grants[2].reserved = 0;
+    o0_thread_t *handles = wave3_spawn("handles",
+                                       _binary_build_user_handles_elf_start,
+                                       _binary_build_user_handles_elf_end,
+                                       handle_grants, 3, 0);
+    if (wave3_join(handles, "handles") != 0) {
+        panic("handle negative tests failed");
+    }
+
+    /* Budget exhaustion and return to baseline. */
+    o0_thread_t *budget = wave3_spawn("budget",
+                                      _binary_build_user_budget_elf_start,
+                                      _binary_build_user_budget_elf_end,
+                                      NULL, 0, 0);
+    if (wave3_join(budget, "budget") != 0) {
+        panic("budget exhaustion test failed");
+    }
+
+    /* Peer death: the server exits before the client runs. */
+    struct o0_endpoint *dead_endpoint = NULL;
+    if (o0_endpoint_create(o0_budget_root(), false, &dead_endpoint) != O0_OK) {
+        panic("wave3 dead endpoint creation failed");
+    }
+    struct o0_spawn_grant peer_grant;
+    peer_grant.object = &dead_endpoint->obj;
+    peer_grant.rights = O0_RIGHT_SEND | O0_RIGHT_RECV | O0_RIGHT_INFO;
+    peer_grant.reserved = 0;
+    o0_object_ref(&dead_endpoint->obj);
+    o0_thread_t *peer = wave3_spawn("peer-server",
+                                    _binary_build_user_peer_server_elf_start,
+                                    _binary_build_user_peer_server_elf_end,
+                                    &peer_grant, 1, 0);
+    if (wave3_join(peer, "peer-server") != 0) {
+        panic("peer server did not exit with status 0");
+    }
+    struct o0_budget *neg_budget = NULL;
+    if (o0_budget_split(o0_budget_root(), 4u << 20, &neg_budget) != O0_OK) {
+        panic("wave3 negative budget split failed");
+    }
+    struct o0_spawn_grant neg_grants[2];
+    neg_grants[0].object = &dead_endpoint->obj;
+    neg_grants[0].rights = O0_RIGHT_SEND | O0_RIGHT_RECV | O0_RIGHT_INFO;
+    neg_grants[0].reserved = 0;
+    neg_grants[1].object = &neg_budget->obj;
+    neg_grants[1].rights = O0_RIGHT_SPLIT | O0_RIGHT_INFO | O0_RIGHT_TRANSFER;
+    neg_grants[1].reserved = 0;
+    o0_thread_t *ipcneg = wave3_spawn("ipcneg",
+                                      _binary_build_user_ipcneg_elf_start,
+                                      _binary_build_user_ipcneg_elf_end,
+                                      neg_grants, 2, 0);
+    if (wave3_join(ipcneg, "ipcneg") != 0) {
+        panic("IPC negative tests failed");
+    }
+
+    /* Churn: create and destroy processes, endpoints, budgets and memory
+     * objects, then require the accounting to return to the baseline. */
+    wave3_run_ipc_pair("warm-up");
+    uint64_t pmm_before = o0_pmm_free_bytes();
+    uint32_t objects_before = o0_object_live_count();
+    struct o0_budget_snapshot budget_before;
+    o0_budget_snapshot(o0_budget_root(), &budget_before);
+    for (uint32_t i = 0; i < 8u; ++i) {
+        wave3_run_ipc_pair("churn");
+    }
+    uint64_t pmm_after = o0_pmm_free_bytes();
+    uint32_t objects_after = o0_object_live_count();
+    struct o0_budget_snapshot budget_after;
+    o0_budget_snapshot(o0_budget_root(), &budget_after);
+    if (objects_after != objects_before || budget_after.used != budget_before.used) {
+        panic("wave3 process churn leaked objects or budget");
+    }
+    /* The slab may retain a few pages; a leak of user pages would be far
+     * larger than this allowance. */
+    if (pmm_after + (8u * O0_PAGE_SIZE) < pmm_before) {
+        panic("wave3 process churn leaked physical pages");
+    }
+    o0_serial_puts("OZERO: wave3 churn OK pairs=8\n");
+    o0_serial_puts("OZERO: wave3 self-test complete\n");
 }
 
 static void wave2_demo(void) {
     o0_process_t *proc = NULL;
-    if (o0_process_create("usertest", o0_as_kernel(), &proc) != O0_OK) {
+    if (o0_process_create("usertest", o0_as_kernel(), o0_budget_root(), &proc) != O0_OK) {
         panic("user self-test process creation failed");
     }
     struct o0_thread_attr attr = {
@@ -940,6 +1220,10 @@ void kmain(void) {
 
     o0_slab_init();
     o0_serial_puts("OZERO: kernel heap ready\n");
+    if (o0_budget_init_system() != O0_OK) {
+        panic("root budget initialisation failed");
+    }
+    o0_serial_puts("OZERO: root budget ready\n");
 
     o0_irq_dispatch_init();
     x86_64_idt_install_irq_gates();

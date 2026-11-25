@@ -1,7 +1,7 @@
 # Ozero Project Status
 
 Last updated: 2026-11-24  
-Current stage: **Stage 6 — Native graphical application environment (active; Phase 6.1 verified — display/framebuffer boot tested in QEMU with screenshot evidence; Phase 6.2 implemented — PS/2 keyboard + pointer driver host-tested, driver initialized at boot; Phase 6.3 implemented and host-tested — software surface primitives; Phases 6.4–6.8 open; no full desktop/QEMU acceptance claimed). Stage 5 is closed as the software-foundation milestone; physical GPU execution and vendor-specific acceleration backends remain deferred. See docs/stage6.md for the three-agent handoff and test plan. New GPU/Stage 6 scope is paused by Rule 0; hardening Wave 1 (verification debt) is complete locally and **Wave 2 (single-CPU user mode) is implemented and verified in QEMU on BIOS/UEFI × qemu64/Haswell-v1**. No physical-hardware evidence exists for either wave. Waves 3–6 are planned in docs/hardening-roadmap.md.**  
+Current stage: **Stage 6 — Native graphical application environment (active; Phase 6.1 verified — display/framebuffer boot tested in QEMU with screenshot evidence; Phase 6.2 implemented — PS/2 keyboard + pointer driver host-tested, driver initialized at boot; Phase 6.3 implemented and host-tested — software surface primitives; Phases 6.4–6.8 open; no full desktop/QEMU acceptance claimed). Stage 5 is closed as the software-foundation milestone; physical GPU execution and vendor-specific acceleration backends remain deferred. See docs/stage6.md for the three-agent handoff and test plan. New GPU/Stage 6 scope is paused by Rule 0; hardening Wave 1 (verification debt) is complete locally, **Wave 2 (single-CPU user mode) is implemented and verified in QEMU on BIOS/UEFI × qemu64/Haswell-v1**, and **Wave 3 (capability handles, budgets and synchronous IPC) is implemented and verified in the same four emulator cells**. No physical-hardware evidence exists for any wave. Waves 4–7 are planned in docs/hardening-roadmap.md.**  
 Stage 3 — processes, threads and scheduler: **implemented; boot-verified in QEMU BIOS for the Stage 3 revision**  
 Stage 2 — physical and virtual memory: **implemented, verified by build + host tests + QEMU boot**  
 Stage 1 — bootable x86-64 kernel: **implemented; see verification state**
@@ -186,8 +186,29 @@ roadmap. Plan and per-item status: [docs/hardening-roadmap.md](hardening-roadmap
   LAPIC ExtINT virtual-wire configuration (ADR 0005) and boots on QEMU 8.2.2 and 10.1.0.
 
 **Wave 2 (single-CPU user mode) is implemented and verified in emulation;** its evidence is in
-[hardening-roadmap.md](hardening-roadmap.md) and ADR 0007. Waves 3–6 are planned and not
-started; no Wave 3 item is claimed. Physical hardware remains unexercised for every wave.
+[hardening-roadmap.md](hardening-roadmap.md) and ADR 0007.
+
+**Wave 3 (capability handles, budgets and synchronous IPC) is implemented and verified in
+emulation;** its design and implementation record are in
+[ADR 0008](decisions/0008-capability-handles-budgets-and-ipc.md). The evidence split is:
+
+- **Host tests:** `tests/cap_test.c` passes under `make test` and `make test-sanitize`. It
+  covers object refcounting, budget split/charge/uncharge, a tight budget whose partially
+  charged memory allocation must unwind to zero, handle generations/rights/dup/close, memory
+  read and W^X policy, and endpoint lifecycle.
+- **Emulator boots:** all four cells of `{bios, uefi} × {qemu64, Haswell-v1}` on QEMU 10.0.13
+  pass `tools/qemu-smoke.sh` with `QEMU smoke test: PASS`. Wave 3 markers: `spawn syscall OK`,
+  `ipc pair OK pair-1`, `handle negative tests OK`, `budget exhaustion OK`,
+  `ipc negative tests OK`, `wave3 churn OK pairs=8` and `wave3 self-test complete`.
+- **Sanitizers:** `make test-sanitize` passes with leak detection enabled.
+- **Physical hardware:** not exercised. None of the above is physical evidence.
+
+The churn check requires live object count, root budget usage and PMM free pages to return to
+baseline after eight process/endpoint/memory cycles. Two leaks were found and fixed while
+closing the wave: a partial memory allocation undercharged its page array, and `o0_ipc_call`
+held an extra reference on its reply endpoint.
+
+Waves 4–7 are planned and not started. Physical hardware remains unexercised for every wave.
 
 ## Verification state
 
@@ -371,7 +392,7 @@ physical-hardware evidence.
 
 The next wave is ordered by `docs/hardening-roadmap.md`:
 
-1. **Wave 3 — storage and filesystem:** virtio-blk first, then AHCI/NVMe with DMA and IRQ
+1. **Wave 4 — storage and filesystem:** virtio-blk first, then AHCI/NVMe with DMA and IRQ
    completion; MBR/GPT partition discovery; crash consistency as an ADR; then a VFS with file
    descriptors and a page cache. This is the next planned wave and no part of it is started.
 2. **SMP** (no longer blocked by Rule 0's user-mode gate, but not started): ACPI MADT,
@@ -380,10 +401,10 @@ The next wave is ordered by `docs/hardening-roadmap.md`:
    LAPIC disable" — the tree no longer disables the LAPIC, so AP bring-up has to program
    LVT/TPR per CPU, keep the 8259 path only as a fallback, and use the per-CPU/`swapgs`
    reservation made in ADR 0007 so the ABI does not change.
-3. **Memory hardening (Wave 4 scope):** SMEP/SMAP, KASLR, buddy PMM, and
+3. **Memory hardening (Wave 5 scope):** SMEP/SMAP, KASLR, buddy PMM, and
    bootloader-memory reclaim (`o0_pmm_release_bootloader_memory`).
 
-GPU engine work stays paused until Wave 6.
+GPU engine work stays paused until Wave 7.
 
 ## Reporting standard
 

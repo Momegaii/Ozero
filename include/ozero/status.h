@@ -31,7 +31,8 @@ typedef enum o0_status {
     O0_ENOTDIR = 15, /* path component is not a directory */
     O0_EISDIR = 16,  /* operation requires a non-directory */
     O0_ENOTEMPTY = 17, /* directory still has entries */
-    O0_ENOSPC = 18   /* no space left on the storage object */
+    O0_ENOSPC = 18,  /* no space left on the storage object */
+    O0_EPEER = 19    /* peer endpoint or process is gone */
 } o0_status;
 
 const char *o0_status_name(o0_status status);

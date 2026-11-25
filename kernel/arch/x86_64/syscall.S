@@ -81,23 +81,28 @@ o0_syscall_entry:
 .size o0_syscall_entry, . - o0_syscall_entry
 
 /* ---------------------------------------------------------------------------
- * o0_user_enter(uint64_t rip, uint64_t rsp)
+ * o0_user_enter(uint64_t rip, uint64_t rsp, uint64_t arg0, uint64_t arg1,
+ *                uint64_t arg2)
  *
  * First entry to ring 3 from a kernel thread. Builds an iretq frame with the
- * frozen user selectors and IF=1, swaps to the user GS base and returns.
- * Never returns to the caller.
+ * frozen user selectors and IF=1, places the three bootstrap arguments in
+ * RDI/RSI/RDX, swaps to the user GS base and returns. Never returns.
  * ------------------------------------------------------------------------- */
 
 .global o0_user_enter
 .type o0_user_enter, @function
 o0_user_enter:
     cli
-    movq %rsi, %rax
+    movq %rdi, %r9                  /* user RIP */
+    movq %rsi, %rax                 /* user RSP */
+    movq %rdx, %rdi                 /* arg0 -> RDI */
+    movq %rcx, %rsi                 /* arg1 -> RSI */
+    movq %r8, %rdx                  /* arg2 -> RDX */
     pushq $0x1b
     pushq %rax
     pushq $0x202                    /* RFLAGS: IF | reserved bit 1 */
     pushq $0x23
-    pushq %rdi
+    pushq %r9
     swapgs
     iretq
 .size o0_user_enter, . - o0_user_enter

@@ -23,6 +23,7 @@ const char *o0_status_name(o0_status status) {
         case O0_EISDIR: return "EISDIR";
         case O0_ENOTEMPTY: return "ENOTEMPTY";
         case O0_ENOSPC: return "ENOSPC";
+        case O0_EPEER: return "EPEER";
         default: return "UNKNOWN";
     }
 }

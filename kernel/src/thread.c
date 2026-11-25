@@ -10,8 +10,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "ozero/budget.h"
 #include "ozero/cpu.h"
+#include "ozero/endpoint.h"
+#include "ozero/handle.h"
 #include "ozero/irq.h"
+#include "ozero/object.h"
 #include "ozero/mm.h"
 #include "ozero/status.h"
 #include "ozero/thread.h"
@@ -38,7 +42,8 @@ static void o0_thread_trampoline(void) {
         o0_thread_exit(1);
     }
     if (self->user) {
-        o0_user_enter(self->user_entry, self->user_rsp);
+        o0_user_enter(self->user_entry, self->user_rsp, self->user_arg0,
+                      self->user_arg1, self->user_arg2);
     }
     void (*entry)(void *) = self->entry;
     void *arg = self->arg;
@@ -71,6 +76,8 @@ bool o0_thread_init_system(void) {
         process_table[i].user = false;
         process_table[i].thread_count = 0;
         process_table[i].name[0] = '\0';
+        process_table[i].handles = NULL;
+        process_table[i].budget = NULL;
     }
     next_thread_id = 1;
     next_pid = 1;
@@ -106,6 +113,11 @@ void o0_thread_release_slot(struct o0_thread *thread) {
     thread->user = false;
     thread->user_entry = 0;
     thread->user_rsp = 0;
+    thread->user_arg0 = 0;
+    thread->user_arg1 = 0;
+    thread->user_arg2 = 0;
+    thread->wake_status = 0;
+    thread->detached = false;
     thread->name[0] = '\0';
 }
 
@@ -152,12 +164,69 @@ void o0_thread_wake(struct o0_thread *thread) {
     make_ready(thread);
 }
 
+void o0_thread_wake_result(struct o0_thread *thread, int64_t status) {
+    if (thread == NULL) {
+        return;
+    }
+    thread->wake_status = status;
+    make_ready(thread);
+}
+
+int64_t o0_thread_block_result(void) {
+    struct o0_thread *self = o0_sched_current();
+    if (self == NULL) {
+        return 0;
+    }
+    int64_t status = self->wake_status;
+    self->wake_status = 0;
+    return status;
+}
+
 /* ---------- processes ---------- */
 
+static void process_obj_destroy(struct o0_object *object) {
+    struct o0_process *proc = (struct o0_process *)object;
+    if (proc->handles != NULL) {
+        for (size_t i = 0; i < O0_HANDLE_MAX; ++i) {
+            if (proc->handles->entries[i].active &&
+                proc->handles->entries[i].object != NULL &&
+                proc->handles->entries[i].object->type == O0_OBJ_ENDPOINT) {
+                o0_endpoint_holder_gone(
+                    (struct o0_endpoint *)proc->handles->entries[i].object);
+            }
+        }
+    }
+    o0_as_t *as = proc->as;
+    bool user = proc->user;
+    proc->as = NULL;
+    if (user && as != NULL && as != o0_as_kernel()) {
+        o0_as_destroy(as);
+    }
+    struct o0_handle_table *handles = proc->handles;
+    proc->handles = NULL;
+    if (handles != NULL) {
+        o0_handle_table_destroy(handles);
+    }
+    struct o0_budget *budget = proc->budget;
+    proc->budget = NULL;
+    if (budget != NULL) {
+        o0_object_unref(&budget->obj);
+    }
+    proc->in_use = false;
+    proc->user = false;
+    proc->thread_count = 0;
+    proc->name[0] = '\0';
+}
+
 O0_NODISCARD o0_status o0_process_create(const char *name, o0_as_t *as,
+                                         struct o0_budget *budget,
                                          o0_process_t **out) {
     if (out == NULL) {
         return O0_EINVAL;
+    }
+    struct o0_budget *use_budget = budget != NULL ? budget : o0_budget_root();
+    if (use_budget == NULL) {
+        return O0_ENOMEM;
     }
     struct o0_process *proc = NULL;
     for (size_t i = 0; i < O0_MAX_PROCESSES; ++i) {
@@ -170,25 +239,49 @@ O0_NODISCARD o0_status o0_process_create(const char *name, o0_as_t *as,
         return O0_ENOMEM;
     }
 
-    proc->in_use = true;
     proc->pid = next_pid++;
     proc->as = as != NULL ? as : o0_as_kernel();
     proc->user = false;
     proc->thread_count = 0;
+    proc->handles = NULL;
+    proc->budget = use_budget;
+    o0_object_ref(&use_budget->obj);
+
+    o0_status st = o0_object_init_static(&proc->obj, O0_OBJ_PROCESS, use_budget,
+                                         sizeof(struct o0_process),
+                                         process_obj_destroy);
+    if (st != O0_OK) {
+        proc->budget = NULL;
+        o0_object_unref(&use_budget->obj);
+        return st;
+    }
+
+    st = o0_handle_table_create(use_budget, &proc->handles);
+    if (st != O0_OK) {
+        proc->handles = NULL;
+        o0_object_unref(&proc->obj);
+        return st;
+    }
+    uint64_t budget_handle = 0;
+    st = o0_handle_install(proc->handles, &use_budget->obj,
+                           O0_RIGHT_BUDGET_DEFAULT, &budget_handle);
+    if (st != O0_OK) {
+        o0_object_unref(&proc->obj);
+        return st;
+    }
+    proc->bootstrap_handle = budget_handle;
+
+    proc->in_use = true;
     copy_name(proc->name, sizeof(proc->name), name);
     *out = proc;
     return O0_OK;
 }
 
 void o0_process_destroy(o0_process_t *proc) {
-    if (proc == NULL) {
+    if (proc == NULL || !proc->in_use) {
         return;
     }
-    proc->in_use = false;
-    proc->as = NULL;
-    proc->user = false;
-    proc->thread_count = 0;
-    proc->name[0] = '\0';
+    o0_object_unref(&proc->obj);
 }
 
 o0_process_t *o0_process_current(void) {
@@ -250,8 +343,9 @@ O0_NODISCARD o0_status o0_thread_create(o0_process_t *proc,
         stack_pages = 32u;
     }
 
+    struct o0_budget *budget = proc != NULL ? proc->budget : o0_budget_root();
     o0_vaddr_t stack = 0;
-    o0_status st = o0_kstack_alloc(stack_pages, &stack);
+    o0_status st = o0_kstack_alloc(stack_pages, budget, &stack);
     if (st != O0_OK) {
         return st;
     }
@@ -284,6 +378,11 @@ O0_NODISCARD o0_status o0_thread_create(o0_process_t *proc,
     thread->user = user;
     thread->user_entry = user ? attr->user_entry : 0;
     thread->user_rsp = user ? attr->user_rsp : 0;
+    thread->user_arg0 = user ? attr->user_arg0 : 0;
+    thread->user_arg1 = user ? attr->user_arg1 : 0;
+    thread->user_arg2 = user ? attr->user_arg2 : 0;
+    thread->wake_status = 0;
+    thread->detached = (attr->flags & O0_THREAD_FLAG_DETACHED) != 0;
     thread->wake_tick = 0;
     thread->exit_status = 0;
     thread->id = next_thread_id++;
@@ -317,26 +416,35 @@ void o0_thread_free_resources(struct o0_thread *thread) {
     if (thread == NULL) {
         return;
     }
+    struct o0_process *proc = thread->proc;
+    struct o0_budget *budget = proc != NULL ? proc->budget : o0_budget_root();
     if (thread->kstack_base != 0) {
-        o0_kstack_free(thread->kstack_base, thread->kstack_pages);
+        o0_kstack_free(thread->kstack_base, thread->kstack_pages, budget);
         thread->kstack_base = 0;
         thread->kstack_pages = 0;
         thread->kernel_stack_top = 0;
     }
-    struct o0_process *proc = thread->proc;
     thread->proc = NULL;
     if (proc != NULL) {
         if (proc->thread_count > 0) {
             --proc->thread_count;
         }
         if (proc->thread_count == 0) {
-            o0_as_t *as = proc->as;
-            bool user = proc->user;
             o0_process_destroy(proc);
-            if (user && as != NULL && as != o0_as_kernel()) {
-                o0_as_destroy(as);
-            }
         }
+    }
+}
+
+void o0_thread_reap_detached(void) {
+    for (size_t i = 0; i < O0_MAX_THREADS; ++i) {
+        struct o0_thread *thread = &thread_table[i];
+        if (thread->state != O0_THREAD_EXITED || !thread->detached ||
+            thread->joined || thread->join_waiter != NULL ||
+            thread == o0_sched_current()) {
+            continue;
+        }
+        o0_thread_free_resources(thread);
+        o0_thread_release_slot(thread);
     }
 }
 

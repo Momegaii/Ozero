@@ -6,7 +6,7 @@ with the evidence type named in the reporting standard (host test, emulator boot
 hardware — never inferred from one another).
 
 **Rule 0 — new GPU/Stage 6 scope is paused.** Open Stage 6 phases are finished only where
-they do not block the waves below. Stage 5/6 work resumes in Wave 6, after user mode, SMP
+they do not block the waves below. Stage 5/6 work resumes in Wave 7, after user mode, SMP
 and a real storage driver exist. No Stage 6 phase is claimed complete by this document.
 
 ## Wave 1 — Close open verification debt
@@ -55,7 +55,7 @@ Two consequences, both recorded rather than glossed over:
 
 ## Wave 2 — Core kernel fundamentals (verified in emulation)
 
-**Rule 0 for this wave:** no Wave 3+ work until a single-CPU user mode is verified. GPU
+**Rule 0 for this wave:** no work beyond Wave 2 until a single-CPU user mode is verified. GPU
 (Stage 5) and Stage 6 stay paused. Evidence stays split into host, QEMU and physical, and none
 is inferred from another.
 
@@ -84,7 +84,7 @@ Wave 2 verification detail:
 - **Physical hardware:** never exercised. No user-mode result here is physical evidence.
 
 Sign-off is for the emulator scope of Rule 0: a single-CPU user mode is verified in QEMU on
-both firmwares and CPU models. Wave 3 may start, but no Wave 3 item is claimed by this change.
+both firmwares and CPU models. Wave 3 started only after this sign-off.
 
 ### Entry criteria carried forward from Wave 2
 
@@ -119,7 +119,37 @@ Notes carried into the wave:
 - The **ABI** must reserve per-CPU data and `swapgs` now (ADR 0007 §2.8) so SMP cannot force an
   ABI change later.
 
-## Wave 3 — Storage and filesystem (planned, not started)
+## Wave 3 — Capability handles, budgets and synchronous IPC (verified in emulation)
+
+Scope: single CPU, emulator-verified only. Physical hardware is deferred. The
+design is [ADR 0008](decisions/0008-capability-handles-budgets-and-ipc.md).
+
+| Sub-wave | Scope | Status | Evidence |
+|---|---|---|---|
+| 3.1 | Refcounted object header, per-process handle tables, generation-tagged handle values, per-handle rights | **Done** | Host: `tests/cap_test.c` covers lookup, stale generations, rights rejection, duplicate/close and table teardown. Emulator: `OZERO: handle negative tests OK`. |
+| 3.2 | Hierarchical budgets, charge/uncharge, split, exhaustion and accounting return to baseline | **Done** | Host: `cap_test` charges objects, pages and a deliberately tight budget; a partially charged allocation must unwind to `used == 0`. Emulator: `OZERO: budget exhaustion OK`. |
+| 3.3 | Memory objects with budget-charged pages, read/map policy and W^X checks | **Done** | Host: `cap_test` creates, reads, validates and destroys memory objects, including the partial-failure path. Emulator: the `handles` program exercises `memory_create`, `memory_map` and refusal of foreign-budget mappings. |
+| 3.4 | Endpoints, synchronous send/receive/call, handle transfer and peer-death wakeups | **Done** | Host: `cap_test` covers endpoint creation and destruction. Emulator: `OZERO: ipc pair OK pair-1`, `OZERO: ipc negative tests OK`, and the `peer-server` test. |
+| 3.5 | `process_spawn` syscall, grant installation and detached child reaping | **Done** | Emulator: `OZERO: spawn syscall OK`, `OZERO: wave3 done spawner status=0`. |
+| 3.6 | Negative tests: forged/stale handles, rights escalation, foreign budget, bad IPC pointers, dead peers, budget exhaustion and process churn | **Done** | Host: `cap_test` rejects forged handles and rights escalation. Emulator: `handles`, `budget`, `ipcneg` and eight churn pairs; `OZERO: wave3 churn OK pairs=8` requires object count, budget used and PMM free pages to return to baseline. |
+| 3.7 | Verification on the full BIOS/UEFI × `qemu64`/`Haswell-v1` matrix plus the sanitizer job; STATUS evidence by type | **Done** | All four cells pass locally on QEMU 10.0.13; `make test-sanitize` passes with leaks enabled. `tools/qemu-smoke.sh` requires the Wave 3 markers. Physical hardware has not been exercised. |
+
+Wave 3 verification detail:
+
+- **Host tests:** `make test` and `make test-sanitize` pass, including `cap_test`.
+- **Emulator:** `{bios, uefi} × {qemu64, Haswell-v1}` on QEMU 10.0.13 with the full
+  Wave 2 and Wave 3 marker sets and `QEMU smoke test: PASS` in every cell.
+- **Physical hardware:** never exercised. No Wave 3 result is physical evidence.
+- **Defects found and fixed while closing the wave:** a partially charged memory object
+  uncharged only the pages it had allocated, not the full page array (24-byte leak per
+  failed create); `o0_ipc_call` took an extra reference on its reply endpoint and leaked one
+  endpoint per call. Both are covered by the host partial-failure test and the emulator
+  churn check respectively.
+
+The wave is signed off for its emulator scope only. SMP, preemption, SMEP/SMAP, KASLR,
+signals, asynchronous IPC, `mmap`, dynamic linking and `fork` remain deferred.
+
+## Wave 4 — Storage and filesystem (planned, not started)
 
 1. virtio-blk first, then AHCI/NVMe with DMA and IRQ completion.
 2. MBR/GPT partition discovery.
@@ -127,14 +157,13 @@ Notes carried into the wave:
    tested with injected power loss at every write point.
 4. VFS with file descriptors, a page cache and a second filesystem.
 
-## Wave 4 — Platform services (planned, not started)
+## Wave 5 — Platform services (planned, not started)
 
-1. IPC model (choice recorded in an ADR), signals, futex-style primitives, timers.
+1. Signals, futex-style primitives and timers.
 2. PCI/MSI-X, ACPI power basics, device model with probe/remove.
-3. Security model: capabilities or equivalent, syscall argument validation, copy-from/to-user
-   helpers.
+3. Remaining security hardening: SMEP/SMAP, KASLR and user-memory fault paths under SMAP.
 
-## Wave 5 — Quality engineering (planned, not started)
+## Wave 6 — Quality engineering (planned, not started)
 
 1. Fuzz syscalls, the filesystem image parser, the block layer and the ELF loader
    (libFuzzer/AFL in host builds), with a time-boxed CI job rather than fixed cases only.
@@ -143,7 +172,7 @@ Notes carried into the wave:
 3. Kernel logging levels, panic backtraces, symbolised oops, GDB-over-serial stub.
 4. Performance baselines (context switch, allocator throughput, boot time) tracked in CI.
 
-## Wave 6 — Return to graphics (deferred)
+## Wave 7 — Return to graphics (deferred)
 
 Resume Stage 5/6 only once user mode, SMP and a real storage driver exist. Then do the Haswell
 engine MMIO, reset and interrupt work against real hardware, keeping the software-rendered
@@ -165,8 +194,8 @@ refused and the engine stays quarantined.
 
 | Command | Covers | Does not cover |
 |---|---|---|
-| `make test` | Host unit suites: PMM, slab, scheduler, CPU, block, OzeroFS, PCI, GPU, display, input, PS/2, surface | Kernel execution, interrupts, firmware |
+| `make test` | Host unit suites: PMM, slab, scheduler, CPU, ABI, ELF, capability handles/budgets/IPC, block, OzeroFS, PCI, GPU, display, input, PS/2, surface | Kernel execution, interrupts, firmware |
 | `make test-sanitize` | The same suites under ASan/UBSan with leak detection | Kernel execution |
 | `make check` | Doctor + `-Werror` freestanding kernel/ISO + host suites | Booting |
-| `tools/qemu-smoke.sh` | BIOS or UEFI boot, full serial marker set, timer-driven scheduler, storage and GPU software self-tests | Physical hardware, GPU engines, user mode |
+| `tools/qemu-smoke.sh` | BIOS or UEFI boot, full serial marker set, timer-driven scheduler, storage/GPU software self-tests, Wave 2 user mode and Wave 3 capabilities/IPC | Physical hardware, GPU engines, SMP, SMEP/SMAP |
 | `make test-sanitize` + `-fanalyzer` | Memory/UB defects and static analysis in host-buildable code | Hardware behaviour |

@@ -127,6 +127,15 @@ required_markers=(
     "OZERO: syscall bad pointer rejected"
     "OZERO: user churn OK processes=16"
     "OZERO: wave2 self-test complete"
+    # Wave 3 capability handles, budgets and synchronous IPC. These markers are
+    # emulator evidence only; they do not claim physical hardware behaviour.
+    "OZERO: wave3 done spawner status=0"
+    "OZERO: ipc pair OK pair-1"
+    "OZERO: handle negative tests OK"
+    "OZERO: budget exhaustion OK"
+    "OZERO: ipc negative tests OK"
+    "OZERO: wave3 churn OK pairs=8"
+    "OZERO: wave3 self-test complete"
 )
 
 for marker in "${required_markers[@]}"; do

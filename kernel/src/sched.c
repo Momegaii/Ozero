@@ -255,6 +255,7 @@ void o0_sched_tick(void) {
     ++ticks;
 
     o0_thread_tick(ticks);
+    o0_thread_reap_detached();
 
     if (!preemption_enabled) {
         return;

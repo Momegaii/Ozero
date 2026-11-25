@@ -64,6 +64,8 @@ void o0_thread_tick(uint64_t now) {
     ++thread_tick_calls;
 }
 
+void o0_thread_reap_detached(void) {}
+
 void o0_cpu_idle(void) {
     ++idle_calls;
 }

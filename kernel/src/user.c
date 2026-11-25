@@ -9,8 +9,13 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "ozero/budget.h"
 #include "ozero/elf.h"
+#include "ozero/handle.h"
+#include "ozero/irq.h"
+#include "ozero/memory.h"
 #include "ozero/mm.h"
+#include "ozero/object.h"
 #include "ozero/status.h"
 #include "ozero/thread.h"
 #include "ozero/types.h"
@@ -88,42 +93,68 @@ static o0_status load_stack(o0_as_t *as) {
     return O0_OK;
 }
 
-o0_status o0_user_spawn(const char *name, const void *elf, size_t size,
-                        o0_thread_t **out) {
-    if (elf == NULL || out == NULL) {
+static uint32_t size_order(size_t pages) {
+    uint32_t order = 0;
+    while (((size_t)1u << order) < pages) {
+        ++order;
+    }
+    return order;
+}
+
+static o0_status spawn_from_buffer(const char *name, const void *elf, size_t size,
+                                   struct o0_budget *parent,
+                                   const struct o0_spawn_grant *grants,
+                                   size_t grant_count, uint32_t flags,
+                                   o0_thread_t **out) {
+    if (elf == NULL || out == NULL || parent == NULL) {
         return O0_EINVAL;
     }
-    struct o0_user_image image;
-    o0_status st = o0_elf_parse(elf, size, &image);
+    if (grant_count > O0_HANDLE_MAX - 1u) {
+        return O0_EINVAL;
+    }
+
+    struct o0_budget *child_budget = NULL;
+    o0_status st = o0_budget_split(parent, O0_BUDGET_SPAWN_BYTES, &child_budget);
     if (st != O0_OK) {
         return st;
     }
 
-    o0_as_t *as = NULL;
-    st = o0_as_create(&as);
+    struct o0_user_image image;
+    st = o0_elf_parse(elf, size, &image);
     if (st != O0_OK) {
+        o0_object_unref(&child_budget->obj);
+        return st;
+    }
+
+    o0_as_t *as = NULL;
+    st = o0_as_create(child_budget, &as);
+    if (st != O0_OK) {
+        o0_object_unref(&child_budget->obj);
         return st;
     }
     for (uint32_t i = 0; i < image.segment_count; ++i) {
         st = load_segment(as, (const uint8_t *)elf, &image.segments[i]);
         if (st != O0_OK) {
-            o0_as_destroy(as);
-            return st;
+            goto fail_as;
         }
     }
     st = load_stack(as);
     if (st != O0_OK) {
-        o0_as_destroy(as);
-        return st;
+        goto fail_as;
     }
 
     o0_process_t *proc = NULL;
-    st = o0_process_create(name, as, &proc);
+    st = o0_process_create(name, as, child_budget, &proc);
     if (st != O0_OK) {
-        o0_as_destroy(as);
-        return st;
+        goto fail_as;
     }
     proc->user = true;
+
+    if (o0_handle_free_slots(proc->handles) < grant_count) {
+        o0_process_destroy(proc);
+        o0_object_unref(&child_budget->obj);
+        return O0_ENOMEM;
+    }
 
     struct o0_thread_attr attr = {
         .name = name,
@@ -131,17 +162,95 @@ o0_status o0_user_spawn(const char *name, const void *elf, size_t size,
         .arg = NULL,
         .stack_size = 0,
         .priority = 0,
-        .flags = O0_THREAD_FLAG_USER,
+        .flags = O0_THREAD_FLAG_USER |
+                 ((flags & O0_SPAWN_DETACHED) != 0 ? O0_THREAD_FLAG_DETACHED : 0u),
         .user_entry = image.entry,
         .user_rsp = O0_USER_STACK_TOP - 16u,
+        .user_arg0 = proc->bootstrap_handle,
+        .user_arg1 = 0,
+        .user_arg2 = 0,
     };
+    /* The new thread is runnable as soon as o0_thread_create enqueues it, so
+     * grants and bootstrap arguments must be in place with preemption off. */
+    o0_irq_state_t irq = o0_irq_save();
     o0_thread_t *thread = NULL;
     st = o0_thread_create(proc, &attr, &thread);
     if (st != O0_OK) {
+        o0_irq_restore(irq);
         o0_process_destroy(proc);
-        o0_as_destroy(as);
+        o0_object_unref(&child_budget->obj);
         return st;
     }
+
+    uint64_t installed[O0_HANDLE_MAX];
+    for (size_t i = 0; i < grant_count; ++i) {
+        st = o0_handle_install_owned(proc->handles, grants[i].object,
+                                     grants[i].rights, &installed[i]);
+        if (st != O0_OK) {
+            /* Prechecked above; a failure here would break transfer atomicity. */
+            o0_irq_restore(irq);
+            o0_process_destroy(proc);
+            o0_object_unref(&child_budget->obj);
+            return st;
+        }
+    }
+    thread->user_arg0 = grant_count > 0 ? installed[0] : proc->bootstrap_handle;
+    thread->user_arg1 = grant_count > 1 ? installed[1] : 0;
+    thread->user_arg2 = grant_count > 2 ? installed[2] : 0;
+    o0_irq_restore(irq);
+
+    o0_object_unref(&child_budget->obj);
     *out = thread;
     return O0_OK;
+
+fail_as:
+    o0_as_destroy(as);
+    o0_object_unref(&child_budget->obj);
+    return st;
+}
+
+o0_status o0_user_spawn(const char *name, const void *elf, size_t size,
+                        o0_thread_t **out) {
+    return spawn_from_buffer(name, elf, size, o0_budget_root(), NULL, 0, 0, out);
+}
+
+O0_NODISCARD o0_status o0_user_spawn_memory(const char *name,
+                                            struct o0_memory *image,
+                                            struct o0_budget *parent,
+                                            const struct o0_spawn_grant *grants,
+                                            size_t grant_count, uint32_t flags,
+                                            o0_thread_t **out) {
+    if (image == NULL || parent == NULL || out == NULL) {
+        return O0_EINVAL;
+    }
+    size_t size = o0_memory_size(image);
+    if (size == 0 || size > O0_MEMORY_MAX_BYTES) {
+        return O0_EINVAL;
+    }
+    size_t pages = O0_ALIGN_UP(size, O0_PAGE_SIZE) >> O0_PAGE_SHIFT;
+    uint32_t order = size_order(pages);
+    size_t bytes = (size_t)1u << (order + O0_PAGE_SHIFT);
+    o0_status st = o0_budget_charge(parent, bytes);
+    if (st != O0_OK) {
+        return st;
+    }
+    o0_paddr_t phys = o0_pmm_alloc_pages(order);
+    if (phys == 0) {
+        o0_budget_uncharge(parent, bytes);
+        return O0_ENOMEM;
+    }
+    uint8_t *buffer = o0_phys_to_virt(phys);
+    if (buffer == NULL) {
+        o0_pmm_free_pages(phys, order);
+        o0_budget_uncharge(parent, bytes);
+        return O0_ERANGE;
+    }
+    st = o0_memory_read(image, 0, buffer, size);
+    if (st == O0_OK) {
+        st = spawn_from_buffer(name, buffer, size, parent, grants, grant_count,
+                               flags, out);
+    }
+    o0_pmm_free_pages(phys, order);
+    o0_budget_uncharge(parent, bytes);
+    return st;
 }

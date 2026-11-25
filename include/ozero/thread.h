@@ -15,6 +15,7 @@ extern "C" {
 #endif
 
 #define O0_THREAD_FLAG_USER 1u
+#define O0_THREAD_FLAG_DETACHED 2u
 
 struct o0_thread_attr {
     const char *name;
@@ -25,11 +26,15 @@ struct o0_thread_attr {
     uint32_t flags;
     uint64_t user_entry; /* used when O0_THREAD_FLAG_USER is set */
     uint64_t user_rsp;
+    uint64_t user_arg0;  /* RDI at ring-3 entry */
+    uint64_t user_arg1;  /* RSI at ring-3 entry */
+    uint64_t user_arg2;  /* RDX at ring-3 entry */
 };
 
 /* ---- Processes ---- */
 
 O0_NODISCARD o0_status o0_process_create(const char *name, o0_as_t *as,
+                                         struct o0_budget *budget,
                                          o0_process_t **out);
 void o0_process_destroy(o0_process_t *proc);
 o0_process_t *o0_process_current(void);
