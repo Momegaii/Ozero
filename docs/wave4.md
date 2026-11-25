@@ -23,6 +23,14 @@ results stay with the Director and are never a gate.
    - Block-layer async completion and DMA ownership rules.
 3. Update the O0FS format doc. The format stays a proposal until the Director approves it.
 
+Status 2026-11-25: item 1 is recorded in `docs/PROJECT_STATUS.md` and
+`docs/handoff.md` (run `45697656276` on `e066168`); item 2 is drafted as ADRs
+[0012](decisions/0012-o0fs-crash-consistency.md),
+[0013](decisions/0013-o0fs-format-versioning.md) and
+[0014](decisions/0014-block-async-completion-dma-ownership.md), all
+`Accepted-provisional`; item 3 is recorded in `docs/o0fs-format.md` §8. No Wave 4 code has
+started.
+
 ## Wave 4.1 — PCI and DMA foundations
 
 *Depends on: Wave 3 (IOAPIC routing, buddy PMM).*

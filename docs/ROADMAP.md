@@ -44,8 +44,8 @@ per-item status and evidence live in [docs/hardening-roadmap.md](hardening-roadm
   local `{bios, uefi} × {qemu64, Haswell-v1}` matrix plus the sanitizer job, and CI run
   [#136](https://github.com/Momegaii/Ozero/actions/runs/45502990041) passed all five jobs.
   There is no physical-hardware evidence. Detail and evidence: [docs/hardening-roadmap.md](hardening-roadmap.md).
-- **Wave 3 — SMP and memory hardening: implemented and locally emulator-verified
-  (2026-11-24), not signed off.** AP bring-up through the Limine MP handoff, xAPIC IPIs,
+- **Wave 3 — SMP and memory hardening: signed off 2026-11-25**, CI run `45697656276` on
+  `e066168` (12 boot cells plus `lock-order-boot` and `host-sanitizers`, all green). AP bring-up through the Limine MP handoff, xAPIC IPIs,
   page/range/full TLB shootdown, I/O APIC routing, per-CPU runqueues with kernel-thread
   migration, LAPIC timers on every CPU, SMEP/SMAP, kernel-stack randomization (KSR), an aligned buddy PMM
   and bootloader-memory reclaim are done. User threads remain BSP-pinned until per-CPU TSS/IST
@@ -61,7 +61,7 @@ per-item status and evidence live in [docs/hardening-roadmap.md](hardening-roadm
   [#138](https://github.com/Momegaii/Ozero/actions/runs/45587151198) with all five jobs on QEMU
   10.2.1, and `make test-sanitize` pass; eight churn pairs return object, budget and PMM
   accounting to baseline. There is no physical-hardware evidence.
-- **Waves 4–7 — planned, not started.** Wave 4 (virtio-blk/AHCI/NVMe, partitions, crash
+- **Wave 4.0 — design open (2026-11-25); Waves 5–7 planned.** Wave 4 (virtio-blk/AHCI/NVMe, partitions, crash
   consistency, VFS), Wave 5 (remaining IPC/timers/signals, PCI/MSI-X/device probe, argument
   audit, mmap/spawn ADRs), Wave 6
   (fuzzing, concurrency testing, logging/backtraces, performance baselines), Wave 7 (resume

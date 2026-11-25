@@ -1,7 +1,11 @@
 # OzeroFS on-disk format (draft)
 
 Status: **Proposal — implemented for Stage 4 review, not approved as Ozero's permanent
-filesystem.** See `docs/decisions/0003-stage4-storage.md`.
+filesystem.** See `docs/decisions/0003-stage4-storage.md`. Sections 1–7 describe format
+version 1, which is what the kernel implements. The version 2 changes (journal region,
+feature word, algorithm id) are design only: ADRs
+[0012](decisions/0012-o0fs-crash-consistency.md) and
+[0013](decisions/0013-o0fs-format-versioning.md), §8 below.
 
 OzeroFS ("o0fs") is the filesystem used by the Stage 4 storage work. It exists so
 block-layer and filesystem operations, including their failure modes, can be built and
@@ -136,8 +140,29 @@ Each mutation writes whole 4 KiB blocks. Consequences:
   assuming durability.
 
 These limits are deliberate for Stage 4 and are listed as follow-up work.
+[ADR 0012](decisions/0012-o0fs-crash-consistency.md) proposes replacing them with a redo
+journal and ordered data writes; this section records the current implementation, not the
+target.
 
-## 8. Open questions for the Project Director
+## 8. Format revision and versioning (proposed version 2 — ADR 0013)
+
+Nothing in this section is implemented. It records the versioning policy proposed in
+[ADR 0013](decisions/0013-o0fs-format-versioning.md), which the version 2 layout from
+[ADR 0012](decisions/0012-o0fs-crash-consistency.md) depends on.
+
+| Proposed change | Effect |
+|---|---|
+| `version` split into major (high byte) and minor (low byte) | A newer major is refused with an explicit "volume format newer than this kernel" status; a newer minor refuses read-write and may allow read-only |
+| `flags` becomes `compat` / `ro_compat` / `incompat` bit ranges | Unknown incompatible features refuse the mount; unknown read-only-compatible features allow read-only mounting |
+| Journal region described by the superblock | Redo-journal recovery per ADR 0012; the region is reserved and not reported as free space |
+| Checksum algorithm id | The superblock names the algorithm (1 = FNV-1a, 2 = CRC32C proposed) rather than hard-coding it |
+| Reserved bytes must be zero | A nonzero reserved byte is an unknown incompatible feature, not something to ignore |
+
+Proposed mount policy: refuse a newer major outright; refuse read-write on any volume with
+an unknown incompatible bit; never upgrade a volume during mount — migration is an explicit
+offline operation and the kernel never rewrites a format it does not fully understand.
+
+## 9. Open questions for the Project Director
 
 1. Is a bitmap/inode design the right native format, or should Ozero choose a
    log-structured or copy-on-write design with checksums and snapshots?

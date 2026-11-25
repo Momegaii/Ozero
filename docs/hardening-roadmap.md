@@ -135,13 +135,14 @@ Notes carried into the wave:
 no agent may boot the physical i5-4460 on the strength of emulator evidence. Items 1 and 5 of
 that gate remain open.
 
-## Wave 3 — SMP and memory hardening (implemented, emulator-verified, not signed off)
+## Wave 3 — SMP and memory hardening (implemented, emulator-verified, signed off 2026-11-25)
 
 The Director's 2026-11-25 order puts SMP and memory hardening here. APs are
 online, the I/O APIC carries ISA interrupts, per-CPU runqueues schedule kernel
 threads, range TLB shootdown works, kernel-stack randomization (KSR) is active, the PMM honours
 buddy alignment and bootloader memory is reclaimed. User threads still do not
-run on APs because the TSS/IST layout is shared. Wave 4 work has not started.
+run on APs because the TSS/IST layout is shared. Wave 4.0 design work started on
+2026-11-25; Wave 4.1 and later have not started.
 
 | Sub-wave | Scope | Status | Evidence |
 |---|---|---|---|
@@ -174,7 +175,8 @@ Wave 3 verification detail:
   `803d84c` passed all five jobs and its artifacts were inspected. The Wave 3.5 patch
   would extend `kernel-and-boot` to `{bios, uefi} × {qemu64, Haswell-v1, max} ×
   -smp {1, 2}` and add a separate BIOS/`qemu64` `lock-order-boot` job, but the supplied
-  token lacks workflow scope, so it is not active. The `-smp 4` cells remain local-only.
+  token lacked workflow scope at that time, so it was not active then; CI now runs the
+expanded matrix (Wave 3 sign-off run `45697656276`). The `-smp 4` cells remain local-only.
 - **Physical:** never exercised. No Wave 3 result is physical evidence.
 
 ADRs: [0009](decisions/0009-smp-bringup-and-local-apic-timer.md) (SMP, IPI, timer),
@@ -183,7 +185,7 @@ ADRs: [0009](decisions/0009-smp-bringup-and-local-apic-timer.md) (SMP, IPI, time
 scheduling, kernel-stack randomization, buddy PMM, reclaim and lock classes). All are
 accepted-provisional for review.
 
-## Wave 3.5 — Verification expansion (2026-11-25, not signed off)
+## Wave 3.5 — Verification expansion (2026-11-25, covered by the Wave 3 sign-off run)
 
 The Director asked for CI `-smp 2` and `-cpu max` cells, final-commit log inspection, an
 item-by-item Wave 2.7 answer, the stack-randomization rename, default lock-order checking,
@@ -192,20 +194,20 @@ threads while a user process churns on the BSP.
 
 | Item | Status | Evidence |
 |---|---|---|
-| CI `-smp 2` and `-cpu max` | **Local patch only; blocked by token scope** | The supplied fine-grained token can read and write code but not `.github/workflows` (GitHub returns "without `workflow` scope"). The prepared `.github/workflows/quality.yml` patch sets `{bios, uefi} × {qemu64, Haswell-v1, max} × -smp {1, 2}` and adds `lock-order-boot`; it is not active on GitHub. Local 18-cell matrix, including `-smp 4`, is PASS. |
-| Inspect final-commit CI logs | **Done for the existing matrix; new cells blocked** | Run [#45642000355](https://github.com/Momegaii/Ozero/actions/runs/45642000355) on `803d84c` succeeds; its four `-smp 1` boot artifacts and `host-sanitizers` log were downloaded and inspected. It cannot exercise `-smp 2`/`max`/lock-order without the workflow-scoped token. |
+| CI `-smp 2` and `-cpu max` | **Active and green** | The workflow now sets `{bios, uefi} × {qemu64, Haswell-v1, max} × -smp {1, 2}` and adds `lock-order-boot`. Run [#45697656276](https://github.com/Momegaii/Ozero/actions/runs/45697656276) on `e066168` is `success` for all 14 jobs. Job conclusions were read from the API; logs require admin (`403`) and were not downloaded here. |
+| Inspect final-commit CI logs | **Conclusions done; logs not downloadable here** | Run [#45697656276](https://github.com/Momegaii/Ozero/actions/runs/45697656276) on `e066168` is green for all 14 jobs. Job logs need repository admin rights (`403` in this workspace), so marker lines were not re-read; each boot job's exit status comes from `tools/qemu-smoke.sh`, which rejects a missing marker. |
 | Wave 2.7 item-by-item answer | **Done** | `docs/PROJECT_STATUS.md` records the three items and the exact marker counts. The smoke test now rejects a run with fewer than three `user fault contained` markers. |
 | Stack-randomization rename and entropy | **Done** | Docs call it kernel-stack randomization (KSR), not KASLR. Entropy is `RDRAND` (16 attempts) mixed with `RDTSC`, else `RDTSC` XOR a data address; TSC fallback is low-entropy. ADR 0011 and roadmap 3.11 record the limit. |
-| Lock-order checker by default | **Done locally; CI cell blocked** | Host tests compile with `O0_LOCK_ORDER_CHECK`; the checker-enable build gives every `o0_spin_init()` lock class 1, except the IRQ-safe runqueue locks, which stay class 0. Local BIOS/`qemu64` `-smp 1` and `-smp 2` boots pass with `lock order check=on`. The prepared CI job would boot it, but the token cannot push the workflow. Nested GPU locks were given explicit inner classes. |
+| Lock-order checker by default | **Done locally and in CI** | Host tests compile with `O0_LOCK_ORDER_CHECK`; checker-enabled builds give every `o0_spin_init()` lock class 1, except the IRQ-safe runqueue locks, which stay class 0. Local BIOS/`qemu64` `-smp 1` and `-smp 2` boots pass with `lock order check=on`, and the `lock-order-boot` CI job (`make LOCK_ORDER=1`, `-smp 2`) is green in run `45697656276`. Job logs were not downloadable here. Nested GPU locks have explicit inner classes. |
 | PR #6 scope and base | **Recorded in STATUS** | The PR was based on `kilo/floral-eagle-2hb`, not `main`; it was a combined Wave 2.7 + Wave 5.0 + Wave 3 diff, and that branch is now merged into `main` at `5636e83`. |
 | Director-observed rows | **Reserved, not fabricated** | STATUS has rows for the Director's Windows 8.1 / i5-4460 / `q35` host; every Wave 3 row says not run / not reported until the Director supplies a log. |
 | `-smp 2` migration + user churn | **Done locally** | `wave3_smp_stress()` runs 16 quiet user churn processes on the BSP while one kernel worker per online CPU migrates itself across CPUs. QEMU `-smp 2`: `smp user churn OK processes=16` and `smp scheduling OK cpus=2 ... migrations=7`; `-smp 4`: `cpus=4 ... migrations=7..11`. The PMM free-byte count must be unchanged. |
 
-## Wave 4 — Storage and filesystem (not started)
+## Wave 4 — Storage and filesystem (4.0 design in progress)
 
 1. virtio-blk first, then AHCI/NVMe with DMA and IRQ completion.
 2. MBR/GPT partition discovery.
-3. A crash-consistency ADR (journal or copy-on-write) and implementation, tested with
+3. Crash consistency: [ADR 0012](decisions/0012-o0fs-crash-consistency.md) (accepted-provisional: redo journal with ordered data writes); implementation tested with
    injected power loss at every write point.
 4. VFS, file descriptors, a page cache and file syscalls through an ABI ADR revision.
 
