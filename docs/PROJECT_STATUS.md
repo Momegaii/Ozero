@@ -366,9 +366,8 @@ Truthful split by evidence type:
   the kernel's FNV checksum. This is an independent raw-framebuffer check, not a host-window
   screenshot. `make check` runs it automatically when QEMU is installed, so the CI
   `kernel-and-boot` job exercises it; the serial log is covered by the existing
-  `build/qemu-serial-*.log` artifact glob. The PPM is not uploaded by the current workflow
-  because this sandbox's token cannot update workflow files; that is an artifact-retention
-  gap, not a missing check.
+  `build/qemu-serial-*.log` artifact glob. A separate PPM artifact remains a workflow-file
+  follow-up; it is an artifact-retention gap, not a missing check.
 - **CI (Wave 2 and Wave Q):** GitHub Actions run
   [#143](https://github.com/Momegaii/Ozero/actions/runs/45604746811) on branch head `4333352`
   (PR merge commit `289f8057`) completed SUCCESS with all five jobs (`boot` × 4 and
