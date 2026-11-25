@@ -169,10 +169,12 @@ Wave 3 verification detail:
   at `-smp 1`, `-smp 2` and `-smp 4`. The matrix log set is recorded in
   `docs/PROJECT_STATUS.md`; no result is inferred from another cell.
 - **CI:** the uploaded workflow still runs four BIOS/UEFI × `qemu64`/`Haswell-v1`
-  cells at `-smp 1`. The Wave 3.5 patch would extend `kernel-and-boot` to
-  `{bios, uefi} × {qemu64, Haswell-v1, max} × -smp {1, 2}` and add a separate
-  BIOS/`qemu64` `lock-order-boot` job, but the supplied token lacks workflow scope,
-  so it is not active. The `-smp 4` cells remain local-only.
+  cells at `-smp 1`; run
+  [#45640696740](https://github.com/Momegaii/Ozero/actions/runs/45640696740) on
+  `6891dd1` passed all five jobs and its artifacts were inspected. The Wave 3.5 patch
+  would extend `kernel-and-boot` to `{bios, uefi} × {qemu64, Haswell-v1, max} ×
+  -smp {1, 2}` and add a separate BIOS/`qemu64` `lock-order-boot` job, but the supplied
+  token lacks workflow scope, so it is not active. The `-smp 4` cells remain local-only.
 - **Physical:** never exercised. No Wave 3 result is physical evidence.
 
 ADRs: [0009](decisions/0009-smp-bringup-and-local-apic-timer.md) (SMP, IPI, timer),
@@ -191,7 +193,7 @@ threads while a user process churns on the BSP.
 | Item | Status | Evidence |
 |---|---|---|
 | CI `-smp 2` and `-cpu max` | **Local patch only; blocked by token scope** | The supplied fine-grained token can read and write code but not `.github/workflows` (GitHub returns "without `workflow` scope"). The prepared `.github/workflows/quality.yml` patch sets `{bios, uefi} × {qemu64, Haswell-v1, max} × -smp {1, 2}` and adds `lock-order-boot`; it is not active on GitHub. Local 18-cell matrix, including `-smp 4`, is PASS. |
-| Inspect final-commit CI logs | **Blocked** | The final commit cannot activate the new matrix without a workflow-scoped token. The previous run `45632864851` was inspected, but it predates Wave 3.5. |
+| Inspect final-commit CI logs | **Done for the existing matrix; new cells blocked** | Run [#45640696740](https://github.com/Momegaii/Ozero/actions/runs/45640696740) on `6891dd1` succeeds; its four `-smp 1` boot artifacts and `host-sanitizers` log were downloaded and inspected. It cannot exercise `-smp 2`/`max`/lock-order without the workflow-scoped token. |
 | Wave 2.7 item-by-item answer | **Done** | `docs/PROJECT_STATUS.md` records the three items and the exact marker counts. The smoke test now rejects a run with fewer than three `user fault contained` markers. |
 | Stack-randomization rename and entropy | **Done** | Docs call it kernel-stack randomization (KSR), not KASLR. Entropy is `RDRAND` (16 attempts) mixed with `RDTSC`, else `RDTSC` XOR a data address; TSC fallback is low-entropy. ADR 0011 and roadmap 3.11 record the limit. |
 | Lock-order checker by default | **Done locally; CI cell blocked** | Host tests compile with `O0_LOCK_ORDER_CHECK`; the checker-enable build gives every `o0_spin_init()` lock class 1. Local BIOS/`qemu64` `-smp 1` and `-smp 2` boots pass with `lock order check=on`. The prepared CI job would boot it, but the token cannot push the workflow. Nested GPU locks were given explicit inner classes. |
