@@ -80,13 +80,44 @@ behaviour.
   [run 45708413626](https://github.com/Momegaii/Ozero/actions/runs/45708413626), also
   14/14 jobs.
 - **Evidence type:** CI. Not Director-observed, not physical.
-- **Check limit:** run and job *conclusions* were read from the Actions API; the job logs
-  require repository admin rights (`403`) and were not inspected. Marker assertions rest
-  on each boot cell's exit status through `tools/qemu-smoke.sh`, which now requires
-  `OZERO: pci caps msi=`. `make test` and `make test-sanitize` also passed in the
-  workspace, which is local-only and not evidence on the commit.
+- **Log-level evidence:** the marker lines were read, not inferred from job status. See
+  the CI evidence channel below; the logs for the current `main` tree were inspected in
+  run 45715078528.
+- **Check limit (historical):** for runs before the evidence channel existed, the Actions
+  job-log endpoint answered `403` ("Must have admin rights to Repository.") and artifact
+  archives answered `401`, so those runs could only be read at job and step granularity.
+  `24b8d23` and `bbfbc25` were recorded that way. `make test` and `make test-sanitize` also
+  passed in the workspace, which is local-only and not evidence on those commits.
 - **Not covered:** no driver uses the DMA allocator or MSI-X yet, so no device path is
   exercised. That is Wave 4.2.
+
+## CI evidence channel (`ci-evidence` branch)
+
+The Actions job-log and artifact endpoints require repository admin rights. A reader who
+can clone the repository therefore could not read what a boot cell printed, and a failing
+cell could not be diagnosed at all. The `publish-evidence` job in
+`.github/workflows/quality.yml` removes that gap: after the matrix and the sanitizer job
+finish it republishes every cell's diagnostics on the `ci-evidence` branch under
+`evidence/ci/run-<run-id>-<attempt>/`, plus an `INDEX.txt` per run. It runs with
+`always()`, so a failing cell's log is captured. Serial logs stay plain text; disassembly
+is not published and QEMU debug logs are gzipped to keep the branch small. The branch is
+not a build input and nothing on `main` reads it.
+
+Reading it:
+
+```sh
+git fetch origin ci-evidence:refs/remotes/origin/ci-evidence
+git show origin/ci-evidence:evidence/ci/run-<run-id>-1/INDEX.txt
+```
+
+First use: run 45715078528 on `c8d3af6`. All 12 boot cells and the lock-order cell were
+read line by line and contain `OZERO: build commit=c8d3af67`, `OZERO: pci devices=6` and
+`OZERO: pci caps msi=2 msix=1`; the `-smp 2` cells add `OZERO: smp cpus=2 online=2`,
+`OZERO: tlb shootdown OK status=0 ipi_seen=1` and
+`OZERO: smp scheduling OK cpus=2 threads=2 iterations=11 migrations=11`; the `max` cells
+add `OZERO: smep=on smap=on`; the lock-order cell adds `OZERO: lock order check=on`. The
+kernel in `c8d3af6` is the `004c80a` tree, so these are the Wave 4.1 markers at log level.
+This is CI evidence, not Director-observed and not physical.
 
 ## Wave 4.2 — virtio-blk first
 

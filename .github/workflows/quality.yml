@@ -174,6 +174,13 @@ jobs:
               mkdir -p "$publish_root/$dest_rel"
               if [ -d "$workspace/artifacts" ]; then
                   cp -a "$workspace/artifacts/." "$publish_root/$dest_rel/"
+                  # Keep the branch small: the per-cell disassembly is several MB and
+                  # only interesting to the run that produced it, and the QEMU debug
+                  # logs are large text that compresses by roughly an order of
+                  # magnitude. The serial logs stay plain so they read directly.
+                  find "$publish_root/$dest_rel" -name 'kernel.disasm.txt' -delete
+                  find "$publish_root/$dest_rel" -name 'qemu-debug-*.log' -print0 \
+                      | xargs -0 -r gzip -9
               fi
               {
                   echo "run $RUN_ID attempt $RUN_ATTEMPT"
