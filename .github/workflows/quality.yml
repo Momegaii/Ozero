@@ -126,3 +126,98 @@ jobs:
             build/qemu-debug-lock-order.log
           if-no-files-found: warn
           retention-days: 7
+
+  # The Actions log and artifact endpoints require repository admin rights, so a
+  # reader without them cannot inspect what the boot cells actually printed. This
+  # job republishes every cell's diagnostics as plain files on the ci-evidence
+  # branch, which any clone can fetch. It runs unconditionally: a failing cell's
+  # log is exactly the evidence needed to diagnose it.
+  publish-evidence:
+    needs: [kernel-and-boot, lock-order-boot, host-sanitizers]
+    if: always() && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download QEMU diagnostics
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: ozero-qemu-*
+      - name: Publish diagnostics to the ci-evidence branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          HEAD_SHA: ${{ github.sha }}
+          WORKFLOW: ${{ github.workflow }}
+        run: |
+          set -euo pipefail
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+          workspace="$PWD"
+          publish_root="$RUNNER_TEMP/publish"
+          dest_rel="evidence/ci/run-${RUN_ID}-${RUN_ATTEMPT}"
+
+          publish_once() {
+              rm -rf "$publish_root"
+              if git clone --quiet --depth 1 --branch ci-evidence "$remote" "$publish_root" 2>/dev/null; then
+                  :
+              else
+                  mkdir -p "$publish_root"
+                  git -C "$publish_root" init --quiet --initial-branch=ci-evidence
+                  git -C "$publish_root" remote add origin "$remote"
+              fi
+              git -C "$publish_root" config user.name "ozero-ci"
+              git -C "$publish_root" config user.email "ozero-ci@users.noreply.github.com"
+
+              mkdir -p "$publish_root/$dest_rel"
+              if [ -d "$workspace/artifacts" ]; then
+                  cp -a "$workspace/artifacts/." "$publish_root/$dest_rel/"
+              fi
+              {
+                  echo "run $RUN_ID attempt $RUN_ATTEMPT"
+                  echo "commit $HEAD_SHA"
+                  echo "workflow $WORKFLOW"
+                  echo
+                  echo "Artifact directories and files published by this run:"
+                  find "$publish_root/$dest_rel" -type f -printf '%P\n' | sort
+              } > "$publish_root/$dest_rel/INDEX.txt"
+
+              if [ ! -f "$publish_root/README.md" ]; then
+                  printf '%s\n' \
+                      "# ci-evidence" \
+                      "" \
+                      "Boot-cell serial logs and QEMU diagnostics republished from" \
+                      "GitHub Actions by the publish-evidence job in" \
+                      ".github/workflows/quality.yml." \
+                      "" \
+                      "This branch exists because the Actions job-log and artifact" \
+                      "endpoints require repository admin rights: a reader who can clone" \
+                      "the repository can read these files, but cannot read the same" \
+                      "content from the API. Each directory is evidence/ci/run-<run>/." \
+                      "Nothing here is a build input." \
+                      > "$publish_root/README.md"
+              fi
+
+              git -C "$publish_root" add -A
+              if git -C "$publish_root" diff --cached --quiet; then
+                  echo "no diagnostics to publish"
+                  return 0
+              fi
+              git -C "$publish_root" commit --quiet \
+                  -m "ci: diagnostics for run $RUN_ID on ${HEAD_SHA:0:12}"
+              git -C "$publish_root" push --quiet origin HEAD:ci-evidence
+          }
+
+          # A concurrent run may create the branch or move its tip between the
+          # clone and the push; retry from a fresh clone rather than forcing.
+          for attempt in 1 2 3; do
+              if publish_once; then
+                  exit 0
+              fi
+              echo "publish attempt $attempt failed; retrying" >&2
+              sleep 5
+          done
+          echo "error: could not publish diagnostics to ci-evidence" >&2
+          exit 1
