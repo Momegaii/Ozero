@@ -17,6 +17,14 @@ ISO="${1:-build/ozero.iso}"
 LOG="${2:-build/qemu-serial.log}"
 DEBUG_LOG="${QEMU_DEBUG_LOG:-build/qemu-debug.log}"
 TIMEOUT_SECONDS="${QEMU_TIMEOUT_SECONDS:-15}"
+# QEMU_STORAGE selects the storage controller cell: virtio, ahci or nvme. It only
+# changes which markers are required; the device itself is attached through
+# QEMU_EXTRA_ARGS by the CI job.
+STORAGE="${QEMU_STORAGE:-}"
+EXTRA_ARGS=()
+if [[ -n "${QEMU_EXTRA_ARGS:-}" ]]; then
+    read -r -a EXTRA_ARGS <<<"$QEMU_EXTRA_ARGS"
+fi
 OVMF_CODE_PATH="${QEMU_OVMF_CODE:-/usr/share/OVMF/OVMF_CODE_4M.fd}"
 OVMF_VARS_PATH="${QEMU_OVMF_VARS:-/usr/share/OVMF/OVMF_VARS_4M.fd}"
 
@@ -61,7 +69,7 @@ rm -f "$LOG" "$DEBUG_LOG"
 set +e
 timeout "${TIMEOUT_SECONDS}s" "$QEMU" \
     -machine q35 -cpu "$CPU_MODEL" -smp "$SMP" -m 512M "${firmware_args[@]}" \
-    -cdrom "$ISO" -boot d \
+    -cdrom "$ISO" -boot d "${EXTRA_ARGS[@]}" \
     -display none -serial "file:$LOG" -monitor none \
     -no-reboot -no-shutdown \
     -d int,in_asm,guest_errors,cpu_reset -D "$DEBUG_LOG"
@@ -163,6 +171,30 @@ fi
 if [[ "$LOCK_ORDER" == "1" ]]; then
     required_markers+=("OZERO: lock order check=on")
 fi
+
+# Wave 4.2/4.3 storage cells. The controller is attached with QEMU_EXTRA_ARGS and
+# each cell requires that controller's read/write marker plus its injected-error
+# path. These markers are emulator evidence only.
+case "$STORAGE" in
+    "")
+        ;;
+    virtio)
+        required_markers+=("OZERO: virtio-blk read/write OK")
+        required_markers+=("OZERO: virtio-blk error path OK")
+        ;;
+    ahci)
+        required_markers+=("OZERO: ahci read/write OK")
+        required_markers+=("OZERO: ahci error path OK")
+        ;;
+    nvme)
+        required_markers+=("OZERO: nvme read/write OK")
+        required_markers+=("OZERO: nvme error path OK")
+        ;;
+    *)
+        echo "error: QEMU_STORAGE must be virtio, ahci or nvme, got '$STORAGE'" >&2
+        exit 2
+        ;;
+esac
 
 # The SMAP fault-fixup path only runs when the CPU advertises SMAP. QEMU's
 # 'max' model does; qemu64 and Haswell-v1 do not.

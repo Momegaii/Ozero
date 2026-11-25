@@ -43,6 +43,7 @@
 #include "ozero/irq.h"
 #include "ozero/pci.h"
 #include "ozero/ramdisk.h"
+#include "ozero/virtio_blk.h"
 #include "ozero/mm.h"
 #include "ozero/smp.h"
 #include "ozero/status.h"
@@ -333,6 +334,49 @@ static void stage3_self_test(void) {
     o0_mutex_unlock(&mutex);
     o0_serial_puts("OZERO: synchronization OK\n");
     o0_serial_puts("OZERO: stage3 self-test complete\n");
+}
+
+/* Wave 4.2: PCI storage drivers behind the block layer. Each probe is
+ * independent, so a boot cell with no attached controller prints nothing here
+ * and a cell with one controller exercises exactly that driver. Every marker is
+ * emulator evidence for the emulated controller; no physical controller is
+ * claimed. */
+static bool storage_roundtrip(struct o0_block_dev *disk, uint64_t lba,
+                              uint8_t *written, uint8_t *read_back,
+                              size_t bytes) {
+    for (size_t i = 0; i < bytes; ++i) {
+        written[i] = (uint8_t)((i * 7u + lba) & 0xFFu);
+    }
+    memset(read_back, 0, bytes);
+    if (o0_block_write(disk, lba, written, bytes) != O0_OK) {
+        return false;
+    }
+    if (o0_block_read(disk, lba, read_back, bytes) != O0_OK) {
+        return false;
+    }
+    return memcmp(written, read_back, bytes) == 0;
+}
+
+static void storage_pci_self_test(void) {
+    static uint8_t written[O0_PAGE_SIZE];
+    static uint8_t read_back[O0_PAGE_SIZE];
+    struct o0_block_dev *disk = NULL;
+
+    o0_status st = o0_virtio_blk_probe("vblk0", &disk);
+    if (st == O0_OK && disk != NULL) {
+        if (!storage_roundtrip(disk, 8, written, read_back, O0_PAGE_SIZE)) {
+            panic("virtio-blk read/write failed");
+        }
+        o0_serial_puts("OZERO: virtio-blk read/write OK irq=");
+        o0_serial_dec(o0_virtio_blk_irq_count(disk));
+        o0_serial_puts(" sectors=");
+        o0_serial_dec(disk->geo.nr_sectors);
+        o0_serial_puts("\n");
+        if (o0_virtio_blk_inject_error(disk) != O0_OK) {
+            panic("virtio-blk injected error was not reported");
+        }
+        o0_serial_puts("OZERO: virtio-blk error path OK\n");
+    }
 }
 
 /* Stage 4 storage self-test: block layer, RAM disk driver, OzeroFS and its
@@ -1654,6 +1698,7 @@ void kmain(void) {
     stage3_self_test();
     stage4_self_test();
     stage5_self_test();
+    storage_pci_self_test();
     report_memory_map();
     stage3_demo();
     wave2_demo();

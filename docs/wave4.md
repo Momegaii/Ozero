@@ -119,6 +119,36 @@ add `OZERO: smep=on smap=on`; the lock-order cell adds `OZERO: lock order check=
 kernel in `c8d3af6` is the `004c80a` tree, so these are the Wave 4.1 markers at log level.
 This is CI evidence, not Director-observed and not physical.
 
+### Wave 4.2 status
+
+Implemented in `kernel/src/virtio_blk.c` and registered through
+`o0_block_register`, so the block layer's validation, timeout, quarantine and
+cancellation rules apply unchanged.
+
+- **Transport:** legacy virtio PCI only (I/O BAR0, PFN queue programming, the spec
+  ring layout the device recomputes from the PFN). A device that exposes only the
+  modern transport is refused with `O0_ENOTSUP` instead of being mis-programmed.
+  Modern transport is **not implemented**.
+- **Queue:** one queue, 32 descriptors, one request in flight. Ring and request
+  header come from the DMA allocator and are pinned for the device lifetime; the
+  data buffer stays the block layer's bounce buffer and is never retained.
+- **Completion:** the MSI vector runs a handler that acknowledges the device ISR and
+  counts interrupts; the submitting call waits on the used ring with a bounded spin
+  and reports `O0_BLOCK_ERR_TIMEOUT` rather than blocking. Interrupt-driven
+  completion is therefore acknowledged but not load-bearing, and is reported as such.
+- **Markers:** `OZERO: virtio-blk read/write OK irq=<n> sectors=<n>` and
+  `OZERO: virtio-blk error path OK`. The second is the injected-error test: a read
+  that runs past the end of the medium must be refused by the device and decoded by
+  the driver.
+- **CI cell:** `storage (virtio, smp=2)` in `.github/workflows/quality.yml`, with a
+  raw 8 MiB image attached and `-smp 2`. `tools/qemu-smoke.sh` requires both markers
+  only in that cell, so other cells are unaffected.
+- **Evidence:** build-verified locally (`make kernel`, `-Werror`). The cell is
+  **not yet observed green**; no claim is made until a run is recorded here with its
+  logs read from the `ci-evidence` branch.
+- **Not covered:** physical controllers (never), modern transport, multiple queues,
+  asynchronous submission, and any performance claim.
+
 ## Wave 4.2 — virtio-blk first
 
 1. Legacy and modern virtio PCI transport, one virtqueue, and interrupt-driven completion.
