@@ -278,7 +278,7 @@ exists.
 | Host sanitizers | `make test-sanitize` (ASan/UBSan, leak detection) on the same suite | Passes locally, exit 0; no leak or UB report |
 | Host analyzer | `gcc -fanalyzer` on I/O APIC, KASLR, SMP, scheduler, sync, IRQ, APIC timer, paging and PMM sources | No findings |
 | QEMU, BIOS and UEFI × `qemu64`/`Haswell-v1`/`max` × `-smp 1/2/4` | `tools/qemu-smoke.sh`, QEMU 10.0.13, 18 cells | All 18 cells `QEMU smoke test: PASS`; each log has `ioapic=active gsis=24`, `kaslr layout offset=`, `bootloader reclaim bytes=`, `smp cpus=N online=N` and `timer=lapic hz=100`; N>1 logs add `tlb shootdown OK`, `tlb shootdown range OK`, `tlb shootdown full OK` and `smp scheduling OK cpus=N threads=N iterations=...`; `max` logs add `smep=on smap=on` |
-| CI | GitHub Actions run [#45628512472](https://github.com/Momegaii/Ozero/actions/runs/45628512472) on commit `d6b28d8`, QEMU 10.2.1 | SUCCESS, all five jobs. The logs were downloaded and inspected, not read from the summary: each of the four boot cells (BIOS/UEFI × `qemu64`/`Haswell-v1`) has `kaslr layout offset=`, `ioapic=active gsis=24`, `bootloader reclaim bytes=`, `smp cpus=1 online=1`, `timer=lapic hz=100`, `user entry OK`, `syscall exit status=0`, three `user fault contained` lines, `user churn OK processes=16` and `QEMU smoke test: PASS`; `Haswell-v1` prints `smep=on smap=off` and `qemu64` prints `smep=off smap=off`. The `host-sanitizers` job ran `make test-sanitize` over the full suite. CI still has only `-smp 1` and no `-cpu max`; the 2/4-CPU and SMAP cells are **local-only** until the workflow is extended. The available token cannot edit `.github/workflows/quality.yml`. |
+| CI | GitHub Actions run [#45632539872](https://github.com/Momegaii/Ozero/actions/runs/45632539872) on commit `a0e9e4c`, QEMU 10.2.1 | SUCCESS, all five jobs. The logs were downloaded and inspected, not read from the summary: each of the four boot cells (BIOS/UEFI × `qemu64`/`Haswell-v1`) has `kaslr layout offset=`, `ioapic=active gsis=24`, `bootloader reclaim bytes=`, `smp cpus=1 online=1`, `timer=lapic hz=100`, `user entry OK`, `syscall exit status=0`, three `user fault contained` lines, `user churn OK processes=16` and `QEMU smoke test: PASS`; `Haswell-v1` prints `smep=on smap=off` and `qemu64` prints `smep=off smap=off`. The `host-sanitizers` job ran `make test-sanitize` over the full suite. CI still has only `-smp 1` and no `-cpu max`; the 2/4-CPU and SMAP cells are **local-only** until the workflow is extended. The available token cannot edit `.github/workflows/quality.yml`. |
 | Physical | Never run | Not claimed |
 
 Observed markers and what they prove:
@@ -368,8 +368,8 @@ Truthful split by evidence type:
   `timer=lapic hz=100`; N>1 cells add range/full shootdown and `smp scheduling OK`; `max`
   cells add `smep=on smap=on`. The framebuffer check reports `PASS width=1280 height=800
   bar_width=160 bars=8 checksum=0x8acf6953`. CI run
-  [#45628512472](https://github.com/Momegaii/Ozero/actions/runs/45628512472) on commit
-  `d6b28d8` passed all five jobs on QEMU 10.2.1; its downloaded logs were inspected and
+  [#45632539872](https://github.com/Momegaii/Ozero/actions/runs/45632539872) on commit
+  `a0e9e4c` passed all five jobs on QEMU 10.2.1; its downloaded logs were inspected and
   contain the same single-CPU markers plus the new I/O APIC, KASLR and reclaim markers. CI
   does not run the 2/4-CPU cells or `-cpu max`. This is emulator evidence, not physical
   evidence.
