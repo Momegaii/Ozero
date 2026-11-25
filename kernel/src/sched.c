@@ -394,6 +394,10 @@ o0_status o0_sched_migrate(struct o0_thread *thread, uint32_t target_cpu) {
 
     o0_irq_state_t irq = o0_irq_save();
     uint32_t old_cpu = thread->cpu;
+    if (old_cpu >= O0_MAX_CPUS) {
+        o0_irq_restore(irq);
+        return O0_EINVAL;
+    }
     if (thread->state == O0_THREAD_READY) {
         if (old_cpu != target_cpu) {
             remove_ready(old_cpu, thread);
