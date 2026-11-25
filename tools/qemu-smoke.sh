@@ -3,10 +3,16 @@ set -euo pipefail
 
 QEMU="${QEMU:-qemu-system-x86_64}"
 CPU_MODEL="${QEMU_CPU:-qemu64}"
+# QEMU_SMP selects the vCPU count. The AP bring-up path is only exercised when
+# this is greater than one.
+SMP="${QEMU_SMP:-1}"
 # QEMU_FIRMWARE selects the firmware path: "bios" (default) or "uefi" (OVMF).
 # The ISO is the same hybrid image in both cases; only the emulated firmware
 # differs, so the serial evidence must state which one produced it.
 FIRMWARE="${QEMU_FIRMWARE:-bios}"
+# QEMU_LOCK_ORDER=1 requires the build to have been compiled with
+# -DO0_LOCK_ORDER_CHECK and asserts its boot marker.
+LOCK_ORDER="${QEMU_LOCK_ORDER:-0}"
 ISO="${1:-build/ozero.iso}"
 LOG="${2:-build/qemu-serial.log}"
 DEBUG_LOG="${QEMU_DEBUG_LOG:-build/qemu-debug.log}"
@@ -24,12 +30,12 @@ if [[ ! -f "$ISO" ]]; then
 fi
 
 firmware_args=()
-firmware_marker="OZERO: firmware=BIOS"
+firmware_marker="firmware=BIOS"
 case "$FIRMWARE" in
     bios)
         ;;
     uefi)
-        firmware_marker="OZERO: firmware=UEFI"
+        firmware_marker="firmware=UEFI"
         if [[ ! -f "$OVMF_CODE_PATH" || ! -f "$OVMF_VARS_PATH" ]]; then
             echo "error: OVMF firmware not found ($OVMF_CODE_PATH, $OVMF_VARS_PATH)" >&2
             echo "       install the 'ovmf' package or set QEMU_OVMF_CODE / QEMU_OVMF_VARS" >&2
@@ -54,7 +60,7 @@ rm -f "$LOG" "$DEBUG_LOG"
 
 set +e
 timeout "${TIMEOUT_SECONDS}s" "$QEMU" \
-    -machine q35 -cpu "$CPU_MODEL" -m 512M "${firmware_args[@]}" \
+    -machine q35 -cpu "$CPU_MODEL" -smp "$SMP" -m 512M "${firmware_args[@]}" \
     -cdrom "$ISO" -boot d \
     -display none -serial "file:$LOG" -monitor none \
     -no-reboot -no-shutdown \
@@ -75,6 +81,10 @@ fi
 # Markers below are serial output only: they prove the kernel reached that
 # point in this emulator and firmware, not that it works on physical hardware.
 required_markers=(
+    "OZERO: build commit="
+    "OZERO: kaslr layout offset="
+    "OZERO: cpu vendor="
+    "OZERO: platform="
     "OZERO: kernel entry reached"
     "$firmware_marker"
     "OZERO: Limine base revision accepted"
@@ -84,6 +94,10 @@ required_markers=(
     # configured local APIC (ExtINT virtual wire) or, where no APIC is
     # available, directly. The marker records which configuration ran.
     "OZERO: interrupt delivery="
+    "OZERO: ioapic=active"
+    "OZERO: smp cpus=$SMP online=$SMP"
+    "OZERO: timer="
+    "OZERO: bootloader reclaim bytes="
     # Stage 3 execution model: page tables, heap, scheduler, self-tests, and
     # the demo threads running to completion under the preemptive scheduler.
     # These last markers are what prove the timer interrupt is actually being
@@ -93,10 +107,6 @@ required_markers=(
     "OZERO: scheduler initialised"
     "OZERO: stage3 self-test complete"
     "OZERO: kernel threads created="
-    "OZERO: worker-a iteration=2"
-    "OZERO: worker-b iteration=2"
-    "OZERO: worker-a exiting"
-    "OZERO: worker-b exiting"
     # Stage 4 storage: block layer, RAM disk, OzeroFS and the fault path.
     "OZERO: block layer ready devices="
     "OZERO: ramdisk registered name=ram0"
@@ -118,10 +128,71 @@ required_markers=(
     "OZERO: gpu recovery refused without verified reset"
     "OZERO: gpu unconsumed work quarantined"
     "OZERO: gpu submission self-test complete"
+    # Wave 2 user mode: entry through iretq, the native syscall ABI, contained
+    # user faults, rejected syscall pointers and leak-free process churn.
+    "OZERO: gdt+tss installed"
+    "OZERO: framebuffer bars=8"
+    "OZERO: framebuffer checksum="
+    "OZERO: user entry OK"
+    "OZERO: syscall exit status=0"
+    "OZERO: user fault contained"
+    "OZERO: syscall bad pointer rejected"
+    "OZERO: user churn OK processes=16"
+    "OZERO: wave2 self-test complete"
+    # Wave 3 capability handles, budgets and synchronous IPC. These markers are
+    # emulator evidence only; they do not claim physical hardware behaviour.
+    "OZERO: wave3 done spawner status=0"
+    "OZERO: ipc pair OK pair-1"
+    "OZERO: handle negative tests OK"
+    "OZERO: budget exhaustion OK"
+    "OZERO: ipc negative tests OK"
+    "OZERO: wave3 churn OK pairs=8"
+    "OZERO: wave3 self-test complete"
 )
 
-for marker in "${required_markers[@]}"; do
-    if ! grep -Fq "$marker" "$LOG"; then
+if [[ "$SMP" -gt 1 ]]; then
+    required_markers+=("OZERO: tlb shootdown OK")
+    required_markers+=("OZERO: tlb shootdown range OK")
+    required_markers+=("OZERO: tlb shootdown full OK")
+    required_markers+=("OZERO: smp scheduling OK cpus=")
+    required_markers+=("OZERO: smp user churn OK processes=16")
+fi
+
+if [[ "$LOCK_ORDER" == "1" ]]; then
+    required_markers+=("OZERO: lock order check=on")
+fi
+
+# The SMAP fault-fixup path only runs when the CPU advertises SMAP. QEMU's
+# 'max' model does; qemu64 and Haswell-v1 do not.
+if [[ "$CPU_MODEL" == "max" ]]; then
+    required_markers+=("OZERO: smep=on smap=on")
+fi
+
+# The scheduler may interleave the two worker threads differently between
+# boots. Check these as a set; never encode one particular interleaving.
+unordered_markers=(
+    "OZERO: worker-a iteration=2"
+    "OZERO: worker-b iteration=2"
+    "OZERO: worker-a exiting"
+    "OZERO: worker-b exiting"
+)
+
+# UEFI firmware may emit ANSI cursor/colour sequences around its own output.
+# Strip CSI and OSC sequences before matching so a marker split by escape
+# codes is not reported as missing.
+MATCH_LOG="${LOG%.log}.match.log"
+python3 - "$LOG" "$MATCH_LOG" <<'PY'
+import re
+import sys
+
+source, target = sys.argv[1], sys.argv[2]
+data = open(source, "rb").read().decode("utf-8", "replace")
+ansi = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*(?:\x07|\x1b\\)")
+open(target, "w", encoding="utf-8").write(ansi.sub("", data))
+PY
+
+for marker in "${required_markers[@]}" "${unordered_markers[@]}"; do
+    if ! grep -Fq "$marker" "$MATCH_LOG"; then
         echo "error: missing boot milestone: $marker" >&2
         echo "--- guest serial output ---" >&2
         cat "$LOG" >&2 || true
@@ -131,5 +202,13 @@ for marker in "${required_markers[@]}"; do
     fi
 done
 
+fault_count=$(grep -Fc "OZERO: user fault contained" "$MATCH_LOG" || true)
+if [[ "$fault_count" -lt 3 ]]; then
+    echo "error: expected 3 contained user faults, found $fault_count" >&2
+    echo "--- guest serial output ---" >&2
+    cat "$LOG" >&2 || true
+    exit 1
+fi
+
 cat "$LOG"
-echo "QEMU smoke test: PASS (firmware=$FIRMWARE cpu=$CPU_MODEL qemu=$("$QEMU" --version | head -n 1))"
+echo "QEMU smoke test: PASS (firmware=$FIRMWARE cpu=$CPU_MODEL smp=$SMP qemu=$("$QEMU" --version | head -n 1))"

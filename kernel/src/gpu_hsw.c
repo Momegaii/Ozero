@@ -1053,7 +1053,8 @@ o0_status o0_hsw_engine_init(struct o0_hsw_engine_state *engine, enum o0_hsw_eng
     }
 
     memset(engine, 0, sizeof(*engine));
-    o0_spin_init(&engine->lock);
+    /* Queue submission takes queue->lock before engine->lock. */
+    o0_spin_init_ordered(&engine->lock, O0_LOCK_ORDER_DEFAULT + 1u);
     engine->id = id;
     engine->ring_mem = ring_mem;
     engine->ring_gpu_va = ring_gpu_va;

@@ -12,6 +12,7 @@
 #include <stdint.h>
 
 #include "ozero/irq.h"
+#include "ozero/lapic.h"
 #include "ozero/mm.h"
 #include "ozero/status.h"
 #include "ozero/types.h"
@@ -41,6 +42,21 @@ static uint32_t pit_hz;
 #define O0_LAPIC_SVR 0xf0u
 #define O0_LAPIC_TPR 0x80u
 #define O0_LAPIC_LVT0 0x350u
+#define O0_LAPIC_EOI 0xb0u
+#define O0_LAPIC_ICR_LOW 0x300u
+#define O0_LAPIC_ICR_HIGH 0x310u
+#define O0_LAPIC_ID 0x20u
+#define O0_LAPIC_LVT0_MASKED 0x00010000u
+#define O0_LAPIC_ICR_ASSERT (1u << 14)
+#define O0_LAPIC_ICR_DELIVERY_PENDING (1u << 12)
+#define O0_LAPIC_LVT_TIMER 0x320u
+#define O0_LAPIC_TIMER_INIT 0x380u
+#define O0_LAPIC_TIMER_CURRENT 0x390u
+#define O0_LAPIC_TIMER_DIVIDE 0x3e0u
+#define O0_LAPIC_TIMER_VECTOR 0x41u
+#define O0_LAPIC_TIMER_PERIODIC (1u << 17)
+#define O0_LAPIC_TIMER_MASKED (1u << 16)
+#define O0_LAPIC_TIMER_DIV_16 0x3u
 
 /* Kernel virtual window reserved for the one-page LAPIC MMIO mapping. It sits
  * outside the HHDM window (0xffff800000000000 + 4 GiB), so it cannot alias RAM
@@ -127,6 +143,94 @@ static o0_status lapic_extint_init(void) {
 
 bool o0_pic_apic_extint_active(void) {
     return lapic_extint_ready;
+}
+
+bool o0_lapic_available(void) {
+    return lapic_extint_ready;
+}
+
+uint32_t o0_lapic_id(void) {
+    if (!lapic_extint_ready) {
+        return UINT32_MAX;
+    }
+    volatile uint32_t *lapic = (volatile uint32_t *)O0_LAPIC_WINDOW;
+    return lapic[O0_LAPIC_ID / 4u] >> 24;
+}
+
+o0_status o0_lapic_ap_init(void) {
+    if (!lapic_extint_ready) {
+        return O0_ENOSYS;
+    }
+    uint64_t base = read_msr(O0_IA32_APIC_BASE);
+    write_msr(O0_IA32_APIC_BASE, (base & ~(1ull << 10)) | (1ull << 11));
+
+    volatile uint32_t *lapic = (volatile uint32_t *)O0_LAPIC_WINDOW;
+    lapic[O0_LAPIC_TPR / 4u] = 0;
+    lapic[O0_LAPIC_SVR / 4u] = O0_LAPIC_SVR_VALUE;
+    /* The legacy 8259 belongs to the BSP; APs must not accept ExtINT. */
+    lapic[O0_LAPIC_LVT0 / 4u] = O0_LAPIC_LVT0_MASKED;
+    (void)lapic[O0_LAPIC_SVR / 4u];
+    return O0_OK;
+}
+
+o0_status o0_lapic_send_ipi(uint32_t apic_id, uint32_t vector) {
+    if (!lapic_extint_ready || apic_id > 0xffu) {
+        return O0_EINVAL;
+    }
+    volatile uint32_t *lapic = (volatile uint32_t *)O0_LAPIC_WINDOW;
+    lapic[O0_LAPIC_ICR_HIGH / 4u] = apic_id << 24;
+    lapic[O0_LAPIC_ICR_LOW / 4u] = vector | O0_LAPIC_ICR_ASSERT;
+    for (uint32_t spin = 0; spin < 1000000u; ++spin) {
+        if ((lapic[O0_LAPIC_ICR_LOW / 4u] & O0_LAPIC_ICR_DELIVERY_PENDING) == 0) {
+            return O0_OK;
+        }
+        __asm__ volatile ("pause");
+    }
+    return O0_ETIMEDOUT;
+}
+
+void o0_lapic_eoi(void) {
+    if (!lapic_extint_ready) {
+        return;
+    }
+    volatile uint32_t *lapic = (volatile uint32_t *)O0_LAPIC_WINDOW;
+    lapic[O0_LAPIC_EOI / 4u] = 0;
+}
+
+static void lapic_timer_program(uint32_t lvt, uint32_t initial_count) {
+    volatile uint32_t *lapic = (volatile uint32_t *)O0_LAPIC_WINDOW;
+    lapic[O0_LAPIC_TIMER_DIVIDE / 4u] = O0_LAPIC_TIMER_DIV_16;
+    lapic[O0_LAPIC_LVT_TIMER / 4u] = lvt;
+    lapic[O0_LAPIC_TIMER_INIT / 4u] = initial_count;
+}
+
+void o0_lapic_timer_start_oneshot(uint32_t initial_count) {
+    if (lapic_extint_ready) {
+        lapic_timer_program(O0_LAPIC_TIMER_VECTOR, initial_count);
+    }
+}
+
+void o0_lapic_timer_start_periodic(uint32_t initial_count) {
+    if (lapic_extint_ready) {
+        lapic_timer_program(O0_LAPIC_TIMER_VECTOR | O0_LAPIC_TIMER_PERIODIC,
+                            initial_count);
+    }
+}
+
+uint32_t o0_lapic_timer_current(void) {
+    if (!lapic_extint_ready) {
+        return 0;
+    }
+    volatile uint32_t *lapic = (volatile uint32_t *)O0_LAPIC_WINDOW;
+    return lapic[O0_LAPIC_TIMER_CURRENT / 4u];
+}
+
+void o0_lapic_timer_mask(void) {
+    if (lapic_extint_ready) {
+        volatile uint32_t *lapic = (volatile uint32_t *)O0_LAPIC_WINDOW;
+        lapic[O0_LAPIC_LVT_TIMER / 4u] =
+            O0_LAPIC_TIMER_VECTOR | O0_LAPIC_TIMER_MASKED;
+    }
 }
 
 o0_status o0_pic_init(void) {

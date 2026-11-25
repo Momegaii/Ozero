@@ -64,10 +64,13 @@ The following are not yet approved and must not be silently assumed:
 - UEFI-only versus broader boot strategy and the selected boot protocol.
 - Kernel implementation language and coding standard.
 - Compiler, linker, assembler, sysroot, and reproducible build strategy.
-- Kernel/user address-space layout and ABI details.
+- Kernel/user address-space layout and ABI details. **Decided for Wave 2** in
+  [ADR 0007](decisions/0007-user-abi-syscall-and-executable.md): fixed layout, native error
+  model, syscall set and selectors. Physical-hardware validation of the layout is still open.
 - Interrupt, timer, SMP, and early platform initialization design.
 - Driver model and user/kernel driver boundary.
-- Native executable format and system-call ABI.
+- Native executable format and system-call ABI. **Decided for Wave 2** in ADR 0007 for the
+  first loader subset (static ELF64 container); a fully native executable format remains open.
 - Filesystem selection and on-disk format. A Stage 4 draft (OzeroFS) exists for
   testing and is documented in `docs/o0fs-format.md`; it remains a proposal, not an
   approved decision.

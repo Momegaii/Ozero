@@ -32,6 +32,11 @@ extern void *x86_64_isr_stub_table[IDT_EXCEPTION_ENTRIES];
 #define IDT_IRQ_BASE 32u
 extern void *x86_64_irq_stub_table[IDT_IRQ_ENTRIES];
 
+#define IDT_IPI_VECTOR 0x40u
+extern void x86_64_ipi_stub(void);
+#define IDT_APIC_TIMER_VECTOR 0x41u
+extern void x86_64_apic_timer_stub(void);
+
 static struct idt_gate idt[IDT_ENTRIES];
 
 static uint16_t read_code_selector(void) {
@@ -69,4 +74,21 @@ void x86_64_idt_install_irq_gates(void) {
     for (size_t i = 0; i < IDT_IRQ_ENTRIES; ++i) {
         idt_set_gate(IDT_IRQ_BASE + i, (uintptr_t)x86_64_irq_stub_table[i], selector);
     }
+}
+
+void x86_64_idt_install_ipi_gate(void) {
+    const uint16_t selector = read_code_selector();
+    idt_set_gate(IDT_IPI_VECTOR, (uintptr_t)x86_64_ipi_stub, selector);
+}
+
+void x86_64_idt_install_apic_timer_gate(void) {
+    const uint16_t selector = read_code_selector();
+    idt_set_gate(IDT_APIC_TIMER_VECTOR, (uintptr_t)x86_64_apic_timer_stub,
+                 selector);
+}
+
+/* The double fault must run on a stack that may already be corrupt: IST1 points
+ * at the dedicated stack installed with the TSS. */
+void x86_64_idt_install_double_fault_ist(void) {
+    idt[8].ist = 1;
 }

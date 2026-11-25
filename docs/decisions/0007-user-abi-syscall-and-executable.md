@@ -1,7 +1,8 @@
 # ADR 0007: user-mode ABI — syscall entry, register convention, error model and executable subset
 
-- **Status:** Proposed — awaiting Project Director approval. No implementation may land
-  before approval (Wave 2.1 gate).
+- **Status:** Accepted — Director approval recorded 2026-11-24 in the Wave 2 execution
+  directive, and implemented in the same change set. The implementation record in §7 lists
+  every resolution and deviation.
 - **Date:** 2026-11-24
 - **Wave:** 2.1
 - **Supersedes:** nothing. Relates to ADR 0002 (execution model), ADR 0003 (storage),
@@ -270,7 +271,64 @@ also cover QEMU 8.2.2 and 10.0.13 and are labelled local-only:
 7. **`sysret`.** Keep `iretq` only for Wave 2 (recommended) or add `sysret` with a canonicality
    check as part of 2.3?
 
-## 7. References
+## 7. Implementation record (2026-11-24)
+
+Wave 2 landed this decision. The open questions in §6 were resolved as follows:
+
+1. **Error numbering:** the native table is used. `o0_uapi_error_from_status()` maps every
+   `o0_status` to `-1 … -18`; `0` means success. No errno values appear at the boundary.
+2. **`debug_write`:** length-bounded, maximum 4096 bytes per call, copied in 128-byte chunks.
+3. **Number space:** `0` is invalid; `exit`, `yield`, `debug_write`, `getpid` are `1 … 4`.
+4. **`yield`:** a real syscall in Wave 2.
+5. **Stack placement:** fixed top at `0x7FFF_0000`, one unmapped guard page below the four
+   stack pages. KASLR remains deferred.
+6. **Loader tolerance:** `PT_NOTE` and `PT_GNU_STACK` are ignored. Any other non-`PT_LOAD`
+   program header is rejected with `O0_ENOTSUP`. An all-zero `PT_LOAD` (linker artifact, no
+   bytes and no memory) is skipped; it maps nothing and is not a second kind of segment.
+7. **Return path:** `iretq` only in Wave 2. `SYSRET` and its canonicality check are reserved.
+
+Frozen values in the tree:
+
+- `include/ozero/uapi.h`: syscall numbers, user error codes, user layout, and the user window
+  helper shared by kernel and user build.
+- `include/ozero/abi.h`: `O0_SEL_*`, `O0_ABI_STAR = 0x0010_0008_0000_0000`,
+  `O0_ABI_FMASK = 0x700`.
+- `include/ozero/cpu_local.h`: `swapgs` target, `kernel_rsp0`, `user_rsp`, `current`.
+- `include/ozero/uaccess.h` + `kernel/src/usercopy.c` + `kernel/arch/x86_64/usercopy.S`:
+  range and page-permission validation, then fixup-protected copy cores.
+- `include/ozero/elf.h` + `kernel/src/elf.c`: the static ELF64 subset.
+- `include/ozero/gdt.h` + `kernel/arch/x86_64/gdt.c`: GDT, TSS, `RSP0` and the IST1 double
+  fault stack.
+- `include/ozero/syscall.h` + `kernel/arch/x86_64/syscall.S` + `kernel/src/syscall.c`:
+  entry stub, iretq frame, dispatcher and return value.
+- `include/ozero/user.h` + `kernel/src/user.c`: image mapping, stack, process and user thread.
+
+Deviations and defects found while implementing:
+
+- **Syscall result register.** The first stub popped the saved user `RAX` after the C call,
+  discarding the result. The result is now written into the saved slot before the pops. Caught
+  by the `badptr` user program, which checks for `-O0_UE_FAULT`.
+- **Address-space teardown.** The existing table walk stopped one level too high: it freed the
+  page-table pages but not the user leaf frames, so the churn test found a PMM leak. It now
+  walks `pml4 → pdpt → pd → pt`, frees user leaf frames and then the tables.
+- **Context switch.** The scheduler now activates the incoming address space and sets
+  `TSS.RSP0` to the incoming thread's kernel stack top before switching.
+- **`swapgs`.** Interrupt and exception stubs test the interrupted `CS.RPL` and swap GS only
+  for ring-3 transitions, on both entry and `iretq`.
+- **No `STAC`/`CLAC` yet.** SMAP is deferred, so the cores do not emit them. The copy cores are
+  the only place that needs to change when SMAP is enabled.
+- **4 KiB leaves only.** The user loader maps only 4 KiB pages; a 2 MiB user leaf is not
+  produced and would not be freed by teardown. The parser does not accept huge-page layouts.
+- **Single CPU.** `o0_cpu_local` has `O0_MAX_CPUS = 1`; the field layout and `swapgs` are
+  reserved, so SMP growth is an array-size and AP-init change, not an ABI change.
+
+Host evidence: `tests/abi_test.c` and `tests/elf_test.c` in `make test` and
+`make test-sanitize`. Emulator evidence: `tools/qemu-smoke.sh` requires the Wave 2 markers on
+the BIOS/UEFI × `qemu64`/`Haswell-v1` matrix, locally on QEMU 10.0.13 and in GitHub Actions run
+[#136](https://github.com/Momegaii/Ozero/actions/runs/45502990041) (commit `32c9e79`, QEMU
+10.2.1, OVMF 2025.11). Physical evidence: none.
+
+## 8. References
 
 1. Intel, *Intel 64 and IA-32 Architectures Software Developer's Manual*, Vol. 2A
    (`SYSCALL`, `SYSRET`, `SWAPGS`), Vol. 3A (GDT, TSS, `STAR`/`LSTAR`/`FMASK`/`EFER`),

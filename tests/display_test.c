@@ -30,5 +30,20 @@ int main(void) {
     assert(o0_display_mode_validate(&m)==O0_ENOTSUP);
     m=valid_mode(); m.bpp=16;
     assert(o0_display_mode_validate(&m)==O0_ENOTSUP);
+
+    /* Eight equal bars; band 0 centre at x=50,y=300 is unstriped, band 7
+     * centre at x=750,y=300 is striped. Values are 8:8:8 shifted pixels. */
+    m=valid_mode();
+    assert(o0_display_bar_center_expected(&m, 0) == 0x00182048u);
+    assert(o0_display_bar_center_expected(&m, 7) == 0x00a5a5a5u);
+    assert(o0_display_bar_center_expected(&m, 8) == 0u);
+    assert(o0_display_bar_center_expected(NULL, 0) == 0u);
+    uint32_t checksum = o0_display_expected_checksum(&m);
+    assert(checksum != 0u);
+    assert(o0_display_expected_checksum(&m) == checksum);
+    m.width=1024;
+    assert(o0_display_expected_checksum(&m) != checksum);
+    assert(o0_display_pattern_pixel(NULL, 0, 0) == 0u);
+    assert(o0_display_pattern_pixel(&m, m.width, 0) == 0u);
     return 0;
 }

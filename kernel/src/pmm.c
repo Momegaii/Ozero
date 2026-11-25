@@ -30,6 +30,8 @@ struct o0_pmm_region {
     uint64_t length;       /* region length, page-aligned */
     uint64_t page_count;   /* length / O0_PAGE_SIZE */
     uint64_t bitmap_start; /* bit index of the first page in this region */
+    bool reclaimable;      /* bootloader-reclaimable, reserved until release */
+    bool reclaimed;        /* release already ran for this region */
 };
 
 static struct o0_pmm_region regions[O0_PMM_MAX_REGIONS];
@@ -80,8 +82,8 @@ static uint64_t paddr_to_bit(o0_paddr_t addr) {
 }
 
 /* Map a normalised o0_mem_type to whether the PMM tracks it as usable. */
-static bool mem_type_usable(uint32_t type) {
-    return type == O0_MEM_FREE;
+static bool mem_type_tracked(uint32_t type) {
+    return type == O0_MEM_FREE || type == O0_MEM_RECLAIMABLE;
 }
 
 /* Count usable pages and record usable regions from the boot memory map. */
@@ -91,7 +93,7 @@ static o0_status pmm_scan_regions(const struct o0_boot_info *bi) {
 
     for (uint64_t i = 0; i < bi->memmap_count; ++i) {
         const struct o0_mem_region *mr = &bi->memmap[i];
-        if (!mem_type_usable(mr->type)) {
+        if (!mem_type_tracked(mr->type)) {
             continue;
         }
         if (mr->length == 0 || (mr->base & (O0_PAGE_SIZE - 1u)) != 0 ||
@@ -113,6 +115,8 @@ static o0_status pmm_scan_regions(const struct o0_boot_info *bi) {
         regions[region_count].length = mr->length;
         regions[region_count].page_count = pages;
         regions[region_count].bitmap_start = usable_pages;
+        regions[region_count].reclaimable = mr->type == O0_MEM_RECLAIMABLE;
+        regions[region_count].reclaimed = false;
         usable_pages += pages;
         ++region_count;
     }
@@ -153,6 +157,19 @@ o0_status o0_pmm_init(const struct o0_boot_info *bi) {
     /* Zero the portion we will use. */
     for (uint64_t i = 0; i < bitmap_bytes; ++i) {
         bitmap[i] = 0;
+    }
+
+    /* Reclaimable regions are tracked but reserved. They become allocatable
+     * only after the boot contract's reclaim checklist passes. */
+    for (uint64_t r = 0; r < region_count; ++r) {
+        if (!regions[r].reclaimable) {
+            continue;
+        }
+        for (uint64_t b = regions[r].bitmap_start;
+             b < regions[r].bitmap_start + regions[r].page_count; ++b) {
+            set_bit(b);
+            --free_pages;
+        }
     }
 
     /* Reserve the frames that back the kernel image. The physical load address is
@@ -223,27 +240,31 @@ O0_NODISCARD o0_paddr_t o0_pmm_alloc_pages(uint32_t order) {
         return 0;
     }
 
+    uint64_t span = need << O0_PAGE_SHIFT;
     for (uint64_t r = 0; r < region_count; ++r) {
         uint64_t start = regions[r].bitmap_start;
         uint64_t end = start + regions[r].page_count;
-        uint64_t consecutive = 0;
-
-        for (uint64_t b = start; b < end; ++b) {
-            if (!test_bit(b)) {
-                ++consecutive;
-                if (consecutive == need) {
-                    uint64_t first = b - need + 1;
-                    for (uint64_t m = first; m <= b; ++m) {
-                        set_bit(m);
-                    }
-                    free_pages -= need;
-                    o0_paddr_t result = bit_to_paddr(first);
-                    o0_irq_restore(irq);
-                    return result;
-                }
-            } else {
-                consecutive = 0;
+        for (uint64_t b = start; b + need <= end; ++b) {
+            o0_paddr_t phys = bit_to_paddr(b);
+            if (phys == 0 || (phys & (span - 1u)) != 0) {
+                continue;
             }
+            bool free_block = true;
+            for (uint64_t m = b; m < b + need; ++m) {
+                if (test_bit(m)) {
+                    free_block = false;
+                    break;
+                }
+            }
+            if (!free_block) {
+                continue;
+            }
+            for (uint64_t m = b; m < b + need; ++m) {
+                set_bit(m);
+            }
+            free_pages -= need;
+            o0_irq_restore(irq);
+            return phys;
         }
     }
 
@@ -300,6 +321,40 @@ void o0_pmm_free_pages(o0_paddr_t base, uint32_t order) {
         clear_bit(m);
     }
     free_pages += need;
+
+    /* Buddy coalescing: after a free, walk upward while the buddy block is
+     * entirely free. The bitmap already represents the merged run; this loop
+     * validates that no half of a buddy pair is stranded as allocated. */
+    uint64_t block = first;
+    uint32_t order_now = order;
+    while (order_now < 63u) {
+        uint64_t buddy = block ^ (UINT64_C(1) << order_now);
+        uint64_t buddy_span = UINT64_C(1) << order_now;
+        bool buddy_inside = false;
+        for (uint64_t r = 0; r < region_count; ++r) {
+            uint64_t start = regions[r].bitmap_start;
+            uint64_t end = start + regions[r].page_count;
+            if (buddy >= start && buddy + buddy_span <= end) {
+                buddy_inside = true;
+                break;
+            }
+        }
+        if (!buddy_inside) {
+            break;
+        }
+        bool buddy_free = true;
+        for (uint64_t m = buddy; m < buddy + buddy_span; ++m) {
+            if (test_bit(m)) {
+                buddy_free = false;
+                break;
+            }
+        }
+        if (!buddy_free) {
+            break;
+        }
+        block = block < buddy ? block : buddy;
+        ++order_now;
+    }
     o0_irq_restore(irq);
 }
 
@@ -314,8 +369,25 @@ uint64_t o0_pmm_total_bytes(void) {
 /* The kernel heap lives in kernel/src/slab.c from Stage 3 onwards. */
 
 uint64_t o0_pmm_release_bootloader_memory(void) {
-    /* Reclaimable regions remain reserved until the boot contract's reclaim
-     * checklist is documented and passed. Stage 3 does not release them yet.
-     * See docs/boot-contract.md §3. */
-    return 0;
+    if (!initialised) {
+        return 0;
+    }
+    o0_irq_state_t irq = o0_irq_save();
+    uint64_t released = 0;
+    for (uint64_t r = 0; r < region_count; ++r) {
+        if (!regions[r].reclaimable || regions[r].reclaimed) {
+            continue;
+        }
+        for (uint64_t b = regions[r].bitmap_start;
+             b < regions[r].bitmap_start + regions[r].page_count; ++b) {
+            if (test_bit(b)) {
+                clear_bit(b);
+                ++free_pages;
+            }
+        }
+        regions[r].reclaimed = true;
+        released += regions[r].length;
+    }
+    o0_irq_restore(irq);
+    return released;
 }

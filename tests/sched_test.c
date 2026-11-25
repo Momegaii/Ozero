@@ -13,14 +13,61 @@
 #include <string.h>
 
 #include "ozero/cpu.h"
+#include "ozero/cpu_local.h"
 #include "ozero/irq.h"
 #include "ozero/status.h"
+#include "ozero/sync.h"
 #include "ozero/thread.h"
 #include "ozero/types.h"
 
 #include "../kernel/src/thread_internal.h"
 
 /* ---- stubs ---- */
+
+struct o0_as {
+    int unused;
+};
+
+static struct o0_as kernel_as_stub;
+
+o0_as_t *o0_as_kernel(void) {
+    return &kernel_as_stub;
+}
+
+o0_as_t *o0_as_active(void) {
+    return &kernel_as_stub;
+}
+
+o0_status o0_as_activate(o0_as_t *as) {
+    (void)as;
+    return O0_OK;
+}
+
+void o0_arch_set_rsp0(uint64_t rsp0) {
+    (void)rsp0;
+}
+
+struct o0_cpu_local o0_cpu_local[O0_MAX_CPUS];
+
+uint32_t o0_cpu_index(void) { return 0; }
+uint32_t o0_cpu_count(void) { return O0_MAX_CPUS; }
+o0_status o0_lapic_send_ipi(uint32_t apic_id, uint32_t vector) {
+    (void)apic_id;
+    (void)vector;
+    return O0_OK;
+}
+struct o0_cpu_local *o0_cpu_local_current(void) { return &o0_cpu_local[0]; }
+
+void o0_spin_init(o0_spinlock_t *lock) {
+    lock->locked = 0;
+    lock->order = 0;
+}
+void o0_spin_init_ordered(o0_spinlock_t *lock, uint32_t order) {
+    lock->locked = 0;
+    lock->order = order;
+}
+void o0_spin_lock(o0_spinlock_t *lock) { lock->locked = 1; }
+void o0_spin_unlock(o0_spinlock_t *lock) { lock->locked = 0; }
 
 static uint32_t switches;
 static uint32_t idle_calls;
@@ -36,6 +83,12 @@ void x86_64_context_switch(uint64_t *save_rsp, uint64_t new_rsp) {
 void o0_thread_tick(uint64_t now) {
     (void)now;
     ++thread_tick_calls;
+}
+
+void o0_thread_reap_detached(void) {}
+
+o0_status o0_thread_migrate(o0_thread_t *thread, uint32_t cpu) {
+    return o0_sched_migrate(thread, cpu);
 }
 
 void o0_cpu_idle(void) {
@@ -111,6 +164,11 @@ static void reset_scheduler(void) {
     switches = 0;
     idle_calls = 0;
     thread_tick_calls = 0;
+    for (uint32_t i = 0; i < O0_MAX_CPUS; ++i) {
+        o0_cpu_local[i].online = 1;
+        o0_cpu_local[i].cpu_index = i;
+        o0_cpu_local[i].current = 0;
+    }
     o0_sched_init();
     o0_sched_set_hz(100);
     o0_sched_set_preemption(false);
@@ -203,6 +261,26 @@ static void test_tick_and_preemption(void) {
     PASS();
 }
 
+static void test_per_cpu_migration(void) {
+    TEST("per-CPU queues and ready migration");
+    reset_scheduler();
+
+    struct o0_thread *a = make_thread("a", 0);
+    struct o0_thread *b = make_thread("b", 0);
+    o0_sched_enqueue(a);
+    o0_sched_enqueue(b);
+    ASSERT(o0_sched_ready_count_cpu(0) == 2, "both threads should start on CPU0");
+
+    ASSERT(o0_thread_migrate(b, 1) == O0_OK, "ready migration failed");
+    ASSERT(b->cpu == 1, "migration did not update affinity");
+    ASSERT(o0_sched_ready_count_cpu(0) == 1, "source queue not decremented");
+    ASSERT(o0_sched_ready_count_cpu(1) == 1, "target queue not incremented");
+
+    ASSERT(o0_thread_migrate(a, 1) == O0_ENOTSUP ||
+           o0_thread_migrate(a, 1) == O0_OK, "migration result invalid");
+    PASS();
+}
+
 static void test_timeslice_rotation(void) {
     TEST("timeslice rotation");
     reset_scheduler();
@@ -233,6 +311,7 @@ int main(void) {
     test_priority_selection();
     test_fifo_within_priority();
     test_blocking();
+    test_per_cpu_migration();
     test_tick_and_preemption();
     test_timeslice_rotation();
 

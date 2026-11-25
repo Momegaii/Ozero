@@ -15,6 +15,7 @@ REQUIRED_FILES = (
     "boot/limine.conf",
     "third_party/limine/limine.h",
     "tools/qemu-smoke.sh",
+    "tools/framebuffer-check.py",
     "docs/decisions/0001-boot-and-kernel-language.md",
 )
 REQUIRED_TOOLS = ("python3", "make", "gcc", "ld", "curl", "tar", "xorriso")

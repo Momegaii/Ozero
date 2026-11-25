@@ -56,6 +56,12 @@ ISR_NOERR 31
 .type x86_64_isr_common, @function
 x86_64_isr_common:
     cld
+    /* An exception taken from ring 3 must swap to the kernel GS base before any
+     * C code runs. Same-level faults keep the kernel GS base. */
+    testb $3, 24(%rsp)              /* CS at rsp + vector + error + rip */
+    jz 1f
+    swapgs
+1:
     pushq %rax
     pushq %rbx
     pushq %rcx
@@ -92,6 +98,10 @@ x86_64_isr_common:
     popq %rbx
     popq %rax
     addq $16, %rsp
+    testb $3, 8(%rsp)               /* returning to ring 3? */
+    jz 2f
+    swapgs
+2:
     iretq
 
 .section .rodata
@@ -130,4 +140,130 @@ x86_64_isr_stub_table:
     .quad x86_64_isr_29
     .quad x86_64_isr_30
     .quad x86_64_isr_31
+
+.section .text
+/* ---------------------------------------------------------------------------
+ * Local-APIC IPI entry (vector 0x40).
+ *
+ * The stub mirrors the IRQ frame so swapgs and register save/restore are
+ * identical; dispatch is separate because the PIC must not be acknowledged.
+ * ------------------------------------------------------------------------- */
+
+.extern x86_apic_ipi_dispatch
+
+.global x86_64_ipi_stub
+.type x86_64_ipi_stub, @function
+x86_64_ipi_stub:
+    pushq $0
+    pushq $0x40
+    jmp x86_64_ipi_common
+
+.type x86_64_ipi_common, @function
+x86_64_ipi_common:
+    cld
+    testb $3, 24(%rsp)
+    jz 1f
+    swapgs
+1:
+    pushq %rax
+    pushq %rbx
+    pushq %rcx
+    pushq %rdx
+    pushq %rsi
+    pushq %rdi
+    pushq %rbp
+    pushq %r8
+    pushq %r9
+    pushq %r10
+    pushq %r11
+    pushq %r12
+    pushq %r13
+    pushq %r14
+    pushq %r15
+    movq %rsp, %rdi
+    movq %rsp, %rbx
+    andq $-16, %rsp
+    call x86_apic_ipi_dispatch
+    movq %rbx, %rsp
+    popq %r15
+    popq %r14
+    popq %r13
+    popq %r12
+    popq %r11
+    popq %r10
+    popq %r9
+    popq %r8
+    popq %rbp
+    popq %rdi
+    popq %rsi
+    popq %rdx
+    popq %rcx
+    popq %rbx
+    popq %rax
+    addq $16, %rsp
+    testb $3, 8(%rsp)
+    jz 2f
+    swapgs
+2:
+    iretq
+
+/* Local-APIC timer entry (vector 0x41). */
+.extern x86_apic_timer_dispatch
+
+.global x86_64_apic_timer_stub
+.type x86_64_apic_timer_stub, @function
+x86_64_apic_timer_stub:
+    pushq $0
+    pushq $0x41
+    jmp x86_64_apic_timer_common
+
+.type x86_64_apic_timer_common, @function
+x86_64_apic_timer_common:
+    cld
+    testb $3, 24(%rsp)
+    jz 1f
+    swapgs
+1:
+    pushq %rax
+    pushq %rbx
+    pushq %rcx
+    pushq %rdx
+    pushq %rsi
+    pushq %rdi
+    pushq %rbp
+    pushq %r8
+    pushq %r9
+    pushq %r10
+    pushq %r11
+    pushq %r12
+    pushq %r13
+    pushq %r14
+    pushq %r15
+    movq %rsp, %rdi
+    movq %rsp, %rbx
+    andq $-16, %rsp
+    call x86_apic_timer_dispatch
+    movq %rbx, %rsp
+    popq %r15
+    popq %r14
+    popq %r13
+    popq %r12
+    popq %r11
+    popq %r10
+    popq %r9
+    popq %r8
+    popq %rbp
+    popq %rdi
+    popq %rsi
+    popq %rdx
+    popq %rcx
+    popq %rbx
+    popq %rax
+    addq $16, %rsp
+    testb $3, 8(%rsp)
+    jz 2f
+    swapgs
+2:
+    iretq
+
 .section .note.GNU-stack,"",@progbits

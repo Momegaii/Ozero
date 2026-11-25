@@ -63,8 +63,8 @@ an APIC is allowed to take the legacy path).
   not record this vector.
 - A kernel virtual address (`0xffffc00000000000`) is now reserved for the LAPIC page. Future
   device mappings must not reuse it.
-- This is a bring-up configuration, not the end state. Wave 2 replaces it with MADT-driven
-  LAPIC/IOAPIC setup and the APIC timer; that work must remove the 8259 path and the reserved
-  window, and record its own ADR.
+- This is a bring-up configuration, not the end state. MADT-driven LAPIC/IOAPIC setup and the
+  APIC timer replaced it: ADR 0009 covers the LAPIC timer and ADR 0011 covers I/O APIC routing
+  and masks the 8259 when an I/O APIC is present.
 - Verification is emulator-only: the marker set passes in all four firmware/CPU cells on two
   QEMU versions. No physical hardware has been exercised, and this ADR does not claim any.

@@ -8,7 +8,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "ozero/ioapic.h"
 #include "ozero/irq.h"
+#include "ozero/lapic.h"
 #include "ozero/status.h"
 #include "ozero/types.h"
 
@@ -56,6 +58,12 @@ void o0_irq_dispatch_init(void) {
     for (size_t i = 0; i < sizeof(vector_bitmap); ++i) {
         vector_bitmap[i] = 0;
     }
+    /* Vectors 0x40 (IPI) and 0x41 (LAPIC timer) have dedicated stubs and must
+     * never be handed to a device through the generic allocator. */
+    vector_bitmap[(0x40u - O0_VECTOR_FIRST) / 8u] |=
+        (uint8_t)(1u << ((0x40u - O0_VECTOR_FIRST) % 8u));
+    vector_bitmap[(0x41u - O0_VECTOR_FIRST) / 8u] |=
+        (uint8_t)(1u << ((0x41u - O0_VECTOR_FIRST) % 8u));
     dispatch_ready = true;
 }
 
@@ -80,7 +88,11 @@ void x86_irq_dispatch(struct x86_64_interrupt_frame *frame) {
     /* Acknowledge the controller before the handler runs so a slow handler
      * cannot lose the next interrupt. Spurious IRQ7/IRQ15 are not detected
      * yet; they are counted like any other line. */
-    o0_pic_eoi(line);
+    if (o0_ioapic_available()) {
+        o0_lapic_eoi();
+    } else {
+        o0_pic_eoi(line);
+    }
 
     struct o0_irq_slot *slot = &irq_table[line];
     if (slot->in_use && slot->handler != NULL) {
@@ -107,6 +119,10 @@ o0_status o0_irq_register(o0_gsi_t gsi, uint32_t flags, o0_irq_handler_t handler
     irq_table[gsi].ctx = ctx;
     irq_table[gsi].flags = flags;
     irq_table[gsi].in_use = true;
+    if (o0_ioapic_available()) {
+        (void)o0_pic_mask(gsi);
+        return o0_ioapic_route_isa(gsi, O0_VECTOR_FIRST + gsi, flags, false);
+    }
     return o0_pic_unmask(gsi);
 }
 
@@ -121,18 +137,36 @@ o0_status o0_irq_unregister(o0_gsi_t gsi, o0_irq_handler_t handler, void *ctx) {
     irq_table[gsi].handler = NULL;
     irq_table[gsi].ctx = NULL;
     irq_table[gsi].in_use = false;
+    if (o0_ioapic_available()) {
+        return o0_ioapic_set_mask(gsi, true);
+    }
     return o0_pic_mask(gsi);
 }
 
 o0_status o0_irq_mask(o0_gsi_t gsi) {
-    if (gsi >= O0_IRQ_LINES || !o0_pic_available()) {
+    if (gsi >= O0_IRQ_LINES) {
+        return O0_ENOSYS;
+    }
+    if (o0_ioapic_available()) {
+        return o0_ioapic_set_mask(gsi, true);
+    }
+    if (!o0_pic_available()) {
         return O0_ENOSYS;
     }
     return o0_pic_mask(gsi);
 }
 
 o0_status o0_irq_unmask(o0_gsi_t gsi) {
-    if (gsi >= O0_IRQ_LINES || !o0_pic_available()) {
+    if (gsi >= O0_IRQ_LINES) {
+        return O0_ENOSYS;
+    }
+    if (o0_ioapic_available()) {
+        if (o0_ioapic_set_mask(gsi, false) != O0_OK) {
+            return o0_ioapic_route_isa(gsi, O0_VECTOR_FIRST + gsi, 0, false);
+        }
+        return O0_OK;
+    }
+    if (!o0_pic_available()) {
         return O0_ENOSYS;
     }
     return o0_pic_unmask(gsi);
