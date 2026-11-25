@@ -3,6 +3,8 @@ CC ?= gcc
 LD ?= ld
 OBJCOPY ?= objcopy
 QEMU ?= qemu-system-x86_64
+QEMU_CPU ?= qemu64
+QEMU_SMP ?= 1
 BUILD := build
 LIMINE_COMMIT := 5be26a73d7b7b4d4477d18be94e1d16e615adf56
 LIMINE_DIR := $(BUILD)/limine
@@ -18,10 +20,10 @@ CFLAGS := -std=gnu11 -O2 -Wall -Wextra -Werror \
           -DO0_BUILD_COMMIT=\"$(BUILD_COMMIT)\"
 LDFLAGS := -nostdlib -static -z max-page-size=0x1000 -T kernel/linker.lds
 
-KERNEL_OBJS := $(BUILD)/main.o $(BUILD)/serial.o $(BUILD)/string.o $(BUILD)/status.o \
+KERNEL_OBJS := $(BUILD)/main.o $(BUILD)/serial.o $(BUILD)/string.o $(BUILD)/status.o $(BUILD)/acpi.o \
                $(BUILD)/pmm.o $(BUILD)/boot_info.o $(BUILD)/slab.o \
                $(BUILD)/sched.o $(BUILD)/thread.o $(BUILD)/sync.o \
-               $(BUILD)/irq.o $(BUILD)/paging.o $(BUILD)/cpu.o $(BUILD)/pic.o \
+               $(BUILD)/irq.o $(BUILD)/paging.o $(BUILD)/cpu.o $(BUILD)/pic.o $(BUILD)/smp.o $(BUILD)/ap_entry.o $(BUILD)/apic_timer.o \
                $(BUILD)/interrupts_c.o $(BUILD)/interrupts.o $(BUILD)/irq_stubs.o \
                $(BUILD)/context.o $(BUILD)/block.o $(BUILD)/ramdisk.o \
                $(BUILD)/o0fs.o $(BUILD)/pci.o $(BUILD)/gpu.o $(BUILD)/gpu_hsw.o \
@@ -110,6 +112,9 @@ $(BUILD)/syscall_entry.o: kernel/arch/x86_64/syscall.S | $(BUILD)
 $(BUILD)/usercopy_stub.o: kernel/arch/x86_64/usercopy.S | $(BUILD)
 	$(CC) -m64 -ffreestanding -fno-pic -fno-pie -c $< -o $@
 
+$(BUILD)/ap_entry.o: kernel/arch/x86_64/ap_entry.S | $(BUILD)
+	$(CC) -m64 -ffreestanding -fno-pic -fno-pie -c $< -o $@
+
 # Static user images, then their embedded blob objects.
 $(BUILD)/user_%.o: user/%.S | $(BUILD)
 	$(CC) -m64 -ffreestanding -fno-pic -fno-pie -c $< -o $@
@@ -170,6 +175,8 @@ $(ISO): $(KERNEL) $(LIMINE_DIR)/limine
 test: $(BUILD)
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/pmm_test tests/pmm_test.c
 	$(HOST_RUN_ENV) ./$(BUILD)/pmm_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/acpi_test tests/acpi_test.c kernel/src/acpi.c
+	$(HOST_RUN_ENV) ./$(BUILD)/acpi_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/slab_test tests/slab_test.c
 	$(HOST_RUN_ENV) ./$(BUILD)/slab_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/sched_test tests/sched_test.c
@@ -206,18 +213,18 @@ test: $(BUILD)
 # failure, not a warning.
 test-sanitize: $(BUILD)
 	rm -f $(BUILD)/pmm_test $(BUILD)/slab_test $(BUILD)/sched_test \
-	      $(BUILD)/cpu_test $(BUILD)/abi_test $(BUILD)/elf_test $(BUILD)/cap_test \
+	      $(BUILD)/cpu_test $(BUILD)/abi_test $(BUILD)/elf_test $(BUILD)/acpi_test $(BUILD)/cap_test \
 	      $(BUILD)/block_test $(BUILD)/fs_test \
 	      $(BUILD)/pci_test $(BUILD)/gpu_test $(BUILD)/display_test \
 	      $(BUILD)/input_test $(BUILD)/surface_test $(BUILD)/input_ps2_test
 	$(MAKE) test HOST_EXTRA_CFLAGS="$(SAN_CFLAGS)" HOST_RUN_ENV="$(SAN_ENV)"
 
 run: $(ISO)
-	$(QEMU) -machine q35 -m 512M -cdrom $(ISO) -boot d \
+	$(QEMU) -machine q35 -cpu $(QEMU_CPU) -smp $(QEMU_SMP) -m 512M -cdrom $(ISO) -boot d \
 	  -display none -serial stdio -monitor none -no-reboot -no-shutdown
 
 run-debug: $(ISO)
-	$(QEMU) -machine q35 -m 512M -cdrom $(ISO) -boot d \
+	$(QEMU) -machine q35 -cpu $(QEMU_CPU) -smp $(QEMU_SMP) -m 512M -cdrom $(ISO) -boot d \
 	  -display none -serial stdio -monitor none -no-reboot -no-shutdown \
 	  -s -S
 

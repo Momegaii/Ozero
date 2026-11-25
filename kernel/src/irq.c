@@ -56,6 +56,12 @@ void o0_irq_dispatch_init(void) {
     for (size_t i = 0; i < sizeof(vector_bitmap); ++i) {
         vector_bitmap[i] = 0;
     }
+    /* Vectors 0x40 (IPI) and 0x41 (LAPIC timer) have dedicated stubs and must
+     * never be handed to a device through the generic allocator. */
+    vector_bitmap[(0x40u - O0_VECTOR_FIRST) / 8u] |=
+        (uint8_t)(1u << ((0x40u - O0_VECTOR_FIRST) % 8u));
+    vector_bitmap[(0x41u - O0_VECTOR_FIRST) / 8u] |=
+        (uint8_t)(1u << ((0x41u - O0_VECTOR_FIRST) % 8u));
     dispatch_ready = true;
 }
 

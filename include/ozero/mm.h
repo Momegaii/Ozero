@@ -87,6 +87,9 @@ o0_as_t *o0_as_active(void);
 /* Makes `as` the active address space. Refreshes the shared kernel half first. */
 o0_status o0_as_activate(o0_as_t *as);
 
+/* Loads the kernel page tables on an application processor. */
+o0_status o0_paging_ap_load(void);
+
 /* Per-thread kernel stacks live in a dedicated kernel virtual region. The page
  * directly below the returned base is left unmapped, so a downward overflow
  * faults instead of corrupting an adjacent stack. */

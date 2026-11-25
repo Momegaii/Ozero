@@ -500,11 +500,7 @@ o0_status o0_paging_init(const struct o0_boot_info *bi) {
     return O0_OK;
 }
 
-o0_status o0_paging_load(void) {
-    if (!paging_ready) {
-        return O0_EINVAL;
-    }
-    /* Enable NX (EFER.NXE) and write-protect kernel pages (CR0.WP). */
+static void enable_nx_and_wp(void) {
     uint32_t lo;
     uint32_t hi;
     __asm__ volatile ("rdmsr" : "=a"(lo), "=d"(hi) : "c"(0xc0000080u));
@@ -514,8 +510,25 @@ o0_status o0_paging_load(void) {
                       "c"(0xc0000080u));
     uint64_t cr0 = read_cr0();
     write_cr0(cr0 | (1ull << 16));
+}
+
+o0_status o0_paging_load(void) {
+    if (!paging_ready) {
+        return O0_EINVAL;
+    }
+    /* Enable NX (EFER.NXE) and write-protect kernel pages (CR0.WP). */
+    enable_nx_and_wp();
     write_cr3(kernel_as.pml4_phys);
     paging_loaded = true;
+    return O0_OK;
+}
+
+o0_status o0_paging_ap_load(void) {
+    if (!paging_ready) {
+        return O0_EINVAL;
+    }
+    enable_nx_and_wp();
+    write_cr3(kernel_as.pml4_phys);
     return O0_OK;
 }
 

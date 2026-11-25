@@ -1,6 +1,6 @@
 /* Ozero kernel - per-CPU state.
  *
- * One slot per CPU is reserved from the start (O0_MAX_CPUS == 1 in Wave 2) so
+ * One slot per CPU is reserved from the start (O0_MAX_CPUS == 4) so
  * SMP bring-up fills slots instead of changing the ABI, the syscall entry stub
  * or the swapgs convention. The first field is the self pointer: swapgs gives a
  * stable base, and the assembly stubs address the remaining fields by the
@@ -17,7 +17,7 @@
 extern "C" {
 #endif
 
-#define O0_MAX_CPUS 1u
+#define O0_MAX_CPUS 4u
 
 struct o0_cpu_local {
     struct o0_cpu_local *self;       /* offset 0 */
@@ -28,6 +28,11 @@ struct o0_cpu_local {
     uint64_t usercopy_expected;      /* offset 40 : fault rip to match */
     uint32_t cpu_index;              /* offset 48 */
     uint32_t preempt_depth;          /* offset 52 */
+    uint32_t apic_id;                /* offset 56 */
+    uint32_t online;                 /* offset 60 */
+    volatile uint32_t tlb_pending;   /* offset 64 */
+    volatile uint32_t tlb_ack;       /* offset 68 */
+    volatile uint64_t tlb_addr;      /* offset 72 */
 };
 
 #define O0_CPU_LOCAL_OFFSET_SELF 0u
@@ -41,6 +46,12 @@ extern struct o0_cpu_local o0_cpu_local[O0_MAX_CPUS];
 
 /* Installs the per-CPU GS bases and returns the local block for `index`. */
 struct o0_cpu_local *o0_cpu_local_install(uint32_t index);
+
+/* Marks a slot online after its AP has finished architectural setup. */
+void o0_cpu_local_mark_online(uint32_t index, uint32_t apic_id);
+
+/* Number of slots that have reached the online marker. */
+uint32_t o0_cpu_local_online_count(void);
 
 /* Kernel GS base currently in force (from IA32_GS_BASE). */
 struct o0_cpu_local *o0_cpu_local_current(void);

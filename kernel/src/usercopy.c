@@ -19,11 +19,27 @@
 /* Raw cores: 0 on success, O0_EFAULT if the fixup was taken. */
 extern long o0_usercopy_raw_from_user(void *dst, const void *src, size_t len);
 extern long o0_usercopy_raw_to_user(void *dst, const void *src, size_t len);
+extern long o0_usercopy_raw_from_user_smap(void *dst, const void *src, size_t len)
+    __attribute__((weak));
+extern long o0_usercopy_raw_to_user_smap(void *dst, const void *src, size_t len)
+    __attribute__((weak));
 
 extern char o0_usercopy_from_fault[];
 extern char o0_usercopy_from_fixup[];
 extern char o0_usercopy_to_fault[];
 extern char o0_usercopy_to_fixup[];
+extern char o0_usercopy_from_fault_smap[] __attribute__((weak));
+extern char o0_usercopy_from_fixup_smap[] __attribute__((weak));
+extern char o0_usercopy_to_fault_smap[] __attribute__((weak));
+extern char o0_usercopy_to_fixup_smap[] __attribute__((weak));
+
+extern bool o0_cpu_smap_enabled(void) __attribute__((weak));
+
+static bool use_smap_cores(void) {
+    return o0_cpu_smap_enabled != NULL && o0_cpu_smap_enabled() &&
+           o0_usercopy_raw_from_user_smap != NULL &&
+           o0_usercopy_raw_to_user_smap != NULL;
+}
 
 o0_status o0_user_range_check(const void *ptr, size_t len, bool write) {
     uint64_t addr = (uint64_t)(uintptr_t)ptr;
@@ -74,7 +90,10 @@ o0_status o0_copy_from_user(void *dst, const void *user_src, size_t len) {
     if (st != O0_OK) {
         return st;
     }
-    if (o0_usercopy_raw_from_user(dst, user_src, len) != 0) {
+    long rc = use_smap_cores()
+                  ? o0_usercopy_raw_from_user_smap(dst, user_src, len)
+                  : o0_usercopy_raw_from_user(dst, user_src, len);
+    if (rc != 0) {
         return O0_EFAULT;
     }
     return O0_OK;
@@ -91,7 +110,10 @@ o0_status o0_copy_to_user(void *user_dst, const void *src, size_t len) {
     if (st != O0_OK) {
         return st;
     }
-    if (o0_usercopy_raw_to_user(user_dst, src, len) != 0) {
+    long rc = use_smap_cores()
+                  ? o0_usercopy_raw_to_user_smap(user_dst, src, len)
+                  : o0_usercopy_raw_to_user(user_dst, src, len);
+    if (rc != 0) {
         return O0_EFAULT;
     }
     return O0_OK;
@@ -107,6 +129,16 @@ bool o0_usercopy_fixup(uint64_t fault_rip, uint64_t *fixup_rip) {
     }
     if (fault_rip == (uint64_t)(uintptr_t)o0_usercopy_to_fault) {
         *fixup_rip = (uint64_t)(uintptr_t)o0_usercopy_to_fixup;
+        return true;
+    }
+    if (o0_usercopy_from_fault_smap != NULL &&
+        fault_rip == (uint64_t)(uintptr_t)o0_usercopy_from_fault_smap) {
+        *fixup_rip = (uint64_t)(uintptr_t)o0_usercopy_from_fixup_smap;
+        return true;
+    }
+    if (o0_usercopy_to_fault_smap != NULL &&
+        fault_rip == (uint64_t)(uintptr_t)o0_usercopy_to_fault_smap) {
+        *fixup_rip = (uint64_t)(uintptr_t)o0_usercopy_to_fixup_smap;
         return true;
     }
     return false;

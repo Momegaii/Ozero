@@ -104,6 +104,9 @@ const struct o0_boot_info *o0_boot_info(void);
 /* True when the bootloader honoured the requested base revision. */
 bool o0_boot_contract_ok(const struct o0_boot_info *bi);
 
+/* Records the RSDP virtual address discovered through the boot protocol. */
+void o0_boot_set_rsdp(o0_vaddr_t rsdp);
+
 #ifdef __cplusplus
 }
 #endif

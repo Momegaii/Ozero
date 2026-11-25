@@ -117,6 +117,12 @@ const struct o0_boot_info *o0_boot_info(void) {
     return boot_info_populated ? &boot_info : NULL;
 }
 
+void o0_boot_set_rsdp(o0_vaddr_t rsdp) {
+    if (boot_info_populated) {
+        boot_info.rsdp = rsdp;
+    }
+}
+
 bool o0_boot_contract_ok(const struct o0_boot_info *bi) {
     if (bi == NULL) {
         return false;

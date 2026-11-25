@@ -296,6 +296,44 @@ static void test_order_validation_and_region_boundaries(void) {
     PASS();
 }
 
+static void test_churn_returns_to_baseline(void) {
+    TEST("churn returns free count to baseline");
+    struct o0_mem_region region = { .base = 0x100000, .length = 0x100000,
+                                    .type = O0_MEM_FREE, .flags = 0 };
+    struct o0_boot_info bi;
+    memset(&bi, 0, sizeof(bi));
+    bi.memmap = &region;
+    bi.memmap_count = 1;
+    bi.kernel_phys_size = 0;
+    initialised = false;
+    region_count = total_pages = free_pages = 0;
+    memset(bitmap_storage, 0, sizeof(bitmap_storage));
+    ASSERT(o0_pmm_init(&bi) == O0_OK, "churn init failed");
+
+    uint64_t baseline = o0_pmm_free_bytes();
+    for (uint32_t iter = 0; iter < 2000u; ++iter) {
+        o0_paddr_t pages[8];
+        uint32_t count = 0;
+        for (; count < 8u; ++count) {
+            pages[count] = o0_pmm_alloc_pages(0);
+            ASSERT(pages[count] != 0, "churn allocation failed");
+        }
+        o0_paddr_t block = 0;
+        if ((iter % 16u) == 0u) {
+            block = o0_pmm_alloc_pages(2);
+            ASSERT(block != 0, "churn order-2 allocation failed");
+        }
+        for (uint32_t i = 0; i < count; ++i) {
+            o0_pmm_free_pages(pages[i], 0);
+        }
+        if (block != 0) {
+            o0_pmm_free_pages(block, 2);
+        }
+        ASSERT(o0_pmm_free_bytes() == baseline, "churn leaked or lost pages");
+    }
+    PASS();
+}
+
 static void test_page_zero_is_never_allocated(void) {
     TEST("physical page zero is reserved");
     struct o0_mem_region region={.base=0,.length=2u*O0_PAGE_SIZE,
@@ -318,6 +356,7 @@ int main(void) {
     test_invalid_inputs();
     test_no_usable_regions();
     test_order_validation_and_region_boundaries();
+    test_churn_returns_to_baseline();
     test_page_zero_is_never_allocated();
 
     printf("\n%d test(s) run, %d failure(s)\n", tests_run, failures);

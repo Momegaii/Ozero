@@ -15,6 +15,8 @@
 #include <stdint.h>
 #include <limine.h>
 
+#include "ozero/acpi.h"
+#include "ozero/apic_timer.h"
 #include "ozero/block.h"
 #include "ozero/budget.h"
 #include "ozero/display.h"
@@ -36,6 +38,7 @@
 #include "ozero/pci.h"
 #include "ozero/ramdisk.h"
 #include "ozero/mm.h"
+#include "ozero/smp.h"
 #include "ozero/status.h"
 #include "ozero/sync.h"
 #include "ozero/thread.h"
@@ -74,6 +77,19 @@ static volatile struct limine_framebuffer_request framebuffer_request = {
 /* Present only when the firmware that loaded Limine is UEFI. Limine leaves the
  * response null under BIOS, so this is the firmware discriminator reported in
  * the boot log and asserted by the UEFI smoke test. */
+__attribute__((used, section(".limine_requests")))
+static volatile struct limine_mp_request mp_request = {
+    .id = LIMINE_MP_REQUEST_ID,
+    .revision = 0,
+    .flags = 0
+};
+
+__attribute__((used, section(".limine_requests")))
+static volatile struct limine_rsdp_request rsdp_request = {
+    .id = LIMINE_RSDP_REQUEST_ID,
+    .revision = 0
+};
+
 __attribute__((used, section(".limine_requests")))
 static volatile struct limine_efi_system_table_request efi_system_table_request = {
     .id = LIMINE_EFI_SYSTEM_TABLE_REQUEST_ID,
@@ -124,6 +140,8 @@ struct x86_64_exception_frame {
 
 extern void x86_64_idt_init(void);
 extern void x86_64_idt_install_irq_gates(void);
+extern void x86_64_idt_install_ipi_gate(void);
+extern void x86_64_idt_install_apic_timer_gate(void);
 extern void x86_64_idt_install_double_fault_ist(void);
 extern bool o0_usercopy_fixup(uint64_t fault_rip, uint64_t *fixup_rip);
 
@@ -199,6 +217,7 @@ static void report_memory_map(void) {
 
 extern o0_status o0_boot_populate(const struct limine_memmap_response *);
 extern void o0_arch_set_hhdm(uint64_t offset);
+extern uint64_t o0_arch_hhdm_offset(void);
 extern o0_status o0_paging_init(const struct o0_boot_info *);
 extern o0_status o0_paging_load(void);
 extern o0_status o0_cpu_detect(void);
@@ -1165,6 +1184,34 @@ void kmain(void) {
     }
     o0_serial_puts("OZERO: boot info populated\n");
 
+    if (rsdp_request.response != NULL && rsdp_request.response->address != NULL) {
+        o0_boot_set_rsdp((o0_vaddr_t)(uintptr_t)rsdp_request.response->address);
+        struct o0_acpi_info acpi;
+        o0_status acpi_status =
+            o0_acpi_parse(rsdp_request.response->address, o0_arch_hhdm_offset(),
+                          UINT32_MAX, &acpi);
+        if (acpi_status == O0_OK) {
+            o0_acpi_set_info(&acpi);
+            o0_serial_puts("OZERO: acpi cpus=");
+            o0_serial_dec(acpi.cpu_count);
+            o0_serial_puts(" ioapics=");
+            o0_serial_dec(acpi.ioapic_count);
+            o0_serial_puts(" overrides=");
+            o0_serial_dec(acpi.override_count);
+            o0_serial_puts(" lapic=");
+            o0_serial_hex(acpi.lapic_address);
+            o0_serial_puts(" bsp_apic=");
+            o0_serial_dec(acpi.bsp_apic_id);
+            o0_serial_puts("\n");
+        } else {
+            o0_serial_puts("OZERO: acpi unavailable status=");
+            o0_serial_dec((uint64_t)(-acpi_status));
+            o0_serial_puts("\n");
+        }
+    } else {
+        o0_serial_puts("OZERO: acpi unavailable (no RSDP)\n");
+    }
+
     const struct o0_boot_info *bi = o0_boot_info();
     if (bi == NULL || !o0_boot_contract_ok(bi)) {
         panic("boot info contract check failed");
@@ -1257,6 +1304,12 @@ void kmain(void) {
     if (!cf->syscall) {
         panic("CPU lacks SYSCALL; the Ozero user ABI requires it");
     }
+    uint32_t smep_smap = o0_cpu_enable_smep_smap();
+    o0_serial_puts("OZERO: smep=");
+    o0_serial_puts((smep_smap & 1u) != 0 ? "on" : "off");
+    o0_serial_puts(" smap=");
+    o0_serial_puts((smep_smap & 2u) != 0 ? "on" : "off");
+    o0_serial_puts("\n");
 
     o0_gdt_init();
     /* The early IDT used Limine's CS selector; reinstall it against our GDT. */
@@ -1308,6 +1361,7 @@ void kmain(void) {
 
     o0_irq_dispatch_init();
     x86_64_idt_install_irq_gates();
+    x86_64_idt_install_ipi_gate();
     if (o0_pic_init() != O0_OK) {
         panic("PIC initialisation failed");
     }
@@ -1315,6 +1369,23 @@ void kmain(void) {
     o0_serial_puts("OZERO: interrupt delivery=");
     o0_serial_puts(o0_pic_apic_extint_active() ? "lapic-extint" : "pic-legacy");
     o0_serial_puts("\n");
+
+    uint32_t online = o0_smp_start(mp_request.response);
+    o0_serial_puts("OZERO: smp cpus=");
+    o0_serial_dec(o0_cpu_count());
+    o0_serial_puts(" online=");
+    o0_serial_dec(online);
+    o0_serial_puts("\n");
+    if (o0_smp_online_count() > 1u) {
+        o0_status tlb = o0_tlb_shootdown((uint64_t)(uintptr_t)&online);
+        o0_serial_puts("OZERO: tlb shootdown ");
+        o0_serial_puts(tlb == O0_OK ? "OK" : "FAILED");
+        o0_serial_puts(" status=");
+        o0_serial_dec((uint64_t)tlb);
+        o0_serial_puts(" ipi_seen=");
+        o0_serial_dec(o0_smp_ipi_seen());
+        o0_serial_puts("\n");
+    }
 
     if (!o0_thread_init_system()) {
         panic("thread subsystem already initialised");
@@ -1334,6 +1405,14 @@ void kmain(void) {
     o0_serial_puts("OZERO: timer IRQ enabled at ");
     o0_serial_dec(o0_sched_hz());
     o0_serial_puts(" Hz\n");
+
+    x86_64_idt_install_apic_timer_gate();
+    o0_status timer_status = o0_apic_timer_start(o0_sched_hz());
+    o0_serial_puts("OZERO: timer=");
+    o0_serial_puts(timer_status == O0_OK ? "lapic" : "pit");
+    o0_serial_puts(" hz=");
+    o0_serial_dec(o0_sched_hz());
+    o0_serial_puts("\n");
 
     o0_input_ps2_init();
 

@@ -3,6 +3,9 @@ set -euo pipefail
 
 QEMU="${QEMU:-qemu-system-x86_64}"
 CPU_MODEL="${QEMU_CPU:-qemu64}"
+# QEMU_SMP selects the vCPU count. The AP bring-up path is only exercised when
+# this is greater than one.
+SMP="${QEMU_SMP:-1}"
 # QEMU_FIRMWARE selects the firmware path: "bios" (default) or "uefi" (OVMF).
 # The ISO is the same hybrid image in both cases; only the emulated firmware
 # differs, so the serial evidence must state which one produced it.
@@ -54,7 +57,7 @@ rm -f "$LOG" "$DEBUG_LOG"
 
 set +e
 timeout "${TIMEOUT_SECONDS}s" "$QEMU" \
-    -machine q35 -cpu "$CPU_MODEL" -m 512M "${firmware_args[@]}" \
+    -machine q35 -cpu "$CPU_MODEL" -smp "$SMP" -m 512M "${firmware_args[@]}" \
     -cdrom "$ISO" -boot d \
     -display none -serial "file:$LOG" -monitor none \
     -no-reboot -no-shutdown \
@@ -87,6 +90,8 @@ required_markers=(
     # configured local APIC (ExtINT virtual wire) or, where no APIC is
     # available, directly. The marker records which configuration ran.
     "OZERO: interrupt delivery="
+    "OZERO: smp cpus="
+    "OZERO: timer="
     # Stage 3 execution model: page tables, heap, scheduler, self-tests, and
     # the demo threads running to completion under the preemptive scheduler.
     # These last markers are what prove the timer interrupt is actually being
@@ -139,6 +144,10 @@ required_markers=(
     "OZERO: wave3 self-test complete"
 )
 
+if [[ "$SMP" -gt 1 ]]; then
+    required_markers+=("OZERO: tlb shootdown OK")
+fi
+
 # The scheduler may interleave the two worker threads differently between
 # boots. Check these as a set; never encode one particular interleaving.
 unordered_markers=(
@@ -174,4 +183,4 @@ for marker in "${required_markers[@]}" "${unordered_markers[@]}"; do
 done
 
 cat "$LOG"
-echo "QEMU smoke test: PASS (firmware=$FIRMWARE cpu=$CPU_MODEL qemu=$("$QEMU" --version | head -n 1))"
+echo "QEMU smoke test: PASS (firmware=$FIRMWARE cpu=$CPU_MODEL smp=$SMP qemu=$("$QEMU" --version | head -n 1))"

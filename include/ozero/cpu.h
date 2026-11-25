@@ -92,8 +92,22 @@ const struct o0_cpu_features *o0_cpu_features(void);
 const struct o0_cpu_info *o0_cpu_info(uint32_t index);
 uint32_t o0_cpu_count(void);
 
+/* Records the processor count discovered from the MP or MADT response. */
+void o0_cpu_set_count(uint32_t count);
+
+/* Fills one CPU record. Index 0 is the BSP; higher indices are APs. */
+void o0_cpu_set_info(uint32_t index, uint32_t apic_id, uint32_t acpi_uid,
+                     uint32_t flags);
+
 /* Index of the current CPU, or UINT32_MAX before per-CPU data is installed. */
 uint32_t o0_cpu_index(void);
+
+/* Enables CR4.SMEP and CR4.SMAP when CPUID advertises them. Returns the mask
+ * that was actually enabled: bit 0 = SMEP, bit 1 = SMAP. */
+uint32_t o0_cpu_enable_smep_smap(void);
+
+/* True when CR4.SMAP is currently enabled on this CPU. */
+bool o0_cpu_smap_enabled(void);
 
 uint64_t o0_rdtsc(void);
 void o0_cpu_relax(void);
