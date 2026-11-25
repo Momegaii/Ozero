@@ -2,7 +2,7 @@
 
 - **Status:** Accepted (implementation record in §14)
 - **Date:** 2026-11-25
-- **Wave:** 3
+- **Wave:** 5.0 (originally numbered Wave 3 before the 2026-11-25 reorder)
 - **Supersedes:** none
 - **Related:** ADR 0007 (user ABI), `docs/hardening-roadmap.md`
 
@@ -399,7 +399,7 @@ Verification and evidence:
 - Host: `tests/cap_test.c` (object, budget, handle, memory and endpoint
   cores) passes under `make test` and `make test-sanitize`.
 - Emulator: `{bios, uefi} × {qemu64, Haswell-v1}` on QEMU 10.0.13; every cell
-  prints the Wave 3 markers and `QEMU smoke test: PASS`.
+  prints the capability/IPC markers and `QEMU smoke test: PASS`.
 - CI: run [#138](https://github.com/Momegaii/Ozero/actions/runs/45587151198) on
   commit `521bc04` passed all five jobs on QEMU 10.2.1; the downloaded job logs
   contain the same markers.

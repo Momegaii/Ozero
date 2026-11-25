@@ -84,7 +84,7 @@ Wave 2 verification detail:
 - **Physical hardware:** never exercised. No user-mode result here is physical evidence.
 
 Sign-off is for the emulator scope of Rule 0: a single-CPU user mode is verified in QEMU on
-both firmwares and CPU models. Wave 3 started only after this sign-off.
+both firmwares and CPU models. Wave 3 SMP work started only after this sign-off.
 
 ### Entry criteria carried forward from Wave 2
 
@@ -107,15 +107,15 @@ assumed closed because the single-CPU emulator run passed.
    review PR is based on a Wave 2 base branch rather than `main`. This keeps the Wave 2 diff
    separate from earlier stages.
 
-Deferred until Wave 2 is verified: SMP, SMEP/SMAP, KASLR, signals, IPC, `mmap`, dynamic linking
-and `fork`.
+Deferred until Wave 2 was verified, and now partly delivered: SMP and SMEP/SMAP in Wave 3, and
+IPC in Wave 5.0. Still deferred: KASLR, signals, `mmap`, dynamic linking and `fork`.
 
 Notes carried into the wave:
 
-- **SMP** (deferred) starts from the Wave 1 LAPIC ExtINT configuration (ADR 0005) rather than
-  from a "disable the LAPIC" state. AP bring-up does not remove that disable — there is none
-  left in the tree — it has to program LVT/TPR per CPU, bring up the AP trampoline and migrate
-  the PIT to the APIC timer while keeping the 8259 path only as a fallback.
+- **SMP** (now Wave 3) starts from the Wave 1 LAPIC ExtINT configuration (ADR 0005) rather than
+  from a "disable the LAPIC" state. There is no LAPIC disable left in the tree to remove; AP
+  bring-up programs LVT/TPR per CPU, uses the Limine MP handoff for the AP entry, and migrates
+  the scheduler timer from the PIT to the LAPIC timer while keeping the 8259 path as a fallback.
 - The **ABI** must reserve per-CPU data and `swapgs` now (ADR 0007 §2.8) so SMP cannot force an
   ABI change later.
 
@@ -134,69 +134,82 @@ Notes carried into the wave:
 no agent may boot the physical i5-4460 on the strength of emulator evidence. Items 1 and 5 of
 that gate remain open.
 
-## Wave 3 — Capability handles, budgets and synchronous IPC (verified in emulation)
+## Wave 3 — SMP and memory hardening (partial, emulator-verified)
 
-Scope: single CPU, emulator-verified only. Physical hardware is deferred. The
-design is [ADR 0008](decisions/0008-capability-handles-budgets-and-ipc.md).
+The Director's 2026-11-25 order puts SMP and memory hardening here. This wave is
+**not signed off**: APs are online and the APIC timer, TLB shootdown and
+SMEP/SMAP work, but per-CPU runqueues, IOAPIC programming, KASLR, a buddy
+allocator and bootloader-memory reclaim are not implemented. Wave 4 work has not
+started.
 
 | Sub-wave | Scope | Status | Evidence |
 |---|---|---|---|
-| 3.1 | Refcounted object header, per-process handle tables, generation-tagged handle values, per-handle rights | **Done** | Host: `tests/cap_test.c` covers lookup, stale generations, rights rejection, duplicate/close and table teardown. Emulator: `OZERO: handle negative tests OK`. |
-| 3.2 | Hierarchical budgets, charge/uncharge, split, exhaustion and accounting return to baseline | **Done** | Host: `cap_test` charges objects, pages and a deliberately tight budget; a partially charged allocation must unwind to `used == 0`. Emulator: `OZERO: budget exhaustion OK`. |
-| 3.3 | Memory objects with budget-charged pages, read/map policy and W^X checks | **Done** | Host: `cap_test` creates, reads, validates and destroys memory objects, including the partial-failure path. Emulator: the `handles` program exercises `memory_create`, `memory_map` and refusal of foreign-budget mappings. |
-| 3.4 | Endpoints, synchronous send/receive/call, handle transfer and peer-death wakeups | **Done** | Host: `cap_test` covers endpoint creation and destruction. Emulator: `OZERO: ipc pair OK pair-1`, `OZERO: ipc negative tests OK`, and the `peer-server` test. |
-| 3.5 | `process_spawn` syscall, grant installation and detached child reaping | **Done** | Emulator: `OZERO: spawn syscall OK`, `OZERO: wave3 done spawner status=0`. |
-| 3.6 | Negative tests: forged/stale handles, rights escalation, foreign budget, bad IPC pointers, dead peers, budget exhaustion and process churn | **Done** | Host: `cap_test` rejects forged handles and rights escalation. Emulator: `handles`, `budget`, `ipcneg` and eight churn pairs; `OZERO: wave3 churn OK pairs=8` requires object count, budget used and PMM free pages to return to baseline. |
-| 3.7 | Verification on the full BIOS/UEFI × `qemu64`/`Haswell-v1` matrix plus the sanitizer job; STATUS evidence by type | **Done** | All four cells pass locally on QEMU 10.0.13; `make test-sanitize` passes with leaks enabled. GitHub Actions run [#138](https://github.com/Momegaii/Ozero/actions/runs/45587151198) on commit `521bc04` completed SUCCESS with all five jobs on QEMU 10.2.1; the downloaded job logs contain the Wave 3 markers. `tools/qemu-smoke.sh` requires those markers. Physical hardware has not been exercised. |
+| 3.1 | ACPI RSDP/RSDT/XSDT/MADT discovery, checksums, CPU/IOAPIC/ISO records | **Done** | Host: `tests/acpi_test.c` accepts a synthetic XSDT/MADT and rejects bad signatures, checksums, truncated tables and non-whole entries. QEMU: `OZERO: acpi cpus=… ioapics=… overrides=… lapic=… bsp_apic=…` on every cell. |
+| 3.2 | LAPIC xAPIC MMIO setup, EOI, fixed-delivery IPI | **Done** | QEMU: APs online with xAPIC; `tlb shootdown OK` uses the IPI path. x2APIC is deliberately not assumed. |
+| 3.3 | IOAPIC redirection programming and GSI routing | **Not started** | The MADT parser records IOAPIC and override records, but no IOAPIC register is programmed. The 8259 path remains. |
+| 3.4 | AP release and entry | **Done (bootloader handoff + Ozero entry)** | Limine MP releases each AP; `kernel/arch/x86_64/ap_entry.S` switches to a kernel-owned stack and `kernel/src/smp.c` owns the rest of the setup. QEMU: `smp cpus=4 online=4`. |
+| 3.5 | Per-CPU data, GS base, online accounting | **Done** | `O0_MAX_CPUS` is 4; each AP installs its own `o0_cpu_local`, APIC ID and stack top. QEMU: online count equals `-smp`. |
+| 3.6 | Per-CPU runqueues and AP scheduling | **Not started** | The scheduler is still BSP-only. APs idle and service IPIs; no user thread runs on an AP and no migration is claimed. |
+| 3.7 | TLB shootdown | **Done (single page)** | `o0_tlb_shootdown()` stores one address, sends vector `0x40`, waits for the per-CPU acknowledgement and invalidates locally. QEMU `-smp 2/4`: `ipi_seen=1/3`, `tlb shootdown OK`. |
+| 3.8 | APIC timer | **Done (BSP scheduler timer)** | Calibrated against ten PIT ticks, divisor 16, periodic vector `0x41`; the PIT is stopped and IRQ0 masked only after success. QEMU: `timer=lapic hz=100`, worker threads complete. PIT remains the fallback. |
+| 3.9 | SMEP/SMAP | **Done where advertised; SMAP path verified on `-cpu max`** | `Haswell-v1` reports `smep=on smap=off` (the model has no SMAP). `-cpu max` reports `smep=on smap=on`; the `STAC`/`CLAC` usercopy cores run and the Wave 2/3 negative tests still pass. |
+| 3.10 | Guard pages | **Done** | Existing null guard, kernel-stack guard and user-stack guard remain; no new claim. |
+| 3.11 | KASLR | **Not started** | No relocation or random base. |
+| 3.12 | Buddy allocator | **Not started** | The bitmap PMM remains. `tests/pmm_test.c` now includes a 2 000-iteration churn test that returns to the exact free-page baseline. |
+| 3.13 | Bootloader-memory reclaim | **Not started** | `o0_pmm_release_bootloader_memory()` is still a documented stub returning 0. |
 
 Wave 3 verification detail:
 
-- **Host tests:** `make test` and `make test-sanitize` pass, including `cap_test`.
-- **Emulator:** `{bios, uefi} × {qemu64, Haswell-v1}` on QEMU 10.0.13 with the full
-  Wave 2 and Wave 3 marker sets and `QEMU smoke test: PASS` in every cell.
-- **CI:** run [#138](https://github.com/Momegaii/Ozero/actions/runs/45587151198) on commit
-  `521bc04` completed SUCCESS with all five jobs (`boot` × 4 and `host-sanitizers`). The job
-  logs were downloaded and inspected: they contain the Wave 3 markers and report QEMU 10.2.1
-  with OVMF. The Actions page and API showed the same job conclusions.
-- **Physical hardware:** never exercised. No Wave 3 result is physical evidence.
-- **Defects found and fixed while closing the wave:** a partially charged memory object
-  uncharged only the pages it had allocated, not the full page array (24-byte leak per
-  failed create); `o0_ipc_call` took an extra reference on its reply endpoint and leaked one
-  endpoint per call. Both are covered by the host partial-failure test and the emulator
-  churn check respectively.
+- **Host:** `make test` includes the ACPI parser, the PMM churn baseline, and the GPU
+  discovery no-MMIO-write canary test. `make test-sanitize` is the same suite under
+  ASan/UBSan.
+- **QEMU:** local QEMU 10.0.13, BIOS and UEFI, `qemu64`, `Haswell-v1` and `max`,
+  at `-smp 1`, `-smp 2` and `-smp 4`. The matrix log set is recorded in
+  `docs/PROJECT_STATUS.md`; no result is inferred from another cell.
+- **CI:** the existing workflow runs the four BIOS/UEFI × `qemu64`/`Haswell-v1`
+  cells at the default `-smp 1`. A CI run for this revision is recorded in STATUS
+  after it is observed; the `-smp 2/4` cells are local-only until the workflow is
+  extended (the available token cannot edit `.github/workflows/quality.yml`).
+- **Physical:** never exercised. No Wave 3 result is physical evidence.
 
-The wave is signed off for its emulator scope only. SMP, preemption, SMEP/SMAP, KASLR,
-signals, asynchronous IPC, `mmap`, dynamic linking and `fork` remain deferred.
+ADRs: [0009](decisions/0009-smp-bringup-and-local-apic-timer.md) (SMP, IPI, timer)
+and [0010](decisions/0010-memory-hardening-smep-smap.md) (SMEP/SMAP order and
+open memory items). Both are accepted-provisional for review.
 
-## Wave 4 — Storage and filesystem (planned, not started)
+## Wave 4 — Storage and filesystem (not started)
 
 1. virtio-blk first, then AHCI/NVMe with DMA and IRQ completion.
 2. MBR/GPT partition discovery.
-3. Replace rollback with real crash consistency (journaling or copy-on-write), as an ADR,
-   tested with injected power loss at every write point.
-4. VFS with file descriptors, a page cache and a second filesystem.
+3. A crash-consistency ADR (journal or copy-on-write) and implementation, tested with
+   injected power loss at every write point.
+4. VFS, file descriptors, a page cache and file syscalls through an ABI ADR revision.
 
-## Wave 5 — Platform services (planned, not started)
+## Wave 5 — Platform services and security (partially complete ahead of order)
 
-1. Signals, futex-style primitives and timers.
-2. PCI/MSI-X, ACPI power basics, device model with probe/remove.
-3. Remaining security hardening: SMEP/SMAP, KASLR and user-memory fault paths under SMAP.
+The capability handles, budgets and synchronous IPC work was completed before the
+reorder and is recorded in [wave5-capability-ipc.md](wave5-capability-ipc.md). It is
+single-CPU and emulator-only. The remaining Wave 5 scope is not started:
 
-## Wave 6 — Quality engineering (planned, not started)
+1. IPC extensions, futex-style primitives, timers and signals.
+2. PCI/MSI-X, device probe/remove and a capability model for devices.
+3. An audit of every syscall argument.
+4. `mmap` and `spawn` only after their own ADRs.
 
-1. Fuzz syscalls, the filesystem image parser, the block layer and the ELF loader
-   (libFuzzer/AFL in host builds), with a time-boxed CI job rather than fixed cases only.
-2. Concurrency testing: lockdep-lite, scheduler/mutex race stress, deterministic replay in
-   QEMU.
-3. Kernel logging levels, panic backtraces, symbolised oops, GDB-over-serial stub.
-4. Performance baselines (context switch, allocator throughput, boot time) tracked in CI.
+## Wave 6 — Quality engineering (not started)
 
-## Wave 7 — Return to graphics (deferred)
+1. Fuzz the ELF loader, filesystem parser, block layer and syscalls (libFuzzer/AFL in host
+   builds), with a time-boxed CI job rather than fixed cases only.
+2. A lock-order checker, race stress tests and deterministic replay in QEMU.
+3. Leveled logging, panic backtraces, symbolised oops and a GDB-over-serial stub.
+4. CI performance baselines (context switch, allocator throughput, boot time).
 
-Resume Stage 5/6 only once user mode, SMP and a real storage driver exist. Then do the Haswell
-engine MMIO, reset and interrupt work against real hardware, keeping the software-rendered
-fallback as the default path. Until a verified reset sequence exists, engine reset stays
-refused and the engine stays quarantined.
+## Wave 7 — Graphics (deferred)
+
+Resume Stage 5/6 only after items 1–5 of the Director's run order are verified. Keep the
+software renderer as the default path. Do the Haswell engine MMIO, reset and interrupt work
+against real hardware only when the Director authorises it. Until a verified reset sequence
+exists, engine reset stays refused and the engine stays quarantined. No GPU hardware claim is
+made.
 
 ## Standing rules for every agent
 
@@ -213,8 +226,8 @@ refused and the engine stays quarantined.
 
 | Command | Covers | Does not cover |
 |---|---|---|
-| `make test` | Host unit suites: PMM, slab, scheduler, CPU, ABI, ELF, capability handles/budgets/IPC, block, OzeroFS, PCI, GPU, display, input, PS/2, surface | Kernel execution, interrupts, firmware |
+| `make test` | Host unit suites: ACPI/MADT, PMM (including churn), slab, scheduler, CPU, ABI, ELF, usercopy, capability handles/budgets/IPC, block, OzeroFS, PCI, GPU (including discovery no-MMIO canary), display, input, PS/2, surface | Kernel execution, interrupts, firmware, SMP |
 | `make test-sanitize` | The same suites under ASan/UBSan with leak detection | Kernel execution |
 | `make check` | Doctor + `-Werror` freestanding kernel/ISO + host suites | Booting |
-| `tools/qemu-smoke.sh` | BIOS or UEFI boot, full serial marker set, timer-driven scheduler, storage/GPU software self-tests, Wave 2 user mode and Wave 3 capabilities/IPC | Physical hardware, GPU engines, SMP, SMEP/SMAP |
+| `tools/qemu-smoke.sh` | BIOS or UEFI boot, full serial marker set, timer-driven scheduler, storage/GPU software self-tests, Wave 2 user mode, capability/IPC (Wave 5.0), AP bring-up and TLB shootdown when `QEMU_SMP>1`, SMEP/SMAP when the CPU model advertises them | Physical hardware, GPU engines, AP scheduling (BSP-only scheduler) |
 | `make test-sanitize` + `-fanalyzer` | Memory/UB defects and static analysis in host-buildable code | Hardware behaviour |

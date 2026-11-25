@@ -150,7 +150,7 @@ Press Ctrl+C to stop QEMU.
 
 ## Hardening roadmap
 
-The Project Director paused new GPU/Stage 6 scope and ordered six hardening waves. Plan,
+The Project Director paused new GPU/Stage 6 scope and ordered seven hardening waves. Plan,
 status and evidence: [docs/hardening-roadmap.md](docs/hardening-roadmap.md). Wave 1
 (verification debt) is complete locally: the Stage 4 regressions execute, BIOS and UEFI boots
 pass on `qemu64` and `Haswell-v1`, CI has a firmware/CPU matrix plus ASan/UBSan host tests,
@@ -158,9 +158,11 @@ and one interrupt-delivery defect was fixed (see
 [docs/decisions/0005-lapic-extint-interrupt-delivery.md](docs/decisions/0005-lapic-extint-interrupt-delivery.md)).
 Wave 2 (single-CPU user mode) is implemented and emulator-verified. Wave Q records the
 Director's separate evidence, adds a self-describing boot header and a framebuffer
-screendump check. Wave 3 code is present from the earlier branch, but the consolidated
-directive gates further Wave 3 work on the Wave 2.7 sign-off. Physical hardware and Stage
-5/6 GPU work remain paused.
+screendump check. Under the Director's 2026-11-25 reorder, Wave 3 is SMP and memory hardening:
+AP bring-up, xAPIC IPIs, single-page TLB shootdown, the LAPIC scheduler timer and SMEP/SMAP
+are implemented and locally emulator-verified, while IOAPIC programming, per-CPU runqueues,
+KASLR, a buddy allocator and bootloader reclaim are not started. The earlier capability/IPC
+work is recorded as Wave 5.0. Physical hardware and Stage 5/6 GPU work remain paused.
 
 ## Honest status
 

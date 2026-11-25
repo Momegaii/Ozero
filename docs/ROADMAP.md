@@ -44,15 +44,24 @@ per-item status and evidence live in [docs/hardening-roadmap.md](hardening-roadm
   local `{bios, uefi} × {qemu64, Haswell-v1}` matrix plus the sanitizer job, and CI run
   [#136](https://github.com/Momegaii/Ozero/actions/runs/45502990041) passed all five jobs.
   There is no physical-hardware evidence. Detail and evidence: [docs/hardening-roadmap.md](hardening-roadmap.md).
-- **Wave 3 — capability handles, budgets and synchronous IPC: implemented and verified in
-  emulation (2026-11-24).** Design and implementation record:
-  [ADR 0008](decisions/0008-capability-handles-budgets-and-ipc.md). Host `cap_test`, the full
-  local four-cell matrix on QEMU 10.0.13, CI run
+- **Wave 3 — SMP and memory hardening: partially implemented and locally emulator-verified
+  (2026-11-25).** AP bring-up through the Limine MP handoff, xAPIC IPIs, single-page TLB
+  shootdown, the LAPIC scheduler timer and SMEP/SMAP are done; IOAPIC redirection, per-CPU
+  runqueues, KASLR, a buddy allocator and bootloader reclaim are not started. ADRs
+  [0009](decisions/0009-smp-bringup-and-local-apic-timer.md) and
+  [0010](decisions/0010-memory-hardening-smep-smap.md) record the choices. There is no
+  physical-hardware evidence.
+- **Wave 5.0 — capability handles, budgets and synchronous IPC: implemented and verified in
+  emulation ahead of the reorder (2026-11-24).** Design and implementation record:
+  [ADR 0008](decisions/0008-capability-handles-budgets-and-ipc.md) and
+  [wave5-capability-ipc.md](wave5-capability-ipc.md). Host `cap_test`, the full local four-cell
+  matrix on QEMU 10.0.13, CI run
   [#138](https://github.com/Momegaii/Ozero/actions/runs/45587151198) with all five jobs on QEMU
   10.2.1, and `make test-sanitize` pass; eight churn pairs return object, budget and PMM
   accounting to baseline. There is no physical-hardware evidence.
 - **Waves 4–7 — planned, not started.** Wave 4 (virtio-blk/AHCI/NVMe, partitions, crash
-  consistency, VFS), Wave 5 (signals/futex/timers, PCI/MSI-X/ACPI, SMEP/SMAP/KASLR), Wave 6
+  consistency, VFS), Wave 5 (remaining IPC/timers/signals, PCI/MSI-X/device probe, argument
+  audit, mmap/spawn ADRs), Wave 6
   (fuzzing, concurrency testing, logging/backtraces, performance baselines), Wave 7 (resume
   Stage 5/6 graphics).
 - These waves change the stage sequence by Project Director direction; this note records that
