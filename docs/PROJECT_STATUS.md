@@ -277,7 +277,7 @@ scheduler is still BSP-only and several sub-waves are not started.
 | Host analyzer | `gcc -fanalyzer` on ACPI, SMP, APIC timer, CPU, PIC, usercopy and PMM sources | No findings |
 | QEMU, BIOS and UEFI × `qemu64`/`Haswell-v1` × `-smp 1/2/4` | `tools/qemu-smoke.sh`, QEMU 10.0.13, 12 cells | All 12 cells `QEMU smoke test: PASS`; each log has `smp cpus=N online=N`, `tlb shootdown OK` for N>1 and `timer=lapic hz=100` |
 | QEMU, BIOS and UEFI × `-cpu max` × `-smp 1/2/4` | Same smoke test, 6 cells | All 6 cells pass with `smep=on smap=on`; this is the local SMAP/`STAC`/`CLAC` evidence |
-| CI | No run for this revision yet | Not claimed. The workflow's four boot cells use `-smp 1`; the 2/4-CPU cells are local-only until the workflow is extended. The available token cannot edit `.github/workflows/quality.yml`. |
+| CI | GitHub Actions run [#45613293821](https://github.com/Momegaii/Ozero/actions/runs/45613293821) on commit `3ad4ee2`, QEMU 10.2.1 | SUCCESS, all five jobs. The logs were downloaded and inspected, not read from the summary: every boot cell has `smp cpus=1 online=1`, `timer=lapic hz=100`, `user entry OK`, `syscall exit status=0`, three `user fault contained` lines, `user churn OK processes=16` and `QEMU smoke test: PASS`. `Haswell-v1` prints `smep=on smap=off`; `qemu64` prints `smep=off smap=off`. CI has only `-smp 1`; the 2/4-CPU cells are **local-only** until the workflow is extended. The available token cannot edit `.github/workflows/quality.yml`. |
 | Physical | Never run | Not claimed |
 
 Observed markers and what they prove:
@@ -309,7 +309,7 @@ A real boot of the i5-4460 (HD 4600, `8086:0412` rev 06) waits for all five cond
    the eight-bar pattern are implemented; fault text is serial-only.
 2. **Self-describing boot header.** Implemented: `build commit=`, `cpu vendor=… family=…
    model=… brand=…` and `platform=… hypervisor=… firmware=…` are the first kernel lines.
-3. **Wave 2 sign-off complete.** Complete: CI run [#143](https://github.com/Momegaii/Ozero/actions/runs/45604746811) passed all five jobs, and its four boot logs were inspected. This is emulator evidence; it does not satisfy item 1.
+3. **Wave 2 sign-off complete.** Complete: CI run [#143](https://github.com/Momegaii/Ozero/actions/runs/45604746811) passed all five jobs, and its four boot logs were inspected. The post-reorder run [#45613293821](https://github.com/Momegaii/Ozero/actions/runs/45613293821) also passed all five jobs with the same single-CPU markers. This is emulator evidence; it does not satisfy item 1.
 4. **Kernel holds its final screen instead of rebooting.** Implemented in emulation: the
    kernel halts forever after the self-tests; QEMU uses `-no-reboot`. Not exercised on
    physical hardware.
@@ -352,7 +352,10 @@ Truthful split by evidence type:
   timer, CPU, PIC, usercopy and PMM sources. The BIOS/UEFI × `qemu64`/`Haswell-v1` × `-smp 1/2/4`
   matrix is 12/12 PASS; the BIOS/UEFI × `-cpu max` × `-smp 1/2/4` SMAP matrix is 6/6 PASS. The
   framebuffer check still reports `PASS width=1280 height=800 bar_width=160 bars=8
-  checksum=0x8acf6953`. This is local emulator evidence, not CI and not physical.
+  checksum=0x8acf6953`. CI run [#45613293821](https://github.com/Momegaii/Ozero/actions/runs/45613293821)
+  on commit `3ad4ee2` passed all five jobs on QEMU 10.2.1; its downloaded logs were inspected and
+  contain the same single-CPU markers. CI does not run the 2/4-CPU cells. This is emulator
+  evidence, not physical evidence.
 - **Branch audit (2026-11-24):** clean rebuild from an empty `build/`; every header compiles as
   its own translation unit; `nm -u build/kernel.elf` reports zero undefined symbols; every
   `kernel/src/*.c` and `kernel/arch/x86_64/*.c` is in the link; all host suites also pass under
