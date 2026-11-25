@@ -20,6 +20,10 @@
 #include "ozero/block.h"
 #include "ozero/budget.h"
 #include "ozero/display.h"
+#include "ozero/compositor.h"
+#include "ozero/shell.h"
+#include "ozero/surface.h"
+#include "ozero/window.h"
 #include "ozero/endpoint.h"
 #include "ozero/boot.h"
 #include "ozero/cpu.h"
@@ -1570,6 +1574,40 @@ void kmain(void) {
     o0_serial_puts("\n");
 
     o0_input_ps2_init();
+
+    static struct o0_shell desktop_shell;
+    static struct o0_surface backbuffer;
+    if (boot_framebuffer_valid) {
+        uint32_t w = (uint32_t)boot_display_mode.width;
+        uint32_t h = (uint32_t)boot_display_mode.height;
+        size_t pitch = (size_t)w * 4u;
+        void *bb = o0_kalloc((size_t)h * pitch, 64);
+        if (bb != NULL) {
+            o0_surface_init(&backbuffer, bb, w, h, pitch, O0_PIXEL_RGBX8888);
+            o0_shell_init(&desktop_shell, w, h);
+            static struct o0_surface win1, win2;
+            void *p1 = o0_kalloc(200u*4u*150u, 64);
+            void *p2 = o0_kalloc(200u*4u*150u, 64);
+            if (p1 && p2) {
+                o0_surface_init(&win1, p1, 200, 150, 200*4, O0_PIXEL_RGBX8888);
+                o0_surface_init(&win2, p2, 200, 150, 200*4, O0_PIXEL_RGBX8888);
+                o0_surface_fill(&win1, 0xff4060a0u);
+                o0_surface_fill(&win2, 0xffa04060u);
+                o0_window_id id1, id2;
+                o0_wm_create(&desktop_shell.windows, &win1, 10, 10, &id1);
+                o0_wm_create(&desktop_shell.windows, &win2, 220, 10, &id2);
+            }
+            for (;;) {
+                o0_shell_poll_input(&desktop_shell);
+                o0_compositor_compose(&backbuffer, &desktop_shell.windows, desktop_shell.background);
+                if (boot_display_mode.address != NULL) {
+                    uint8_t *fb = (uint8_t *)boot_display_mode.address;
+                    for (uint32_t y = 0; y < h; y++)
+                        memcpy(fb + (size_t)y*boot_display_mode.pitch, (uint8_t*)bb + (size_t)y*pitch, pitch);
+                }
+            }
+        }
+    }
 
     stage3_self_test();
     stage4_self_test();
