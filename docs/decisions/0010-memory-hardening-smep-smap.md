@@ -1,6 +1,6 @@
 # ADR 0010: Memory hardening order — SMEP/SMAP now, KASLR/buddy/reclaim later
 
-- **Status:** Accepted-provisional (implemented for SMEP/SMAP; open items recorded)
+- **Status:** Accepted-provisional (SMEP/SMAP); the KASLR/buddy/reclaim deferral is superseded by ADR 0011
 - **Date:** 2026-11-25
 - **Wave:** 3
 - **Supersedes:** none
@@ -48,5 +48,5 @@ make a failure unattributable.
   fact, not a kernel failure.
 - The SMAP path is verified locally with `-cpu max`; it is not a CI-matrix claim
   and not a physical-hardware claim.
-- KASLR, buddy allocation and reclaim remain open Wave 3 items. The roadmap
-  marks them not started.
+- KASLR, buddy allocation and reclaim were deferred by this ADR and are now
+  recorded in ADR 0011. The deferral itself is historical.

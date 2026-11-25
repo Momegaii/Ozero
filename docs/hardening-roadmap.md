@@ -134,29 +134,30 @@ Notes carried into the wave:
 no agent may boot the physical i5-4460 on the strength of emulator evidence. Items 1 and 5 of
 that gate remain open.
 
-## Wave 3 — SMP and memory hardening (partial, emulator-verified)
+## Wave 3 — SMP and memory hardening (implemented, emulator-verified, not signed off)
 
-The Director's 2026-11-25 order puts SMP and memory hardening here. This wave is
-**not signed off**: APs are online and the APIC timer, TLB shootdown and
-SMEP/SMAP work, but per-CPU runqueues, IOAPIC programming, KASLR, a buddy
-allocator and bootloader-memory reclaim are not implemented. Wave 4 work has not
-started.
+The Director's 2026-11-25 order puts SMP and memory hardening here. APs are
+online, the I/O APIC carries ISA interrupts, per-CPU runqueues schedule kernel
+threads, range TLB shootdown works, stack-window KASLR is active, the PMM honours
+buddy alignment and bootloader memory is reclaimed. User threads still do not
+run on APs because the TSS/IST layout is shared. Wave 4 work has not started.
 
 | Sub-wave | Scope | Status | Evidence |
 |---|---|---|---|
 | 3.1 | ACPI RSDP/RSDT/XSDT/MADT discovery, checksums, CPU/IOAPIC/ISO records | **Done** | Host: `tests/acpi_test.c` accepts a synthetic XSDT/MADT and rejects bad signatures, checksums, truncated tables and non-whole entries. QEMU: `OZERO: acpi cpus=… ioapics=… overrides=… lapic=… bsp_apic=…` on every cell. |
 | 3.2 | LAPIC xAPIC MMIO setup, EOI, fixed-delivery IPI | **Done** | QEMU: APs online with xAPIC; `tlb shootdown OK` uses the IPI path. x2APIC is deliberately not assumed. |
-| 3.3 | IOAPIC redirection programming and GSI routing | **Not started** | The MADT parser records IOAPIC and override records, but no IOAPIC register is programmed. The 8259 path remains. |
+| 3.3 | IOAPIC redirection programming and GSI routing | **Done (emulator)** | `kernel/src/ioapic.c` maps each MADT I/O APIC, masks every RTE, resolves ISA overrides and routes to the BSP. QEMU: `ioapic=active gsis=24`; the 8259 is masked. Host: `tests/ioapic_test.c`. |
 | 3.4 | AP release and entry | **Done (bootloader handoff + Ozero entry)** | Limine MP releases each AP; `kernel/arch/x86_64/ap_entry.S` switches to a kernel-owned stack and `kernel/src/smp.c` owns the rest of the setup. QEMU: `smp cpus=4 online=4`. |
 | 3.5 | Per-CPU data, GS base, online accounting | **Done** | `O0_MAX_CPUS` is 4; each AP installs its own `o0_cpu_local`, APIC ID and stack top. QEMU: online count equals `-smp`. |
-| 3.6 | Per-CPU runqueues and AP scheduling | **Not started** | The scheduler is still BSP-only. APs idle and service IPIs; no user thread runs on an AP and no migration is claimed. |
-| 3.7 | TLB shootdown | **Done (single page)** | `o0_tlb_shootdown()` stores one address, sends vector `0x40`, waits for the per-CPU acknowledgement and invalidates locally. QEMU `-smp 2/4`: `ipi_seen=1/3`, `tlb shootdown OK`. |
-| 3.8 | APIC timer | **Done (BSP scheduler timer)** | Calibrated against ten PIT ticks, divisor 16, periodic vector `0x41`; the PIT is stopped and IRQ0 masked only after success. QEMU: `timer=lapic hz=100`, worker threads complete. PIT remains the fallback. |
+| 3.6 | Per-CPU runqueues and AP scheduling | **Done for kernel threads** | Each CPU owns a runqueue and idle thread; the LAPIC timer preempts its own queue; `o0_thread_migrate` moves ready/running kernel threads. QEMU: `smp scheduling OK cpus=N threads=N iterations=...`. User threads stay BSP-pinned until per-CPU TSS/IST exists. |
+| 3.7 | TLB shootdown | **Done (page, range, full)** | Vector `0x40` carries a range descriptor in the target's per-CPU block; the sender waits for every online target with a bounded spin and panics on timeout. QEMU `-smp 2/4`: `ipi_seen=1/3`, `tlb shootdown OK`, `tlb shootdown range OK`, `tlb shootdown full OK`. |
+| 3.8 | APIC timer | **Done (BSP and AP)** | Calibrated against ten PIT ticks, divisor 16, periodic vector `0x41`; the PIT is stopped and IRQ0 masked only after success. Every AP starts its own timer. QEMU: `timer=lapic hz=100`, worker threads complete. PIT remains the fallback. |
 | 3.9 | SMEP/SMAP | **Done where advertised; SMAP path verified on `-cpu max`** | `Haswell-v1` reports `smep=on smap=off` (the model has no SMAP). `-cpu max` reports `smep=on smap=on`; the `STAC`/`CLAC` usercopy cores run and the Wave 2/3 negative tests still pass. |
 | 3.10 | Guard pages | **Done** | Existing null guard, kernel-stack guard and user-stack guard remain; no new claim. |
-| 3.11 | KASLR | **Not started** | No relocation or random base. |
-| 3.12 | Buddy allocator | **Not started** | The bitmap PMM remains. `tests/pmm_test.c` now includes a 2 000-iteration churn test that returns to the exact free-page baseline. |
-| 3.13 | Bootloader-memory reclaim | **Not started** | `o0_pmm_release_bootloader_memory()` is still a documented stub returning 0. |
+| 3.11 | KASLR | **Done (stack window only)** | `o0_kaslr_init()` derives one 2 MiB-aligned offset from `RDRAND` or `RDTSC`; the kernel-stack window moves, the kernel image and HHDM do not. QEMU: `kaslr layout offset=0x...`; host: `tests/kaslr_test.c`. |
+| 3.12 | Buddy allocator | **Done (bitmap with buddy alignment)** | The bitmap stays authoritative; order-`n` allocation requires natural alignment and free walks the buddy tree upward while the pair is wholly free. `tests/pmm_test.c` covers alignment, coalescing state and the 2 000-iteration churn baseline. |
+| 3.13 | Bootloader-memory reclaim | **Done** | `o0_pmm_release_bootloader_memory()` releases Limine reclaimable regions after boot info, ACPI data and the SMP response are copied. QEMU: `bootloader reclaim bytes=N`; host: PMM reclaim test. ACPI reclaimable is not released. |
+| 3.14 | Lock-order checker | **Done (opt-in classes)** | Ordered locks must acquire in strictly increasing class and release in reverse; unordered IRQ-safe runqueue locks are outside the checker. Host: `tests/lock_order_test.c`. |
 
 Wave 3 verification detail:
 
@@ -172,9 +173,11 @@ Wave 3 verification detail:
   extended (the available token cannot edit `.github/workflows/quality.yml`).
 - **Physical:** never exercised. No Wave 3 result is physical evidence.
 
-ADRs: [0009](decisions/0009-smp-bringup-and-local-apic-timer.md) (SMP, IPI, timer)
-and [0010](decisions/0010-memory-hardening-smep-smap.md) (SMEP/SMAP order and
-open memory items). Both are accepted-provisional for review.
+ADRs: [0009](decisions/0009-smp-bringup-and-local-apic-timer.md) (SMP, IPI, timer),
+[0010](decisions/0010-memory-hardening-smep-smap.md) (SMEP/SMAP order) and
+[0011](decisions/0011-wave3-ioapic-percpu-kaslr-pmm.md) (I/O APIC, per-CPU
+scheduling, KASLR, buddy PMM, reclaim and lock classes). All are
+accepted-provisional for review.
 
 ## Wave 4 — Storage and filesystem (not started)
 

@@ -79,6 +79,7 @@ fi
 # point in this emulator and firmware, not that it works on physical hardware.
 required_markers=(
     "OZERO: build commit="
+    "OZERO: kaslr layout offset="
     "OZERO: cpu vendor="
     "OZERO: platform="
     "OZERO: kernel entry reached"
@@ -90,8 +91,10 @@ required_markers=(
     # configured local APIC (ExtINT virtual wire) or, where no APIC is
     # available, directly. The marker records which configuration ran.
     "OZERO: interrupt delivery="
-    "OZERO: smp cpus="
+    "OZERO: ioapic=active"
+    "OZERO: smp cpus=$SMP online=$SMP"
     "OZERO: timer="
+    "OZERO: bootloader reclaim bytes="
     # Stage 3 execution model: page tables, heap, scheduler, self-tests, and
     # the demo threads running to completion under the preemptive scheduler.
     # These last markers are what prove the timer interrupt is actually being
@@ -146,6 +149,15 @@ required_markers=(
 
 if [[ "$SMP" -gt 1 ]]; then
     required_markers+=("OZERO: tlb shootdown OK")
+    required_markers+=("OZERO: tlb shootdown range OK")
+    required_markers+=("OZERO: tlb shootdown full OK")
+    required_markers+=("OZERO: smp scheduling OK cpus=")
+fi
+
+# The SMAP fault-fixup path only runs when the CPU advertises SMAP. QEMU's
+# 'max' model does; qemu64 and Haswell-v1 do not.
+if [[ "$CPU_MODEL" == "max" ]]; then
+    required_markers+=("OZERO: smep=on smap=on")
 fi
 
 # The scheduler may interleave the two worker threads differently between

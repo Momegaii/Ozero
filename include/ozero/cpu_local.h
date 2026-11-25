@@ -33,6 +33,11 @@ struct o0_cpu_local {
     volatile uint32_t tlb_pending;   /* offset 64 */
     volatile uint32_t tlb_ack;       /* offset 68 */
     volatile uint64_t tlb_addr;      /* offset 72 */
+    volatile uint32_t tlb_len;       /* offset 80 : pages, or 0 for one page */
+    volatile uint32_t tlb_all;       /* offset 84 : non-zero means full flush */
+    volatile uint32_t resched_pending; /* offset 88 */
+    uint32_t lock_depth;             /* offset 92 */
+    void *held_locks[8];             /* offset 96 */
 };
 
 #define O0_CPU_LOCAL_OFFSET_SELF 0u

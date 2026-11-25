@@ -68,6 +68,7 @@ struct o0_thread {
     int exit_status;
 
     uint32_t id;
+    uint32_t cpu;                     /* run-queue affinity/current CPU */
     uint32_t state;
     uint32_t block_reason;
     uint32_t timeslice;
@@ -129,8 +130,13 @@ uint64_t o0_sched_ticks(void);
 void o0_sched_set_hz(uint32_t hz);
 uint32_t o0_sched_hz(void);
 uint32_t o0_sched_ready_count(void);
+uint32_t o0_sched_ready_count_cpu(uint32_t cpu);
 void o0_sched_set_preemption(bool enabled);
 bool o0_sched_preemption_enabled(void);
 void o0_sched_note_resume(struct o0_thread *thread);
+/* Enters the scheduler on an AP. Never returns. */
+void o0_sched_ap_start(uint32_t cpu, uint64_t stack_top);
+o0_status o0_sched_migrate(struct o0_thread *thread, uint32_t target_cpu);
+void o0_sched_resched_ipi(void);
 
 #endif /* O0_THREAD_INTERNAL_H */

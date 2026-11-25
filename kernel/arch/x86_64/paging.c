@@ -24,6 +24,7 @@
 
 #include "ozero/boot.h"
 #include "ozero/budget.h"
+#include "ozero/kaslr.h"
 #include "ozero/mm.h"
 #include "ozero/object.h"
 #include "ozero/status.h"
@@ -60,8 +61,8 @@
 
 /* Kernel stacks: dedicated kernel virtual region, above the HHDM window and
  * below the kernel image. One 4 KiB guard page sits below each stack. */
-#define O0_KSTACK_VA_BASE 0xffff900000000000ull
-#define O0_KSTACK_VA_END 0xffff900040000000ull
+#define O0_KSTACK_VA_BASE O0_KASLR_KSTACK_BASE
+#define O0_KSTACK_VA_END (O0_KASLR_KSTACK_BASE + O0_KASLR_KSTACK_WINDOW)
 #define O0_KSTACK_MAX_PAGES 32u
 #define O0_AS_MAX_BORROWED 8u
 
@@ -87,6 +88,12 @@ static struct o0_as user_ases[O0_AS_MAX];
 
 static uint64_t hhdm_offset;
 static uint64_t direct_base;
+/* Host builds link paging.c without kaslr.c; the kernel's strong definition
+ * replaces this fallback. */
+__attribute__((weak)) uint64_t o0_kaslr_kstack_base(void) {
+    return O0_KSTACK_VA_BASE;
+}
+
 static uint64_t kstack_next = O0_KSTACK_VA_BASE;
 static bool paging_ready;
 static bool paging_loaded;
@@ -494,7 +501,7 @@ o0_status o0_paging_init(const struct o0_boot_info *bi) {
     kernel_as.mapped_pages = O0_DIRECT_MAP_LIMIT >> O0_PAGE_SHIFT;
     kernel_as.kernel = true;
     kernel_as.in_use = true;
-    kstack_next = O0_KSTACK_VA_BASE;
+    kstack_next = o0_kaslr_kstack_base();
 
     paging_ready = true;
     return O0_OK;

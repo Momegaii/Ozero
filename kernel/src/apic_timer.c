@@ -22,6 +22,8 @@
 extern o0_status o0_pic_mask(uint32_t line);
 extern void o0_pit_stop(void);
 
+static uint32_t calibrated_period;
+
 o0_status o0_apic_timer_start(uint32_t hz) {
     if (hz == 0 || !o0_lapic_available()) {
         return O0_ENOSYS;
@@ -56,7 +58,16 @@ o0_status o0_apic_timer_start(uint32_t hz) {
 
     o0_pit_stop();
     (void)o0_pic_mask(0);
+    calibrated_period = per_tick;
     o0_lapic_timer_start_periodic(per_tick);
+    return O0_OK;
+}
+
+o0_status o0_apic_timer_start_ap(void) {
+    if (!o0_lapic_available() || calibrated_period == 0u) {
+        return O0_ENOSYS;
+    }
+    o0_lapic_timer_start_periodic(calibrated_period);
     return O0_OK;
 }
 

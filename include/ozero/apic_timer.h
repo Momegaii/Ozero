@@ -14,6 +14,8 @@ extern "C" {
  * programs a periodic timer at `hz`. Returns O0_ENOSYS when no local APIC is
  * available; the caller then keeps the PIT. */
 o0_status o0_apic_timer_start(uint32_t hz);
+/* Starts the already-calibrated periodic timer on an AP. */
+o0_status o0_apic_timer_start_ap(void);
 
 /* IDT vector 0x41 handler. */
 void x86_apic_timer_dispatch(void *frame);

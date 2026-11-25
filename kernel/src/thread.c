@@ -59,6 +59,7 @@ bool o0_thread_init_system(void) {
     }
     for (size_t i = 0; i < O0_MAX_THREADS; ++i) {
         thread_table[i].state = O0_THREAD_UNUSED;
+        thread_table[i].cpu = 0;
         thread_table[i].proc = NULL;
         thread_table[i].rsp = 0;
         thread_table[i].next_ready = NULL;
@@ -99,6 +100,7 @@ void o0_thread_release_slot(struct o0_thread *thread) {
         return;
     }
     thread->state = O0_THREAD_UNUSED;
+    thread->cpu = 0;
     thread->proc = NULL;
     thread->entry = NULL;
     thread->arg = NULL;
@@ -386,6 +388,7 @@ O0_NODISCARD o0_status o0_thread_create(o0_process_t *proc,
     thread->wake_tick = 0;
     thread->exit_status = 0;
     thread->id = next_thread_id++;
+    thread->cpu = 0;
     thread->state = O0_THREAD_READY;
     thread->block_reason = O0_BLOCK_NONE;
     thread->timeslice = 5;
@@ -540,6 +543,10 @@ const char *o0_thread_name(const o0_thread_t *thread) {
 
 void o0_thread_yield(void) {
     o0_sched_yield();
+}
+
+o0_status o0_thread_migrate(o0_thread_t *thread, uint32_t cpu) {
+    return o0_sched_migrate(thread, cpu);
 }
 
 void o0_thread_sleep_ns(uint64_t ns) {

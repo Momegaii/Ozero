@@ -23,7 +23,7 @@ LDFLAGS := -nostdlib -static -z max-page-size=0x1000 -T kernel/linker.lds
 KERNEL_OBJS := $(BUILD)/main.o $(BUILD)/serial.o $(BUILD)/string.o $(BUILD)/status.o $(BUILD)/acpi.o \
                $(BUILD)/pmm.o $(BUILD)/boot_info.o $(BUILD)/slab.o \
                $(BUILD)/sched.o $(BUILD)/thread.o $(BUILD)/sync.o \
-               $(BUILD)/irq.o $(BUILD)/paging.o $(BUILD)/cpu.o $(BUILD)/pic.o $(BUILD)/smp.o $(BUILD)/ap_entry.o $(BUILD)/apic_timer.o \
+               $(BUILD)/irq.o $(BUILD)/ioapic.o $(BUILD)/paging.o $(BUILD)/cpu.o $(BUILD)/pic.o $(BUILD)/smp.o $(BUILD)/ap_entry.o $(BUILD)/apic_timer.o $(BUILD)/kaslr.o \
                $(BUILD)/interrupts_c.o $(BUILD)/interrupts.o $(BUILD)/irq_stubs.o \
                $(BUILD)/context.o $(BUILD)/block.o $(BUILD)/ramdisk.o \
                $(BUILD)/o0fs.o $(BUILD)/pci.o $(BUILD)/gpu.o $(BUILD)/gpu_hsw.o \
@@ -177,6 +177,12 @@ test: $(BUILD)
 	$(HOST_RUN_ENV) ./$(BUILD)/pmm_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/acpi_test tests/acpi_test.c kernel/src/acpi.c
 	$(HOST_RUN_ENV) ./$(BUILD)/acpi_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/ioapic_test tests/ioapic_test.c
+	$(HOST_RUN_ENV) ./$(BUILD)/ioapic_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/lock_order_test tests/lock_order_test.c
+	$(HOST_RUN_ENV) ./$(BUILD)/lock_order_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/kaslr_test tests/kaslr_test.c
+	$(HOST_RUN_ENV) ./$(BUILD)/kaslr_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/slab_test tests/slab_test.c
 	$(HOST_RUN_ENV) ./$(BUILD)/slab_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/sched_test tests/sched_test.c
@@ -213,7 +219,7 @@ test: $(BUILD)
 # failure, not a warning.
 test-sanitize: $(BUILD)
 	rm -f $(BUILD)/pmm_test $(BUILD)/slab_test $(BUILD)/sched_test \
-	      $(BUILD)/cpu_test $(BUILD)/abi_test $(BUILD)/elf_test $(BUILD)/acpi_test $(BUILD)/cap_test \
+	      $(BUILD)/cpu_test $(BUILD)/abi_test $(BUILD)/elf_test $(BUILD)/acpi_test $(BUILD)/ioapic_test $(BUILD)/lock_order_test $(BUILD)/kaslr_test $(BUILD)/cap_test \
 	      $(BUILD)/block_test $(BUILD)/fs_test \
 	      $(BUILD)/pci_test $(BUILD)/gpu_test $(BUILD)/display_test \
 	      $(BUILD)/input_test $(BUILD)/surface_test $(BUILD)/input_ps2_test

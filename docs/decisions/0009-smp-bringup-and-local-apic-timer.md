@@ -1,6 +1,6 @@
 # ADR 0009: SMP bring-up, cross-CPU invalidation and the local APIC timer
 
-- **Status:** Accepted-provisional (implemented and emulator-verified; review requested)
+- **Status:** Accepted-provisional; scheduler/topology clauses 3.4 and 4 are superseded by ADR 0011
 - **Date:** 2026-11-25
 - **Wave:** 3
 - **Supersedes:** none
@@ -82,8 +82,9 @@ another CPU, and which timer drives the scheduler.
   `max` under BIOS and UEFI. The evidence is QEMU only.
 - `SMEP` is available on `Haswell-v1`; `SMAP` is not. The SMAP path is verified
   with `-cpu max` locally and is not claimed for `Haswell-v1`.
-- APs are online and acknowledge TLB shootdowns, but no user process runs on an
-  AP. Migration, per-CPU runqueues, preemption and load balancing stay open.
+- APs are online and acknowledge TLB shootdowns. Per-CPU runqueues, kernel-thread
+  migration and AP preemption are now recorded in ADR 0011; user threads remain
+  BSP-pinned until per-CPU TSS/IST descriptors exist.
 - The APs use the BSP's TSS. That is safe while APs never enter ring 3; a
   per-CPU TSS/IST layout is required before APs run user threads.
 - KASLR, a buddy allocator and bootloader-memory reclaim are not part of this

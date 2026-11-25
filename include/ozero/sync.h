@@ -17,11 +17,24 @@ extern "C" {
 typedef struct o0_spinlock {
     volatile uint32_t locked;
     uint32_t reserved;
+    uint32_t order;   /* 0 disables ordering checks; larger is acquired later */
+    uint32_t debug_owner;
 } o0_spinlock_t;
 
-#define O0_SPINLOCK_INIT { 0u, 0u }
+#define O0_SPINLOCK_INIT { 0u, 0u, 0u, 0u }
 
 void o0_spin_init(o0_spinlock_t *lock);
+/* Initialises a lock with a lock-order class. Nested acquisitions must use
+ * strictly increasing classes; equal or decreasing classes are a bug. */
+void o0_spin_init_ordered(o0_spinlock_t *lock, uint32_t order);
+/* Pure predicate used by the checker and by host tests. Class 0 means
+ * "unordered" and is never rejected. */
+static inline bool o0_lock_order_ok(uint32_t previous_order, uint32_t next_order) {
+    if (previous_order == 0u || next_order == 0u) {
+        return true;
+    }
+    return next_order > previous_order;
+}
 void o0_spin_lock(o0_spinlock_t *lock);
 bool o0_spin_trylock(o0_spinlock_t *lock);
 void o0_spin_unlock(o0_spinlock_t *lock);

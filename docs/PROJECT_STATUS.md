@@ -1,7 +1,7 @@
 # Ozero Project Status
 
 Last updated: 2026-11-24  
-Current stage: **Stage 6 — Native graphical application environment (active; Phase 6.1 verified — display/framebuffer boot tested in QEMU with screenshot evidence; Phase 6.2 implemented — PS/2 keyboard + pointer driver host-tested, driver initialized at boot; Phase 6.3 implemented and host-tested — software surface primitives; Phases 6.4–6.8 open; no full desktop/QEMU acceptance claimed). Stage 5 is closed as the software-foundation milestone; physical GPU execution and vendor-specific acceleration backends remain deferred. See docs/stage6.md for the three-agent handoff and test plan. New GPU/Stage 6 scope is paused by Rule 0; hardening Wave 1 (verification debt) is complete locally, **Wave 2 (single-CPU user mode) is implemented and verified in QEMU on BIOS/UEFI × qemu64/Haswell-v1**, and **Wave 3 is now SMP and memory hardening under the Director's 2026-11-25 reorder: AP bring-up, xAPIC IPIs, single-page TLB shootdown, the LAPIC scheduler timer and SMEP/SMAP are implemented and verified in local QEMU; IOAPIC programming, per-CPU runqueues, KASLR, a buddy allocator and bootloader reclaim are not started. The capability-handle, budget and synchronous-IPC work previously numbered Wave 3 is complete and is now recorded as Wave 5.0.** Wave Q adds the Director-observed evidence table, the self-describing boot header and an independent framebuffer screendump check; the Wave 2.7 sign-off is recorded below. No physical-hardware evidence exists for any wave. Waves 4–7 are planned in docs/hardening-roadmap.md.**
+Current stage: **Stage 6 — Native graphical application environment (active; Phase 6.1 verified — display/framebuffer boot tested in QEMU with screenshot evidence; Phase 6.2 implemented — PS/2 keyboard + pointer driver host-tested, driver initialized at boot; Phase 6.3 implemented and host-tested — software surface primitives; Phases 6.4–6.8 open; no full desktop/QEMU acceptance claimed). Stage 5 is closed as the software-foundation milestone; physical GPU execution and vendor-specific acceleration backends remain deferred. See docs/stage6.md for the three-agent handoff and test plan. New GPU/Stage 6 scope is paused by Rule 0; hardening Wave 1 (verification debt) is complete locally, **Wave 2 (single-CPU user mode) is implemented and verified in QEMU on BIOS/UEFI × qemu64/Haswell-v1**, and **Wave 3 is now SMP and memory hardening under the Director's 2026-11-25 reorder: AP bring-up, xAPIC IPIs, range TLB shootdown, I/O APIC routing, per-CPU runqueues with kernel-thread migration, the LAPIC scheduler timer on every CPU, SMEP/SMAP, stack-window KASLR, an aligned buddy PMM and bootloader-memory reclaim are implemented and verified in local QEMU; user threads remain BSP-pinned until per-CPU TSS/IST exists, and the wave is not signed off. The capability-handle, budget and synchronous-IPC work previously numbered Wave 3 is complete and is now recorded as Wave 5.0.** Wave Q adds the Director-observed evidence table, the self-describing boot header and an independent framebuffer screendump check; the Wave 2.7 sign-off is recorded below. No physical-hardware evidence exists for any wave. Waves 4–7 are planned in docs/hardening-roadmap.md.**
 Stage 3 — processes, threads and scheduler: **implemented; boot-verified in QEMU BIOS for the Stage 3 revision**  
 Stage 2 — physical and virtual memory: **implemented, verified by build + host tests + QEMU boot**  
 Stage 1 — bootable x86-64 kernel: **implemented; see verification state**
@@ -264,19 +264,20 @@ checksum=0x8acf6953`. This is CI evidence, not Director-observed and not physica
   screendump shows eight 160 px bars with no margins. The CI screendump check now verifies
   the raw framebuffer layout independently of any host window.
 
-### Wave 3 — SMP and memory hardening (partial; local QEMU evidence)
+### Wave 3 — SMP and memory hardening (implemented; local QEMU evidence; not signed off)
 
 The Director's 2026-11-25 order moved SMP and memory hardening into Wave 3. The work below is
-**not a wave sign-off**: the APs are online and the timer/IPI/SMEP/SMAP paths work, but the
-scheduler is still BSP-only and several sub-waves are not started.
+**not a wave sign-off**: I/O APIC routing, per-CPU runqueues, kernel-thread migration, range
+TLB shootdown, stack-window KASLR, aligned buddy allocation and bootloader reclaim are now
+implemented and exercised, but user threads still do not run on APs and no physical evidence
+exists.
 
 | Evidence type | What was actually run | Result |
 |---|---|---|
-| Host | `make test` on 2026-11-25: ACPI MADT test PASS, PMM 8/8 (including the 2 000-iteration churn), slab 5/5, scheduler 5/5, block 6/6, OzeroFS 10/10, GPU 26/26 (including the no-MMIO-write canary), CPU/ABI/ELF/usercopy/capability pass, surface 6 checks, PS/2 all pass | Passes locally, exit 0 |
+| Host | `make test` on 2026-11-24: ACPI MADT PASS, I/O APIC encoding/GSI PASS, lock-order PASS, KASLR layout PASS, PMM 9/9 (including reclaim and the 2 000-iteration churn), slab 5/5, scheduler 6/6 (including per-CPU migration), block 6/6, OzeroFS 10/10, GPU 26/26 (including the no-MMIO-write canary), CPU/ABI/ELF/usercopy/capability pass, surface 6 checks, PS/2 all pass | Passes locally, exit 0 |
 | Host sanitizers | `make test-sanitize` (ASan/UBSan, leak detection) on the same suite | Passes locally, exit 0; no leak or UB report |
-| Host analyzer | `gcc -fanalyzer` on ACPI, SMP, APIC timer, CPU, PIC, usercopy and PMM sources | No findings |
-| QEMU, BIOS and UEFI × `qemu64`/`Haswell-v1` × `-smp 1/2/4` | `tools/qemu-smoke.sh`, QEMU 10.0.13, 12 cells | All 12 cells `QEMU smoke test: PASS`; each log has `smp cpus=N online=N`, `tlb shootdown OK` for N>1 and `timer=lapic hz=100` |
-| QEMU, BIOS and UEFI × `-cpu max` × `-smp 1/2/4` | Same smoke test, 6 cells | All 6 cells pass with `smep=on smap=on`; this is the local SMAP/`STAC`/`CLAC` evidence |
+| Host analyzer | `gcc -fanalyzer` on I/O APIC, KASLR, SMP, scheduler, sync, IRQ, APIC timer, paging and PMM sources | No findings |
+| QEMU, BIOS and UEFI × `qemu64`/`Haswell-v1`/`max` × `-smp 1/2/4` | `tools/qemu-smoke.sh`, QEMU 10.0.13, 18 cells | All 18 cells `QEMU smoke test: PASS`; each log has `ioapic=active gsis=24`, `kaslr layout offset=`, `bootloader reclaim bytes=`, `smp cpus=N online=N` and `timer=lapic hz=100`; N>1 logs add `tlb shootdown OK`, `tlb shootdown range OK`, `tlb shootdown full OK` and `smp scheduling OK cpus=N threads=N iterations=...`; `max` logs add `smep=on smap=on` |
 | CI | GitHub Actions run [#45613293821](https://github.com/Momegaii/Ozero/actions/runs/45613293821) on commit `3ad4ee2`, QEMU 10.2.1 | SUCCESS, all five jobs. The logs were downloaded and inspected, not read from the summary: every boot cell has `smp cpus=1 online=1`, `timer=lapic hz=100`, `user entry OK`, `syscall exit status=0`, three `user fault contained` lines, `user churn OK processes=16` and `QEMU smoke test: PASS`. `Haswell-v1` prints `smep=on smap=off`; `qemu64` prints `smep=off smap=off`. CI has only `-smp 1`; the 2/4-CPU cells are **local-only** until the workflow is extended. The available token cannot edit `.github/workflows/quality.yml`. |
 | Physical | Never run | Not claimed |
 
@@ -288,6 +289,16 @@ Observed markers and what they prove:
   loaded the kernel page tables/GDT/IDT, enabled its LAPIC and marked itself online.
 - `OZERO: tlb shootdown OK status=0 ipi_seen=N-1` — the BSP sent one fixed-delivery IPI per AP
   and received every acknowledgement before invalidating locally.
+- `OZERO: tlb shootdown range OK` and `OZERO: tlb shootdown full OK` — the range descriptor and
+  full CR3-reload paths used the same bounded acknowledgement protocol.
+- `OZERO: ioapic=active gsis=24` — the MADT I/O APIC was mapped, every redirection entry was
+  masked, and ISA IRQ routing moved to the I/O APIC; the 8259 was masked.
+- `OZERO: kaslr layout offset=0x...` — a 2 MiB-aligned stack-window offset was derived once and
+  fed to every kernel-stack allocation; kernel text and the HHDM stayed at link-time addresses.
+- `OZERO: bootloader reclaim bytes=N` — Limine reclaimable regions were released after boot
+  information and ACPI data were copied.
+- `OZERO: smp scheduling OK cpus=N threads=N iterations=...` — kernel worker threads ran on
+  more than one CPU and migrated between per-CPU runqueues.
 - `OZERO: timer=lapic hz=100` — the PIT calibration succeeded, the PIT was stopped, IRQ0 was
   masked and the LAPIC timer ran the scheduler; the Wave 2/3 worker and self-test markers still
   complete.
@@ -295,10 +306,11 @@ Observed markers and what they prove:
   `STAC`/`CLAC` cores without faulting. `Haswell-v1` correctly reports `smap=off` because that
   CPU model has no SMAP.
 
-Not started and explicitly not claimed: IOAPIC redirection programming, per-CPU runqueues,
-AP scheduling/migration, KASLR, a buddy allocator and bootloader-memory reclaim. See
+Still open and explicitly not claimed: user threads on APs (per-CPU TSS/IST), work stealing,
+ACPI-reclaimable release, kernel-image relocation, and physical-hardware evidence. See
 [ADR 0009](decisions/0009-smp-bringup-and-local-apic-timer.md),
-[ADR 0010](decisions/0010-memory-hardening-smep-smap.md) and
+[ADR 0010](decisions/0010-memory-hardening-smep-smap.md),
+[ADR 0011](decisions/0011-wave3-ioapic-percpu-kaslr-pmm.md) and
 [hardening-roadmap.md](hardening-roadmap.md).
 
 ### Wave P.0 — physical boot gate (the Director decides; agents do not schedule it)
@@ -345,17 +357,18 @@ Truthful split by evidence type:
 - **Build (previous Stage 5 branch):** `make check` passes locally in this cloud sandbox (Debian 13, GCC 14.2, binutils, xorriso, QEMU 10.0.13, KVM available): doctor, the freestanding `-Werror` kernel/ISO build and every host suite, including 15 GPU tests (the 10 Haswell PPGTT/GGTT/core tests plus 5 discovery/capability tests). QEMU smoke tests pass on both `qemu64` and `Haswell-v1`. The Stage 5 boot self-test now runs the GPU core memory-object lifecycle and GPU discovery, printing `OZERO: gpu core self-test complete`, `OZERO: gpu pci display devices=`, per-device `OZERO: gpu device ...` lines and `OZERO: gpu discovery complete`. This is local verification; the GitHub Actions run for this branch [45385070008](https://github.com/Momegaii/Ozero/actions/runs/45385070008) also passed (`x86_64-kernel` job, `make check` + both QEMU boots), observed via the GitHub API.
 - **Host unit tests:** PMM 7/7, slab 5/5, scheduler 5/5, CPU, block layer 6/6, OzeroFS 10/10,
   PCI 1/1 and GPU 25/25 in the submission branch run (GPU was 15/15 on the previous branch).
-- **Wave 3 local verification (2026-11-25, QEMU 10.0.13):** `make check` exit 0; `make test`
-  exit 0 with ACPI PASS, PMM 8/8, slab 5/5, scheduler 5/5, block 6/6, OzeroFS 10/10, GPU 26/26,
-  CPU/ABI/ELF/usercopy/capability pass, surface 6 checks and PS/2 all pass; `make test-sanitize`
-  exit 0 with leak detection; `gcc -fanalyzer` reports nothing on the changed ACPI, SMP, APIC
-  timer, CPU, PIC, usercopy and PMM sources. The BIOS/UEFI × `qemu64`/`Haswell-v1` × `-smp 1/2/4`
-  matrix is 12/12 PASS; the BIOS/UEFI × `-cpu max` × `-smp 1/2/4` SMAP matrix is 6/6 PASS. The
-  framebuffer check still reports `PASS width=1280 height=800 bar_width=160 bars=8
-  checksum=0x8acf6953`. CI run [#45613293821](https://github.com/Momegaii/Ozero/actions/runs/45613293821)
-  on commit `3ad4ee2` passed all five jobs on QEMU 10.2.1; its downloaded logs were inspected and
-  contain the same single-CPU markers. CI does not run the 2/4-CPU cells. This is emulator
-  evidence, not physical evidence.
+- **Wave 3 local verification (2026-11-24, QEMU 10.0.13):** `make check` exit 0; `make test`
+  exit 0 with ACPI PASS, I/O APIC PASS, lock-order PASS, KASLR PASS, PMM 9/9, slab 5/5,
+  scheduler 6/6, block 6/6, OzeroFS 10/10, GPU 26/26, CPU/ABI/ELF/usercopy/capability pass,
+  surface 6 checks and PS/2 all pass; `make test-sanitize` exit 0 with leak detection;
+  `gcc -fanalyzer` reports nothing on the changed I/O APIC, KASLR, SMP, scheduler, sync, IRQ,
+  APIC timer, paging and PMM sources. The full BIOS/UEFI × `qemu64`/`Haswell-v1`/`max` ×
+  `-smp 1/2/4` matrix is 18/18 PASS. Every cell prints `ioapic=active gsis=24`,
+  `kaslr layout offset=0x...`, `bootloader reclaim bytes=...`, `smp cpus=N online=N` and
+  `timer=lapic hz=100`; N>1 cells add range/full shootdown and `smp scheduling OK`; `max`
+  cells add `smep=on smap=on`. The framebuffer check reports `PASS width=1280 height=800
+  bar_width=160 bars=8 checksum=0x8acf6953`. This is emulator evidence, not physical evidence.
+  CI does not run the 2/4-CPU cells.
 - **Branch audit (2026-11-24):** clean rebuild from an empty `build/`; every header compiles as
   its own translation unit; `nm -u build/kernel.elf` reports zero undefined symbols; every
   `kernel/src/*.c` and `kernel/arch/x86_64/*.c` is in the link; all host suites also pass under
@@ -534,9 +547,10 @@ evidence.
 
 Ordered by `docs/hardening-roadmap.md`:
 
-1. **Finish Wave 3:** IOAPIC redirection programming and GSI routing; per-CPU runqueues,
-   AP scheduling and migration; KASLR; a buddy allocator; bootloader-memory reclaim. APs are
-   online today but the scheduler is still BSP-only.
+1. **Finish Wave 3:** close the remaining review items and add per-CPU TSS/IST before user
+   threads leave the BSP. I/O APIC routing, per-CPU runqueues, kernel-thread migration, range
+   shootdown, stack-window KASLR, aligned buddy allocation and bootloader reclaim are
+   implemented and locally verified.
 2. **Wave 4 — storage and filesystem:** virtio-blk first, then AHCI/NVMe with DMA and IRQ
    completion; MBR/GPT partition discovery; crash consistency as an ADR; then a VFS with file
    descriptors and a page cache. No part of Wave 4 is started.

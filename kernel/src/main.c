@@ -32,6 +32,8 @@
 #include "ozero/gpu_queue.h"
 #include "ozero/handle.h"
 #include "ozero/input_ps2.h"
+#include "ozero/ioapic.h"
+#include "ozero/kaslr.h"
 #include "ozero/memory.h"
 #include "ozero/object.h"
 #include "ozero/irq.h"
@@ -926,6 +928,87 @@ static void wave3_run_ipc_pair(const char *tag) {
     o0_serial_putc('\n');
 }
 
+
+static volatile uint32_t smp_seen[O0_MAX_CPUS];
+static volatile uint32_t smp_iterations;
+
+static void smp_worker(void *arg) {
+    uint32_t target = (uint32_t)(uintptr_t)arg;
+    uint32_t online = o0_smp_online_count();
+    for (uint32_t i = 0; i < 200u; ++i) {
+        uint32_t cpu = o0_cpu_index();
+        if (cpu < O0_MAX_CPUS) {
+            __atomic_add_fetch(&smp_seen[cpu], 1u, __ATOMIC_RELEASE);
+        }
+        __atomic_add_fetch(&smp_iterations, 1u, __ATOMIC_RELEASE);
+        if (online > 1u) {
+            target = (target + 1u) % online;
+            o0_status migrated = o0_thread_migrate(o0_thread_self(), target);
+            if (migrated != O0_OK && migrated != O0_ENOTSUP) {
+                panic("smp worker migration failed");
+            }
+        }
+        o0_thread_yield();
+    }
+}
+
+static void wave3_smp_stress(void) {
+    uint32_t online = o0_smp_online_count();
+    for (uint32_t i = 0; i < O0_MAX_CPUS; ++i) {
+        smp_seen[i] = 0;
+    }
+    smp_iterations = 0;
+    if (online <= 1u) {
+        o0_serial_puts("OZERO: smp scheduling skipped online=1\n");
+        return;
+    }
+
+    o0_process_t *proc = NULL;
+    if (o0_process_create("smp-stress", o0_as_kernel(), o0_budget_root(), &proc) != O0_OK) {
+        panic("smp stress process creation failed");
+    }
+    o0_thread_t *threads[O0_MAX_CPUS];
+    uint32_t count = 0;
+    for (uint32_t i = 0; i < online && i < O0_MAX_CPUS; ++i) {
+        struct o0_thread_attr attr = {
+            .name = "smp-worker",
+            .entry = smp_worker,
+            .arg = (void *)(uintptr_t)((i + 1u) % online),
+            .stack_size = 0,
+            .priority = 0,
+            .flags = 0
+        };
+        if (o0_thread_create(proc, &attr, &threads[count]) != O0_OK) {
+            panic("smp stress thread creation failed");
+        }
+        if (o0_thread_migrate(threads[count], i) != O0_OK) {
+            panic("smp stress initial migration failed");
+        }
+        ++count;
+    }
+    for (uint32_t i = 0; i < count; ++i) {
+        if (o0_thread_join(threads[i], NULL) != O0_OK) {
+            panic("smp stress join failed");
+        }
+    }
+    uint32_t seen = 0;
+    for (uint32_t i = 0; i < O0_MAX_CPUS; ++i) {
+        if (smp_seen[i] != 0u) {
+            ++seen;
+        }
+    }
+    if (seen < 2u) {
+        panic("smp stress never ran on two CPUs");
+    }
+    o0_serial_puts("OZERO: smp scheduling OK cpus=");
+    o0_serial_dec(seen);
+    o0_serial_puts(" threads=");
+    o0_serial_dec(count);
+    o0_serial_puts(" iterations=");
+    o0_serial_dec(smp_iterations);
+    o0_serial_puts("\n");
+}
+
 static void wave3_self_test(void *arg) {
     (void)arg;
 
@@ -1058,6 +1141,7 @@ static void wave3_self_test(void *arg) {
         panic("wave3 process churn leaked physical pages");
     }
     o0_serial_puts("OZERO: wave3 churn OK pairs=8\n");
+    wave3_smp_stress();
     o0_serial_puts("OZERO: wave3 self-test complete\n");
 }
 
@@ -1287,6 +1371,10 @@ void kmain(void) {
         o0_serial_puts("OZERO: no boot framebuffer; serial fallback\n");
     }
 
+    o0_kaslr_init();
+    o0_serial_puts("OZERO: kaslr layout offset=");
+    o0_serial_hex(o0_kaslr_offset());
+    o0_serial_puts("\n");
     if (o0_paging_init(bi) != O0_OK) {
         panic("paging initialisation failed");
     }
@@ -1370,23 +1458,6 @@ void kmain(void) {
     o0_serial_puts(o0_pic_apic_extint_active() ? "lapic-extint" : "pic-legacy");
     o0_serial_puts("\n");
 
-    uint32_t online = o0_smp_start(mp_request.response);
-    o0_serial_puts("OZERO: smp cpus=");
-    o0_serial_dec(o0_cpu_count());
-    o0_serial_puts(" online=");
-    o0_serial_dec(online);
-    o0_serial_puts("\n");
-    if (o0_smp_online_count() > 1u) {
-        o0_status tlb = o0_tlb_shootdown((uint64_t)(uintptr_t)&online);
-        o0_serial_puts("OZERO: tlb shootdown ");
-        o0_serial_puts(tlb == O0_OK ? "OK" : "FAILED");
-        o0_serial_puts(" status=");
-        o0_serial_dec((uint64_t)tlb);
-        o0_serial_puts(" ipi_seen=");
-        o0_serial_dec(o0_smp_ipi_seen());
-        o0_serial_puts("\n");
-    }
-
     if (!o0_thread_init_system()) {
         panic("thread subsystem already initialised");
     }
@@ -1412,6 +1483,50 @@ void kmain(void) {
     o0_serial_puts(timer_status == O0_OK ? "lapic" : "pit");
     o0_serial_puts(" hz=");
     o0_serial_dec(o0_sched_hz());
+    o0_serial_puts("\n");
+
+    /* The I/O APIC replaces the 8259 only after the LAPIC timer is calibrated:
+     * calibration uses PIT IRQ0, which the I/O APIC path masks. */
+    o0_status ioapic_status = O0_ENOSYS;
+    if (timer_status == O0_OK) {
+        ioapic_status = o0_ioapic_init();
+    }
+    o0_serial_puts("OZERO: ioapic=");
+    o0_serial_puts(ioapic_status == O0_OK ? "active" : "unavailable");
+    o0_serial_puts(" gsis=");
+    o0_serial_dec(o0_ioapic_pin_count());
+    o0_serial_puts("\n");
+
+    /* Release the APs only after the scheduler and both timer paths exist. */
+    uint32_t online = o0_smp_start(mp_request.response);
+    o0_serial_puts("OZERO: smp cpus=");
+    o0_serial_dec(o0_cpu_count());
+    o0_serial_puts(" online=");
+    o0_serial_dec(online);
+    o0_serial_puts("\n");
+    if (o0_smp_online_count() > 1u) {
+        uint64_t probe = (uint64_t)(uintptr_t)&online;
+        o0_status tlb = o0_tlb_shootdown(probe);
+        o0_serial_puts("OZERO: tlb shootdown ");
+        o0_serial_puts(tlb == O0_OK ? "OK" : "FAILED");
+        o0_serial_puts(" status=");
+        o0_serial_dec((uint64_t)tlb);
+        o0_serial_puts(" ipi_seen=");
+        o0_serial_dec(o0_smp_ipi_seen());
+        o0_serial_puts("\n");
+        o0_status range = o0_tlb_shootdown_range(probe, 4u * O0_PAGE_SIZE);
+        o0_serial_puts("OZERO: tlb shootdown range ");
+        o0_serial_puts(range == O0_OK ? "OK" : "FAILED");
+        o0_serial_puts("\n");
+        o0_status full = o0_tlb_shootdown_all();
+        o0_serial_puts("OZERO: tlb shootdown full ");
+        o0_serial_puts(full == O0_OK ? "OK" : "FAILED");
+        o0_serial_puts("\n");
+    }
+
+    uint64_t reclaimed = o0_pmm_release_bootloader_memory();
+    o0_serial_puts("OZERO: bootloader reclaim bytes=");
+    o0_serial_dec(reclaimed);
     o0_serial_puts("\n");
 
     o0_input_ps2_init();
