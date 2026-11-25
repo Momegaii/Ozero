@@ -1,5 +1,7 @@
 /* Stage 6.4: compact z-order registry; array order is back-to-front. */
 #include "ozero/window.h"
+#include "ozero/input.h"
+
 static int find(struct o0_window_manager *w,o0_window_id id) {
     for(uint32_t i=0;i<w->count;i++) if(w->windows[i].id==id) return (int)i;
     return -1;
@@ -14,7 +16,7 @@ o0_status o0_wm_create(struct o0_window_manager *w,struct o0_surface *s,int32_t 
     o0_window_id id=w->next_id++;
     if(!id) id=w->next_id++;
     struct o0_window *v=&w->windows[w->count++];
-    *v=(struct o0_window){.id=id,.surface=s,.x=x,.y=y,.width=(uint32_t)s->width,.height=(uint32_t)s->height,.visible=true,.focused=false};
+    *v=(struct o0_window){.id=id,.surface=s,.x=x,.y=y,.width=(uint32_t)s->width,.height=(uint32_t)s->height,.visible=true,.focused=false,.event_fn=0,.event_ctx=0};
     *out=id;
     return o0_wm_focus(w,id);
 }
@@ -54,4 +56,9 @@ struct o0_window *o0_wm_hit_test(struct o0_window_manager *w,int32_t x,int32_t y
            (int64_t)x<(int64_t)v->x+v->width && (int64_t)y<(int64_t)v->y+v->height) return v;
     }
     return 0;
+}
+void o0_window_set_event_handler(struct o0_window *win, o0_window_event_fn fn, void *ctx) {
+    if (!win) return;
+    win->event_fn = fn;
+    win->event_ctx = ctx;
 }

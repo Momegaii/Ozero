@@ -33,7 +33,7 @@ KERNEL_OBJS := $(BUILD)/main.o $(BUILD)/serial.o $(BUILD)/string.o $(BUILD)/stat
                $(BUILD)/context.o $(BUILD)/block.o $(BUILD)/ramdisk.o \
                $(BUILD)/o0fs.o $(BUILD)/pci.o $(BUILD)/gpu.o $(BUILD)/gpu_hsw.o \
                $(BUILD)/gpu_device.o $(BUILD)/gpu_queue.o $(BUILD)/surface.o \
-               $(BUILD)/display.o $(BUILD)/input.o $(BUILD)/input_ps2.o $(BUILD)/window.o \
+               $(BUILD)/display.o $(BUILD)/input.o $(BUILD)/input_ps2.o $(BUILD)/input_router.o $(BUILD)/window.o \
                $(BUILD)/compositor.o $(BUILD)/gfx_backend.o $(BUILD)/shell.o \
                $(BUILD)/abi.o $(BUILD)/elf.o $(BUILD)/usercopy.o $(BUILD)/usercopy_stub.o \
                $(BUILD)/user.o $(BUILD)/syscall_c.o $(BUILD)/syscall_entry.o \
@@ -224,7 +224,7 @@ test: $(BUILD)
 	$(HOST_RUN_ENV) ./$(BUILD)/compositor_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/gfx_backend_test tests/gfx_backend_test.c kernel/src/gfx_backend.c kernel/src/surface.c kernel/src/status.c
 	$(HOST_RUN_ENV) ./$(BUILD)/gfx_backend_test
-	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/shell_test tests/shell_test.c kernel/src/shell.c kernel/src/window.c kernel/src/surface.c kernel/src/status.c
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/shell_test tests/shell_test.c kernel/src/shell.c kernel/src/input_router.c kernel/src/window.c kernel/src/surface.c kernel/src/status.c kernel/src/input.c
 	$(HOST_RUN_ENV) ./$(BUILD)/shell_test
 
 # Same suites, compiled and run under AddressSanitizer and
