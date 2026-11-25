@@ -19,6 +19,12 @@ extern "C" {
 
 #define O0_MAX_CPUS 1u
 
+#ifdef O0_LOCK_ORDER_CHECK
+#define O0_MAX_LOCK_DEPTH 16
+#else
+#define O0_MAX_LOCK_DEPTH 0
+#endif
+
 struct o0_cpu_local {
     struct o0_cpu_local *self;       /* offset 0 */
     uint64_t kernel_rsp0;            /* offset 8  : TSS.RSP0 mirror */
@@ -28,6 +34,10 @@ struct o0_cpu_local {
     uint64_t usercopy_expected;      /* offset 40 : fault rip to match */
     uint32_t cpu_index;              /* offset 48 */
     uint32_t preempt_depth;          /* offset 52 */
+#ifdef O0_LOCK_ORDER_CHECK
+    uint32_t lock_depth;             /* offset 56 : lock checker nesting depth */
+    const void *held_locks[O0_MAX_LOCK_DEPTH]; /* offset 60 : held ordered locks */
+#endif
 };
 
 #define O0_CPU_LOCAL_OFFSET_SELF 0u

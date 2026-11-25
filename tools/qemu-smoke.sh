@@ -3,10 +3,14 @@ set -euo pipefail
 
 QEMU="${QEMU:-qemu-system-x86_64}"
 CPU_MODEL="${QEMU_CPU:-qemu64}"
+SMP="${QEMU_SMP:-1}"
 # QEMU_FIRMWARE selects the firmware path: "bios" (default) or "uefi" (OVMF).
 # The ISO is the same hybrid image in both cases; only the emulated firmware
 # differs, so the serial evidence must state which one produced it.
 FIRMWARE="${QEMU_FIRMWARE:-bios}"
+# QEMU_LOCK_ORDER=1 requires the build to have been compiled with
+# -DO0_LOCK_ORDER_CHECK and asserts its boot marker.
+LOCK_ORDER="${QEMU_LOCK_ORDER:-0}"
 ISO="${1:-build/ozero.iso}"
 LOG="${2:-build/qemu-serial.log}"
 DEBUG_LOG="${QEMU_DEBUG_LOG:-build/qemu-debug.log}"
@@ -54,7 +58,7 @@ rm -f "$LOG" "$DEBUG_LOG"
 
 set +e
 timeout "${TIMEOUT_SECONDS}s" "$QEMU" \
-    -machine q35 -cpu "$CPU_MODEL" -m 512M "${firmware_args[@]}" \
+    -machine q35 -cpu "$CPU_MODEL" -m 512M -smp "$SMP" "${firmware_args[@]}" \
     -cdrom "$ISO" -boot d \
     -display none -serial "file:$LOG" -monitor none \
     -no-reboot -no-shutdown \
@@ -129,6 +133,18 @@ required_markers=(
     "OZERO: wave2 self-test complete"
 )
 
+if [[ "$SMP" -gt 1 ]]; then
+    required_markers+=("OZERO: tlb shootdown OK")
+    required_markers+=("OZERO: tlb shootdown range OK")
+    required_markers+=("OZERO: tlb shootdown full OK")
+    required_markers+=("OZERO: smp scheduling OK cpus=")
+    required_markers+=("OZERO: smp user churn OK processes=16")
+fi
+
+if [[ "$LOCK_ORDER" == "1" ]]; then
+    required_markers+=("OZERO: lock order check=on")
+fi
+
 for marker in "${required_markers[@]}"; do
     if ! grep -Fq "$marker" "$LOG"; then
         echo "error: missing boot milestone: $marker" >&2
@@ -140,5 +156,13 @@ for marker in "${required_markers[@]}"; do
     fi
 done
 
+fault_count=$(grep -Fc "OZERO: user fault contained" "$LOG" || true)
+if [[ "$fault_count" -lt 3 ]]; then
+    echo "error: expected 3 contained user faults, found $fault_count" >&2
+    echo "--- guest serial output ---" >&2
+    cat "$LOG" >&2 || true
+    exit 1
+fi
+
 cat "$LOG"
-echo "QEMU smoke test: PASS (firmware=$FIRMWARE cpu=$CPU_MODEL qemu=$("$QEMU" --version | head -n 1))"
+echo "QEMU smoke test: PASS (firmware=$FIRMWARE cpu=$CPU_MODEL smp=$SMP qemu=$("$QEMU" --version | head -n 1))"

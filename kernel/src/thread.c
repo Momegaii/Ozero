@@ -498,3 +498,25 @@ O0_NODISCARD o0_status o0_thread_set_fs_base(o0_thread_t *thread, uint64_t base)
     thread->fs_base = base;
     return O0_OK;
 }
+
+/* SMP support stubs (Wave 3). These are no-ops until SMP is implemented. */
+
+o0_process_t *o0_process_kernel(void) {
+    /* Return the first process slot as the kernel process. */
+    if (process_table[0].name[0] != '\0') {
+        return &process_table[0];
+    }
+    return NULL;
+}
+
+uint32_t o0_smp_online_count(void) {
+    /* Single-CPU for now. */
+    return 1;
+}
+
+o0_status o0_sched_migrate(o0_thread_t *thread, uint32_t target_cpu) {
+    (void)thread;
+    (void)target_cpu;
+    /* Migration not implemented in single-CPU mode. */
+    return O0_ENOTSUP;
+}

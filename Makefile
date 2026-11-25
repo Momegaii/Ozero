@@ -3,6 +3,10 @@ CC ?= gcc
 LD ?= ld
 OBJCOPY ?= objcopy
 QEMU ?= qemu-system-x86_64
+QEMU_CPU ?= qemu64
+QEMU_SMP ?= 1
+# Set to 1 to compile the kernel with the lock-order checker enabled.
+LOCK_ORDER ?= 0
 BUILD := build
 LIMINE_COMMIT := 5be26a73d7b7b4d4477d18be94e1d16e615adf56
 LIMINE_DIR := $(BUILD)/limine
@@ -13,7 +17,11 @@ ISO := $(BUILD)/ozero.iso
 CFLAGS := -std=gnu11 -O2 -Wall -Wextra -Werror \
           -ffreestanding -fno-stack-protector -fno-pic -fno-pie \
           -fno-asynchronous-unwind-tables -fno-unwind-tables \
-          -m64 -march=x86-64 -mtune=generic -mcmodel=kernel -mno-red-zone -mgeneral-regs-only
+          -m64 -march=x86-64 -mtune=generic -mcmodel=kernel -mno-red-zone -mgeneral-regs-only \
+          -DO0_BUILD_COMMIT=\"$(BUILD_COMMIT)\"
+ifeq ($(LOCK_ORDER),1)
+CFLAGS += -DO0_LOCK_ORDER_CHECK
+endif
 LDFLAGS := -nostdlib -static -z max-page-size=0x1000 -T kernel/linker.lds
 
 KERNEL_OBJS := $(BUILD)/main.o $(BUILD)/serial.o $(BUILD)/string.o $(BUILD)/status.o \
@@ -36,7 +44,7 @@ USER_ELFS := $(addprefix $(BUILD)/user_,$(addsuffix .elf,$(USER_PROGS)))
 USER_BLOBS := $(addprefix $(BUILD)/blob_,$(addsuffix .o,$(USER_PROGS)))
 KERNEL_OBJS += $(USER_BLOBS)
 
-HOST_CFLAGS := -std=gnu11 -O1 -Wall -Wextra -Iinclude
+HOST_CFLAGS := -std=gnu11 -O1 -Wall -Wextra -Iinclude -DO0_LOCK_ORDER_CHECK
 # Extra flags and per-test environment let the same recipes run under sanitizers
 # (see test-sanitize) without duplicating every test invocation.
 HOST_EXTRA_CFLAGS ?=
@@ -181,6 +189,10 @@ test: $(BUILD)
 	$(HOST_RUN_ENV) ./$(BUILD)/surface_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel -Ikernel/src -Ikernel/arch/x86_64 -o $(BUILD)/input_ps2_test tests/input_ps2_test.c kernel/src/input_ps2.c kernel/src/input.c
 	$(HOST_RUN_ENV) ./$(BUILD)/input_ps2_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -Ikernel/src -o $(BUILD)/lock_order_test tests/lock_order_test.c kernel/src/sync.c
+	$(HOST_RUN_ENV) ./$(BUILD)/lock_order_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/kaslr_test tests/kaslr_test.c
+	$(HOST_RUN_ENV) ./$(BUILD)/kaslr_test
 
 # Same suites, compiled and run under AddressSanitizer and
 # UndefinedBehaviorSanitizer. Leak detection is on: a test binary that leaks is a

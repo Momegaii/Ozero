@@ -778,9 +778,182 @@ static void wave2_demo(void) {
     }
 }
 
+/* ---------- Wave 3.5: SMP stress with migration and user churn ---------- */
+
+static volatile uint32_t smp_seen[O0_MAX_CPUS];
+static volatile uint32_t smp_iterations;
+static volatile uint32_t smp_migrations;
+static volatile uint32_t smp_stop;
+
+static void smp_worker(void *arg) {
+    (void)arg;
+    uint32_t online = o0_smp_online_count();
+    while (__atomic_load_n(&smp_stop, __ATOMIC_ACQUIRE) == 0u) {
+        uint32_t cpu = o0_cpu_index();
+        if (cpu < O0_MAX_CPUS) {
+            __atomic_add_fetch(&smp_seen[cpu], 1u, __ATOMIC_RELEASE);
+        }
+        /* Try to migrate to the next CPU. */
+        uint32_t next = (cpu + 1u) % online;
+        o0_status migrated = o0_sched_migrate(o0_thread_self(), next);
+        if (migrated != O0_OK && migrated != O0_ENOTSUP) {
+            panic("smp worker migration failed");
+        }
+        if (migrated == O0_OK) {
+            __atomic_add_fetch(&smp_migrations, 1u, __ATOMIC_RELEASE);
+        }
+        for (uint32_t spin = 0; spin < 64u; ++spin) {
+            o0_cpu_relax();
+        }
+        o0_thread_yield();
+    }
+    uint32_t cpu = o0_cpu_index();
+    if (cpu < O0_MAX_CPUS) {
+        __atomic_add_fetch(&smp_seen[cpu], 1u, __ATOMIC_RELEASE);
+    }
+}
+
+static void wave3_smp_stress(void) {
+    uint32_t online = o0_smp_online_count();
+    for (uint32_t i = 0; i < O0_MAX_CPUS; ++i) {
+        smp_seen[i] = 0;
+    }
+    smp_iterations = 0;
+    smp_migrations = 0;
+    smp_stop = 0;
+    if (online <= 1u) {
+        o0_serial_puts("OZERO: smp scheduling skipped online=1\n");
+        return;
+    }
+
+    /* Start one migration worker per online CPU. */
+    o0_thread_t *threads[O0_MAX_CPUS];
+    uint32_t count = 0;
+    for (uint32_t i = 0; i < online; ++i) {
+        struct o0_thread_attr attr = {
+            .name = "smp-worker",
+            .entry = smp_worker,
+            .arg = (void *)(uintptr_t)i,
+            .stack_size = 0,
+            .priority = 0,
+            .flags = 0,
+            .user_entry = 0,
+            .user_rsp = 0,
+        };
+        if (o0_thread_create(o0_process_kernel(), &attr, &threads[count]) != O0_OK) {
+            panic("smp worker creation failed");
+        }
+        ++count;
+    }
+
+    /* Let the migration workers reach every CPU before the allocation
+     * baseline, so only the user churn changes the PMM free count. */
+    o0_thread_sleep_ns(1000000ull);
+
+    uint64_t before = o0_pmm_free_bytes();
+    for (uint32_t i = 0; i < 16u; ++i) {
+        if (wave2_run_user("smp-churn", _binary_build_user_quiet_elf_start,
+                           _binary_build_user_quiet_elf_end) != 0) {
+            panic("smp churn process failed");
+        }
+    }
+    uint64_t after = o0_pmm_free_bytes();
+    if (after != before) {
+        panic("smp user churn leaked physical pages");
+    }
+    o0_serial_puts("OZERO: smp user churn OK processes=16\n");
+
+    __atomic_store_n(&smp_stop, 1u, __ATOMIC_RELEASE);
+    for (uint32_t i = 0; i < count; ++i) {
+        if (o0_thread_join(threads[i], NULL) != O0_OK) {
+            panic("smp stress join failed");
+        }
+    }
+
+    uint32_t seen = 0;
+    for (uint32_t i = 0; i < online; ++i) {
+        if (smp_seen[i] > 0u) {
+            ++seen;
+        }
+    }
+    if (seen < 2u || smp_migrations == 0u) {
+        panic("smp stress never migrated across two CPUs");
+    }
+    o0_serial_puts("OZERO: smp scheduling OK cpus=");
+    o0_serial_dec(seen);
+    o0_serial_puts(" threads=");
+    o0_serial_dec(count);
+    o0_serial_puts(" iterations=");
+    o0_serial_dec(smp_iterations);
+    o0_serial_puts(" migrations=");
+    o0_serial_dec(smp_migrations);
+    o0_serial_puts("\n");
+}
+
 static struct o0_display_mode boot_display_mode;
 static o0_paddr_t boot_framebuffer_phys;
 static bool boot_framebuffer_valid;
+
+/* Kernel-stack randomization (KSR) state. */
+#define O0_KASLR_KSTACK_BASE 0xFFFFFE8000000000ull
+#define O0_KASLR_KSTACK_WINDOW (1ull << 30) /* 1 GiB */
+#define O0_KASLR_SLOT_SIZE (2ull << 20)     /* 2 MiB */
+#define O0_KASLR_SLOT_COUNT (O0_KASLR_KSTACK_WINDOW / O0_KASLR_SLOT_SIZE) /* 512 */
+
+uint64_t o0_kaslr_layout_offset = 0;
+
+static uint64_t murmurhash3_64_finalizer(uint64_t h) {
+    h ^= h >> 33;
+    h *= 0xff51afd7ed558ccdull;
+    h ^= h >> 33;
+    h *= 0xc4ceb9fe1a85ec53ull;
+    h ^= h >> 33;
+    return h;
+}
+
+static bool cpu_has_rdrand(void) {
+    uint32_t eax, ebx, ecx, edx;
+    __asm__ volatile ("cpuid" : "=a"(eax), "=b"(ebx), "=c"(ecx), "=d"(edx) : "a"(1));
+    return (ecx & (1u << 30)) != 0;
+}
+
+static uint32_t cpu_rdrand64(uint64_t *out) {
+    unsigned char ok;
+    __asm__ volatile ("rdrand %0; setc %1" : "=r"(*out), "=qm"(ok) :: "cc");
+    return ok;
+}
+
+static uint64_t cpu_rdtsc(void) {
+    uint32_t lo, hi;
+    __asm__ volatile ("rdtsc" : "=a"(lo), "=d"(hi));
+    return ((uint64_t)hi << 32) | lo;
+}
+
+void o0_kaslr_init(const struct o0_cpu_features *cf) {
+    (void)cf;
+    uint64_t seed = 0;
+    bool have_rdrand = cpu_has_rdrand();
+
+    if (have_rdrand) {
+        for (int i = 0; i < 16; ++i) {
+            uint64_t val;
+            if (cpu_rdrand64(&val)) {
+                seed ^= val;
+                break;
+            }
+        }
+    }
+    seed ^= cpu_rdtsc();
+
+    if (!have_rdrand || seed == 0) {
+        /* Fallback: mix TSC with a data address */
+        extern uint64_t o0_kaslr_layout_offset;
+        seed ^= (uint64_t)(uintptr_t)&o0_kaslr_layout_offset << 17;
+    }
+
+    seed = murmurhash3_64_finalizer(seed);
+    o0_kaslr_layout_offset = (seed % O0_KASLR_SLOT_COUNT) * O0_KASLR_SLOT_SIZE;
+}
 
 __attribute__((noreturn))
 void kmain(void) {
@@ -791,6 +964,11 @@ void kmain(void) {
     o0_serial_puts("OZERO: firmware=");
     o0_serial_puts(efi_system_table_request.response != NULL ? "UEFI" : "BIOS");
     o0_serial_puts("\n");
+#ifdef O0_LOCK_ORDER_CHECK
+    o0_serial_puts("OZERO: lock order check=on\n");
+#else
+    o0_serial_puts("OZERO: lock order check=off\n");
+#endif
 
     if (!LIMINE_BASE_REVISION_SUPPORTED(limine_base_revision)) {
         panic("bootloader does not support requested Limine base revision 6");
@@ -868,6 +1046,14 @@ void kmain(void) {
     o0_serial_puts(cf->page_1gb ? "yes" : "no");
     o0_serial_puts(" invariant_tsc=");
     o0_serial_puts(cf->invariant_tsc ? "yes" : "no");
+    o0_serial_puts("\n");
+
+    /* Kernel-stack randomization (KSR). Derives one 2 MiB-aligned offset
+     * for the dedicated kernel-stack window. The kernel image and HHDM
+     * stay at their link-time addresses; this is not KASLR. */
+    o0_kaslr_init(cf);
+    o0_serial_puts("OZERO: kaslr layout offset=");
+    o0_serial_hex(o0_kaslr_layout_offset);
     o0_serial_puts("\n");
 
     /* Resolve the bootloader framebuffer address before replacing Limine's
@@ -978,6 +1164,10 @@ void kmain(void) {
     report_memory_map();
     stage3_demo();
     wave2_demo();
+
+    /* Wave 3.5 SMP stress test: runs when SMP is available. */
+    extern void wave3_smp_stress(void);
+    wave3_smp_stress();
 
     o0_serial_puts("OZERO: boot success; starting scheduler\n");
     o0_sched_start();

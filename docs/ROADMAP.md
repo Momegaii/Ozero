@@ -44,9 +44,17 @@ per-item status and evidence live in [docs/hardening-roadmap.md](hardening-roadm
   local `{bios, uefi} × {qemu64, Haswell-v1}` matrix plus the sanitizer job, and CI run
   [#136](https://github.com/Momegaii/Ozero/actions/runs/45502990041) passed all five jobs.
   There is no physical-hardware evidence. No Wave 3+ work is claimed. Detail and evidence: [docs/hardening-roadmap.md](hardening-roadmap.md).
-- **Waves 3–6 — planned, not started.** Wave 3 (virtio-blk/AHCI/NVMe, partitions, crash
-  consistency, VFS), Wave 4 (IPC/signals/futex, PCI/MSI-X/ACPI, security model), Wave 5
-  (fuzzing, concurrency testing, logging/backtraces, performance baselines), Wave 6 (resume
+- **Wave 3 — SMP and memory hardening: implemented and locally emulator-verified
+  (2026-11-24), not signed off.** AP bring-up through the Limine MP handoff, xAPIC IPIs,
+  page/range/full TLB shootdown, I/O APIC routing, per-CPU runqueues with kernel-thread
+  migration, LAPIC timers on every CPU, SMEP/SMAP, kernel-stack randomization (KSR), an aligned buddy PMM
+  and bootloader-memory reclaim are done. User threads remain BSP-pinned until per-CPU TSS/IST
+  exists. ADRs [0009](decisions/0009-smp-bringup-and-local-apic-timer.md),
+  [0010](decisions/0010-memory-hardening-smep-smap.md) and
+  [0011](decisions/0011-wave3-ioapic-percpu-kaslr-pmm.md) are accepted-provisional.
+- **Waves 4–6 — planned, not started.** Wave 4 (virtio-blk/AHCI/NVMe, partitions, crash
+  consistency, VFS), Wave 5 (IPC/signals/futex, PCI/MSI-X/ACPI, security model), Wave 6
+  (fuzzing, concurrency testing, logging/backtraces, performance baselines), Wave 7 (resume
   Stage 5/6 graphics).
 - These waves change the stage sequence by Project Director direction; this note records that
   direction rather than redefining it. Each wave's architectural choices still need their own

@@ -119,7 +119,63 @@ Notes carried into the wave:
 - The **ABI** must reserve per-CPU data and `swapgs` now (ADR 0007 §2.8) so SMP cannot force an
   ABI change later.
 
-## Wave 3 — Storage and filesystem (planned, not started)
+## Wave 3 — SMP and memory hardening (implemented, locally verified; not signed off)
+
+The Director's 2026-11-25 order puts SMP and memory hardening here. APs are
+online, the I/O APIC carries ISA interrupts, per-CPU runqueues schedule kernel
+threads, range TLB shootdown works, kernel-stack randomization (KSR) is active, the PMM honours
+buddy alignment and bootloader memory is reclaimed. User threads still do not
+run on APs because the TSS/IST layout is shared. Wave 4 work has not started.
+
+| Sub-wave | Scope | Status | Evidence |
+|---|---|---|---|
+| 3.1 | AP bring-up via Limine MP handoff | **Done** | `o0_smp_init()` parses the Limine SMP response, starts APs through the trampoline, and reports `smp cpus=N online=N`. Host: `tests/smp_test.c` (CPUID, MP table). Emulator: BIOS/UEFI × `qemu64`/`Haswell-v1`/`max` × `-smp {1,2,4}`. |
+| 3.2 | xAPIC IPIs | **Done** | `o0_ipi_send()` and `o0_ipi_broadcast()` with fixed vector `0x40`. QEMU: `ipi broadcast OK`, `ipi single OK`. |
+| 3.3 | Page/range/full TLB shootdown | **Done** | `o0_tlb_shootdown()` with single-page, range and global modes; sender waits for per-CPU ack (count, all flag) in the target's per-CPU block. The sender waits for every online target with a bounded spin; timeout is a panic, never a silent stale TLB. Single-page, range and full-flush entry points share the protocol. |
+| 3.4 | I/O APIC routing | **Done** | `o0_ioapic_init()` discovers the I/O APIC via ACPI MADT, redirects ISA IRQs to the BSP LAPIC, and maps GSI→vector. QEMU: `ioapic=active gsis=24`. Host: `tests/ioapic_test.c`. |
+| 3.5 | Per-CPU runqueues with migration | **Done** | Each CPU has a `o0_runqueue_t` with its own lock (class 0, IRQ-safe). `o0_sched_migrate()` moves a thread's runqueue membership and wakes the target. Kernel worker threads migrate in `wave3_smp_stress()`. QEMU: `smp scheduling OK cpus=N threads=N iterations=... migrations=...`. Host: `tests/sched_test.c` includes per-CPU migration. |
+| 3.6 | LAPIC timer on every CPU | **Done (BSP and AP)** | Calibrated against ten PIT ticks, divisor 16, periodic vector `0x41`; the PIT is stopped and IRQ0 masked only after success. Every AP starts its own timer. QEMU: `timer=lapic hz=100`, worker threads complete. PIT remains the fallback. |
+| 3.7 | SMEP/SMAP | **Done where advertised; SMAP path verified on `-cpu max`** | `Haswell-v1` reports `smep=on smap=off` (the model has no SMAP). `-cpu max` reports `smep=on smap=on`; the `STAC`/`CLAC` usercopy cores run and the Wave 2/3 negative tests still pass. |
+| 3.8 | Guard pages | **Done** | Existing null guard, kernel-stack guard and user-stack guard remain; no new claim. |
+| 3.9 | Kernel-stack randomization (KSR) | **Done (stack window only)** | `o0_kaslr_init()` derives one 2 MiB-aligned offset for the kernel-stack window. **Entropy:** CPUID.01H:ECX bit 30 `RDRAND` (up to 16 attempts) XOR `RDTSC`; without it, `RDTSC` XOR `(address of layout_offset << 17)`, then a MurmurHash3 finalizer and `% 512`. `RDRAND` is a hardware DRBG; the TSC fallback is low-entropy and is not a cryptographic ASLR boundary. The kernel image and HHDM do not move; this is **not KASLR**. QEMU: `kaslr layout offset=0x...` (marker name retained); host: `tests/kaslr_test.c`. |
+| 3.10 | Buddy allocator | **Done (bitmap with buddy alignment)** | The bitmap stays authoritative; order-`n` allocation requires natural alignment and free walks the buddy tree upward while the pair is wholly free. `tests/pmm_test.c` covers alignment, coalescing state and the 2 000-iteration churn baseline. |
+| 3.11 | Bootloader-memory reclaim | **Done** | `o0_pmm_release_bootloader_memory()` releases Limine reclaimable regions after boot info, ACPI data and the SMP response are copied. QEMU: `bootloader reclaim bytes=N`; host: PMM reclaim test. ACPI reclaimable is not released. |
+| 3.12 | Lock-order checker | **Done (default in host tests and one CI cell)** | Ordered locks must acquire in strictly increasing class and release in reverse. `O0_LOCK_ORDER_CHECK` gives every `o0_spin_init()` lock a default class of 1; host tests build with it, and one BIOS/`qemu64` CI cell boots a checker-enabled ISO. The default matrix stays checker-off and the IRQ-safe runqueue locks remain class 0. Host: `tests/lock_order_test.c`; QEMU marker: `lock order check=on`. |
+
+Wave 3 verification detail:
+
+- **Host tests:** `make test` on 2026-11-25: ACPI MADT PASS, I/O APIC encoding/GSI PASS, lock-order PASS, KSR layout PASS, PMM 9/9 (including reclaim and the 2 000-iteration churn), slab 5/5, scheduler 6/6 (including per-CPU migration), block 6/6, OzeroFS 10/10, GPU 26/26 (including the no-MMIO-write canary), CPU/ABI/ELF/usercopy/capability pass, surface 6 checks, PS/2 all pass | Passes locally, exit 0
+- **Host sanitizers:** `make test-sanitize` (ASan/UBSan, leak detection) on the same suite | Passes locally, exit 0; no leak or UB report
+- **Host analyzer:** `gcc -fanalyzer` on I/O APIC, KSR, SMP, scheduler, sync, IRQ, APIC timer, paging and PMM sources | No findings
+- **QEMU:** local QEMU 10.0.13, BIOS and UEFI, `qemu64`, `Haswell-v1` and `max`, at `-smp 1`, `-smp 2` and `-smp 4`. The matrix log set is recorded in `docs/PROJECT_STATUS.md`; no result is inferred from another cell.
+- **CI:** the uploaded workflow still runs four BIOS/UEFI × `qemu64`/`Haswell-v1` cells at `-smp 1`. The Wave 3.5 patch would extend `kernel-and-boot` to `{bios, uefi} × {qemu64, Haswell-v1, max} × -smp {1, 2}` and add a separate BIOS/`qemu64` `lock-order-boot` job, but the supplied token lacks workflow scope, so it is not active. The `-smp 4` cells remain local-only.
+- **Physical:** never exercised. No Wave 3 result is physical evidence.
+
+ADRs: [0009](decisions/0009-smp-bringup-and-local-apic-timer.md) (SMP, IPI, timer),
+[0010](decisions/0010-memory-hardening-smep-smap.md) (SMEP/SMAP order) and
+[0011](decisions/0011-wave3-ioapic-percpu-kaslr-pmm.md) (I/O APIC, per-CPU
+scheduling, kernel-stack randomization, buddy PMM, reclaim and lock classes). All are
+accepted-provisional for review.
+
+## Wave 3.5 — Verification expansion (2026-11-25, not signed off)
+
+The Director asked for CI `-smp 2` and `-cpu max` cells, final-commit log inspection, an
+item-by-item Wave 2.7 answer, the stack-randomization rename, default lock-order checking,
+PR #6 scope/base, Director-observed rows, and an `-smp 2` stress test that migrates kernel
+threads while a user process churns on the BSP.
+
+| Item | Status | Evidence |
+|---|---|---|
+| CI `-smp 2` and `-cpu max` | **Local patch only; blocked by token scope** | The supplied fine-grained token can read and write code but not `.github/workflows` (GitHub returns "without `workflow` scope"). The prepared `.github/workflows/quality.yml` patch sets `{bios, uefi} × {qemu64, Haswell-v1, max} × -smp {1, 2}` and adds `lock-order-boot`; it is not active on GitHub. Local 18-cell matrix, including `-smp 4`, is PASS. |
+| Inspect final-commit CI logs | **Blocked** | The final commit cannot activate the new matrix without a workflow-scoped token. The previous run `45632864851` was inspected, but it predates Wave 3.5. |
+| Wave 2.7 item-by-item answer | **Done** | `docs/PROJECT_STATUS.md` records the three items and the exact marker counts. The smoke test now rejects a run with fewer than three `user fault contained` markers. |
+| Stack-randomization rename and entropy | **Done** | Docs call it kernel-stack randomization (KSR), not KASLR. Entropy is `RDRAND` (16 attempts) mixed with `RDTSC`, else `RDTSC` XOR a data address; TSC fallback is low-entropy. ADR 0011 and roadmap 3.9 record the limit. |
+| Lock-order checker by default | **Done locally; CI cell blocked** | Host tests compile with `O0_LOCK_ORDER_CHECK`; the checker-enable build gives every `o0_spin_init()` lock class 1. Local BIOS/`qemu64` `-smp 1` and `-smp 2` boots pass with `lock order check=on`. The prepared CI job would boot it, but the token cannot push the workflow. Nested GPU locks were given explicit inner classes. |
+| PR #6 scope and base | **Recorded in STATUS** | Base is `kilo/floral-eagle-2hb`, not `main`; the PR is a combined Wave 2.7 + Wave 5.0 + Wave 3 diff. |
+| Director-observed rows | **Reserved, not fabricated** | STATUS has rows for the Director's Windows 8.1 / i5-4460 / `q35` host; every Wave 3 row says not run / not reported until the Director supplies a log. |
+| `-smp 2` migration + user churn | **Done locally** | `wave3_smp_stress()` runs 16 quiet user churn processes on the BSP while one kernel worker per online CPU migrates itself across CPUs. QEMU `-smp 2`: `smp user churn OK processes=16` and `smp scheduling OK cpus=2 ... migrations=6..7`; `-smp 4`: `cpus=4 ... migrations=9..11`. The PMM free-byte count must be unchanged. |
+
+## Wave 4 — Storage and filesystem (not started)
 
 1. virtio-blk first, then AHCI/NVMe with DMA and IRQ completion.
 2. MBR/GPT partition discovery.

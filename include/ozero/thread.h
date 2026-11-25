@@ -33,8 +33,14 @@ O0_NODISCARD o0_status o0_process_create(const char *name, o0_as_t *as,
                                          o0_process_t **out);
 void o0_process_destroy(o0_process_t *proc);
 o0_process_t *o0_process_current(void);
+o0_process_t *o0_process_kernel(void);
 o0_as_t *o0_process_as(o0_process_t *proc);
 const char *o0_process_name(const o0_process_t *proc);
+
+/* ---- SMP ---- */
+
+uint32_t o0_smp_online_count(void);
+o0_status o0_sched_migrate(o0_thread_t *thread, uint32_t target_cpu);
 
 /* ---- Threads ---- */
 
