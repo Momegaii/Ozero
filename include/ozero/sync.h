@@ -21,7 +21,15 @@ typedef struct o0_spinlock {
     uint32_t debug_owner;
 } o0_spinlock_t;
 
-#define O0_SPINLOCK_INIT { 0u, 0u, 0u, 0u }
+/* Builds that define O0_LOCK_ORDER_CHECK assign every lock a default class,
+ * so a forgotten o0_spin_init_ordered() cannot silently disable the checker. */
+#ifdef O0_LOCK_ORDER_CHECK
+#define O0_LOCK_ORDER_DEFAULT 1u
+#else
+#define O0_LOCK_ORDER_DEFAULT 0u
+#endif
+
+#define O0_SPINLOCK_INIT { 0u, 0u, O0_LOCK_ORDER_DEFAULT, 0u }
 
 void o0_spin_init(o0_spinlock_t *lock);
 /* Initialises a lock with a lock-order class. Nested acquisitions must use

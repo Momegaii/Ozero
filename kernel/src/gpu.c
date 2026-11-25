@@ -92,7 +92,8 @@ static o0_status gpu_memory_alloc(size_t size, bool contiguous,
         return O0_ENOMEM;
     }
     memset(mem, 0, sizeof(*mem));
-    o0_spin_init(&mem->lock);
+    /* VM maps take vm->lock before mem->lock; memory is the inner class. */
+    o0_spin_init_ordered(&mem->lock, O0_LOCK_ORDER_DEFAULT + 1u);
 
     mem->phys_pages = o0_kalloc(pages * sizeof(o0_paddr_t), 0);
     if (mem->phys_pages == NULL) {

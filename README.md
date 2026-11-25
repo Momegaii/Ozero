@@ -159,17 +159,18 @@ and one interrupt-delivery defect was fixed (see
 Wave 2 (single-CPU user mode) is implemented and emulator-verified. Wave Q records the
 Director's separate evidence, adds a self-describing boot header and a framebuffer
 screendump check. Under the Director's 2026-11-25 reorder, Wave 3 is SMP and memory hardening:
-AP bring-up, xAPIC IPIs, single-page TLB shootdown, the LAPIC scheduler timer and SMEP/SMAP
-are implemented and locally emulator-verified, while IOAPIC programming, per-CPU runqueues,
-KASLR, a buddy allocator and bootloader reclaim are not started. The earlier capability/IPC
-work is recorded as Wave 5.0. Physical hardware and Stage 5/6 GPU work remain paused.
+AP bring-up, xAPIC IPIs, page/range/full TLB shootdown, I/O APIC routing, per-CPU runqueues
+with kernel-thread migration, LAPIC timers on every CPU, SMEP/SMAP, kernel-stack randomization,
+an aligned buddy PMM and bootloader reclaim are implemented and locally emulator-verified.
+User threads remain BSP-pinned. The earlier capability/IPC work is recorded as Wave 5.0.
+Physical hardware and Stage 5/6 GPU work remain paused.
 
 ## Honest status
 
 The current revision builds cleanly with `-Werror`, and every host suite passes in the normal
-build and under ASan/UBSan: PMM 7/7, slab 5/5, scheduler 5/5, CPU, block 6/6, OzeroFS 10/10,
-PCI 1/1, GPU 25/25, display, input, PS/2 and surface. The boot smoke test passes in **BIOS and
-UEFI/OVMF** on QEMU 8.2.2 and 10.1.0, for both `qemu64` and `Haswell-v1`: paging, heap,
+build and under ASan/UBSan: PMM 9/9, slab 5/5, scheduler 6/6, CPU, block 6/6, OzeroFS 10/10,
+PCI 1/1, GPU 26/26, display, input, PS/2 and surface. The boot smoke test passes in **BIOS and
+UEFI/OVMF** on QEMU 10.0.13 locally and 10.2.1 in CI, for both `qemu64` and `Haswell-v1`: paging, heap,
 timer-driven scheduler with worker exit, storage self-test and the GPU software-model
 self-tests all reach their markers. UEFI support was verified in Wave 1 (2026-11-24) under
 OVMF emulation, not on a physical UEFI machine.

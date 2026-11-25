@@ -5,6 +5,8 @@ OBJCOPY ?= objcopy
 QEMU ?= qemu-system-x86_64
 QEMU_CPU ?= qemu64
 QEMU_SMP ?= 1
+# Set to 1 to compile the kernel with the lock-order checker enabled.
+LOCK_ORDER ?= 0
 BUILD := build
 LIMINE_COMMIT := 5be26a73d7b7b4d4477d18be94e1d16e615adf56
 LIMINE_DIR := $(BUILD)/limine
@@ -18,6 +20,9 @@ CFLAGS := -std=gnu11 -O2 -Wall -Wextra -Werror \
           -fno-asynchronous-unwind-tables -fno-unwind-tables \
           -m64 -march=x86-64 -mtune=generic -mcmodel=kernel -mno-red-zone -mgeneral-regs-only \
           -DO0_BUILD_COMMIT=\"$(BUILD_COMMIT)\"
+ifeq ($(LOCK_ORDER),1)
+CFLAGS += -DO0_LOCK_ORDER_CHECK
+endif
 LDFLAGS := -nostdlib -static -z max-page-size=0x1000 -T kernel/linker.lds
 
 KERNEL_OBJS := $(BUILD)/main.o $(BUILD)/serial.o $(BUILD)/string.o $(BUILD)/status.o $(BUILD)/acpi.o \
@@ -43,7 +48,7 @@ USER_ELFS := $(addprefix $(BUILD)/user_,$(addsuffix .elf,$(USER_PROGS)))
 USER_BLOBS := $(addprefix $(BUILD)/blob_,$(addsuffix .o,$(USER_PROGS)))
 KERNEL_OBJS += $(USER_BLOBS)
 
-HOST_CFLAGS := -std=gnu11 -O1 -Wall -Wextra -Iinclude
+HOST_CFLAGS := -std=gnu11 -O1 -Wall -Wextra -Iinclude -DO0_LOCK_ORDER_CHECK
 # Extra flags and per-test environment let the same recipes run under sanitizers
 # (see test-sanitize) without duplicating every test invocation.
 HOST_EXTRA_CFLAGS ?=
@@ -179,7 +184,7 @@ test: $(BUILD)
 	$(HOST_RUN_ENV) ./$(BUILD)/acpi_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/ioapic_test tests/ioapic_test.c
 	$(HOST_RUN_ENV) ./$(BUILD)/ioapic_test
-	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/lock_order_test tests/lock_order_test.c
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -Ikernel/src -o $(BUILD)/lock_order_test tests/lock_order_test.c kernel/src/sync.c
 	$(HOST_RUN_ENV) ./$(BUILD)/lock_order_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/kaslr_test tests/kaslr_test.c
 	$(HOST_RUN_ENV) ./$(BUILD)/kaslr_test

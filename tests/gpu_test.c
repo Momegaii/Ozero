@@ -86,6 +86,13 @@ void o0_kfree(void *ptr, size_t size) {
 void o0_spin_init(o0_spinlock_t *lock) {
     if (lock != NULL) {
         lock->locked = 0;
+        lock->order = 0;
+    }
+}
+void o0_spin_init_ordered(o0_spinlock_t *lock, uint32_t order) {
+    o0_spin_init(lock);
+    if (lock != NULL) {
+        lock->order = order;
     }
 }
 void o0_spin_lock(o0_spinlock_t *lock) { (void)lock; }

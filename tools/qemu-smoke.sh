@@ -10,6 +10,9 @@ SMP="${QEMU_SMP:-1}"
 # The ISO is the same hybrid image in both cases; only the emulated firmware
 # differs, so the serial evidence must state which one produced it.
 FIRMWARE="${QEMU_FIRMWARE:-bios}"
+# QEMU_LOCK_ORDER=1 requires the build to have been compiled with
+# -DO0_LOCK_ORDER_CHECK and asserts its boot marker.
+LOCK_ORDER="${QEMU_LOCK_ORDER:-0}"
 ISO="${1:-build/ozero.iso}"
 LOG="${2:-build/qemu-serial.log}"
 DEBUG_LOG="${QEMU_DEBUG_LOG:-build/qemu-debug.log}"
@@ -152,6 +155,11 @@ if [[ "$SMP" -gt 1 ]]; then
     required_markers+=("OZERO: tlb shootdown range OK")
     required_markers+=("OZERO: tlb shootdown full OK")
     required_markers+=("OZERO: smp scheduling OK cpus=")
+    required_markers+=("OZERO: smp user churn OK processes=16")
+fi
+
+if [[ "$LOCK_ORDER" == "1" ]]; then
+    required_markers+=("OZERO: lock order check=on")
 fi
 
 # The SMAP fault-fixup path only runs when the CPU advertises SMAP. QEMU's
@@ -193,6 +201,14 @@ for marker in "${required_markers[@]}" "${unordered_markers[@]}"; do
         exit 1
     fi
 done
+
+fault_count=$(grep -Fc "OZERO: user fault contained" "$MATCH_LOG" || true)
+if [[ "$fault_count" -lt 3 ]]; then
+    echo "error: expected 3 contained user faults, found $fault_count" >&2
+    echo "--- guest serial output ---" >&2
+    cat "$LOG" >&2 || true
+    exit 1
+fi
 
 cat "$LOG"
 echo "QEMU smoke test: PASS (firmware=$FIRMWARE cpu=$CPU_MODEL smp=$SMP qemu=$("$QEMU" --version | head -n 1))"

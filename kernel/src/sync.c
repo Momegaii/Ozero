@@ -21,6 +21,7 @@
 
 extern void o0_serial_puts(const char *text);
 extern void o0_serial_dec(uint64_t value);
+extern void o0_serial_hex(uint64_t value);
 
 O0_NORETURN static void lock_order_panic(const char *reason) {
     __asm__ volatile ("cli" : : : "memory");
@@ -36,7 +37,7 @@ void o0_spin_init(o0_spinlock_t *lock) {
     if (lock != NULL) {
         lock->locked = 0;
         lock->reserved = 0;
-        lock->order = 0;
+        lock->order = O0_LOCK_ORDER_DEFAULT;
         lock->debug_owner = 0;
     }
 }
@@ -64,6 +65,15 @@ static void lock_order_enter(o0_spinlock_t *lock) {
             (const o0_spinlock_t *)local->held_locks[local->lock_depth - 1u];
         if (previous != NULL &&
             !o0_lock_order_ok(previous->order, lock->order)) {
+            o0_serial_puts("OZERO: lock order previous=");
+            o0_serial_hex((uint64_t)(uintptr_t)previous);
+            o0_serial_puts(" class=");
+            o0_serial_dec(previous->order);
+            o0_serial_puts(" next=");
+            o0_serial_hex((uint64_t)(uintptr_t)lock);
+            o0_serial_puts(" class=");
+            o0_serial_dec(lock->order);
+            o0_serial_puts("\n");
             lock_order_panic("class decreases or repeats");
         }
     }

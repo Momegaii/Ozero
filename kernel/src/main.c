@@ -931,11 +931,13 @@ static void wave3_run_ipc_pair(const char *tag) {
 
 static volatile uint32_t smp_seen[O0_MAX_CPUS];
 static volatile uint32_t smp_iterations;
+static volatile uint32_t smp_migrations;
+static volatile uint32_t smp_stop;
 
 static void smp_worker(void *arg) {
     uint32_t target = (uint32_t)(uintptr_t)arg;
     uint32_t online = o0_smp_online_count();
-    for (uint32_t i = 0; i < 200u; ++i) {
+    while (__atomic_load_n(&smp_stop, __ATOMIC_ACQUIRE) == 0u) {
         uint32_t cpu = o0_cpu_index();
         if (cpu < O0_MAX_CPUS) {
             __atomic_add_fetch(&smp_seen[cpu], 1u, __ATOMIC_RELEASE);
@@ -947,8 +949,18 @@ static void smp_worker(void *arg) {
             if (migrated != O0_OK && migrated != O0_ENOTSUP) {
                 panic("smp worker migration failed");
             }
+            if (migrated == O0_OK) {
+                __atomic_add_fetch(&smp_migrations, 1u, __ATOMIC_RELEASE);
+            }
+        }
+        for (uint32_t spin = 0; spin < 64u; ++spin) {
+            o0_cpu_relax();
         }
         o0_thread_yield();
+    }
+    uint32_t cpu = o0_cpu_index();
+    if (cpu < O0_MAX_CPUS) {
+        __atomic_add_fetch(&smp_seen[cpu], 1u, __ATOMIC_RELEASE);
     }
 }
 
@@ -958,6 +970,8 @@ static void wave3_smp_stress(void) {
         smp_seen[i] = 0;
     }
     smp_iterations = 0;
+    smp_migrations = 0;
+    smp_stop = 0;
     if (online <= 1u) {
         o0_serial_puts("OZERO: smp scheduling skipped online=1\n");
         return;
@@ -986,6 +1000,25 @@ static void wave3_smp_stress(void) {
         }
         ++count;
     }
+
+    /* Let the migration workers reach every CPU before the allocation
+     * baseline, so only the user churn changes the PMM free count. */
+    o0_thread_sleep_ns(1000000ull);
+
+    uint64_t before = o0_pmm_free_bytes();
+    for (uint32_t i = 0; i < 16u; ++i) {
+        if (wave2_run_user("smp-churn", _binary_build_user_quiet_elf_start,
+                           _binary_build_user_quiet_elf_end) != 0) {
+            panic("smp churn process failed");
+        }
+    }
+    uint64_t after = o0_pmm_free_bytes();
+    if (after != before) {
+        panic("smp user churn leaked physical pages");
+    }
+    o0_serial_puts("OZERO: smp user churn OK processes=16\n");
+
+    __atomic_store_n(&smp_stop, 1u, __ATOMIC_RELEASE);
     for (uint32_t i = 0; i < count; ++i) {
         if (o0_thread_join(threads[i], NULL) != O0_OK) {
             panic("smp stress join failed");
@@ -997,8 +1030,8 @@ static void wave3_smp_stress(void) {
             ++seen;
         }
     }
-    if (seen < 2u) {
-        panic("smp stress never ran on two CPUs");
+    if (seen < 2u || smp_migrations == 0u) {
+        panic("smp stress never migrated across two CPUs");
     }
     o0_serial_puts("OZERO: smp scheduling OK cpus=");
     o0_serial_dec(seen);
@@ -1006,6 +1039,8 @@ static void wave3_smp_stress(void) {
     o0_serial_dec(count);
     o0_serial_puts(" iterations=");
     o0_serial_dec(smp_iterations);
+    o0_serial_puts(" migrations=");
+    o0_serial_dec(smp_migrations);
     o0_serial_puts("\n");
 }
 
@@ -1239,6 +1274,11 @@ void kmain(void) {
     o0_serial_puts(efi_system_table_request.response != NULL ? "UEFI" : "BIOS");
     o0_serial_puts("\n");
     o0_serial_puts("OZERO: kernel entry reached\n");
+#ifdef O0_LOCK_ORDER_CHECK
+    o0_serial_puts("OZERO: lock order check=on\n");
+#else
+    o0_serial_puts("OZERO: lock order check=off\n");
+#endif
     o0_serial_puts("OZERO: architecture=x86_64\n");
     o0_serial_puts("OZERO: boot protocol=Limine\n");
 
