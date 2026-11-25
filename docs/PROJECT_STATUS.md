@@ -1,7 +1,7 @@
 # Ozero Project Status
 
 Last updated: 2026-11-24  
-Current stage: **Stage 6 — Native graphical application environment (active; Phase 6.1 verified — display/framebuffer boot tested in QEMU with screenshot evidence; Phase 6.2 implemented — PS/2 keyboard + pointer driver host-tested, driver initialized at boot; Phase 6.3 implemented and host-tested — software surface primitives; Phases 6.4–6.8 open; no full desktop/QEMU acceptance claimed). Stage 5 is closed as the software-foundation milestone; physical GPU execution and vendor-specific acceleration backends remain deferred. See docs/stage6.md for the three-agent handoff and test plan. New GPU/Stage 6 scope is paused by Rule 0; hardening Wave 1 (verification debt) is complete locally, **Wave 2 (single-CPU user mode) is implemented and verified in QEMU on BIOS/UEFI × qemu64/Haswell-v1**, and **Wave 3 (capability handles, budgets and synchronous IPC) is implemented and verified in the same four emulator cells**. No physical-hardware evidence exists for any wave. Waves 4–7 are planned in docs/hardening-roadmap.md.**  
+Current stage: **Stage 6 — Native graphical application environment (active; Phase 6.1 verified — display/framebuffer boot tested in QEMU with screenshot evidence; Phase 6.2 implemented — PS/2 keyboard + pointer driver host-tested, driver initialized at boot; Phase 6.3 implemented and host-tested — software surface primitives; Phases 6.4–6.8 open; no full desktop/QEMU acceptance claimed). Stage 5 is closed as the software-foundation milestone; physical GPU execution and vendor-specific acceleration backends remain deferred. See docs/stage6.md for the three-agent handoff and test plan. New GPU/Stage 6 scope is paused by Rule 0; hardening Wave 1 (verification debt) is complete locally, **Wave 2 (single-CPU user mode) is implemented and verified in QEMU on BIOS/UEFI × qemu64/Haswell-v1**, and **Wave 3 (capability handles, budgets and synchronous IPC) is implemented and verified in the same four emulator cells**. Wave Q adds the Director-observed evidence table, the self-describing boot header and an independent framebuffer screendump check; the Wave 2.7 sign-off is recorded below. No physical-hardware evidence exists for any wave. Waves 4–7 are planned in docs/hardening-roadmap.md.**
 Stage 3 — processes, threads and scheduler: **implemented; boot-verified in QEMU BIOS for the Stage 3 revision**  
 Stage 2 — physical and virtual memory: **implemented, verified by build + host tests + QEMU boot**  
 Stage 1 — bootable x86-64 kernel: **implemented; see verification state**
@@ -168,6 +168,22 @@ error model and selector values are Ozero's own.
   (NULL dereference, `cli`, jump to a kernel address) die alone; a bad syscall pointer returns
   `-O0_UE_FAULT`; 16-process churn returns the PMM to the same free-page count.
 
+**Wave 2.7 marker assertions.** `tools/qemu-smoke.sh` asserts the following, in every matrix
+cell (`{bios, uefi} × {qemu64, Haswell-v1}`) and in the CI boot job:
+
+| Marker | What the check actually asserts |
+|---|---|
+| `OZERO: user entry OK` | The static `init` image reached ring 3 and successfully issued `debug_write`; the marker is emitted by user code, not by the kernel on its behalf. |
+| `OZERO: syscall exit status=0` | `init` returned through `exit(0)` and `wave2_run_user` observed exactly status 0. |
+| `OZERO: user fault contained` | Three negative programs (NULL read, `cli`, kernel-address jump) each took a user fault; the kernel prints `vector=`, `rip=`, `cr2=` and `error=`, and `wave2_run_user` requires status `-1` for each. |
+| `OZERO: syscall bad pointer rejected` | The `badptr` program exits 0 only if the kernel returned `-O0_UE_FAULT`; the kernel panics if that status is not 0. |
+| `OZERO: user churn OK processes=16` | Sixteen spawn/join cycles completed and `o0_pmm_free_bytes()` returned exactly to its pre-churn value. |
+| `OZERO: wave2 self-test complete` | The whole Wave 2 sequence finished without a panic. |
+
+Worker lines (`worker-a`/`worker-b` iteration and exit) are checked as a set, not in output
+order, because the scheduler may interleave them differently between boots. UEFI logs are
+matched after stripping ANSI CSI/OSC sequences.
+
 ## Hardening wave (2026-11-24)
 
 The Project Director paused new GPU/Stage 6 scope (Rule 0) and ordered a six-wave hardening
@@ -209,7 +225,58 @@ baseline after eight process/endpoint/memory cycles. Two leaks were found and fi
 closing the wave: a partial memory allocation undercharged its page array, and `o0_ipc_call`
 held an extra reference on its reply endpoint.
 
+### Wave Q — Director-observed evidence (separate from CI and physical)
+
+The Project Director ran the cells below on **Windows 8.1**, an **Intel Core i5-4460** and
+QEMU machine type **`q35`**. They are **Director-observed** evidence. They are neither CI
+evidence nor physical-hardware evidence, and no result here is inferred into or from the CI
+matrix.
+
+| Emulator / accelerator | Firmware | CPU model | Host display | Result |
+|---|---|---|---|---|
+| QEMU 8.1.0 TCG | BIOS | `qemu64` | SDL | Full Wave 2 marker set passed |
+| QEMU 8.1.0 TCG | BIOS | `qemu64` | GTK | Full Wave 2 marker set passed |
+| QEMU 8.1.0 TCG | BIOS | `Haswell-v1` | not recorded | Full Wave 2 marker set passed |
+| QEMU 8.1.0 TCG | UEFI (edk2) | `qemu64` | not recorded | Full Wave 2 marker set passed |
+| QEMU 7.2.0 dev snapshot + HAXM 7.8.0 | BIOS | `qemu64` | not recorded | Full Wave 2 marker set passed |
+
+**Commit identification:** the Director's historical logs predate the self-describing boot
+header, so their commit is **unknown**. The header added in Wave Q item 3 now prints the build
+commit, CPU vendor/family/model/brand and the hypervisor/firmware identification, so future
+logs identify their own build. The commit is not reconstructed after the fact.
+
+**Pending cells:** UEFI/`Haswell-v1` and HAXM/`Haswell-v1` have not been run by the Director.
+
+**Environment findings, not Ozero defects:**
+
+- QEMU 8.1.0 aborts in the HAX accelerator before guest start. No guest marker was produced,
+  so this is an accelerator/environment failure and is not counted as an Ozero result.
+- The black margins in the window screenshot were QEMU window scaling. The raw 1280×800
+  screendump shows eight 160 px bars with no margins. The CI screendump check now verifies
+  the raw framebuffer layout independently of any host window.
+
+### Wave P.0 — physical boot gate (the Director decides; agents do not schedule it)
+
+A real boot of the i5-4460 (HD 4600, `8086:0412` rev 06) waits for all five conditions:
+
+1. **Boot-stage markers and fault output drawn to the framebuffer.** Open: serial markers and
+   the eight-bar pattern are implemented; fault text is serial-only.
+2. **Self-describing boot header.** Implemented: `build commit=`, `cpu vendor=… family=…
+   model=… brand=…` and `platform=… hypervisor=… firmware=…` are the first kernel lines.
+3. **Wave 2 sign-off complete.** Pending the final CI run and log inspection recorded below.
+4. **Kernel holds its final screen instead of rebooting.** Implemented in emulation: the
+   kernel halts forever after the self-tests; QEMU uses `-no-reboot`. Not exercised on
+   physical hardware.
+5. **A test proves the GPU discovery path writes no MMIO.** Open: discovery uses PCI
+   configuration space (including BAR sizing writes and restoration) and does not install an
+   MMIO mapping, but no test yet instruments the path to prove zero MMIO accesses.
+
+No agent may treat this list as a schedule or as permission to boot physical hardware.
+
 Waves 4–7 are planned and not started. Physical hardware remains unexercised for every wave.
+The Wave 3 implementation present on this branch predates the consolidated Wave Q directive;
+under that directive no further Wave 3 work proceeds until the Wave 2.7 sign-off above is
+complete.
 
 ## Verification state
 
@@ -271,17 +338,25 @@ Truthful split by evidence type:
   `ubuntu-latest`. The local matrix additionally covers QEMU 8.2.2, 10.0.13 and 10.1.0, and those
   results are **local-only**. QEMU 8.2 matters because it exposed the Wave 1 interrupt-delivery
   defect (ADR 0005) and CI does not run it.
-- **Host tests (Wave 2):** `make test` passes every suite, including the two new ones:
-  `abi_test` (selectors, `STAR`/`FMASK`, GDT access bytes, TSS/per-CPU offsets, error mapping
-  and user-window rules) and `elf_test` (accept/reject matrix, overlapping segments and fuzz of
-  4 000 mutated + 1 000 random + random-truncated inputs). `make test-sanitize` (ASan + UBSan,
-  leaks on) passes the same set.
+- **Host tests (Wave 2):** `make test` passes every suite, including `abi_test` (selectors,
+  `STAR`/`FMASK`, GDT access bytes, TSS/per-CPU offsets, error mapping and user-window rules),
+  `elf_test` (accept/reject matrix, overlapping segments and fuzz of 4 000 mutated + 1 000
+  random + random-truncated inputs) and `usercopy_test` (null guard, kernel half, unmapped
+  page, read-only write, range overflow, zero length, faulting raw core and fixup lookup).
+  `make test-sanitize` (ASan + UBSan, leaks on) passes the same set. GCC `-fanalyzer` reports
+  nothing on the changed kernel sources.
 - **QEMU boot matrix (Wave 2, local):** the full marker set now includes `gdt+tss installed`,
-  `user entry OK`, `syscall exit status=0`, three `user fault contained` lines,
+  `user entry OK`, `syscall exit status=0`, three `user fault contained vector=…` lines,
   `syscall bad pointer rejected`, `user churn OK processes=16` and
   `wave2 self-test complete`. All four cells (`{bios, uefi} × {qemu64, Haswell-v1}`) pass
-  locally on **QEMU 10.0.13** with `QEMU smoke test: PASS`. This is emulator evidence, not
-  physical evidence.
+  locally on **QEMU 10.0.13** with `QEMU smoke test: PASS`. The Wave Q re-run also passes all
+  four cells with the new boot header, signed fault status, `vector=` and framebuffer
+  markers. This is emulator evidence, not physical evidence.
+- **Framebuffer screendump (Wave Q.8, local):** `tools/framebuffer-check.py` passed under BIOS
+  and UEFI on QEMU 10.0.13: `width=1280 height=800 bar_width=160 bars=8
+  checksum=0x8acf6953`. It validates the eight bar centres at three heights, both edges and
+  the kernel's FNV checksum. This is an independent raw-framebuffer check, not a host-window
+  screenshot.
 - **CI (Wave 2):** GitHub Actions run
   [#136](https://github.com/Momegaii/Ozero/actions/runs/45502990041) on commit `32c9e79`
   completed SUCCESS with all five jobs (`boot` × 4 and `host-sanitizers`). The four boot logs

@@ -114,7 +114,8 @@ void o0_thread_wake_result(struct o0_thread *thread, int64_t status);
 int64_t o0_thread_block_result(void);
 bool o0_thread_init_system(void);
 /* A ring-3 fault: contained, kills only the faulting thread. */
-O0_NORETURN void o0_thread_user_fault(uint64_t rip, uint64_t cr2, uint64_t error);
+O0_NORETURN void o0_thread_user_fault(uint64_t vector, uint64_t rip,
+                                      uint64_t cr2, uint64_t error);
 
 /* Scheduler (sched.c). */
 void o0_sched_init(void);

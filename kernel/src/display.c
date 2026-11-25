@@ -44,28 +44,91 @@ static uint32_t scale_channel(uint8_t value, uint8_t size, uint8_t shift) {
     return (((uint32_t)value * maximum + 127u) / 255u) << shift;
 }
 
+static const uint8_t pattern_colors[8][3] = {
+    {24, 32, 72}, {24, 92, 150}, {20, 150, 120}, {72, 160, 48},
+    {210, 170, 32}, {210, 100, 32}, {160, 48, 72}, {220, 220, 220}
+};
+
+uint32_t o0_display_pattern_pixel(const struct o0_display_mode *mode,
+                                  uint64_t x, uint64_t y) {
+    if (mode == NULL || mode->width == 0 || x >= mode->width) return 0;
+    const unsigned band = (unsigned)((x * 8u) / mode->width);
+    const unsigned stripe = (unsigned)(((x / 24u) + (y / 24u)) & 1u);
+    uint8_t r = pattern_colors[band][0];
+    uint8_t g = pattern_colors[band][1];
+    uint8_t b = pattern_colors[band][2];
+    if (stripe) {
+        r = (uint8_t)(r * 3u / 4u);
+        g = (uint8_t)(g * 3u / 4u);
+        b = (uint8_t)(b * 3u / 4u);
+    }
+    return scale_channel(r, mode->red_size, mode->red_shift) |
+           scale_channel(g, mode->green_size, mode->green_shift) |
+           scale_channel(b, mode->blue_size, mode->blue_shift);
+}
+
+uint32_t o0_display_bar_center_expected(const struct o0_display_mode *mode,
+                                        uint32_t band) {
+    if (mode == NULL || mode->width == 0 || mode->height == 0 || band >= 8u) {
+        return 0;
+    }
+    const uint64_t x = (mode->width * (2u * (uint64_t)band + 1u)) / 16u;
+    return o0_display_pattern_pixel(mode, x, mode->height / 2u);
+}
+
+static uint32_t checksum_pixels(const uint32_t pixels[8]) {
+    uint32_t hash = 2166136261u;
+    for (unsigned i = 0; i < 8u; ++i) {
+        hash ^= pixels[i];
+        hash *= 16777619u;
+    }
+    return hash;
+}
+
+uint32_t o0_display_expected_checksum(const struct o0_display_mode *mode) {
+    uint32_t pixels[8];
+    for (uint32_t i = 0; i < 8u; ++i) {
+        pixels[i] = o0_display_bar_center_expected(mode, i);
+    }
+    return checksum_pixels(pixels);
+}
+
+static uint32_t read_pixel(const struct o0_display_mode *mode, uint64_t x,
+                           uint64_t y) {
+    const volatile uint8_t *row =
+        (const volatile uint8_t *)mode->address + y * mode->pitch;
+    const volatile uint8_t *p = row + x * (mode->bpp / 8u);
+    uint32_t pixel = (uint32_t)p[0] | ((uint32_t)p[1] << 8) |
+                     ((uint32_t)p[2] << 16);
+    if (mode->bpp == 32u) {
+        pixel |= (uint32_t)p[3] << 24;
+    }
+    return pixel;
+}
+
+uint32_t o0_display_bar_center_actual(uint32_t band) {
+    if (!display_ready || band >= 8u) return 0;
+    const uint64_t x =
+        (active_mode.width * (2u * (uint64_t)band + 1u)) / 16u;
+    return read_pixel(&active_mode, x, active_mode.height / 2u);
+}
+
+uint32_t o0_display_actual_checksum(void) {
+    if (!display_ready) return 0;
+    uint32_t pixels[8];
+    for (uint32_t i = 0; i < 8u; ++i) {
+        pixels[i] = o0_display_bar_center_actual(i);
+    }
+    return checksum_pixels(pixels);
+}
+
 static void draw_boot_pattern(void) {
     volatile uint8_t *base = (volatile uint8_t *)active_mode.address;
     const uint32_t bytes_per_pixel = active_mode.bpp / 8u;
-    static const uint8_t colors[8][3] = {
-        {24, 32, 72}, {24, 92, 150}, {20, 150, 120}, {72, 160, 48},
-        {210, 170, 32}, {210, 100, 32}, {160, 48, 72}, {220, 220, 220}
-    };
     for (uint64_t y = 0; y < active_mode.height; ++y) {
         volatile uint8_t *row = base + y * active_mode.pitch;
         for (uint64_t x = 0; x < active_mode.width; ++x) {
-            const unsigned band = (unsigned)((x * 8u) / active_mode.width);
-            const unsigned stripe = ((x / 24u) + (y / 24u)) & 1u;
-            uint8_t r = colors[band][0], g = colors[band][1], b = colors[band][2];
-            if (stripe) {
-                r = (uint8_t)(r * 3u / 4u);
-                g = (uint8_t)(g * 3u / 4u);
-                b = (uint8_t)(b * 3u / 4u);
-            }
-            const uint32_t pixel =
-                scale_channel(r, active_mode.red_size, active_mode.red_shift) |
-                scale_channel(g, active_mode.green_size, active_mode.green_shift) |
-                scale_channel(b, active_mode.blue_size, active_mode.blue_shift);
+            const uint32_t pixel = o0_display_pattern_pixel(&active_mode, x, y);
             volatile uint8_t *dst = row + x * bytes_per_pixel;
             dst[0] = (uint8_t)pixel;
             dst[1] = (uint8_t)(pixel >> 8);

@@ -118,6 +118,50 @@ o0_status o0_cpu_detect(void) {
         features.phys_addr_bits=(uint8_t)(eax&0xffu);
         features.virt_addr_bits=(uint8_t)((eax>>8)&0xffu);
     }
+    if (features.max_extended_leaf >= 0x80000004u) {
+        uint32_t regs[12];
+        for (uint32_t i = 0; i < 3u; ++i) {
+            cpuid(0x80000002u + i, 0, &regs[i * 4u], &regs[i * 4u + 1u],
+                  &regs[i * 4u + 2u], &regs[i * 4u + 3u]);
+        }
+        for (uint32_t i = 0; i < 12u; ++i) {
+            for (uint32_t b = 0; b < 4u; ++b) {
+                boot_cpu.brand[i * 4u + b] = (char)(regs[i] >> (b * 8u));
+            }
+        }
+        boot_cpu.brand[48] = '\0';
+        uint32_t first = 0;
+        while (first < 48u && boot_cpu.brand[first] == ' ') {
+            ++first;
+        }
+        uint32_t end = 48u;
+        while (end > first && (boot_cpu.brand[end - 1u] == ' ' ||
+                               boot_cpu.brand[end - 1u] == '\0')) {
+            --end;
+        }
+        for (uint32_t i = first; i < end; ++i) {
+            boot_cpu.brand[i - first] = boot_cpu.brand[i];
+        }
+        boot_cpu.brand[end - first] = '\0';
+    }
+    if (features.hypervisor) {
+        cpuid(0x40000000u, 0, &eax, &ebx, &ecx, &edx);
+        boot_cpu.hypervisor[0] = (char)ebx;
+        boot_cpu.hypervisor[1] = (char)(ebx >> 8);
+        boot_cpu.hypervisor[2] = (char)(ebx >> 16);
+        boot_cpu.hypervisor[3] = (char)(ebx >> 24);
+        boot_cpu.hypervisor[4] = (char)ecx;
+        boot_cpu.hypervisor[5] = (char)(ecx >> 8);
+        boot_cpu.hypervisor[6] = (char)(ecx >> 16);
+        boot_cpu.hypervisor[7] = (char)(ecx >> 24);
+        boot_cpu.hypervisor[8] = (char)edx;
+        boot_cpu.hypervisor[9] = (char)(edx >> 8);
+        boot_cpu.hypervisor[10] = (char)(edx >> 16);
+        boot_cpu.hypervisor[11] = (char)(edx >> 24);
+        boot_cpu.hypervisor[12] = '\0';
+        cpuid(0x40000001u, 0, &eax, &ebx, &ecx, &edx);
+        boot_cpu.hypervisor_signature = eax;
+    }
     /* Report AVX-family instructions only when the OS has enabled and
      * configured the corresponding extended register state in XCR0. */
     bool avx_state = features.xsave && features.xcr0_supported != 0 &&

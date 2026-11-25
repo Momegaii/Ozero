@@ -448,8 +448,11 @@ void o0_thread_reap_detached(void) {
     }
 }
 
-O0_NORETURN void o0_thread_user_fault(uint64_t rip, uint64_t cr2, uint64_t error) {
-    o0_serial_puts("OZERO: user fault contained rip=");
+O0_NORETURN void o0_thread_user_fault(uint64_t vector, uint64_t rip,
+                                      uint64_t cr2, uint64_t error) {
+    o0_serial_puts("OZERO: user fault contained vector=");
+    o0_serial_dec(vector);
+    o0_serial_puts(" rip=");
     o0_serial_hex(rip);
     o0_serial_puts(" cr2=");
     o0_serial_hex(cr2);

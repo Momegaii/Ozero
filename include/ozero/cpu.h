@@ -77,6 +77,9 @@ struct o0_cpu_info {
     uint32_t model;
     uint32_t stepping;
     char vendor[13];
+    char brand[49];
+    char hypervisor[13];
+    uint32_t hypervisor_signature;
 };
 
 #define O0_CPU_F_BSP (1u << 0)

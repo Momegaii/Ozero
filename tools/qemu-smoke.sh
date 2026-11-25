@@ -24,12 +24,12 @@ if [[ ! -f "$ISO" ]]; then
 fi
 
 firmware_args=()
-firmware_marker="OZERO: firmware=BIOS"
+firmware_marker="firmware=BIOS"
 case "$FIRMWARE" in
     bios)
         ;;
     uefi)
-        firmware_marker="OZERO: firmware=UEFI"
+        firmware_marker="firmware=UEFI"
         if [[ ! -f "$OVMF_CODE_PATH" || ! -f "$OVMF_VARS_PATH" ]]; then
             echo "error: OVMF firmware not found ($OVMF_CODE_PATH, $OVMF_VARS_PATH)" >&2
             echo "       install the 'ovmf' package or set QEMU_OVMF_CODE / QEMU_OVMF_VARS" >&2
@@ -75,6 +75,9 @@ fi
 # Markers below are serial output only: they prove the kernel reached that
 # point in this emulator and firmware, not that it works on physical hardware.
 required_markers=(
+    "OZERO: build commit="
+    "OZERO: cpu vendor="
+    "OZERO: platform="
     "OZERO: kernel entry reached"
     "$firmware_marker"
     "OZERO: Limine base revision accepted"
@@ -93,10 +96,6 @@ required_markers=(
     "OZERO: scheduler initialised"
     "OZERO: stage3 self-test complete"
     "OZERO: kernel threads created="
-    "OZERO: worker-a iteration=2"
-    "OZERO: worker-b iteration=2"
-    "OZERO: worker-a exiting"
-    "OZERO: worker-b exiting"
     # Stage 4 storage: block layer, RAM disk, OzeroFS and the fault path.
     "OZERO: block layer ready devices="
     "OZERO: ramdisk registered name=ram0"
@@ -121,6 +120,8 @@ required_markers=(
     # Wave 2 user mode: entry through iretq, the native syscall ABI, contained
     # user faults, rejected syscall pointers and leak-free process churn.
     "OZERO: gdt+tss installed"
+    "OZERO: framebuffer bars=8"
+    "OZERO: framebuffer checksum="
     "OZERO: user entry OK"
     "OZERO: syscall exit status=0"
     "OZERO: user fault contained"
@@ -138,8 +139,31 @@ required_markers=(
     "OZERO: wave3 self-test complete"
 )
 
-for marker in "${required_markers[@]}"; do
-    if ! grep -Fq "$marker" "$LOG"; then
+# The scheduler may interleave the two worker threads differently between
+# boots. Check these as a set; never encode one particular interleaving.
+unordered_markers=(
+    "OZERO: worker-a iteration=2"
+    "OZERO: worker-b iteration=2"
+    "OZERO: worker-a exiting"
+    "OZERO: worker-b exiting"
+)
+
+# UEFI firmware may emit ANSI cursor/colour sequences around its own output.
+# Strip CSI and OSC sequences before matching so a marker split by escape
+# codes is not reported as missing.
+MATCH_LOG="${LOG%.log}.match.log"
+python3 - "$LOG" "$MATCH_LOG" <<'PY'
+import re
+import sys
+
+source, target = sys.argv[1], sys.argv[2]
+data = open(source, "rb").read().decode("utf-8", "replace")
+ansi = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*(?:\x07|\x1b\\)")
+open(target, "w", encoding="utf-8").write(ansi.sub("", data))
+PY
+
+for marker in "${required_markers[@]}" "${unordered_markers[@]}"; do
+    if ! grep -Fq "$marker" "$MATCH_LOG"; then
         echo "error: missing boot milestone: $marker" >&2
         echo "--- guest serial output ---" >&2
         cat "$LOG" >&2 || true

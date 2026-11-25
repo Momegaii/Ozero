@@ -21,4 +21,18 @@ o0_status o0_display_init(const struct o0_display_mode *mode,
                           o0_paddr_t framebuffer_phys,
                           const struct o0_boot_info *boot_info);
 bool o0_display_ready(void);
+
+/* Deterministic boot-pattern pixel for a mode, without touching the framebuffer.
+ * `band` is derived from x; this is the reference used by the host test and by
+ * the kernel's sampled-pixel log marker. */
+uint32_t o0_display_pattern_pixel(const struct o0_display_mode *mode,
+                                  uint64_t x, uint64_t y);
+uint32_t o0_display_bar_center_expected(const struct o0_display_mode *mode,
+                                        uint32_t band);
+uint32_t o0_display_expected_checksum(const struct o0_display_mode *mode);
+
+/* Read back the centre of a bar from the live framebuffer, and checksum all
+ * eight read-back samples. Both return 0 when no display is active. */
+uint32_t o0_display_bar_center_actual(uint32_t band);
+uint32_t o0_display_actual_checksum(void);
 #endif

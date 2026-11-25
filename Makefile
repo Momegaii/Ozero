@@ -10,10 +10,12 @@ LIMINE_ARCHIVE := $(BUILD)/limine-source.tar.gz
 KERNEL := $(BUILD)/kernel.elf
 ISO := $(BUILD)/ozero.iso
 
+BUILD_COMMIT := $(shell git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)
 CFLAGS := -std=gnu11 -O2 -Wall -Wextra -Werror \
           -ffreestanding -fno-stack-protector -fno-pic -fno-pie \
           -fno-asynchronous-unwind-tables -fno-unwind-tables \
-          -m64 -march=x86-64 -mtune=generic -mcmodel=kernel -mno-red-zone -mgeneral-regs-only
+          -m64 -march=x86-64 -mtune=generic -mcmodel=kernel -mno-red-zone -mgeneral-regs-only \
+          -DO0_BUILD_COMMIT=\"$(BUILD_COMMIT)\"
 LDFLAGS := -nostdlib -static -z max-page-size=0x1000 -T kernel/linker.lds
 
 KERNEL_OBJS := $(BUILD)/main.o $(BUILD)/serial.o $(BUILD)/string.o $(BUILD)/status.o \
@@ -120,7 +122,7 @@ $(BUILD)/context.o: kernel/arch/x86_64/context.S | $(BUILD)
 
 $(KERNEL): $(KERNEL_OBJS) kernel/linker.lds
 	$(LD) $(LDFLAGS) -o $@ $(KERNEL_OBJS)
-	@file $@
+	@readelf -h $@ | grep -E 'Class:|Machine:|Entry point'
 
 $(LIMINE_ARCHIVE): | $(BUILD)
 	curl --fail --location --silent --show-error \
@@ -168,6 +170,8 @@ test: $(BUILD)
 	$(HOST_RUN_ENV) ./$(BUILD)/abi_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/elf_test tests/elf_test.c kernel/src/elf.c
 	$(HOST_RUN_ENV) ./$(BUILD)/elf_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/usercopy_test tests/usercopy_test.c kernel/src/usercopy.c
+	$(HOST_RUN_ENV) ./$(BUILD)/usercopy_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/cap_test tests/cap_test.c kernel/src/object.c kernel/src/budget.c kernel/src/handle.c kernel/src/memory.c kernel/src/endpoint.c
 	$(HOST_RUN_ENV) ./$(BUILD)/cap_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/block_test tests/block_test.c

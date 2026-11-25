@@ -43,6 +43,10 @@
 #include "ozero/user.h"
 
 #include "serial.h"
+
+#ifndef O0_BUILD_COMMIT
+#define O0_BUILD_COMMIT "unknown"
+#endif
 #include "string.h"
 #include "thread_internal.h"
 
@@ -131,7 +135,8 @@ void x86_exception_dispatch(struct x86_64_exception_frame *frame) {
         if (frame->vector == 14) {
             __asm__ volatile ("mov %%cr2, %0" : "=r"(cr2));
         }
-        o0_thread_user_fault(frame->rip, cr2, frame->error_code);
+        o0_thread_user_fault(frame->vector, frame->rip, cr2,
+                             frame->error_code);
     }
 
     /* A fault inside a usercopy core is recovered by redirecting execution to
@@ -714,7 +719,7 @@ static int wave2_run_user(const char *name, const unsigned char *start,
     o0_serial_puts("OZERO: wave2 done ");
     o0_serial_puts(name);
     o0_serial_puts(" status=");
-    o0_serial_dec((uint64_t)(int64_t)status);
+    o0_serial_int((int64_t)status);
     o0_serial_putc('\n');
     return status;
 }
@@ -855,7 +860,7 @@ static int wave3_join(o0_thread_t *thread, const char *name) {
     o0_serial_puts("OZERO: wave3 done ");
     o0_serial_puts(name);
     o0_serial_puts(" status=");
-    o0_serial_dec((uint64_t)(int64_t)status);
+    o0_serial_int((int64_t)status);
     o0_serial_putc('\n');
     return status;
 }
@@ -1062,15 +1067,77 @@ static struct o0_display_mode boot_display_mode;
 static o0_paddr_t boot_framebuffer_phys;
 static bool boot_framebuffer_valid;
 
+static bool text_starts_with(const char *text, const char *prefix) {
+    while (*prefix != '\0') {
+        if (*text++ != *prefix++) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static const char *platform_label(const struct o0_cpu_info *cpu) {
+    if (cpu == NULL || cpu->hypervisor[0] == '\0') {
+        return "native";
+    }
+    if (text_starts_with(cpu->hypervisor, "TCG")) {
+        return "qemu-tcg";
+    }
+    if (text_starts_with(cpu->hypervisor, "KVM")) {
+        return "kvm";
+    }
+    if (text_starts_with(cpu->hypervisor, "HAXM")) {
+        return "haxm";
+    }
+    if (text_starts_with(cpu->hypervisor, "Microsoft Hv")) {
+        return "hyper-v";
+    }
+    if (text_starts_with(cpu->hypervisor, "VMware")) {
+        return "vmware";
+    }
+    if (text_starts_with(cpu->hypervisor, "VBox")) {
+        return "virtualbox";
+    }
+    return "other";
+}
+
 __attribute__((noreturn))
 void kmain(void) {
     o0_serial_init();
-    o0_serial_puts("\nOZERO: kernel entry reached\n");
-    o0_serial_puts("OZERO: architecture=x86_64\n");
-    o0_serial_puts("OZERO: boot protocol=Limine\n");
-    o0_serial_puts("OZERO: firmware=");
+    if (o0_cpu_detect() != O0_OK) {
+        panic("CPU feature detection failed");
+    }
+    const struct o0_cpu_features *cf = o0_cpu_features();
+    const struct o0_cpu_info *cpu = o0_cpu_info(0);
+    if (cf == NULL || cpu == NULL) {
+        panic("CPU features not available");
+    }
+    o0_serial_puts("\nOZERO: build commit=");
+    o0_serial_puts(O0_BUILD_COMMIT);
+    o0_serial_puts("\n");
+    o0_serial_puts("OZERO: cpu vendor=");
+    o0_serial_puts(cpu->vendor);
+    o0_serial_puts(" family=");
+    o0_serial_dec(cpu->family);
+    o0_serial_puts(" model=");
+    o0_serial_dec(cpu->model);
+    o0_serial_puts(" stepping=");
+    o0_serial_dec(cpu->stepping);
+    o0_serial_puts(" brand=");
+    o0_serial_puts(cpu->brand[0] != '\0' ? cpu->brand : "unknown");
+    o0_serial_puts("\n");
+    o0_serial_puts("OZERO: platform=");
+    o0_serial_puts(platform_label(cpu));
+    o0_serial_puts(" hypervisor=");
+    o0_serial_puts(cpu->hypervisor[0] != '\0' ? cpu->hypervisor : "none");
+    o0_serial_puts(" signature=");
+    o0_serial_hex(cpu->hypervisor_signature);
+    o0_serial_puts(" firmware=");
     o0_serial_puts(efi_system_table_request.response != NULL ? "UEFI" : "BIOS");
     o0_serial_puts("\n");
+    o0_serial_puts("OZERO: kernel entry reached\n");
+    o0_serial_puts("OZERO: architecture=x86_64\n");
+    o0_serial_puts("OZERO: boot protocol=Limine\n");
 
     if (!LIMINE_BASE_REVISION_SUPPORTED(limine_base_revision)) {
         panic("bootloader does not support requested Limine base revision 6");
@@ -1124,13 +1191,6 @@ void kmain(void) {
     o0_serial_dec(o0_pmm_free_bytes());
     o0_serial_puts("\n");
 
-    if (o0_cpu_detect() != O0_OK) {
-        panic("CPU feature detection failed");
-    }
-    const struct o0_cpu_features *cf = o0_cpu_features();
-    if (cf == NULL) {
-        panic("CPU features not available");
-    }
     if (!cf->long_mode || !cf->pae) {
         panic("CPU lacks the long-mode baseline (long_mode, pae)");
     }
@@ -1214,6 +1274,27 @@ void kmain(void) {
         o0_serial_puts(" bytes=");
         o0_serial_dec(boot_display_mode.bytes);
         o0_serial_puts("\n");
+        if (display_status == O0_OK) {
+            o0_serial_puts("OZERO: framebuffer bars=8 width=");
+            o0_serial_dec(boot_display_mode.width);
+            o0_serial_puts(" height=");
+            o0_serial_dec(boot_display_mode.height);
+            o0_serial_puts("\n");
+            for (uint32_t band = 0; band < 8u; ++band) {
+                o0_serial_puts("OZERO: framebuffer sample bar=");
+                o0_serial_dec(band);
+                o0_serial_puts(" pixel=");
+                o0_serial_hex(o0_display_bar_center_actual(band));
+                o0_serial_puts(" expected=");
+                o0_serial_hex(o0_display_bar_center_expected(&boot_display_mode, band));
+                o0_serial_puts("\n");
+            }
+            o0_serial_puts("OZERO: framebuffer checksum=");
+            o0_serial_hex(o0_display_actual_checksum());
+            o0_serial_puts(" expected=");
+            o0_serial_hex(o0_display_expected_checksum(&boot_display_mode));
+            o0_serial_puts("\n");
+        }
     } else {
         o0_serial_puts("OZERO: framebuffer unavailable; serial fallback\n");
     }
