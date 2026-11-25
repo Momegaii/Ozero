@@ -346,7 +346,7 @@ ACPI-reclaimable release, kernel-image relocation, and physical-hardware evidenc
 
 | Evidence type | What was actually run | Result |
 |---|---|---|
-| Host | `make check` on 2026-11-25 after the Wave 3.5 changes: full suite plus `lock_order_test` linked against `kernel/src/sync.c` | Exit 0; `lock-order: PASS`; the host build compiles with `O0_LOCK_ORDER_CHECK` and asserts `O0_LOCK_ORDER_DEFAULT == 1` |
+| Host | `make check` on 2026-11-25 after the Wave 3.5 changes: full suite plus `lock_order_test` linked against `kernel/src/sync.c` | Exit 0; `lock-order: PASS`; the host build compiles with `O0_LOCK_ORDER_CHECK` and asserts `O0_LOCK_ORDER_DEFAULT == 1`. Runqueue locks are explicitly class 0; other spinlocks get class 1 |
 | Host sanitizers | `make test-sanitize` on 2026-11-25 (ASan/UBSan/leak detection), same suite | Exit 0; no sanitizer report |
 | Host analyzer | `gcc -fanalyzer` on `sync.c`, `gpu.c`, `gpu_hsw.c`, `main.c` | No findings |
 | QEMU local matrix | QEMU 10.0.13, `{bios, uefi} × {qemu64, Haswell-v1, max} × -smp {1,2,4}`, `tools/qemu-smoke.sh` | 18/18 PASS. Every `-smp 2/4` log has `smp user churn OK processes=16` and `smp scheduling OK cpus=N ... migrations=N`; every log has exactly three `user fault contained` lines |
