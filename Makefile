@@ -193,6 +193,14 @@ test: $(BUILD)
 	$(HOST_RUN_ENV) ./$(BUILD)/lock_order_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/kaslr_test tests/kaslr_test.c
 	$(HOST_RUN_ENV) ./$(BUILD)/kaslr_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/window_test tests/window_test.c kernel/src/window.c kernel/src/surface.c kernel/src/status.c
+	$(HOST_RUN_ENV) ./$(BUILD)/window_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/compositor_test tests/compositor_test.c kernel/src/compositor.c kernel/src/window.c kernel/src/surface.c kernel/src/status.c
+	$(HOST_RUN_ENV) ./$(BUILD)/compositor_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/gfx_backend_test tests/gfx_backend_test.c kernel/src/gfx_backend.c kernel/src/surface.c kernel/src/status.c
+	$(HOST_RUN_ENV) ./$(BUILD)/gfx_backend_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/shell_test tests/shell_test.c kernel/src/shell.c kernel/src/window.c kernel/src/surface.c kernel/src/status.c
+	$(HOST_RUN_ENV) ./$(BUILD)/shell_test
 
 # Same suites, compiled and run under AddressSanitizer and
 # UndefinedBehaviorSanitizer. Leak detection is on: a test binary that leaks is a
@@ -202,7 +210,8 @@ test-sanitize: $(BUILD)
 	      $(BUILD)/cpu_test $(BUILD)/abi_test $(BUILD)/elf_test \
 	      $(BUILD)/block_test $(BUILD)/fs_test \
 	      $(BUILD)/pci_test $(BUILD)/gpu_test $(BUILD)/display_test \
-	      $(BUILD)/input_test $(BUILD)/surface_test $(BUILD)/input_ps2_test
+	      $(BUILD)/input_test $(BUILD)/surface_test $(BUILD)/input_ps2_test \
+	      $(BUILD)/window_test $(BUILD)/compositor_test $(BUILD)/gfx_backend_test $(BUILD)/shell_test
 	$(MAKE) test HOST_EXTRA_CFLAGS="$(SAN_CFLAGS)" HOST_RUN_ENV="$(SAN_ENV)"
 
 run: $(ISO)
