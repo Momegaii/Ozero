@@ -74,7 +74,9 @@ static void init_idle(struct o0_thread *thread, uint32_t cpu) {
 
 void o0_sched_init(void) {
     for (uint32_t cpu = 0; cpu < O0_MAX_CPUS; ++cpu) {
-        o0_spin_init(&runqueues[cpu].lock);
+        /* IRQ-safe and never held across a blocking operation; keep it outside
+         * the ordered checker even when O0_LOCK_ORDER_CHECK is enabled. */
+        o0_spin_init_ordered(&runqueues[cpu].lock, 0u);
         runqueues[cpu].head = NULL;
         runqueues[cpu].tail = NULL;
         runqueues[cpu].count = 0;
