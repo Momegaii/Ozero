@@ -201,6 +201,7 @@ emulation;** its design and implementation record are in
   `ipc pair OK pair-1`, `handle negative tests OK`, `budget exhaustion OK`,
   `ipc negative tests OK`, `wave3 churn OK pairs=8` and `wave3 self-test complete`.
 - **Sanitizers:** `make test-sanitize` passes with leak detection enabled.
+- **CI:** GitHub Actions run [#138](https://github.com/Momegaii/Ozero/actions/runs/45587151198) on commit `521bc04` completed SUCCESS with all five jobs (`boot` × 4 and `host-sanitizers`) on QEMU 10.2.1. Its downloaded job logs contain the Wave 3 markers; this was not inferred from the Actions summary alone.
 - **Physical hardware:** not exercised. None of the above is physical evidence.
 
 The churn check requires live object count, root budget usage and PMM free pages to return to

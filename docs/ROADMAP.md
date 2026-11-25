@@ -47,8 +47,10 @@ per-item status and evidence live in [docs/hardening-roadmap.md](hardening-roadm
 - **Wave 3 — capability handles, budgets and synchronous IPC: implemented and verified in
   emulation (2026-11-24).** Design and implementation record:
   [ADR 0008](decisions/0008-capability-handles-budgets-and-ipc.md). Host `cap_test`, the full
-  local four-cell matrix on QEMU 10.0.13 and `make test-sanitize` pass; eight churn pairs return
-  object, budget and PMM accounting to baseline. There is no physical-hardware evidence.
+  local four-cell matrix on QEMU 10.0.13, CI run
+  [#138](https://github.com/Momegaii/Ozero/actions/runs/45587151198) with all five jobs on QEMU
+  10.2.1, and `make test-sanitize` pass; eight churn pairs return object, budget and PMM
+  accounting to baseline. There is no physical-hardware evidence.
 - **Waves 4–7 — planned, not started.** Wave 4 (virtio-blk/AHCI/NVMe, partitions, crash
   consistency, VFS), Wave 5 (signals/futex/timers, PCI/MSI-X/ACPI, SMEP/SMAP/KASLR), Wave 6
   (fuzzing, concurrency testing, logging/backtraces, performance baselines), Wave 7 (resume

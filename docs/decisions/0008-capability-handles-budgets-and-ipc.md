@@ -400,6 +400,9 @@ Verification and evidence:
   cores) passes under `make test` and `make test-sanitize`.
 - Emulator: `{bios, uefi} × {qemu64, Haswell-v1}` on QEMU 10.0.13; every cell
   prints the Wave 3 markers and `QEMU smoke test: PASS`.
+- CI: run [#138](https://github.com/Momegaii/Ozero/actions/runs/45587151198) on
+  commit `521bc04` passed all five jobs on QEMU 10.2.1; the downloaded job logs
+  contain the same markers.
 - Negative coverage: forged and stale handles, rights escalation, foreign
   budget mapping, bad IPC pointers, dead peers, budget exhaustion and eight
   process-churn pairs with object, budget and PMM accounting returned to
