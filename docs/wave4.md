@@ -70,9 +70,23 @@ behaviour.
 
 ### Wave 4.1 evidence
 
-Recorded after the commit lands on `main`: commit hash, CI run URL, job conclusions, and
-whether logs were inspected. Until then Wave 4.1 is implemented, host-tested and
-locally boot-marked only.
+- **Commit:** `24b8d23` (`feat(kernel): add PCI MSI/MSI-X routing and the DMA allocator`)
+  on `main`.
+- **CI:** [run 45708532478](https://github.com/Momegaii/Ozero/actions/runs/45708532478) —
+  `completed` / `success`, 14/14 jobs: 12 boot cells
+  (`{bios, uefi} × {qemu64, Haswell-v1, max} × -smp {1, 2}`), `lock-order-boot` and
+  `host-sanitizers`.
+- **Docs commit:** `bbfbc25` is green in
+  [run 45708413626](https://github.com/Momegaii/Ozero/actions/runs/45708413626), also
+  14/14 jobs.
+- **Evidence type:** CI. Not Director-observed, not physical.
+- **Check limit:** run and job *conclusions* were read from the Actions API; the job logs
+  require repository admin rights (`403`) and were not inspected. Marker assertions rest
+  on each boot cell's exit status through `tools/qemu-smoke.sh`, which now requires
+  `OZERO: pci caps msi=`. `make test` and `make test-sanitize` also passed in the
+  workspace, which is local-only and not evidence on the commit.
+- **Not covered:** no driver uses the DMA allocator or MSI-X yet, so no device path is
+  exercised. That is Wave 4.2.
 
 ## Wave 4.2 — virtio-blk first
 

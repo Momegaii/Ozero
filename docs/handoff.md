@@ -45,6 +45,22 @@ CPUs) are explicitly *not* covered by it.
 - Host, local QEMU and analyzer evidence for Wave 3 is recorded in
   `docs/PROJECT_STATUS.md` and `docs/hardening-roadmap.md`.
 
+## Wave 4.1 — PCI, MSI/MSI-X and DMA foundations (2026-11-25)
+
+- **Commit:** `24b8d23` on `main`.
+- **CI:** [run 45708532478](https://github.com/Momegaii/Ozero/actions/runs/45708532478) —
+  `completed` / `success`, 14/14 jobs (12 boot cells, `lock-order-boot`,
+  `host-sanitizers`). The docs commit `bbfbc25` is green in
+  [run 45708413626](https://github.com/Momegaii/Ozero/actions/runs/45708413626), 14/14.
+- **Evidence type:** CI, from job conclusions. Job logs need repository admin (`403`) and
+  were not inspected here; the boot cells fail on any missing marker because
+  `tools/qemu-smoke.sh` now requires `OZERO: pci caps msi=`.
+- **Scope:** capability-list parsing from one config-space snapshot, BAR size from the
+  all-ones mask, MSI/MSI-X programming and LAPIC vector dispatch, the DMA allocator with
+  pinning, and host tests for both. No device driver consumes any of it yet.
+- **Not verified:** no storage device, no physical hardware, no MSI-X interrupt from a
+  real device. Wave 4.2 is not started.
+
 ## Open items
 
 - CI was inspected on the Wave 4.0 HEAD `3b48810`: 14/14 jobs `success` in run
@@ -54,9 +70,8 @@ CPUs) are explicitly *not* covered by it.
   beyond the BSP. Ring 3 and SMAP on non-boot CPUs are untested.
 - No physical-hardware evidence exists for any wave.
 - Stage 7–10 not started. Wave 4.0 is closed: ADRs 0012–0014 were approved by the
-  Director on 2026-11-25 and the O0FS format is still a proposal. Wave 4.1 (PCI/MSI-X and
-  DMA foundation) is implemented and host-tested; its CI evidence is recorded in
-  `docs/wave4.md` once the commit run is green. Wave 4.2 has not started.
+  Director on 2026-11-25 and the O0FS format is still a proposal. Wave 4.1 is
+  implemented and CI-green on `24b8d23` (run `45708532478`). Wave 4.2 has not started.
 
 ## Rules that stay in force
 

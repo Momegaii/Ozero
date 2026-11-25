@@ -205,8 +205,9 @@ threads while a user process churns on the BSP.
 
 ## Wave 4 — Storage and filesystem (4.0 closed; 4.1 implemented)
 
-0. Wave 4.1 (implemented, awaiting its commit's CI run): PCI/MSI-X foundations, BAR
-   sizing and capability walking, and the DMA allocator with explicit pinning. The
+0. Wave 4.1 (implemented; CI-green in run 45708532478 on `24b8d23`, 14/14 jobs):
+   PCI/MSI-X foundations, BAR sizing and capability walking, and the DMA allocator with
+   explicit pinning. The
    per-CPU TSS/IST design is [ADR 0015](decisions/0015-per-cpu-tss-ist.md), a blocking
    dependency before Stage 6 uses SMP.
 1. virtio-blk first, then AHCI/NVMe with DMA and IRQ completion.
