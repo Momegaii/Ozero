@@ -86,6 +86,26 @@ Wave 2 verification detail:
 Sign-off is for the emulator scope of Rule 0: a single-CPU user mode is verified in QEMU on
 both firmwares and CPU models. Wave 3 may start, but no Wave 3 item is claimed by this change.
 
+### Entry criteria carried forward from Wave 2
+
+These are gaps, not failures. They must be closed by the wave that owns them, and none may be
+assumed closed because the single-CPU emulator run passed.
+
+1. **SMP must exercise `swapgs` and the per-CPU block.** Wave 2 only reserves them
+   (`O0_MAX_CPUS = 1`). The SMP wave must run with more than one CPU and show a user process
+   surviving migration between CPUs before it claims the ABI is SMP-safe.
+2. **SMEP/SMAP must exercise `STAC`/`CLAC`.** The usercopy cores are structured for it, but no
+   `STAC`/`CLAC` instruction is emitted and no fault path has been exercised. Structure is not
+   evidence; the hardening wave must enable SMAP and run the user-memory negative tests again.
+3. **Physical silicon is still an open box.** Interrupt delivery, `SYSCALL`/`SYSRET`
+   canonical-address behaviour and TSS/IST handling can differ from QEMU. `Haswell-v1` under
+   QEMU is a CPU model, not real hardware. No Wave 2 result may be used as physical evidence.
+4. **Loader fuzzing should become a time-boxed CI job.** `elf_test` has fixed cases plus a
+   bounded in-process fuzz loop. A longer-running fuzz target (libFuzzer/AFL) in CI would give
+   more confidence than the current fixed budget.
+5. **Wave 2 review lands as its own diff.** The branch baseline is far ahead of `main`, so the
+   review PR is based on a Wave 2 base branch rather than `main`. This keeps the Wave 2 diff
+   separate from earlier stages.
 
 Deferred until Wave 2 is verified: SMP, SMEP/SMAP, KASLR, signals, IPC, `mmap`, dynamic linking
 and `fork`.
@@ -116,8 +136,8 @@ Notes carried into the wave:
 
 ## Wave 5 — Quality engineering (planned, not started)
 
-1. Fuzz syscalls, the filesystem image parser and the block layer (libFuzzer/AFL in host
-   builds).
+1. Fuzz syscalls, the filesystem image parser, the block layer and the ELF loader
+   (libFuzzer/AFL in host builds), with a time-boxed CI job rather than fixed cases only.
 2. Concurrency testing: lockdep-lite, scheduler/mutex race stress, deterministic replay in
    QEMU.
 3. Kernel logging levels, panic backtraces, symbolised oops, GDB-over-serial stub.
