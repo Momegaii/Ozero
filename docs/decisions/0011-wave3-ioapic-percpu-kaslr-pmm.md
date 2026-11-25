@@ -2,7 +2,10 @@
 
 - **Status:** Accepted-provisional (implemented and emulator-verified; review requested)
 - **Date:** 2026-11-24
-- **Scope:** I/O APIC discovery and ISA interrupt routing, per-CPU runqueues with kernel-thread migration, TLB shootdown (single-page, range, full), kernel-stack randomization (KSR), buddy-aligned PMM, bootloader-memory reclaim, and lock-order classes.
+- **Wave:** 3
+- **Supersedes:** the "not started" clauses of ADR 0009 §3.4 and ADR 0010 §3.5
+- **Related:** ADR 0005 (LAPIC ExtINT), ADR 0007 (user ABI and per-CPU reserve),
+  ADR 0009 (SMP bring-up), ADR 0010 (SMEP/SMAP), `docs/hardening-roadmap.md`
 
 ## 1. Context
 
@@ -11,13 +14,27 @@ left I/O APIC routing, per-CPU runqueues, kernel-stack randomization, buddy allo
 reclaim unclaimed. ADR 0010 kept the bitmap PMM and the reclaim stub. This ADR
 records the decisions that close those items, and the limits that remain.
 
-## 2. Alternatives considered
+The constraints are unchanged: Ozero owns its native execution architecture;
+Linux is not the reference; hardware features are used only when CPUID or ACPI
+advertises them; and no evidence is inferred across host, QEMU or physical runs.
 
-| Item | Alternative | Why it was not chosen |
-|---|---|---|
-| I/O APIC | Keep 8259 only | ISA IRQs cannot reach APs without the I/O APIC; the 8259 has no affinity. |
-| Per-CPU runqueues | Single global runqueue | Contention scales poorly; the Director directed per-CPU queues with explicit migration. |
-| TLB shootdown | Broadcast IPI with a global flush | Range and single-page flushes are cheaper when the mapping change is narrow. The protocol supports all three. |
+## 2. Alternatives
+
+### Interrupt routing
+
+| Alternative | Trade-off |
+|---|---|
+| **I/O APIC when the MADT exposes one, 8259 otherwise (chosen)** | Removes the 8259 from the normal QEMU path, supports ISA overrides and level/edge polarity, and keeps a working fallback for firmware without a usable MADT. |
+| Keep the 8259 only | Simpler, but leaves the I/O APIC and GSI overrides unexercised and keeps the legacy PIC in the hot path. |
+| MSI/MSI-X first | More modern, but needs PCI capability parsing and per-device vector allocation; deferred to Wave 5. |
+| x2APIC | Not assumed; xAPIC MMIO remains the common path. |
+
+### Scheduler topology
+
+| Alternative | Trade-off |
+|---|---|
+| **Per-CPU runqueues with kernel-thread migration (chosen)** | Exercises AP scheduling without changing the user ABI. Ready threads move between CPUs; the current CPU reschedules through the existing IPI vector. |
+| Keep one global queue | Fewer races, but the APs never run work and per-CPU state stays untested. |
 | User threads on APs now | Requires per-CPU TSS/IST and a user-thread affinity model; deferred because the shared TSS would corrupt RSP0. |
 | Work stealing | More balanced, but needs a second queue policy and more tests; deferred. |
 
@@ -34,26 +51,42 @@ records the decisions that close those items, and the limits that remain.
 
 | Alternative | Trade-off |
 |---|---|
-| **Bitmap with buddy alignment (chosen)** | The existing bitmap is the source of truth; adding buddy alignment and coalescing preserves it while satisfying order-`n` requests. |
-| Free-list buddy allocator | Replaces the bitmap entirely; larger refactor, not needed for the current scale. |
-| Slab-only | Cannot satisfy large physically contiguous requests (e.g., GPU rings). |
+| **Bitmap PMM with aligned buddy blocks and coalescing checks (chosen)** | Keeps the existing bitmap and its churn test, adds power-of-two alignment for large orders, and records buddy coalescing without introducing a second allocator. |
+| Free-list buddy allocator | Classic, but replaces a tested allocator and needs split/merge metadata for every order. |
+| Keep first-fit only | Large aligned allocations can fail even when enough free pages exist. |
 
-### Lock-order checker
+### Bootloader-memory reclaim
 
 | Alternative | Trade-off |
 |---|---|
-| **Default class 1 with explicit inner classes (chosen)** | A forgotten `o0_spin_init()` cannot silently disable the checker; the default matrix stays checker-off so a checker panic is attributable. |
-| Opt-in classes only (previous) | A lock without `o0_spin_init_ordered()` gets class 0 and exits the checker; inversions go undetected. |
-| Full lockdep with call-site tracking | Heavy; requires a lock name string and a per-CPU stack of held locks with call sites. The current design is a subset that fits the freestanding kernel. |
+| **Release Limine `BOOTLOADER_RECLAIMABLE` after the boot contract copies its data (chosen)** | Returns real memory and is observable as a byte count. The kernel's boot info, memory map, RSDP-derived ACPI data and framebuffer description are already kernel-owned copies. |
+| Release ACPI reclaimable too | The kernel does not yet copy every ACPI table it may need; unsafe until an ACPI-owned copy exists. |
+| Never reclaim | Wastes memory and leaves the contract untested. |
 
-## 3. Decisions
+### Lock ordering
 
-1. **I/O APIC.** The MADT parser (`o0_madt_parse()`) finds the I/O APIC base, GSI base and redirection entries. `o0_ioapic_init()` redirects each ISA GSI to the BSP's LAPIC vector (0x20 + GSI), masks all others, and records the GSI→vector map. The 8259 is masked after the I/O APIC takes over.
+| Alternative | Trade-off |
+|---|---|
+| **Opt-in lock classes plus an IRQ-safe runqueue lock (chosen)** | The checker validates ordered blocking locks and panics on inversion; runqueue locks disable interrupts and are not class-checked because they are never held across a blocking operation. |
+| Check every lock | The scheduler's interrupt-safe critical sections would trip the checker during legitimate timer re-entry. |
+| No checker | Cheaper, but lock inversions become timing-dependent bugs. |
 
-2. **Per-CPU runqueues.** Each CPU has a `o0_runqueue_t` protected by an IRQ-safe spinlock (class 0). `o0_sched_enqueue()` and `o0_sched_dequeue()` operate on the current CPU's queue. `o0_sched_migrate()` removes the thread from its current queue, updates `thread->cpu`, and enqueues on the target CPU's queue. The scheduler tick runs on every CPU and only scans the local queue.
+## 3. Decision
 
-3. **TLB shootdown.** `o0_tlb_shootdown()` takes a mode (single-page, range, full), a target CPU mask, and the address/size. It writes the flush request (vector, count, all flag) in the target's per-CPU block. The sender waits for every online target with a bounded spin; timeout is a panic, never a silent stale TLB. Single-page, range and full-flush entry points share the protocol.
-
+1. **I/O APIC.** When the MADT provides an I/O APIC, `o0_ioapic_init()` maps its
+   MMIO page, masks every redirection entry, routes ISA IRQs through the MADT
+   override table (GSI, level/edge, polarity) and masks the 8259. Without a usable
+   I/O APIC the kernel keeps the PIC path. The LAPIC timer is calibrated before
+   the I/O APIC is enabled because calibration uses PIT IRQ0.
+2. **Per-CPU scheduler.** Each CPU owns a runqueue and an idle thread. The BSP
+   advances global time and scans sleepers; every CPU's LAPIC timer preempts its
+   own runqueue. Kernel threads may be created on or migrated to an AP. User
+   threads remain pinned to the BSP until per-CPU TSS/IST descriptors exist,
+   because `TSS.RSP0` is still shared.
+3. **TLB shootdown.** Vector `0x40` carries a range descriptor (`addr`, page
+   count, all flag) in the target's per-CPU block. The sender waits for every
+   online target with a bounded spin; timeout is a panic, never a silent stale
+   TLB. Single-page, range and full-flush entry points share the protocol.
 4. **Kernel-stack randomization (KSR).** `o0_kaslr_init()` derives one
    2 MiB-aligned offset and applies it to the dedicated kernel-stack window
    (`O0_KASLR_KSTACK_BASE`, 1 GiB window). The kernel image and HHDM stay at
@@ -69,18 +102,14 @@ records the decisions that close those items, and the limits that remain.
      raises the cost of opportunistic stack-address guessing, nothing more.
    - The same function feeds every stack allocation, including kernel stacks in
      the randomized window.
-
 5. **Buddy PMM.** The bitmap remains the source of truth. Allocation of order
    `n` requires a naturally aligned `2^n`-page block; free walks the buddy tree
    upward while the paired block is wholly free. Bootloader-reclaimable regions
-   are released by `o0_pmm_release_bootloader_memory()` after boot info, ACPI
-   data and the SMP response are copied. ACPI reclaimable is not released.
-
-6. **Bootloader-memory reclaim.** `o0_pmm_release_bootloader_memory()` iterates
-   the Limine memmap response and returns every `LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE`
-   region to the PMM. The kernel image, modules and the framebuffer are excluded
-   by type.
-
+   are tracked but reserved at initialisation.
+6. **Reclaim.** `o0_pmm_release_bootloader_memory()` clears every reserved
+   reclaimable region once, adds its pages to the free count and returns the
+   released byte count. It runs after the boot information, ACPI data and SMP
+   response have been consumed. ACPI reclaimable memory is not released.
 7. **Lock checker.** Ordered locks carry a class; acquisition must strictly
    increase the class and release must be in reverse order. Unordered locks
    (class 0) are IRQ-safe spinlocks and are outside the checker. Runqueue locks
@@ -88,7 +117,6 @@ records the decisions that close those items, and the limits that remain.
    compile with `O0_LOCK_ORDER_CHECK`, which gives every `o0_spin_init()` lock a
    default class of 1; one CI boot cell builds the kernel the same way. The
    default matrix stays checker-off so a checker panic is attributable.
-
 8. **ABI reserve.** The `swapgs`/per-CPU block and the syscall STAR layout from
    ADR 0007 are unchanged, so adding per-CPU TSS descriptors later does not
    change the user ABI.
@@ -100,6 +128,9 @@ records the decisions that close those items, and the limits that remain.
   reclaim. The evidence is emulator-only.
 - `-cpu max` is the only local model with SMAP; `Haswell-v1` reports SMEP on and
   SMAP off.
+- User threads still do not run on APs. Per-CPU TSS/IST, user-thread affinity,
+  work stealing, ACPI reclaim and kernel-image relocation remain open and are
+  not claimed.
 - The buddy PMM is a bitmap with buddy alignment/coalescing, not a free-list
   allocator. The ADR names it that way to avoid overclaiming.
 - KSR randomises the stack window, not the kernel text or image. The ADR names

@@ -54,7 +54,18 @@ QEMU_FIRMWARE=uefi bash tools/qemu-smoke.sh     # UEFI via OVMF
 The UEFI path needs the `ovmf` package (defaults to
 `/usr/share/OVMF/OVMF_CODE_4M.fd` and `OVMF_VARS_4M.fd`; override with
 `QEMU_OVMF_CODE` / `QEMU_OVMF_VARS`). Both firmware paths assert the full serial marker
-set, including `OZERO: firmware=BIOS`/`UEFI` and `OZERO: interrupt delivery=`.
+set, including the self-describing boot header, `firmware=BIOS`/`UEFI` and
+`OZERO: interrupt delivery=`.
+
+To verify the framebuffer pattern independently of a host window:
+
+```sh
+python3 tools/framebuffer-check.py --iso build/ozero.iso
+```
+
+It boots QEMU, takes a QMP `screendump`, checks the eight bar centres and both
+edges, and compares the FNV checksum with the kernel's log marker. `make check`
+runs the same check automatically when `qemu-system-x86_64` is installed.
 
 For GDB debugging, run `make run-debug`, then connect GDB to `localhost:1234`.
 
@@ -66,10 +77,12 @@ Boot log markers (in order):
 
 | Marker | Meaning |
 |--------|---------|
+| `OZERO: build commit=<sha>` | Build identity compiled from `git rev-parse --short=12 HEAD` |
+| `OZERO: cpu vendor=… family=… model=… brand=…` | CPUID identity, including the brand string |
+| `OZERO: platform=… hypervisor=… signature=… firmware=BIOS`/`UEFI` | Hypervisor vendor/signature and the firmware that loaded Limine |
 | `OZERO: kernel entry reached` | Limine transferred control to `kmain` |
 | `OZERO: architecture=x86_64` | CPU mode confirmed |
 | `OZERO: boot protocol=Limine` | Bootloader identified |
-| `OZERO: firmware=BIOS` / `OZERO: firmware=UEFI` | Firmware that loaded Limine, from the Limine EFI system table response |
 | `OZERO: Limine base revision accepted` | Bootloader supports revision 6 |
 | `OZERO: IDT installed (CPU exceptions 0-31)` | Exception dispatch table active |
 | `OZERO: hhdm_offset=<addr>` | Bootloader direct-map offset |
@@ -100,6 +113,14 @@ Boot log markers (in order):
 | `OZERO: o0fs file OK bytes=<n>` | Create/write/read-back through the filesystem |
 | `OZERO: o0fs fault test OK` | Injected storage error reported and cleared |
 | `OZERO: storage self-test complete` | Stage 4 boot self-test finished |
+| `OZERO: framebuffer bars=8 width=… height=…` | Boot framebuffer accepted and eight bands drawn |
+| `OZERO: framebuffer sample bar=N pixel=… expected=…` | Read-back pixel at each bar centre matches the deterministic pattern |
+| `OZERO: framebuffer checksum=… expected=…` | FNV checksum over all eight sampled centres |
+| `OZERO: user entry OK` | Static init reached ring 3 and issued `debug_write` |
+| `OZERO: syscall exit status=0` | Init exited through the native `exit` syscall with status 0 |
+| `OZERO: user fault contained vector=…` | A ring-3 fault was contained and the process killed |
+| `OZERO: syscall bad pointer rejected` | Bad user pointer returned `-EFAULT` instead of faulting the kernel |
+| `OZERO: user churn OK processes=16` | Sixteen spawn/join cycles returned PMM free bytes to baseline |
 
 On exception, `OZERO: EXCEPTION vector=<n> error=<e> rip=<r>` is printed.
 For page faults (vector 14), `cr2=<a>` and the fault type
@@ -129,29 +150,36 @@ Press Ctrl+C to stop QEMU.
 
 ## Hardening roadmap
 
-The Project Director paused new GPU/Stage 6 scope and ordered six hardening waves. Plan,
+The Project Director paused new GPU/Stage 6 scope and ordered seven hardening waves. Plan,
 status and evidence: [docs/hardening-roadmap.md](docs/hardening-roadmap.md). Wave 1
 (verification debt) is complete locally: the Stage 4 regressions execute, BIOS and UEFI boots
 pass on `qemu64` and `Haswell-v1`, CI has a firmware/CPU matrix plus ASan/UBSan host tests,
 and one interrupt-delivery defect was fixed (see
 [docs/decisions/0005-lapic-extint-interrupt-delivery.md](docs/decisions/0005-lapic-extint-interrupt-delivery.md)).
-Waves 2–6 are planned and not started.
+Wave 2 (single-CPU user mode) is implemented and emulator-verified. Wave Q records the
+Director's separate evidence, adds a self-describing boot header and a framebuffer
+screendump check. Under the Director's 2026-11-25 reorder, Wave 3 is SMP and memory hardening:
+AP bring-up, xAPIC IPIs, page/range/full TLB shootdown, I/O APIC routing, per-CPU runqueues
+with kernel-thread migration, LAPIC timers on every CPU, SMEP/SMAP, kernel-stack randomization,
+an aligned buddy PMM and bootloader reclaim are implemented and locally emulator-verified.
+User threads remain BSP-pinned. The earlier capability/IPC work is recorded as Wave 5.0.
+Physical hardware and Stage 5/6 GPU work remain paused.
 
 ## Honest status
 
 The current revision builds cleanly with `-Werror`, and every host suite passes in the normal
-build and under ASan/UBSan: PMM 7/7, slab 5/5, scheduler 5/5, CPU, block 6/6, OzeroFS 10/10,
-PCI 1/1, GPU 25/25, display, input, PS/2 and surface. The boot smoke test passes in **BIOS and
-UEFI/OVMF** on QEMU 8.2.2 and 10.1.0, for both `qemu64` and `Haswell-v1`: paging, heap,
+build and under ASan/UBSan: PMM 9/9, slab 5/5, scheduler 6/6, CPU, block 6/6, OzeroFS 10/10,
+PCI 1/1, GPU 26/26, display, input, PS/2 and surface. The boot smoke test passes in **BIOS and
+UEFI/OVMF** on QEMU 10.0.13 locally and 10.2.1 in CI, for both `qemu64` and `Haswell-v1`: paging, heap,
 timer-driven scheduler with worker exit, storage self-test and the GPU software-model
 self-tests all reach their markers. UEFI support was verified in Wave 1 (2026-11-24) under
 OVMF emulation, not on a physical UEFI machine.
 
 What this does **not** prove: physical hardware support, a real storage controller (the
-storage evidence is the RAM disk; there is no ATA/AHCI/NVMe driver), user-mode isolation
-(there is no user mode or syscall ABI yet), graphics beyond the software framebuffer path,
-GPU engine execution (no register is written outside the software model), or Windows
-compatibility. GitHub Actions status for this exact revision has to be observed in the
-repository; it could not be observed from the sandbox that produced this revision. Check
+storage evidence is the RAM disk; there is no ATA/AHCI/NVMe driver), physical user-mode
+isolation, graphics beyond the software framebuffer path, GPU engine execution (no register
+is written outside the software model), or Windows compatibility. The Director's Windows 8.1
+results are recorded separately as Director-observed and are not CI or physical-hardware
+evidence. Check
 `docs/PROJECT_STATUS.md` and `docs/hardening-roadmap.md` for the exact tested configuration;
 do not claim broader validation than the evidence supports.

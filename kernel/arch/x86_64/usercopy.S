@@ -35,6 +35,28 @@ o0_usercopy_from_fixup:
     ret
 .size o0_usercopy_raw_from_user, . - o0_usercopy_raw_from_user
 
+.global o0_usercopy_raw_from_user_smap
+.type o0_usercopy_raw_from_user_smap, @function
+o0_usercopy_raw_from_user_smap:
+    cld
+    movq %rdx, %rcx
+    movq %rdi, %r8
+.global o0_usercopy_from_fault_smap
+o0_usercopy_from_fault_smap:
+    stac
+    rep movsb
+    clac
+    xorl %eax, %eax
+    movq %r8, %rdi
+    ret
+.global o0_usercopy_from_fixup_smap
+o0_usercopy_from_fixup_smap:
+    clac
+    movl $7, %eax
+    movq %r8, %rdi
+    ret
+.size o0_usercopy_raw_from_user_smap, . - o0_usercopy_raw_from_user_smap
+
 .global o0_usercopy_raw_to_user
 .type o0_usercopy_raw_to_user, @function
 o0_usercopy_raw_to_user:
@@ -53,5 +75,27 @@ o0_usercopy_to_fixup:
     movq %r8, %rdi
     ret
 .size o0_usercopy_raw_to_user, . - o0_usercopy_raw_to_user
+
+.global o0_usercopy_raw_to_user_smap
+.type o0_usercopy_raw_to_user_smap, @function
+o0_usercopy_raw_to_user_smap:
+    cld
+    movq %rdx, %rcx
+    movq %rdi, %r8
+.global o0_usercopy_to_fault_smap
+o0_usercopy_to_fault_smap:
+    stac
+    rep movsb
+    clac
+    xorl %eax, %eax
+    movq %r8, %rdi
+    ret
+.global o0_usercopy_to_fixup_smap
+o0_usercopy_to_fixup_smap:
+    clac
+    movl $7, %eax
+    movq %r8, %rdi
+    ret
+.size o0_usercopy_raw_to_user_smap, . - o0_usercopy_raw_to_user_smap
 
 .section .note.GNU-stack,"",@progbits

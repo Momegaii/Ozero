@@ -1,11 +1,12 @@
-/* Ozero kernel - scheduler.
+/* Ozero kernel - per-CPU scheduler.
  *
- * Ready threads live in a single linked queue. The selection rule is:
+ * Each CPU owns a ready queue and a current thread. The selection rule is:
  * highest priority first, FIFO within one priority, and the current thread wins
- * ties until its timeslice expires. Preemption is driven by the PIT tick.
+ * ties until its timeslice expires. The BSP tick advances global time and scans
+ * sleepers; every CPU's local-APIC tick preempts that CPU.
  *
- * Every thread owns a kernel stack, so a context switch made from an interrupt
- * handler is safe: it suspends the interrupted thread exactly where it was.
+ * Kernel threads may migrate between CPUs. User threads stay on the BSP until
+ * per-CPU TSS blocks exist, because TSS.RSP0 is still shared.
  */
 
 #include <stdbool.h>
@@ -16,8 +17,10 @@
 #include "ozero/cpu_local.h"
 #include "ozero/gdt.h"
 #include "ozero/irq.h"
+#include "ozero/lapic.h"
 #include "ozero/mm.h"
 #include "ozero/status.h"
+#include "ozero/sync.h"
 #include "ozero/types.h"
 
 #include "thread_internal.h"
@@ -27,63 +30,88 @@
 
 extern void x86_64_context_switch(uint64_t *save_rsp, uint64_t new_rsp);
 
+struct o0_runqueue {
+    o0_spinlock_t lock;
+    struct o0_thread *head;
+    struct o0_thread *tail;
+    uint32_t count;
+    struct o0_thread *current;
+};
+
 static struct o0_thread boot_thread;
-static struct o0_thread *current;
-static struct o0_thread *ready_head;
-static struct o0_thread *ready_tail;
-static uint32_t ready_count;
+static struct o0_thread ap_idle[O0_MAX_CPUS];
+static struct o0_runqueue runqueues[O0_MAX_CPUS];
 
 static uint64_t ticks;
 static uint32_t tick_hz = O0_DEFAULT_HZ;
 static bool preemption_enabled;
 static bool scheduler_ready;
 
-void o0_sched_init(void) {
-    boot_thread.rsp = 0;
-    boot_thread.next_ready = NULL;
-    boot_thread.join_waiter = NULL;
-    boot_thread.proc = NULL;
-    boot_thread.entry = NULL;
-    boot_thread.arg = NULL;
-    boot_thread.stack_base = 0;
-    boot_thread.stack_size = 0;
-    boot_thread.kstack_base = 0;
-    boot_thread.kstack_pages = 0;
-    boot_thread.kernel_stack_top = 0;
-    boot_thread.user = false;
-    boot_thread.user_entry = 0;
-    boot_thread.user_rsp = 0;
-    boot_thread.wake_tick = 0;
-    boot_thread.exit_status = 0;
-    boot_thread.id = 0;
-    boot_thread.state = O0_THREAD_RUNNING;
-    boot_thread.block_reason = O0_BLOCK_NONE;
-    boot_thread.timeslice = O0_DEFAULT_TIMESLICE;
-    boot_thread.priority = O0_THREAD_PRIORITY_IDLE;
-    boot_thread.preemptible = false;
-    boot_thread.exited = false;
-    boot_thread.joined = false;
-    boot_thread.name[0] = 'i';
-    boot_thread.name[1] = 'd';
-    boot_thread.name[2] = 'l';
-    boot_thread.name[3] = 'e';
-    boot_thread.name[4] = '\0';
+static uint32_t cpu_index(void) {
+    uint32_t cpu = o0_cpu_index();
+    return cpu < O0_MAX_CPUS ? cpu : 0u;
+}
 
-    current = &boot_thread;
-    ready_head = NULL;
-    ready_tail = NULL;
-    ready_count = 0;
+static void init_idle(struct o0_thread *thread, uint32_t cpu) {
+    *thread = (struct o0_thread){0};
+    thread->id = cpu == 0u ? 0u : 0x80000000u + cpu;
+    thread->state = O0_THREAD_RUNNING;
+    thread->priority = O0_THREAD_PRIORITY_IDLE;
+    thread->preemptible = false;
+    thread->timeslice = O0_DEFAULT_TIMESLICE;
+    thread->cpu = cpu;
+    const char *base = cpu == 0u ? "idle" : "ap-idle";
+    size_t i = 0;
+    while (base[i] != '\0' && i + 1u < sizeof(thread->name)) {
+        thread->name[i] = base[i];
+        ++i;
+    }
+    if (cpu != 0u && i + 1u < sizeof(thread->name)) {
+        thread->name[i++] = (char)('0' + (cpu % 10u));
+    }
+    thread->name[i] = '\0';
+}
+
+void o0_sched_init(void) {
+    for (uint32_t cpu = 0; cpu < O0_MAX_CPUS; ++cpu) {
+        /* IRQ-safe and never held across a blocking operation; keep it outside
+         * the ordered checker even when O0_LOCK_ORDER_CHECK is enabled. */
+        o0_spin_init_ordered(&runqueues[cpu].lock, 0u);
+        runqueues[cpu].head = NULL;
+        runqueues[cpu].tail = NULL;
+        runqueues[cpu].count = 0;
+        runqueues[cpu].current = NULL;
+        init_idle(cpu == 0u ? &boot_thread : &ap_idle[cpu], cpu);
+    }
+    runqueues[0].current = &boot_thread;
     ticks = 0;
     preemption_enabled = false;
     scheduler_ready = true;
 }
 
 struct o0_thread *o0_sched_current(void) {
-    return current;
+    struct o0_thread *thread = runqueues[cpu_index()].current;
+    return thread != NULL ? thread : &boot_thread;
 }
 
 uint32_t o0_sched_ready_count(void) {
-    return ready_count;
+    uint32_t total = 0;
+    for (uint32_t cpu = 0; cpu < O0_MAX_CPUS; ++cpu) {
+        total += o0_sched_ready_count_cpu(cpu);
+    }
+    return total;
+}
+
+uint32_t o0_sched_ready_count_cpu(uint32_t cpu) {
+    if (cpu >= O0_MAX_CPUS) {
+        return 0u;
+    }
+    o0_irq_state_t irq = o0_irq_save();
+    o0_spin_lock(&runqueues[cpu].lock);
+    uint32_t count = runqueues[cpu].count;
+    o0_spin_unlock(&runqueues[cpu].lock);
+    o0_irq_restore(irq);
+    return count;
 }
 
 uint64_t o0_sched_ticks(void) {
@@ -119,24 +147,40 @@ void o0_sched_enqueue(struct o0_thread *thread) {
     if (thread == NULL) {
         return;
     }
-    thread->next_ready = NULL;
-    if (ready_tail == NULL) {
-        ready_head = thread;
-        ready_tail = thread;
-    } else {
-        ready_tail->next_ready = thread;
-        ready_tail = thread;
+    uint32_t cpu = thread->cpu;
+    if (cpu >= O0_MAX_CPUS) {
+        cpu = 0u;
     }
-    ++ready_count;
+    /* User threads cannot run on an AP until each CPU has its own TSS. */
+    if (thread->user && cpu != 0u) {
+        cpu = 0u;
+    }
+    thread->cpu = cpu;
+    thread->next_ready = NULL;
+    struct o0_runqueue *rq = &runqueues[cpu];
+    o0_irq_state_t irq = o0_irq_save();
+    o0_spin_lock(&rq->lock);
+    if (rq->tail == NULL) {
+        rq->head = thread;
+        rq->tail = thread;
+    } else {
+        rq->tail->next_ready = thread;
+        rq->tail = thread;
+    }
+    ++rq->count;
+    o0_spin_unlock(&rq->lock);
+    o0_irq_restore(irq);
 }
 
-/* Highest priority ready thread; ties are broken by queue order. */
-static struct o0_thread *pick_next(void) {
-    struct o0_thread *best = ready_head;
+/* Highest priority ready thread on one CPU; ties are broken by queue order.
+ * The caller holds the run-queue lock. */
+static struct o0_thread *pick_next_locked(uint32_t cpu) {
+    struct o0_runqueue *rq = &runqueues[cpu];
+    struct o0_thread *best = rq->head;
     if (best == NULL) {
         return NULL;
     }
-    for (struct o0_thread *t = ready_head->next_ready; t != NULL; t = t->next_ready) {
+    for (struct o0_thread *t = rq->head->next_ready; t != NULL; t = t->next_ready) {
         if (t->priority > best->priority) {
             best = t;
         }
@@ -144,21 +188,31 @@ static struct o0_thread *pick_next(void) {
     return best;
 }
 
-static void remove_ready(struct o0_thread *target) {
+static struct o0_thread *pick_next(uint32_t cpu) {
+    o0_irq_state_t irq = o0_irq_save();
+    o0_spin_lock(&runqueues[cpu].lock);
+    struct o0_thread *best = pick_next_locked(cpu);
+    o0_spin_unlock(&runqueues[cpu].lock);
+    o0_irq_restore(irq);
+    return best;
+}
+
+static void remove_ready_locked(uint32_t cpu, struct o0_thread *target) {
+    struct o0_runqueue *rq = &runqueues[cpu];
     struct o0_thread *prev = NULL;
-    for (struct o0_thread *t = ready_head; t != NULL; t = t->next_ready) {
+    for (struct o0_thread *t = rq->head; t != NULL; t = t->next_ready) {
         if (t == target) {
             if (prev == NULL) {
-                ready_head = t->next_ready;
+                rq->head = t->next_ready;
             } else {
                 prev->next_ready = t->next_ready;
             }
-            if (ready_tail == t) {
-                ready_tail = prev;
+            if (rq->tail == t) {
+                rq->tail = prev;
             }
             t->next_ready = NULL;
-            if (ready_count > 0) {
-                --ready_count;
+            if (rq->count > 0) {
+                --rq->count;
             }
             return;
         }
@@ -166,15 +220,41 @@ static void remove_ready(struct o0_thread *target) {
     }
 }
 
+static void remove_ready(uint32_t cpu, struct o0_thread *target) {
+    o0_irq_state_t irq = o0_irq_save();
+    o0_spin_lock(&runqueues[cpu].lock);
+    remove_ready_locked(cpu, target);
+    o0_spin_unlock(&runqueues[cpu].lock);
+    o0_irq_restore(irq);
+}
+
+static struct o0_thread *take_next(uint32_t cpu) {
+    o0_irq_state_t irq = o0_irq_save();
+    o0_spin_lock(&runqueues[cpu].lock);
+    struct o0_thread *next = pick_next_locked(cpu);
+    if (next != NULL) {
+        remove_ready_locked(cpu, next);
+    }
+    o0_spin_unlock(&runqueues[cpu].lock);
+    o0_irq_restore(irq);
+    return next;
+}
+
+static struct o0_thread *idle_for(uint32_t cpu) {
+    return cpu == 0u ? &boot_thread : &ap_idle[cpu];
+}
+
 static void switch_to(struct o0_thread *next) {
-    struct o0_thread *prev = current;
+    uint32_t cpu = cpu_index();
+    struct o0_runqueue *rq = &runqueues[cpu];
+    struct o0_thread *prev = rq->current;
     if (next == NULL || next == prev) {
         return;
     }
 
     next->state = O0_THREAD_RUNNING;
     next->timeslice = O0_DEFAULT_TIMESLICE;
-    current = next;
+    rq->current = next;
 
     /* The kernel half is shared, so the running code and stack stay mapped
      * while CR3 changes. RSP0 must name the incoming thread's kernel stack
@@ -185,10 +265,12 @@ static void switch_to(struct o0_thread *next) {
     if (target != NULL && o0_as_active() != target) {
         o0_as_activate(target);
     }
-    if (next->kernel_stack_top != 0) {
+    /* TSS.RSP0 is shared until per-CPU TSS descriptors land. Only the BSP can
+     * take ring-3 entries, so an AP must not overwrite the BSP's RSP0. */
+    if (cpu == 0u && next->kernel_stack_top != 0) {
         o0_arch_set_rsp0(next->kernel_stack_top);
     }
-    o0_cpu_local[0].current = (uint64_t)(uintptr_t)next;
+    o0_cpu_local[cpu].current = (uint64_t)(uintptr_t)next;
 
     x86_64_context_switch(&prev->rsp, next->rsp);
 }
@@ -198,28 +280,42 @@ void o0_sched_yield(void) {
         return;
     }
     o0_irq_state_t irq = o0_irq_save();
+    uint32_t cpu = cpu_index();
+    struct o0_thread *me = runqueues[cpu].current;
 
-    struct o0_thread *me = current;
-    struct o0_thread *next = pick_next();
+    /* A migration IPI may have retargeted the current thread while no other
+     * thread is ready here. Leave the CPU even then, so the thread is picked
+     * up from its target runqueue instead of continuing on the old CPU. */
+    if (me != NULL && me->cpu != cpu && me->state == O0_THREAD_RUNNING) {
+        me->state = O0_THREAD_READY;
+        o0_sched_enqueue(me);
+        switch_to(idle_for(cpu));
+        o0_irq_restore(irq);
+        return;
+    }
 
-    if (next == NULL || (next == me)) {
+    struct o0_thread *next = take_next(cpu);
+
+    if (next == NULL || next == me) {
         o0_irq_restore(irq);
         return;
     }
 
     if (me != NULL && me->state == O0_THREAD_RUNNING) {
         me->state = O0_THREAD_READY;
+        /* A migrated thread is queued on its target CPU, not the CPU it is
+         * leaving. */
         o0_sched_enqueue(me);
     }
 
-    remove_ready(next);
     switch_to(next);
     o0_irq_restore(irq);
 }
 
 void o0_sched_block(uint32_t reason) {
     o0_irq_state_t irq = o0_irq_save();
-    struct o0_thread *me = current;
+    uint32_t cpu = cpu_index();
+    struct o0_thread *me = runqueues[cpu].current;
     if (me == NULL) {
         o0_irq_restore(irq);
         return;
@@ -228,43 +324,43 @@ void o0_sched_block(uint32_t reason) {
     me->block_reason = reason;
     me->timeslice = O0_DEFAULT_TIMESLICE;
 
-    struct o0_thread *next = pick_next();
+    struct o0_thread *next = take_next(cpu);
     if (next == NULL) {
-        if (me != &boot_thread) {
-            /* Nothing else is runnable: park on the idle thread, which halts
-             * until an interrupt queues work. The blocked thread keeps its
-             * saved stack and is resumed when it is made ready. */
-            switch_to(&boot_thread);
+        struct o0_thread *idle = idle_for(cpu);
+        if (me != idle) {
+            switch_to(idle);
             o0_irq_restore(irq);
             return;
         }
-        /* The idle thread itself has nothing to wait for. */
         me->state = O0_THREAD_RUNNING;
         me->block_reason = O0_BLOCK_NONE;
         o0_irq_restore(irq);
         return;
     }
 
-    remove_ready(next);
     switch_to(next);
     o0_irq_restore(irq);
 }
 
-/* Called from the PIT interrupt. Never enables interrupts by itself. */
+/* Called from a timer interrupt on the CPU that owns the tick. Never enables
+ * interrupts by itself. */
 void o0_sched_tick(void) {
-    ++ticks;
-
-    o0_thread_tick(ticks);
+    uint32_t cpu = cpu_index();
+    if (cpu == 0u) {
+        ++ticks;
+        o0_thread_tick(ticks);
+        o0_thread_reap_detached();
+    }
 
     if (!preemption_enabled) {
         return;
     }
-    struct o0_thread *me = current;
-    if (me == NULL || me == &boot_thread || !me->preemptible) {
+    struct o0_thread *me = runqueues[cpu].current;
+    if (me == NULL || !me->preemptible) {
         return;
     }
 
-    struct o0_thread *best = pick_next();
+    struct o0_thread *best = pick_next(cpu);
     if (best == NULL) {
         return;
     }
@@ -278,6 +374,91 @@ void o0_sched_tick(void) {
     }
 }
 
+void o0_sched_resched_ipi(void) {
+    struct o0_cpu_local *local = o0_cpu_local_current();
+    if (local != NULL) {
+        __atomic_store_n(&local->resched_pending, 0u, __ATOMIC_RELEASE);
+    }
+    o0_sched_yield();
+}
+
+o0_status o0_sched_migrate(struct o0_thread *thread, uint32_t target_cpu) {
+    if (!scheduler_ready || thread == NULL || target_cpu >= O0_MAX_CPUS) {
+        return O0_EINVAL;
+    }
+    if (target_cpu >= o0_cpu_count() ||
+        __atomic_load_n(&o0_cpu_local[target_cpu].online, __ATOMIC_ACQUIRE) == 0) {
+        return O0_EINVAL;
+    }
+    if (thread->user && target_cpu != 0u) {
+        return O0_ENOTSUP;
+    }
+
+    o0_irq_state_t irq = o0_irq_save();
+    uint32_t old_cpu = thread->cpu;
+    if (old_cpu >= O0_MAX_CPUS) {
+        o0_irq_restore(irq);
+        return O0_EINVAL;
+    }
+    if (thread->state == O0_THREAD_READY) {
+        if (old_cpu != target_cpu) {
+            remove_ready(old_cpu, thread);
+            thread->cpu = target_cpu;
+            o0_sched_enqueue(thread);
+        }
+    } else if (thread->state == O0_THREAD_RUNNING) {
+        thread->cpu = target_cpu;
+        if (old_cpu == cpu_index()) {
+            o0_irq_restore(irq);
+            o0_sched_yield();
+            return O0_OK;
+        }
+        struct o0_cpu_local *remote = &o0_cpu_local[old_cpu];
+        if (remote->online == 0u) {
+            thread->cpu = old_cpu;
+            o0_irq_restore(irq);
+            return O0_EINVAL;
+        }
+        __atomic_store_n(&remote->resched_pending, 1u, __ATOMIC_RELEASE);
+        o0_status st = o0_lapic_send_ipi(remote->apic_id, O0_LAPIC_IPI_VECTOR);
+        if (st != O0_OK) {
+            __atomic_store_n(&remote->resched_pending, 0u, __ATOMIC_RELEASE);
+            thread->cpu = old_cpu;
+            o0_irq_restore(irq);
+            return st;
+        }
+    } else {
+        o0_irq_restore(irq);
+        return O0_EINVAL;
+    }
+    o0_irq_restore(irq);
+    return O0_OK;
+}
+
+void o0_sched_ap_start(uint32_t cpu, uint64_t stack_top) {
+    if (cpu == 0u || cpu >= O0_MAX_CPUS) {
+        for (;;) {
+            __asm__ volatile ("cli; hlt" ::: "memory");
+        }
+    }
+    struct o0_thread *idle = &ap_idle[cpu];
+    idle->kernel_stack_top = stack_top;
+    idle->state = O0_THREAD_RUNNING;
+    runqueues[cpu].current = idle;
+    o0_cpu_local[cpu].current = (uint64_t)(uintptr_t)idle;
+    __atomic_store_n(&preemption_enabled, true, __ATOMIC_RELEASE);
+    __asm__ volatile ("sti" : : : "memory");
+
+    for (;;) {
+        struct o0_thread *next = take_next(cpu);
+        if (next == NULL) {
+            __asm__ volatile ("sti; hlt" : : : "memory");
+            continue;
+        }
+        switch_to(next);
+    }
+}
+
 O0_NORETURN void o0_sched_start(void) {
     o0_irq_state_t irq = o0_irq_save();
     preemption_enabled = true;
@@ -285,12 +466,11 @@ O0_NORETURN void o0_sched_start(void) {
     __asm__ volatile ("sti" : : : "memory");
 
     for (;;) {
-        struct o0_thread *next = pick_next();
+        struct o0_thread *next = take_next(0u);
         if (next == NULL) {
             o0_cpu_idle();
             continue;
         }
-        remove_ready(next);
         switch_to(next);
     }
 }

@@ -39,13 +39,21 @@ on rather than assuming "QEMU" is uniform.
    hooks so one recipe set serves both.
 2. `tools/qemu-smoke.sh` takes `QEMU_FIRMWARE=bios|uefi`. UEFI uses OVMF 4 MiB code plus a
    per-run copy of the variable store (`QEMU_OVMF_CODE`/`QEMU_OVMF_VARS` override the
-   `/usr/share/OVMF/...` defaults) and requires `OZERO: firmware=UEFI`; BIOS requires
-   `OZERO: firmware=BIOS`. Both require `OZERO: interrupt delivery=`.
+   `/usr/share/OVMF/...` defaults) and requires `firmware=UEFI` in the self-describing boot
+   header; BIOS requires `firmware=BIOS`. Both require `OZERO: interrupt delivery=`. UEFI
+   logs are matched after stripping ANSI CSI/OSC sequences, and scheduler worker lines are
+   checked as an unordered set.
 3. The workflow has two jobs: `host-sanitizers` (no emulator needed) and a four-cell
    `kernel-and-boot` matrix over `{bios, uefi} × {qemu64, Haswell-v1}`, each uploading its
    serial and QEMU diagnostic logs.
 4. The smoke test prints the emulator version and the firmware/CPU it validated in its PASS
    line, so copied evidence cannot be mistaken for another cell.
+5. `make check` runs `tools/framebuffer-check.py` when QEMU is installed, so every
+   `kernel-and-boot` cell exercises it. The tool boots the same ISO under QMP, takes a raw
+   `screendump`, validates the eight bar centres at three heights and both edges, and compares
+   an FNV checksum with the kernel's `framebuffer checksum=` marker. This is a separate CI
+   assertion from the serial markers. Its serial log matches the existing
+   `build/qemu-serial-*.log` artifact glob; the PPM is left in the job workspace.
 
 ## Consequences
 

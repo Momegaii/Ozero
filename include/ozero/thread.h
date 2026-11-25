@@ -15,6 +15,7 @@ extern "C" {
 #endif
 
 #define O0_THREAD_FLAG_USER 1u
+#define O0_THREAD_FLAG_DETACHED 2u
 
 struct o0_thread_attr {
     const char *name;
@@ -25,22 +26,20 @@ struct o0_thread_attr {
     uint32_t flags;
     uint64_t user_entry; /* used when O0_THREAD_FLAG_USER is set */
     uint64_t user_rsp;
+    uint64_t user_arg0;  /* RDI at ring-3 entry */
+    uint64_t user_arg1;  /* RSI at ring-3 entry */
+    uint64_t user_arg2;  /* RDX at ring-3 entry */
 };
 
 /* ---- Processes ---- */
 
 O0_NODISCARD o0_status o0_process_create(const char *name, o0_as_t *as,
+                                         struct o0_budget *budget,
                                          o0_process_t **out);
 void o0_process_destroy(o0_process_t *proc);
 o0_process_t *o0_process_current(void);
-o0_process_t *o0_process_kernel(void);
 o0_as_t *o0_process_as(o0_process_t *proc);
 const char *o0_process_name(const o0_process_t *proc);
-
-/* ---- SMP ---- */
-
-uint32_t o0_smp_online_count(void);
-o0_status o0_sched_migrate(o0_thread_t *thread, uint32_t target_cpu);
 
 /* ---- Threads ---- */
 
@@ -55,6 +54,9 @@ const char *o0_thread_name(const o0_thread_t *thread);
 
 void o0_thread_yield(void);
 void o0_thread_sleep_ns(uint64_t ns);
+/* Moves a kernel thread to another online CPU. User threads stay on the BSP
+ * until per-CPU TSS blocks land. Returns O0_ENOTSUP for a user thread. */
+O0_NODISCARD o0_status o0_thread_migrate(o0_thread_t *thread, uint32_t cpu);
 
 /* Per-thread user pointer and segment bases. A2 owns the TEB layout and allocation; the
  * kernel stores only the pointer and will program GS/FS when user mode lands. */

@@ -85,6 +85,16 @@ void o0_serial_dec(uint64_t value) {
     }
 }
 
+void o0_serial_int(int64_t value) {
+    if (value < 0) {
+        o0_serial_putc('-');
+        /* Avoid signed overflow for INT64_MIN. */
+        o0_serial_dec((uint64_t)(-(value + 1)) + 1u);
+    } else {
+        o0_serial_dec((uint64_t)value);
+    }
+}
+
 void o0_serial_dec32(uint32_t value) {
     o0_serial_dec((uint64_t)value);
 }

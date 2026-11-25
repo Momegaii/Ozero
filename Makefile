@@ -14,6 +14,7 @@ LIMINE_ARCHIVE := $(BUILD)/limine-source.tar.gz
 KERNEL := $(BUILD)/kernel.elf
 ISO := $(BUILD)/ozero.iso
 
+BUILD_COMMIT := $(shell git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)
 CFLAGS := -std=gnu11 -O2 -Wall -Wextra -Werror \
           -ffreestanding -fno-stack-protector -fno-pic -fno-pie \
           -fno-asynchronous-unwind-tables -fno-unwind-tables \
@@ -24,10 +25,10 @@ CFLAGS += -DO0_LOCK_ORDER_CHECK
 endif
 LDFLAGS := -nostdlib -static -z max-page-size=0x1000 -T kernel/linker.lds
 
-KERNEL_OBJS := $(BUILD)/main.o $(BUILD)/serial.o $(BUILD)/string.o $(BUILD)/status.o \
+KERNEL_OBJS := $(BUILD)/main.o $(BUILD)/serial.o $(BUILD)/string.o $(BUILD)/status.o $(BUILD)/acpi.o \
                $(BUILD)/pmm.o $(BUILD)/boot_info.o $(BUILD)/slab.o \
                $(BUILD)/sched.o $(BUILD)/thread.o $(BUILD)/sync.o \
-               $(BUILD)/irq.o $(BUILD)/paging.o $(BUILD)/cpu.o $(BUILD)/pic.o \
+               $(BUILD)/irq.o $(BUILD)/ioapic.o $(BUILD)/paging.o $(BUILD)/cpu.o $(BUILD)/pic.o $(BUILD)/smp.o $(BUILD)/ap_entry.o $(BUILD)/apic_timer.o $(BUILD)/kaslr.o \
                $(BUILD)/interrupts_c.o $(BUILD)/interrupts.o $(BUILD)/irq_stubs.o \
                $(BUILD)/context.o $(BUILD)/block.o $(BUILD)/ramdisk.o \
                $(BUILD)/o0fs.o $(BUILD)/pci.o $(BUILD)/gpu.o $(BUILD)/gpu_hsw.o \
@@ -36,10 +37,13 @@ KERNEL_OBJS := $(BUILD)/main.o $(BUILD)/serial.o $(BUILD)/string.o $(BUILD)/stat
                $(BUILD)/compositor.o $(BUILD)/gfx_backend.o $(BUILD)/shell.o \
                $(BUILD)/abi.o $(BUILD)/elf.o $(BUILD)/usercopy.o $(BUILD)/usercopy_stub.o \
                $(BUILD)/user.o $(BUILD)/syscall_c.o $(BUILD)/syscall_entry.o \
-               $(BUILD)/gdt.o
+               $(BUILD)/gdt.o \
+               $(BUILD)/object.o $(BUILD)/budget.o $(BUILD)/handle.o \
+               $(BUILD)/memory.o $(BUILD)/endpoint.o $(BUILD)/ipc.o
 
 # Static user images, embedded in the kernel image for the Wave 2 self-tests.
-USER_PROGS := init quiet fault_null fault_priv fault_kjump badptr
+USER_PROGS := init quiet fault_null fault_priv fault_kjump badptr \
+              spawner spawn_child ipc_server ipc_client handles budget ipcneg peer_server
 USER_ELFS := $(addprefix $(BUILD)/user_,$(addsuffix .elf,$(USER_PROGS)))
 USER_BLOBS := $(addprefix $(BUILD)/blob_,$(addsuffix .o,$(USER_PROGS)))
 KERNEL_OBJS += $(USER_BLOBS)
@@ -52,7 +56,7 @@ HOST_RUN_ENV ?=
 SAN_CFLAGS := -fsanitize=address,undefined -fno-omit-frame-pointer -g
 SAN_ENV := ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1
 
-.PHONY: help doctor check kernel iso run run-debug test test-sanitize clean
+.PHONY: help doctor check kernel iso run run-debug test test-sanitize clean framebuffer-check
 
 help:
 	@printf '%s\n' 'Ozero targets:' \
@@ -70,6 +74,16 @@ doctor:
 	$(PYTHON) tools/doctor.py
 
 check: doctor iso test
+	@if command -v $(QEMU) >/dev/null 2>&1; then \
+		$(MAKE) framebuffer-check; \
+	else \
+		echo "SKIP: framebuffer check ($(QEMU) not installed)"; \
+	fi
+
+framebuffer-check: $(ISO)
+	$(PYTHON) tools/framebuffer-check.py --iso $(ISO) \
+		--serial $(BUILD)/qemu-serial-framebuffer.log \
+		--screendump $(BUILD)/qemu-framebuffer.ppm
 
 kernel: $(KERNEL)
 
@@ -103,6 +117,9 @@ $(BUILD)/syscall_entry.o: kernel/arch/x86_64/syscall.S | $(BUILD)
 $(BUILD)/usercopy_stub.o: kernel/arch/x86_64/usercopy.S | $(BUILD)
 	$(CC) -m64 -ffreestanding -fno-pic -fno-pie -c $< -o $@
 
+$(BUILD)/ap_entry.o: kernel/arch/x86_64/ap_entry.S | $(BUILD)
+	$(CC) -m64 -ffreestanding -fno-pic -fno-pie -c $< -o $@
+
 # Static user images, then their embedded blob objects.
 $(BUILD)/user_%.o: user/%.S | $(BUILD)
 	$(CC) -m64 -ffreestanding -fno-pic -fno-pie -c $< -o $@
@@ -125,7 +142,7 @@ $(BUILD)/context.o: kernel/arch/x86_64/context.S | $(BUILD)
 
 $(KERNEL): $(KERNEL_OBJS) kernel/linker.lds
 	$(LD) $(LDFLAGS) -o $@ $(KERNEL_OBJS)
-	@file $@
+	@readelf -h $@ | grep -E 'Class:|Machine:|Entry point'
 
 $(LIMINE_ARCHIVE): | $(BUILD)
 	curl --fail --location --silent --show-error \
@@ -163,6 +180,14 @@ $(ISO): $(KERNEL) $(LIMINE_DIR)/limine
 test: $(BUILD)
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/pmm_test tests/pmm_test.c
 	$(HOST_RUN_ENV) ./$(BUILD)/pmm_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/acpi_test tests/acpi_test.c kernel/src/acpi.c
+	$(HOST_RUN_ENV) ./$(BUILD)/acpi_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/ioapic_test tests/ioapic_test.c
+	$(HOST_RUN_ENV) ./$(BUILD)/ioapic_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -Ikernel/src -o $(BUILD)/lock_order_test tests/lock_order_test.c kernel/src/sync.c
+	$(HOST_RUN_ENV) ./$(BUILD)/lock_order_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/kaslr_test tests/kaslr_test.c
+	$(HOST_RUN_ENV) ./$(BUILD)/kaslr_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/slab_test tests/slab_test.c
 	$(HOST_RUN_ENV) ./$(BUILD)/slab_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/sched_test tests/sched_test.c
@@ -173,6 +198,10 @@ test: $(BUILD)
 	$(HOST_RUN_ENV) ./$(BUILD)/abi_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/elf_test tests/elf_test.c kernel/src/elf.c
 	$(HOST_RUN_ENV) ./$(BUILD)/elf_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/usercopy_test tests/usercopy_test.c kernel/src/usercopy.c
+	$(HOST_RUN_ENV) ./$(BUILD)/usercopy_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/cap_test tests/cap_test.c kernel/src/object.c kernel/src/budget.c kernel/src/handle.c kernel/src/memory.c kernel/src/endpoint.c
+	$(HOST_RUN_ENV) ./$(BUILD)/cap_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/block_test tests/block_test.c
 	$(HOST_RUN_ENV) ./$(BUILD)/block_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/fs_test tests/fs_test.c
@@ -199,18 +228,18 @@ test: $(BUILD)
 # failure, not a warning.
 test-sanitize: $(BUILD)
 	rm -f $(BUILD)/pmm_test $(BUILD)/slab_test $(BUILD)/sched_test \
-	      $(BUILD)/cpu_test $(BUILD)/abi_test $(BUILD)/elf_test \
+	      $(BUILD)/cpu_test $(BUILD)/abi_test $(BUILD)/elf_test $(BUILD)/acpi_test $(BUILD)/ioapic_test $(BUILD)/lock_order_test $(BUILD)/kaslr_test $(BUILD)/cap_test \
 	      $(BUILD)/block_test $(BUILD)/fs_test \
 	      $(BUILD)/pci_test $(BUILD)/gpu_test $(BUILD)/display_test \
 	      $(BUILD)/input_test $(BUILD)/surface_test $(BUILD)/input_ps2_test
 	$(MAKE) test HOST_EXTRA_CFLAGS="$(SAN_CFLAGS)" HOST_RUN_ENV="$(SAN_ENV)"
 
 run: $(ISO)
-	$(QEMU) -machine q35 -m 512M -cdrom $(ISO) -boot d \
+	$(QEMU) -machine q35 -cpu $(QEMU_CPU) -smp $(QEMU_SMP) -m 512M -cdrom $(ISO) -boot d \
 	  -display none -serial stdio -monitor none -no-reboot -no-shutdown
 
 run-debug: $(ISO)
-	$(QEMU) -machine q35 -m 512M -cdrom $(ISO) -boot d \
+	$(QEMU) -machine q35 -cpu $(QEMU_CPU) -smp $(QEMU_SMP) -m 512M -cdrom $(ISO) -boot d \
 	  -display none -serial stdio -monitor none -no-reboot -no-shutdown \
 	  -s -S
 

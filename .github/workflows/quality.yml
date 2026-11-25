@@ -112,6 +112,8 @@ jobs:
           QEMU_CPU: qemu64
           QEMU_FIRMWARE: bios
           QEMU_SMP: 2
+          # Makes tools/qemu-smoke.sh require the checker's boot marker.
+          QEMU_LOCK_ORDER: "1"
           QEMU_DEBUG_LOG: build/qemu-debug-lock-order.log
         run: bash tools/qemu-smoke.sh build/ozero.iso build/qemu-serial-lock-order.log
       - name: Upload QEMU diagnostics

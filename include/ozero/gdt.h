@@ -38,6 +38,10 @@ struct __attribute__((packed)) o0_tss {
  * active and before user mode is entered. */
 void o0_gdt_init(void);
 
+/* Loads the existing GDT and SYSCALL MSRs on an application processor.
+ * TSS/IST ownership stays with the BSP until per-CPU TSS blocks land. */
+void o0_gdt_load_for_ap(void);
+
 /* Updates TSS.RSP0 (and its per-CPU mirror). */
 void o0_arch_set_rsp0(uint64_t rsp0);
 

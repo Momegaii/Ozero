@@ -102,12 +102,22 @@ void o0_spin_unlock(o0_spinlock_t *lock) { (void)lock; }
 /* The discovery walk talks to the kernel PCI layer. The host test exercises the pure
  * classification/matching paths, so discovery sees an empty PCI bus and BAR probing is
  * unavailable. */
-size_t o0_pci_device_count(void) { return 0; }
-const struct o0_pci_device *o0_pci_device(size_t index) { (void)index; return NULL; }
+static size_t test_pci_count;
+static struct o0_pci_device test_pci_device;
+static struct o0_pci_bar test_pci_bar;
+
+size_t o0_pci_device_count(void) { return test_pci_count; }
+const struct o0_pci_device *o0_pci_device(size_t index) {
+    return index == 0 && test_pci_count != 0 ? &test_pci_device : NULL;
+}
 int o0_pci_probe_bar(struct o0_pci_bdf bdf, uint8_t index, uint8_t header_type,
                      struct o0_pci_bar *out) {
-    (void)bdf; (void)index; (void)header_type; (void)out;
-    return -1;
+    (void)bdf; (void)header_type;
+    if (index != 0 || out == NULL) {
+        return -1;
+    }
+    *out = test_pci_bar;
+    return 0;
 }
 
 #include "../kernel/src/gpu.c"
@@ -670,6 +680,31 @@ static void test_hsw_backend_caps(void) {
     PASS();
 }
 
+static void test_discovery_performs_no_mmio_writes(void) {
+    TEST("GPU discovery records a BAR without writing device MMIO");
+    static uint8_t canary[0x1000] __attribute__((aligned(0x1000)));
+    memset(canary, 0xa5, sizeof(canary));
+
+    test_pci_device = make_pci(0x8086u, 0x0412u, 0x03u, 0x00u, 0x06u);
+    test_pci_count = 1;
+    memset(&test_pci_bar, 0, sizeof(test_pci_bar));
+    test_pci_bar.valid = true;
+    test_pci_bar.is_memory = true;
+    test_pci_bar.assigned = true;
+    test_pci_bar.base = (uint64_t)(uintptr_t)canary;
+    test_pci_bar.size = sizeof(canary);
+
+    CHECK(o0_gpu_discover() == 1u, "one display device must be recorded");
+    const struct o0_gpu_device *g = o0_gpu_device(0);
+    CHECK(g != NULL && g->mmio.valid, "the MMIO window must be recorded");
+    CHECK(g->mmio.base == (uint64_t)(uintptr_t)canary, "BAR base must be preserved");
+    for (size_t i = 0; i < sizeof(canary); ++i) {
+        CHECK(canary[i] == 0xa5, "discovery must not write device MMIO");
+    }
+    test_pci_count = 0;
+    PASS();
+}
+
 /* ---- Phase 4/5: ring state, submission, fences, contexts and queues ---- */
 
 struct test_env {
@@ -1138,6 +1173,7 @@ int main(void) {
     test_mmio_selection();
     test_describe_unsupported();
     test_hsw_backend_caps();
+    test_discovery_performs_no_mmio_writes();
     test_contiguous_memory();
     test_ring_state();
     test_batch_validation();

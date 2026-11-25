@@ -15,8 +15,12 @@
 #include <stdint.h>
 #include <limine.h>
 
+#include "ozero/acpi.h"
+#include "ozero/apic_timer.h"
 #include "ozero/block.h"
+#include "ozero/budget.h"
 #include "ozero/display.h"
+#include "ozero/endpoint.h"
 #include "ozero/boot.h"
 #include "ozero/cpu.h"
 #include "ozero/cpu_local.h"
@@ -26,11 +30,17 @@
 #include "ozero/gpu_device.h"
 #include "ozero/gpu_hsw.h"
 #include "ozero/gpu_queue.h"
+#include "ozero/handle.h"
 #include "ozero/input_ps2.h"
+#include "ozero/ioapic.h"
+#include "ozero/kaslr.h"
+#include "ozero/memory.h"
+#include "ozero/object.h"
 #include "ozero/irq.h"
 #include "ozero/pci.h"
 #include "ozero/ramdisk.h"
 #include "ozero/mm.h"
+#include "ozero/smp.h"
 #include "ozero/status.h"
 #include "ozero/sync.h"
 #include "ozero/thread.h"
@@ -38,6 +48,10 @@
 #include "ozero/user.h"
 
 #include "serial.h"
+
+#ifndef O0_BUILD_COMMIT
+#define O0_BUILD_COMMIT "unknown"
+#endif
 #include "string.h"
 #include "thread_internal.h"
 
@@ -65,6 +79,19 @@ static volatile struct limine_framebuffer_request framebuffer_request = {
 /* Present only when the firmware that loaded Limine is UEFI. Limine leaves the
  * response null under BIOS, so this is the firmware discriminator reported in
  * the boot log and asserted by the UEFI smoke test. */
+__attribute__((used, section(".limine_requests")))
+static volatile struct limine_mp_request mp_request = {
+    .id = LIMINE_MP_REQUEST_ID,
+    .revision = 0,
+    .flags = 0
+};
+
+__attribute__((used, section(".limine_requests")))
+static volatile struct limine_rsdp_request rsdp_request = {
+    .id = LIMINE_RSDP_REQUEST_ID,
+    .revision = 0
+};
+
 __attribute__((used, section(".limine_requests")))
 static volatile struct limine_efi_system_table_request efi_system_table_request = {
     .id = LIMINE_EFI_SYSTEM_TABLE_REQUEST_ID,
@@ -115,6 +142,8 @@ struct x86_64_exception_frame {
 
 extern void x86_64_idt_init(void);
 extern void x86_64_idt_install_irq_gates(void);
+extern void x86_64_idt_install_ipi_gate(void);
+extern void x86_64_idt_install_apic_timer_gate(void);
 extern void x86_64_idt_install_double_fault_ist(void);
 extern bool o0_usercopy_fixup(uint64_t fault_rip, uint64_t *fixup_rip);
 
@@ -126,7 +155,8 @@ void x86_exception_dispatch(struct x86_64_exception_frame *frame) {
         if (frame->vector == 14) {
             __asm__ volatile ("mov %%cr2, %0" : "=r"(cr2));
         }
-        o0_thread_user_fault(frame->rip, cr2, frame->error_code);
+        o0_thread_user_fault(frame->vector, frame->rip, cr2,
+                             frame->error_code);
     }
 
     /* A fault inside a usercopy core is recovered by redirecting execution to
@@ -189,6 +219,7 @@ static void report_memory_map(void) {
 
 extern o0_status o0_boot_populate(const struct limine_memmap_response *);
 extern void o0_arch_set_hhdm(uint64_t offset);
+extern uint64_t o0_arch_hhdm_offset(void);
 extern o0_status o0_paging_init(const struct o0_boot_info *);
 extern o0_status o0_paging_load(void);
 extern o0_status o0_cpu_detect(void);
@@ -237,7 +268,7 @@ static void stage3_self_test(void) {
 
     /* Address spaces: map, translate, protect, unmap. */
     o0_as_t *as = NULL;
-    if (o0_as_create(&as) != O0_OK || as == NULL) {
+    if (o0_as_create(o0_budget_root(), &as) != O0_OK || as == NULL) {
         panic("address space creation failed");
     }
     o0_paddr_t page = o0_pmm_alloc_pages(0);
@@ -646,7 +677,7 @@ static void worker_thread(void *arg) {
 
 static void stage3_demo(void) {
     o0_process_t *proc = NULL;
-    if (o0_process_create("init", o0_as_kernel(), &proc) != O0_OK) {
+    if (o0_process_create("init", o0_as_kernel(), o0_budget_root(), &proc) != O0_OK) {
         panic("process creation failed");
     }
 
@@ -695,7 +726,11 @@ static int wave2_run_user(const char *name, const unsigned char *start,
     o0_serial_puts(name);
     o0_serial_putc('\n');
     o0_thread_t *thread = NULL;
-    if (o0_user_spawn(name, start, size, &thread) != O0_OK) {
+    o0_status spawn_status = o0_user_spawn(name, start, size, &thread);
+    if (spawn_status != O0_OK) {
+        o0_serial_puts("OZERO: wave2 spawn status=");
+        o0_serial_puts(o0_status_name(spawn_status));
+        o0_serial_putc('\n');
         panic("user image load failed");
     }
     int status = -1234;
@@ -705,10 +740,12 @@ static int wave2_run_user(const char *name, const unsigned char *start,
     o0_serial_puts("OZERO: wave2 done ");
     o0_serial_puts(name);
     o0_serial_puts(" status=");
-    o0_serial_dec((uint64_t)(int64_t)status);
+    o0_serial_int((int64_t)status);
     o0_serial_putc('\n');
     return status;
 }
+
+static void wave3_self_test(void *arg);
 
 static void wave2_self_test(void *arg) {
     (void)arg;
@@ -755,30 +792,142 @@ static void wave2_self_test(void *arg) {
     }
     o0_serial_puts("OZERO: user churn OK processes=16\n");
     o0_serial_puts("OZERO: wave2 self-test complete\n");
+
+    wave3_self_test(NULL);
 }
 
-static void wave2_demo(void) {
-    o0_process_t *proc = NULL;
-    if (o0_process_create("usertest", o0_as_kernel(), &proc) != O0_OK) {
-        panic("user self-test process creation failed");
+/* ---------- Wave 3: handles, budgets and synchronous IPC ---------- */
+
+extern const unsigned char _binary_build_user_spawner_elf_start[];
+extern const unsigned char _binary_build_user_spawner_elf_end[];
+extern const unsigned char _binary_build_user_spawn_child_elf_start[];
+extern const unsigned char _binary_build_user_spawn_child_elf_end[];
+extern const unsigned char _binary_build_user_ipc_server_elf_start[];
+extern const unsigned char _binary_build_user_ipc_server_elf_end[];
+extern const unsigned char _binary_build_user_ipc_client_elf_start[];
+extern const unsigned char _binary_build_user_ipc_client_elf_end[];
+extern const unsigned char _binary_build_user_handles_elf_start[];
+extern const unsigned char _binary_build_user_handles_elf_end[];
+extern const unsigned char _binary_build_user_budget_elf_start[];
+extern const unsigned char _binary_build_user_budget_elf_end[];
+extern const unsigned char _binary_build_user_ipcneg_elf_start[];
+extern const unsigned char _binary_build_user_ipcneg_elf_end[];
+extern const unsigned char _binary_build_user_peer_server_elf_start[];
+extern const unsigned char _binary_build_user_peer_server_elf_end[];
+
+static struct o0_memory *wave3_image(const unsigned char *start,
+                                     const unsigned char *end) {
+    size_t size = (size_t)(end - start);
+    struct o0_memory *memory = NULL;
+    if (o0_memory_create_from(o0_budget_root(), start, size,
+                              O0_RIGHT_MEMORY_IMAGE | O0_RIGHT_TRANSFER,
+                              &memory) != O0_OK) {
+        panic("wave3 image object creation failed");
     }
-    struct o0_thread_attr attr = {
-        .name = "usertest",
-        .entry = wave2_self_test,
-        .arg = NULL,
-        .stack_size = 0,
-        .priority = 1,
-        .flags = 0,
-        .user_entry = 0,
-        .user_rsp = 0,
-    };
+    return memory;
+}
+
+static o0_thread_t *wave3_spawn_image(const char *name,
+                                      const unsigned char *start,
+                                      const unsigned char *end,
+                                      const struct o0_spawn_grant *extra,
+                                      size_t extra_count, uint32_t flags,
+                                      bool grant_image) {
+    struct o0_memory *image = wave3_image(start, end);
+    struct o0_spawn_grant grants[8];
+    size_t count = 0;
+    if (grant_image) {
+        o0_object_ref(&image->obj);
+        grants[count].object = &image->obj;
+        grants[count].rights = O0_RIGHT_READ | O0_RIGHT_MAP | O0_RIGHT_INFO;
+        grants[count].reserved = 0;
+        ++count;
+    }
+    if (count + extra_count > O0_ARRAY_SIZE(grants)) {
+        panic("too many spawn grants");
+    }
+    for (size_t i = 0; i < extra_count; ++i) {
+        grants[count + i] = extra[i];
+    }
+    count += extra_count;
+
     o0_thread_t *thread = NULL;
-    if (o0_thread_create(proc, &attr, &thread) != O0_OK) {
-        panic("user self-test thread creation failed");
+    o0_status st = o0_user_spawn_memory(name, image, o0_budget_root(), grants,
+                                        count, flags, &thread);
+    o0_object_unref(&image->obj);
+    if (st != O0_OK) {
+        o0_serial_puts("OZERO: wave3 spawn failed ");
+        o0_serial_puts(name);
+        o0_serial_puts(" status=");
+        o0_serial_puts(o0_status_name(st));
+        o0_serial_putc('\n');
+        panic("wave3 user spawn failed");
+    }
+    return thread;
+}
+
+static o0_thread_t *wave3_spawn(const char *name, const unsigned char *start,
+                                const unsigned char *end,
+                                const struct o0_spawn_grant *extra,
+                                size_t extra_count, uint32_t flags) {
+    return wave3_spawn_image(name, start, end, extra, extra_count, flags, false);
+}
+
+static int wave3_join(o0_thread_t *thread, const char *name) {
+    int status = -1234;
+    if (o0_thread_join(thread, &status) != O0_OK) {
+        panic("wave3 join failed");
+    }
+    o0_serial_puts("OZERO: wave3 done ");
+    o0_serial_puts(name);
+    o0_serial_puts(" status=");
+    o0_serial_int((int64_t)status);
+    o0_serial_putc('\n');
+    return status;
+}
+
+static void wave3_wait_threads(uint32_t target) {
+    uint64_t deadline = o0_sched_ticks() + (uint64_t)o0_sched_hz() * 3u;
+    while (o0_thread_count() > target) {
+        if (o0_sched_ticks() > deadline) {
+            panic("wave3 detached child did not exit");
+        }
+        o0_thread_yield();
     }
 }
 
-/* ---------- Wave 3.5: SMP stress with migration and user churn ---------- */
+static void wave3_run_ipc_pair(const char *tag) {
+    struct o0_endpoint *endpoint = NULL;
+    if (o0_endpoint_create(o0_budget_root(), false, &endpoint) != O0_OK) {
+        panic("wave3 endpoint creation failed");
+    }
+
+    struct o0_spawn_grant server_grant;
+    server_grant.object = &endpoint->obj;
+    server_grant.rights = O0_RIGHT_SEND | O0_RIGHT_RECV | O0_RIGHT_INFO;
+    server_grant.reserved = 0;
+    o0_object_ref(&endpoint->obj);
+    o0_thread_t *server = wave3_spawn("ipc-server",
+                                      _binary_build_user_ipc_server_elf_start,
+                                      _binary_build_user_ipc_server_elf_end,
+                                      &server_grant, 1, 0);
+
+    struct o0_spawn_grant client_grant = server_grant;
+    o0_object_ref(&endpoint->obj);
+    o0_thread_t *client = wave3_spawn("ipc-client",
+                                      _binary_build_user_ipc_client_elf_start,
+                                      _binary_build_user_ipc_client_elf_end,
+                                      &client_grant, 1, 0);
+    o0_object_unref(&endpoint->obj);
+
+    if (wave3_join(server, tag) != 0 || wave3_join(client, tag) != 0) {
+        panic("wave3 IPC pair failed");
+    }
+    o0_serial_puts("OZERO: ipc pair OK ");
+    o0_serial_puts(tag);
+    o0_serial_putc('\n');
+}
+
 
 static volatile uint32_t smp_seen[O0_MAX_CPUS];
 static volatile uint32_t smp_iterations;
@@ -786,21 +935,23 @@ static volatile uint32_t smp_migrations;
 static volatile uint32_t smp_stop;
 
 static void smp_worker(void *arg) {
-    (void)arg;
+    uint32_t target = (uint32_t)(uintptr_t)arg;
     uint32_t online = o0_smp_online_count();
     while (__atomic_load_n(&smp_stop, __ATOMIC_ACQUIRE) == 0u) {
         uint32_t cpu = o0_cpu_index();
         if (cpu < O0_MAX_CPUS) {
             __atomic_add_fetch(&smp_seen[cpu], 1u, __ATOMIC_RELEASE);
         }
-        /* Try to migrate to the next CPU. */
-        uint32_t next = (cpu + 1u) % online;
-        o0_status migrated = o0_sched_migrate(o0_thread_self(), next);
-        if (migrated != O0_OK && migrated != O0_ENOTSUP) {
-            panic("smp worker migration failed");
-        }
-        if (migrated == O0_OK) {
-            __atomic_add_fetch(&smp_migrations, 1u, __ATOMIC_RELEASE);
+        __atomic_add_fetch(&smp_iterations, 1u, __ATOMIC_RELEASE);
+        if (online > 1u) {
+            target = (target + 1u) % online;
+            o0_status migrated = o0_thread_migrate(o0_thread_self(), target);
+            if (migrated != O0_OK && migrated != O0_ENOTSUP) {
+                panic("smp worker migration failed");
+            }
+            if (migrated == O0_OK) {
+                __atomic_add_fetch(&smp_migrations, 1u, __ATOMIC_RELEASE);
+            }
         }
         for (uint32_t spin = 0; spin < 64u; ++spin) {
             o0_cpu_relax();
@@ -826,22 +977,26 @@ static void wave3_smp_stress(void) {
         return;
     }
 
-    /* Start one migration worker per online CPU. */
+    o0_process_t *proc = NULL;
+    if (o0_process_create("smp-stress", o0_as_kernel(), o0_budget_root(), &proc) != O0_OK) {
+        panic("smp stress process creation failed");
+    }
     o0_thread_t *threads[O0_MAX_CPUS];
     uint32_t count = 0;
-    for (uint32_t i = 0; i < online; ++i) {
+    for (uint32_t i = 0; i < online && i < O0_MAX_CPUS; ++i) {
         struct o0_thread_attr attr = {
             .name = "smp-worker",
             .entry = smp_worker,
-            .arg = (void *)(uintptr_t)i,
+            .arg = (void *)(uintptr_t)((i + 1u) % online),
             .stack_size = 0,
             .priority = 0,
-            .flags = 0,
-            .user_entry = 0,
-            .user_rsp = 0,
+            .flags = 0
         };
-        if (o0_thread_create(o0_process_kernel(), &attr, &threads[count]) != O0_OK) {
-            panic("smp worker creation failed");
+        if (o0_thread_create(proc, &attr, &threads[count]) != O0_OK) {
+            panic("smp stress thread creation failed");
+        }
+        if (o0_thread_migrate(threads[count], i) != O0_OK) {
+            panic("smp stress initial migration failed");
         }
         ++count;
     }
@@ -869,10 +1024,9 @@ static void wave3_smp_stress(void) {
             panic("smp stress join failed");
         }
     }
-
     uint32_t seen = 0;
-    for (uint32_t i = 0; i < online; ++i) {
-        if (smp_seen[i] > 0u) {
+    for (uint32_t i = 0; i < O0_MAX_CPUS; ++i) {
+        if (smp_seen[i] != 0u) {
             ++seen;
         }
     }
@@ -890,85 +1044,243 @@ static void wave3_smp_stress(void) {
     o0_serial_puts("\n");
 }
 
+static void wave3_self_test(void *arg) {
+    (void)arg;
+
+    o0_serial_puts("OZERO: handle table ready\n");
+    o0_serial_puts("OZERO: budget accounting ready\n");
+
+    /* Spawner: user space splits a budget and spawns a child through the
+     * process_spawn syscall. The child is detached, so it is reaped by the
+     * scheduler after it exits. */
+    struct o0_budget *spawner_budget = NULL;
+    if (o0_budget_split(o0_budget_root(), 8u << 20, &spawner_budget) != O0_OK) {
+        panic("wave3 spawner budget split failed");
+    }
+    struct o0_spawn_grant spawner_grants[1];
+    spawner_grants[0].object = &spawner_budget->obj;
+    spawner_grants[0].rights = O0_RIGHT_SPLIT | O0_RIGHT_INFO;
+    spawner_grants[0].reserved = 0;
+    uint32_t baseline_threads = o0_thread_count();
+    o0_thread_t *spawner = wave3_spawn_image(
+        "spawner", _binary_build_user_spawner_elf_start,
+        _binary_build_user_spawner_elf_end, spawner_grants, 1, 0, true);
+    if (wave3_join(spawner, "spawner") != 0) {
+        panic("spawner did not exit with status 0");
+    }
+    o0_object_unref(&spawner_budget->obj);
+    wave3_wait_threads(baseline_threads);
+    o0_serial_puts("OZERO: spawn syscall child reaped\n");
+
+    /* Request/reply over a synchronous endpoint. */
+    wave3_run_ipc_pair("pair-1");
+    o0_serial_puts("OZERO: ipc self-test complete\n");
+
+    /* Handle, rights, budget and memory negative tests. */
+    struct o0_endpoint *endpoint = NULL;
+    if (o0_endpoint_create(o0_budget_root(), false, &endpoint) != O0_OK) {
+        panic("wave3 handle endpoint creation failed");
+    }
+    struct o0_budget *handle_budget = NULL;
+    if (o0_budget_split(o0_budget_root(), 4u << 20, &handle_budget) != O0_OK) {
+        panic("wave3 handle budget split failed");
+    }
+    struct o0_memory *handle_memory = NULL;
+    if (o0_memory_create(o0_budget_root(), O0_PAGE_SIZE,
+                         O0_RIGHT_MEMORY_DEFAULT, &handle_memory) != O0_OK) {
+        panic("wave3 handle memory creation failed");
+    }
+    struct o0_spawn_grant handle_grants[3];
+    handle_grants[0].object = &endpoint->obj;
+    handle_grants[0].rights = O0_RIGHT_ENDPOINT_DEFAULT;
+    handle_grants[0].reserved = 0;
+    handle_grants[1].object = &handle_budget->obj;
+    handle_grants[1].rights = O0_RIGHT_BUDGET_DEFAULT;
+    handle_grants[1].reserved = 0;
+    handle_grants[2].object = &handle_memory->obj;
+    handle_grants[2].rights = O0_RIGHT_MEMORY_DEFAULT;
+    handle_grants[2].reserved = 0;
+    o0_thread_t *handles = wave3_spawn("handles",
+                                       _binary_build_user_handles_elf_start,
+                                       _binary_build_user_handles_elf_end,
+                                       handle_grants, 3, 0);
+    if (wave3_join(handles, "handles") != 0) {
+        panic("handle negative tests failed");
+    }
+
+    /* Budget exhaustion and return to baseline. */
+    o0_thread_t *budget = wave3_spawn("budget",
+                                      _binary_build_user_budget_elf_start,
+                                      _binary_build_user_budget_elf_end,
+                                      NULL, 0, 0);
+    if (wave3_join(budget, "budget") != 0) {
+        panic("budget exhaustion test failed");
+    }
+
+    /* Peer death: the server exits before the client runs. */
+    struct o0_endpoint *dead_endpoint = NULL;
+    if (o0_endpoint_create(o0_budget_root(), false, &dead_endpoint) != O0_OK) {
+        panic("wave3 dead endpoint creation failed");
+    }
+    struct o0_spawn_grant peer_grant;
+    peer_grant.object = &dead_endpoint->obj;
+    peer_grant.rights = O0_RIGHT_SEND | O0_RIGHT_RECV | O0_RIGHT_INFO;
+    peer_grant.reserved = 0;
+    o0_object_ref(&dead_endpoint->obj);
+    o0_thread_t *peer = wave3_spawn("peer-server",
+                                    _binary_build_user_peer_server_elf_start,
+                                    _binary_build_user_peer_server_elf_end,
+                                    &peer_grant, 1, 0);
+    if (wave3_join(peer, "peer-server") != 0) {
+        panic("peer server did not exit with status 0");
+    }
+    struct o0_budget *neg_budget = NULL;
+    if (o0_budget_split(o0_budget_root(), 4u << 20, &neg_budget) != O0_OK) {
+        panic("wave3 negative budget split failed");
+    }
+    struct o0_spawn_grant neg_grants[2];
+    neg_grants[0].object = &dead_endpoint->obj;
+    neg_grants[0].rights = O0_RIGHT_SEND | O0_RIGHT_RECV | O0_RIGHT_INFO;
+    neg_grants[0].reserved = 0;
+    neg_grants[1].object = &neg_budget->obj;
+    neg_grants[1].rights = O0_RIGHT_SPLIT | O0_RIGHT_INFO | O0_RIGHT_TRANSFER;
+    neg_grants[1].reserved = 0;
+    o0_thread_t *ipcneg = wave3_spawn("ipcneg",
+                                      _binary_build_user_ipcneg_elf_start,
+                                      _binary_build_user_ipcneg_elf_end,
+                                      neg_grants, 2, 0);
+    if (wave3_join(ipcneg, "ipcneg") != 0) {
+        panic("IPC negative tests failed");
+    }
+
+    /* Churn: create and destroy processes, endpoints, budgets and memory
+     * objects, then require the accounting to return to the baseline. */
+    wave3_run_ipc_pair("warm-up");
+    uint64_t pmm_before = o0_pmm_free_bytes();
+    uint32_t objects_before = o0_object_live_count();
+    struct o0_budget_snapshot budget_before;
+    o0_budget_snapshot(o0_budget_root(), &budget_before);
+    for (uint32_t i = 0; i < 8u; ++i) {
+        wave3_run_ipc_pair("churn");
+    }
+    uint64_t pmm_after = o0_pmm_free_bytes();
+    uint32_t objects_after = o0_object_live_count();
+    struct o0_budget_snapshot budget_after;
+    o0_budget_snapshot(o0_budget_root(), &budget_after);
+    if (objects_after != objects_before || budget_after.used != budget_before.used) {
+        panic("wave3 process churn leaked objects or budget");
+    }
+    /* The slab may retain a few pages; a leak of user pages would be far
+     * larger than this allowance. */
+    if (pmm_after + (8u * O0_PAGE_SIZE) < pmm_before) {
+        panic("wave3 process churn leaked physical pages");
+    }
+    o0_serial_puts("OZERO: wave3 churn OK pairs=8\n");
+    wave3_smp_stress();
+    o0_serial_puts("OZERO: wave3 self-test complete\n");
+}
+
+static void wave2_demo(void) {
+    o0_process_t *proc = NULL;
+    if (o0_process_create("usertest", o0_as_kernel(), o0_budget_root(), &proc) != O0_OK) {
+        panic("user self-test process creation failed");
+    }
+    struct o0_thread_attr attr = {
+        .name = "usertest",
+        .entry = wave2_self_test,
+        .arg = NULL,
+        .stack_size = 0,
+        .priority = 1,
+        .flags = 0,
+        .user_entry = 0,
+        .user_rsp = 0,
+    };
+    o0_thread_t *thread = NULL;
+    if (o0_thread_create(proc, &attr, &thread) != O0_OK) {
+        panic("user self-test thread creation failed");
+    }
+}
+
 static struct o0_display_mode boot_display_mode;
 static o0_paddr_t boot_framebuffer_phys;
 static bool boot_framebuffer_valid;
 
-/* Kernel-stack randomization (KSR) state. */
-#define O0_KASLR_KSTACK_BASE 0xFFFFFE8000000000ull
-#define O0_KASLR_KSTACK_WINDOW (1ull << 30) /* 1 GiB */
-#define O0_KASLR_SLOT_SIZE (2ull << 20)     /* 2 MiB */
-#define O0_KASLR_SLOT_COUNT (O0_KASLR_KSTACK_WINDOW / O0_KASLR_SLOT_SIZE) /* 512 */
-
-uint64_t o0_kaslr_layout_offset = 0;
-
-static uint64_t murmurhash3_64_finalizer(uint64_t h) {
-    h ^= h >> 33;
-    h *= 0xff51afd7ed558ccdull;
-    h ^= h >> 33;
-    h *= 0xc4ceb9fe1a85ec53ull;
-    h ^= h >> 33;
-    return h;
-}
-
-static bool cpu_has_rdrand(void) {
-    uint32_t eax, ebx, ecx, edx;
-    __asm__ volatile ("cpuid" : "=a"(eax), "=b"(ebx), "=c"(ecx), "=d"(edx) : "a"(1));
-    return (ecx & (1u << 30)) != 0;
-}
-
-static uint32_t cpu_rdrand64(uint64_t *out) {
-    unsigned char ok;
-    __asm__ volatile ("rdrand %0; setc %1" : "=r"(*out), "=qm"(ok) :: "cc");
-    return ok;
-}
-
-static uint64_t cpu_rdtsc(void) {
-    uint32_t lo, hi;
-    __asm__ volatile ("rdtsc" : "=a"(lo), "=d"(hi));
-    return ((uint64_t)hi << 32) | lo;
-}
-
-void o0_kaslr_init(const struct o0_cpu_features *cf) {
-    (void)cf;
-    uint64_t seed = 0;
-    bool have_rdrand = cpu_has_rdrand();
-
-    if (have_rdrand) {
-        for (int i = 0; i < 16; ++i) {
-            uint64_t val;
-            if (cpu_rdrand64(&val)) {
-                seed ^= val;
-                break;
-            }
+static bool text_starts_with(const char *text, const char *prefix) {
+    while (*prefix != '\0') {
+        if (*text++ != *prefix++) {
+            return false;
         }
     }
-    seed ^= cpu_rdtsc();
+    return true;
+}
 
-    if (!have_rdrand || seed == 0) {
-        /* Fallback: mix TSC with a data address */
-        extern uint64_t o0_kaslr_layout_offset;
-        seed ^= (uint64_t)(uintptr_t)&o0_kaslr_layout_offset << 17;
+static const char *platform_label(const struct o0_cpu_info *cpu) {
+    if (cpu == NULL || cpu->hypervisor[0] == '\0') {
+        return "native";
     }
-
-    seed = murmurhash3_64_finalizer(seed);
-    o0_kaslr_layout_offset = (seed % O0_KASLR_SLOT_COUNT) * O0_KASLR_SLOT_SIZE;
+    if (text_starts_with(cpu->hypervisor, "TCG")) {
+        return "qemu-tcg";
+    }
+    if (text_starts_with(cpu->hypervisor, "KVM")) {
+        return "kvm";
+    }
+    if (text_starts_with(cpu->hypervisor, "HAXM")) {
+        return "haxm";
+    }
+    if (text_starts_with(cpu->hypervisor, "Microsoft Hv")) {
+        return "hyper-v";
+    }
+    if (text_starts_with(cpu->hypervisor, "VMware")) {
+        return "vmware";
+    }
+    if (text_starts_with(cpu->hypervisor, "VBox")) {
+        return "virtualbox";
+    }
+    return "other";
 }
 
 __attribute__((noreturn))
 void kmain(void) {
     o0_serial_init();
-    o0_serial_puts("\nOZERO: kernel entry reached\n");
-    o0_serial_puts("OZERO: architecture=x86_64\n");
-    o0_serial_puts("OZERO: boot protocol=Limine\n");
-    o0_serial_puts("OZERO: firmware=");
+    if (o0_cpu_detect() != O0_OK) {
+        panic("CPU feature detection failed");
+    }
+    const struct o0_cpu_features *cf = o0_cpu_features();
+    const struct o0_cpu_info *cpu = o0_cpu_info(0);
+    if (cf == NULL || cpu == NULL) {
+        panic("CPU features not available");
+    }
+    o0_serial_puts("\nOZERO: build commit=");
+    o0_serial_puts(O0_BUILD_COMMIT);
+    o0_serial_puts("\n");
+    o0_serial_puts("OZERO: cpu vendor=");
+    o0_serial_puts(cpu->vendor);
+    o0_serial_puts(" family=");
+    o0_serial_dec(cpu->family);
+    o0_serial_puts(" model=");
+    o0_serial_dec(cpu->model);
+    o0_serial_puts(" stepping=");
+    o0_serial_dec(cpu->stepping);
+    o0_serial_puts(" brand=");
+    o0_serial_puts(cpu->brand[0] != '\0' ? cpu->brand : "unknown");
+    o0_serial_puts("\n");
+    o0_serial_puts("OZERO: platform=");
+    o0_serial_puts(platform_label(cpu));
+    o0_serial_puts(" hypervisor=");
+    o0_serial_puts(cpu->hypervisor[0] != '\0' ? cpu->hypervisor : "none");
+    o0_serial_puts(" signature=");
+    o0_serial_hex(cpu->hypervisor_signature);
+    o0_serial_puts(" firmware=");
     o0_serial_puts(efi_system_table_request.response != NULL ? "UEFI" : "BIOS");
     o0_serial_puts("\n");
+    o0_serial_puts("OZERO: kernel entry reached\n");
 #ifdef O0_LOCK_ORDER_CHECK
     o0_serial_puts("OZERO: lock order check=on\n");
 #else
     o0_serial_puts("OZERO: lock order check=off\n");
 #endif
+    o0_serial_puts("OZERO: architecture=x86_64\n");
+    o0_serial_puts("OZERO: boot protocol=Limine\n");
 
     if (!LIMINE_BASE_REVISION_SUPPORTED(limine_base_revision)) {
         panic("bootloader does not support requested Limine base revision 6");
@@ -996,6 +1308,34 @@ void kmain(void) {
     }
     o0_serial_puts("OZERO: boot info populated\n");
 
+    if (rsdp_request.response != NULL && rsdp_request.response->address != NULL) {
+        o0_boot_set_rsdp((o0_vaddr_t)(uintptr_t)rsdp_request.response->address);
+        struct o0_acpi_info acpi;
+        o0_status acpi_status =
+            o0_acpi_parse(rsdp_request.response->address, o0_arch_hhdm_offset(),
+                          UINT32_MAX, &acpi);
+        if (acpi_status == O0_OK) {
+            o0_acpi_set_info(&acpi);
+            o0_serial_puts("OZERO: acpi cpus=");
+            o0_serial_dec(acpi.cpu_count);
+            o0_serial_puts(" ioapics=");
+            o0_serial_dec(acpi.ioapic_count);
+            o0_serial_puts(" overrides=");
+            o0_serial_dec(acpi.override_count);
+            o0_serial_puts(" lapic=");
+            o0_serial_hex(acpi.lapic_address);
+            o0_serial_puts(" bsp_apic=");
+            o0_serial_dec(acpi.bsp_apic_id);
+            o0_serial_puts("\n");
+        } else {
+            o0_serial_puts("OZERO: acpi unavailable status=");
+            o0_serial_dec((uint64_t)(-acpi_status));
+            o0_serial_puts("\n");
+        }
+    } else {
+        o0_serial_puts("OZERO: acpi unavailable (no RSDP)\n");
+    }
+
     const struct o0_boot_info *bi = o0_boot_info();
     if (bi == NULL || !o0_boot_contract_ok(bi)) {
         panic("boot info contract check failed");
@@ -1022,13 +1362,6 @@ void kmain(void) {
     o0_serial_dec(o0_pmm_free_bytes());
     o0_serial_puts("\n");
 
-    if (o0_cpu_detect() != O0_OK) {
-        panic("CPU feature detection failed");
-    }
-    const struct o0_cpu_features *cf = o0_cpu_features();
-    if (cf == NULL) {
-        panic("CPU features not available");
-    }
     if (!cf->long_mode || !cf->pae) {
         panic("CPU lacks the long-mode baseline (long_mode, pae)");
     }
@@ -1046,14 +1379,6 @@ void kmain(void) {
     o0_serial_puts(cf->page_1gb ? "yes" : "no");
     o0_serial_puts(" invariant_tsc=");
     o0_serial_puts(cf->invariant_tsc ? "yes" : "no");
-    o0_serial_puts("\n");
-
-    /* Kernel-stack randomization (KSR). Derives one 2 MiB-aligned offset
-     * for the dedicated kernel-stack window. The kernel image and HHDM
-     * stay at their link-time addresses; this is not KASLR. */
-    o0_kaslr_init(cf);
-    o0_serial_puts("OZERO: kaslr layout offset=");
-    o0_serial_hex(o0_kaslr_layout_offset);
     o0_serial_puts("\n");
 
     /* Resolve the bootloader framebuffer address before replacing Limine's
@@ -1086,6 +1411,10 @@ void kmain(void) {
         o0_serial_puts("OZERO: no boot framebuffer; serial fallback\n");
     }
 
+    o0_kaslr_init();
+    o0_serial_puts("OZERO: kaslr layout offset=");
+    o0_serial_hex(o0_kaslr_offset());
+    o0_serial_puts("\n");
     if (o0_paging_init(bi) != O0_OK) {
         panic("paging initialisation failed");
     }
@@ -1103,6 +1432,12 @@ void kmain(void) {
     if (!cf->syscall) {
         panic("CPU lacks SYSCALL; the Ozero user ABI requires it");
     }
+    uint32_t smep_smap = o0_cpu_enable_smep_smap();
+    o0_serial_puts("OZERO: smep=");
+    o0_serial_puts((smep_smap & 1u) != 0 ? "on" : "off");
+    o0_serial_puts(" smap=");
+    o0_serial_puts((smep_smap & 2u) != 0 ? "on" : "off");
+    o0_serial_puts("\n");
 
     o0_gdt_init();
     /* The early IDT used Limine's CS selector; reinstall it against our GDT. */
@@ -1120,15 +1455,41 @@ void kmain(void) {
         o0_serial_puts(" bytes=");
         o0_serial_dec(boot_display_mode.bytes);
         o0_serial_puts("\n");
+        if (display_status == O0_OK) {
+            o0_serial_puts("OZERO: framebuffer bars=8 width=");
+            o0_serial_dec(boot_display_mode.width);
+            o0_serial_puts(" height=");
+            o0_serial_dec(boot_display_mode.height);
+            o0_serial_puts("\n");
+            for (uint32_t band = 0; band < 8u; ++band) {
+                o0_serial_puts("OZERO: framebuffer sample bar=");
+                o0_serial_dec(band);
+                o0_serial_puts(" pixel=");
+                o0_serial_hex(o0_display_bar_center_actual(band));
+                o0_serial_puts(" expected=");
+                o0_serial_hex(o0_display_bar_center_expected(&boot_display_mode, band));
+                o0_serial_puts("\n");
+            }
+            o0_serial_puts("OZERO: framebuffer checksum=");
+            o0_serial_hex(o0_display_actual_checksum());
+            o0_serial_puts(" expected=");
+            o0_serial_hex(o0_display_expected_checksum(&boot_display_mode));
+            o0_serial_puts("\n");
+        }
     } else {
         o0_serial_puts("OZERO: framebuffer unavailable; serial fallback\n");
     }
 
     o0_slab_init();
     o0_serial_puts("OZERO: kernel heap ready\n");
+    if (o0_budget_init_system() != O0_OK) {
+        panic("root budget initialisation failed");
+    }
+    o0_serial_puts("OZERO: root budget ready\n");
 
     o0_irq_dispatch_init();
     x86_64_idt_install_irq_gates();
+    x86_64_idt_install_ipi_gate();
     if (o0_pic_init() != O0_OK) {
         panic("PIC initialisation failed");
     }
@@ -1156,6 +1517,58 @@ void kmain(void) {
     o0_serial_dec(o0_sched_hz());
     o0_serial_puts(" Hz\n");
 
+    x86_64_idt_install_apic_timer_gate();
+    o0_status timer_status = o0_apic_timer_start(o0_sched_hz());
+    o0_serial_puts("OZERO: timer=");
+    o0_serial_puts(timer_status == O0_OK ? "lapic" : "pit");
+    o0_serial_puts(" hz=");
+    o0_serial_dec(o0_sched_hz());
+    o0_serial_puts("\n");
+
+    /* The I/O APIC replaces the 8259 only after the LAPIC timer is calibrated:
+     * calibration uses PIT IRQ0, which the I/O APIC path masks. */
+    o0_status ioapic_status = O0_ENOSYS;
+    if (timer_status == O0_OK) {
+        ioapic_status = o0_ioapic_init();
+    }
+    o0_serial_puts("OZERO: ioapic=");
+    o0_serial_puts(ioapic_status == O0_OK ? "active" : "unavailable");
+    o0_serial_puts(" gsis=");
+    o0_serial_dec(o0_ioapic_pin_count());
+    o0_serial_puts("\n");
+
+    /* Release the APs only after the scheduler and both timer paths exist. */
+    uint32_t online = o0_smp_start(mp_request.response);
+    o0_serial_puts("OZERO: smp cpus=");
+    o0_serial_dec(o0_cpu_count());
+    o0_serial_puts(" online=");
+    o0_serial_dec(online);
+    o0_serial_puts("\n");
+    if (o0_smp_online_count() > 1u) {
+        uint64_t probe = (uint64_t)(uintptr_t)&online;
+        o0_status tlb = o0_tlb_shootdown(probe);
+        o0_serial_puts("OZERO: tlb shootdown ");
+        o0_serial_puts(tlb == O0_OK ? "OK" : "FAILED");
+        o0_serial_puts(" status=");
+        o0_serial_dec((uint64_t)tlb);
+        o0_serial_puts(" ipi_seen=");
+        o0_serial_dec(o0_smp_ipi_seen());
+        o0_serial_puts("\n");
+        o0_status range = o0_tlb_shootdown_range(probe, 4u * O0_PAGE_SIZE);
+        o0_serial_puts("OZERO: tlb shootdown range ");
+        o0_serial_puts(range == O0_OK ? "OK" : "FAILED");
+        o0_serial_puts("\n");
+        o0_status full = o0_tlb_shootdown_all();
+        o0_serial_puts("OZERO: tlb shootdown full ");
+        o0_serial_puts(full == O0_OK ? "OK" : "FAILED");
+        o0_serial_puts("\n");
+    }
+
+    uint64_t reclaimed = o0_pmm_release_bootloader_memory();
+    o0_serial_puts("OZERO: bootloader reclaim bytes=");
+    o0_serial_dec(reclaimed);
+    o0_serial_puts("\n");
+
     o0_input_ps2_init();
 
     stage3_self_test();
@@ -1164,10 +1577,6 @@ void kmain(void) {
     report_memory_map();
     stage3_demo();
     wave2_demo();
-
-    /* Wave 3.5 SMP stress test: runs when SMP is available. */
-    extern void wave3_smp_stress(void);
-    wave3_smp_stress();
 
     o0_serial_puts("OZERO: boot success; starting scheduler\n");
     o0_sched_start();

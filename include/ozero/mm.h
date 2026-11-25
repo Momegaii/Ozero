@@ -58,11 +58,19 @@ enum o0_map_flags {
     O0_MAP_GLOBAL = 1u << 4,
     O0_MAP_UC = 1u << 5, /* uncached device memory */
     O0_MAP_WC = 1u << 6, /* write-combining; requires PAT */
-    O0_MAP_NX = 1u << 7  /* request no-execute; not encoded until EFER.NXE is on */
+    O0_MAP_NX = 1u << 7, /* request no-execute; not encoded until EFER.NXE is on */
+    /* Internal: pages are owned by another object (a memory object) and must
+     * not be freed or uncharged by address-space teardown. Encoded in a
+     * software PTE bit. */
+    O0_MAP_BORROWED = 1u << 8
 };
 
+struct o0_budget;
+struct o0_object;
+
 o0_as_t *o0_as_kernel(void);
-O0_NODISCARD o0_status o0_as_create(o0_as_t **out);
+O0_NODISCARD o0_status o0_as_create(struct o0_budget *budget, o0_as_t **out);
+struct o0_budget *o0_as_budget(o0_as_t *as);
 /* Destroys a user address space: frees every user leaf page and every
  * page-table page it owns, then the PML4. The address space must not be the
  * active CR3. Kernel address spaces are ignored. */
@@ -79,11 +87,20 @@ o0_as_t *o0_as_active(void);
 /* Makes `as` the active address space. Refreshes the shared kernel half first. */
 o0_status o0_as_activate(o0_as_t *as);
 
+/* Loads the kernel page tables on an application processor. */
+o0_status o0_paging_ap_load(void);
+
 /* Per-thread kernel stacks live in a dedicated kernel virtual region. The page
  * directly below the returned base is left unmapped, so a downward overflow
  * faults instead of corrupting an adjacent stack. */
-O0_NODISCARD o0_status o0_kstack_alloc(size_t pages, o0_vaddr_t *out_base);
-void o0_kstack_free(o0_vaddr_t base, size_t pages);
+O0_NODISCARD o0_status o0_kstack_alloc(size_t pages, struct o0_budget *budget,
+                                       o0_vaddr_t *out_base);
+void o0_kstack_free(o0_vaddr_t base, size_t pages, struct o0_budget *budget);
+
+/* Records that [vaddr, vaddr+len) is backed by `owner`'s pages. The address
+ * space holds a reference until teardown. */
+O0_NODISCARD o0_status o0_as_add_borrowed(o0_as_t *as, o0_vaddr_t vaddr, size_t len,
+                                          struct o0_object *owner);
 
 /* len is rounded outward to pages. vaddr and paddr must be page-aligned unless the
  * implementation documents otherwise. */

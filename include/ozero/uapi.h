@@ -18,14 +18,26 @@
 extern "C" {
 #endif
 
-/* ---- Syscall numbers (wave 2 set) ---- */
+/* ---- Syscall numbers (wave 3 set) ---- */
 
 #define O0_SYS_INVALID 0u /* reserved: returns -O0_UE_INVAL */
 #define O0_SYS_EXIT 1u
 #define O0_SYS_YIELD 2u
 #define O0_SYS_DEBUG_WRITE 3u
 #define O0_SYS_GETPID 4u
-#define O0_SYS_MAX 4u
+#define O0_SYS_HANDLE_CLOSE 5u
+#define O0_SYS_HANDLE_DUP 6u
+#define O0_SYS_HANDLE_INFO 7u
+#define O0_SYS_BUDGET_SPLIT 8u
+#define O0_SYS_BUDGET_INFO 9u
+#define O0_SYS_ENDPOINT_CREATE 10u
+#define O0_SYS_IPC_SEND 11u
+#define O0_SYS_IPC_RECV 12u
+#define O0_SYS_IPC_CALL 13u
+#define O0_SYS_MEMORY_CREATE 14u
+#define O0_SYS_MEMORY_MAP 15u
+#define O0_SYS_PROCESS_SPAWN 16u
+#define O0_SYS_MAX 16u
 
 /* ---- User-visible error codes ----
  *
@@ -51,6 +63,38 @@ extern "C" {
 #define O0_UE_ISDIR (-16)
 #define O0_UE_NOTEMPTY (-17)
 #define O0_UE_NOSPC (-18)
+#define O0_UE_PEER (-19) /* endpoint or process peer is gone */
+
+/* ---- Wave 3 argument structures ---- */
+
+/* A handle transfer entry for ipc_send and process_spawn. `rights` must be a
+ * subset of the rights on `handle`; 0 means "same rights as the handle". */
+struct o0_uapi_handle_xfer {
+    uint64_t handle;
+    uint32_t rights;
+    uint32_t reserved;
+};
+
+struct o0_uapi_handle_info {
+    uint64_t handle;
+    uint32_t type;
+    uint32_t rights;
+    uint64_t charge_bytes;
+    uint64_t reserved;
+};
+
+struct o0_uapi_budget_info {
+    uint64_t limit;
+    uint64_t used;
+    uint64_t remaining;
+    uint64_t reserved;
+};
+
+/* Protection bits accepted by memory_map. They match O0_MAP_READ/WRITE/EXEC
+ * numerically and are re-validated against the memory handle's rights. */
+#define O0_PROT_READ 1u
+#define O0_PROT_WRITE 2u
+#define O0_PROT_EXEC 4u
 
 /* ---- Segment selectors (GDT layout) ---- */
 

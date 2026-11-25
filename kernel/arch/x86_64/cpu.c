@@ -5,11 +5,14 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "ozero/cpu.h"
+#include "ozero/cpu_local.h"
 #include "ozero/status.h"
 #include "ozero/types.h"
 
 static struct o0_cpu_features features;
 static struct o0_cpu_info boot_cpu;
+static struct o0_cpu_info cpu_table[O0_MAX_CPUS];
+static uint32_t cpu_count = 1;
 static bool features_detected;
 
 static inline void cpuid(uint32_t leaf, uint32_t subleaf,
@@ -118,6 +121,50 @@ o0_status o0_cpu_detect(void) {
         features.phys_addr_bits=(uint8_t)(eax&0xffu);
         features.virt_addr_bits=(uint8_t)((eax>>8)&0xffu);
     }
+    if (features.max_extended_leaf >= 0x80000004u) {
+        uint32_t regs[12];
+        for (uint32_t i = 0; i < 3u; ++i) {
+            cpuid(0x80000002u + i, 0, &regs[i * 4u], &regs[i * 4u + 1u],
+                  &regs[i * 4u + 2u], &regs[i * 4u + 3u]);
+        }
+        for (uint32_t i = 0; i < 12u; ++i) {
+            for (uint32_t b = 0; b < 4u; ++b) {
+                boot_cpu.brand[i * 4u + b] = (char)(regs[i] >> (b * 8u));
+            }
+        }
+        boot_cpu.brand[48] = '\0';
+        uint32_t first = 0;
+        while (first < 48u && boot_cpu.brand[first] == ' ') {
+            ++first;
+        }
+        uint32_t end = 48u;
+        while (end > first && (boot_cpu.brand[end - 1u] == ' ' ||
+                               boot_cpu.brand[end - 1u] == '\0')) {
+            --end;
+        }
+        for (uint32_t i = first; i < end; ++i) {
+            boot_cpu.brand[i - first] = boot_cpu.brand[i];
+        }
+        boot_cpu.brand[end - first] = '\0';
+    }
+    if (features.hypervisor) {
+        cpuid(0x40000000u, 0, &eax, &ebx, &ecx, &edx);
+        boot_cpu.hypervisor[0] = (char)ebx;
+        boot_cpu.hypervisor[1] = (char)(ebx >> 8);
+        boot_cpu.hypervisor[2] = (char)(ebx >> 16);
+        boot_cpu.hypervisor[3] = (char)(ebx >> 24);
+        boot_cpu.hypervisor[4] = (char)ecx;
+        boot_cpu.hypervisor[5] = (char)(ecx >> 8);
+        boot_cpu.hypervisor[6] = (char)(ecx >> 16);
+        boot_cpu.hypervisor[7] = (char)(ecx >> 24);
+        boot_cpu.hypervisor[8] = (char)edx;
+        boot_cpu.hypervisor[9] = (char)(edx >> 8);
+        boot_cpu.hypervisor[10] = (char)(edx >> 16);
+        boot_cpu.hypervisor[11] = (char)(edx >> 24);
+        boot_cpu.hypervisor[12] = '\0';
+        cpuid(0x40000001u, 0, &eax, &ebx, &ecx, &edx);
+        boot_cpu.hypervisor_signature = eax;
+    }
     /* Report AVX-family instructions only when the OS has enabled and
      * configured the corresponding extended register state in XCR0. */
     bool avx_state = features.xsave && features.xcr0_supported != 0 &&
@@ -131,6 +178,13 @@ o0_status o0_cpu_detect(void) {
 
     boot_cpu.index=0; boot_cpu.apic_id=0; boot_cpu.acpi_uid=0;
     boot_cpu.flags=O0_CPU_F_BSP;
+    for (uint32_t i = 0; i < O0_MAX_CPUS; ++i) {
+        cpu_table[i] = boot_cpu;
+        cpu_table[i].index = i;
+        cpu_table[i].flags = 0;
+    }
+    cpu_table[0] = boot_cpu;
+    cpu_count = 1;
     features_detected=true;
     return O0_OK;
 }
@@ -139,10 +193,78 @@ const struct o0_cpu_features *o0_cpu_features(void) {
     return features_detected ? &features : NULL;
 }
 const struct o0_cpu_info *o0_cpu_info(uint32_t index) {
-    return index==0 && features_detected ? &boot_cpu : NULL;
+    if (!features_detected || index >= cpu_count || index >= O0_MAX_CPUS) {
+        return NULL;
+    }
+    return &cpu_table[index];
 }
-uint32_t o0_cpu_count(void) { return 1; }
-uint32_t o0_cpu_index(void) { return 0; }
+
+void o0_cpu_set_count(uint32_t count) {
+    if (count == 0) {
+        return;
+    }
+    if (count > O0_MAX_CPUS) {
+        count = O0_MAX_CPUS;
+    }
+    cpu_count = count;
+}
+
+void o0_cpu_set_info(uint32_t index, uint32_t apic_id, uint32_t acpi_uid,
+                     uint32_t flags) {
+    if (!features_detected || index >= O0_MAX_CPUS) {
+        return;
+    }
+    if (index >= cpu_count) {
+        cpu_count = index + 1u;
+    }
+    cpu_table[index] = boot_cpu;
+    cpu_table[index].index = index;
+    cpu_table[index].apic_id = apic_id;
+    cpu_table[index].acpi_uid = acpi_uid;
+    cpu_table[index].flags = flags;
+}
+
+uint32_t o0_cpu_count(void) { return features_detected ? cpu_count : 1u; }
+
+uint32_t o0_cpu_index(void) {
+    uint32_t lo;
+    uint32_t hi;
+    __asm__ volatile ("rdmsr" : "=a"(lo), "=d"(hi) : "c"(0xc0000101u));
+    uint64_t base = ((uint64_t)hi << 32) | lo;
+    if (base == 0) {
+        return 0;
+    }
+    return ((const struct o0_cpu_local *)(uintptr_t)base)->cpu_index;
+}
+static inline uint64_t read_cr4(void) {
+    uint64_t cr4;
+    __asm__ volatile ("mov %%cr4, %0" : "=r"(cr4));
+    return cr4;
+}
+
+static inline void write_cr4(uint64_t value) {
+    __asm__ volatile ("mov %0, %%cr4" : : "r"(value) : "memory");
+}
+
+uint32_t o0_cpu_enable_smep_smap(void) {
+    uint32_t enabled = 0;
+    uint64_t cr4 = read_cr4();
+    if (features.smep) {
+        cr4 |= 1ull << 20;
+        enabled |= 1u;
+    }
+    if (features.smap) {
+        cr4 |= 1ull << 21;
+        enabled |= 2u;
+    }
+    write_cr4(cr4);
+    return enabled;
+}
+
+bool o0_cpu_smap_enabled(void) {
+    return (read_cr4() & (1ull << 21)) != 0;
+}
+
 uint64_t o0_rdtsc(void) {
     uint32_t lo,hi;
     __asm__ volatile ("rdtsc":"=a"(lo),"=d"(hi));

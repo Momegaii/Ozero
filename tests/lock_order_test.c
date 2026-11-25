@@ -62,24 +62,16 @@ int main(void) {
         printf("FAIL: unordered locks rejected\n");
         ++failures;
     }
-    if (!o0_lock_order_ok(1u, 1u)) {
-        printf("FAIL: equal classes accepted\n");
+    if (!o0_lock_order_ok(10u, 20u)) {
+        printf("FAIL: increasing order rejected\n");
         ++failures;
     }
-    if (!o0_lock_order_ok(1u, 2u)) {
-        printf("FAIL: increasing classes accepted\n");
+    if (o0_lock_order_ok(20u, 10u)) {
+        printf("FAIL: decreasing order accepted\n");
         ++failures;
     }
-    if (o0_lock_order_ok(2u, 1u)) {
-        printf("FAIL: decreasing classes rejected\n");
-        ++failures;
-    }
-    if (o0_lock_order_ok(0u, 1u)) {
-        printf("FAIL: unordered-to-ordered rejected\n");
-        ++failures;
-    }
-    if (o0_lock_order_ok(1u, 0u)) {
-        printf("FAIL: ordered-to-unordered rejected\n");
+    if (o0_lock_order_ok(20u, 20u)) {
+        printf("FAIL: equal order accepted\n");
         ++failures;
     }
 
@@ -115,6 +107,6 @@ int main(void) {
         printf("lock-order: PASS\n");
         return 0;
     }
-    printf("lock-order: FAIL (%d)\n", failures);
+    printf("lock-order: %d failure(s)\n", failures);
     return 1;
 }

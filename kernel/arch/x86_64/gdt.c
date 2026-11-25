@@ -54,10 +54,31 @@ struct o0_cpu_local *o0_cpu_local_install(uint32_t index) {
     struct o0_cpu_local *local = &o0_cpu_local[index];
     local->self = local;
     local->cpu_index = index;
+    local->online = 0;
     write_msr(O0_MSR_GS_BASE, (uint64_t)(uintptr_t)local);
     /* User GS base before the first swapgs. */
     write_msr(O0_MSR_KERNEL_GS_BASE, 0);
     return local;
+}
+
+void o0_cpu_local_mark_online(uint32_t index, uint32_t apic_id) {
+    if (index >= O0_MAX_CPUS) {
+        return;
+    }
+    struct o0_cpu_local *local = &o0_cpu_local[index];
+    local->apic_id = apic_id;
+    local->online = 1;
+    __atomic_store_n(&local->online, 1u, __ATOMIC_RELEASE);
+}
+
+uint32_t o0_cpu_local_online_count(void) {
+    uint32_t count = 0;
+    for (uint32_t i = 0; i < O0_MAX_CPUS; ++i) {
+        if (__atomic_load_n(&o0_cpu_local[i].online, __ATOMIC_ACQUIRE) != 0) {
+            ++count;
+        }
+    }
+    return count;
 }
 
 struct o0_cpu_local *o0_cpu_local_current(void) {
@@ -70,28 +91,18 @@ struct o0_cpu_local *o0_cpu_local_current(void) {
 
 void o0_arch_set_rsp0(uint64_t rsp0) {
     tss.rsp0 = rsp0;
-    o0_cpu_local[0].kernel_rsp0 = rsp0;
+    struct o0_cpu_local *local = o0_cpu_local_current();
+    if (local == NULL) {
+        local = &o0_cpu_local[0];
+    }
+    local->kernel_rsp0 = rsp0;
 }
 
 uint64_t o0_gdt_tss_limit(void) {
     return O0_TSS_LIMIT;
 }
 
-void o0_gdt_init(void) {
-    struct o0_gdt_view view;
-    o0_gdt_build(&view, (uint64_t)(uintptr_t)&tss, (uint32_t)O0_TSS_LIMIT);
-    for (size_t i = 0; i < O0_GDT_ENTRIES; ++i) {
-        gdt[i] = view.entries[i];
-    }
-
-    /* TSS: RSP0 is replaced on every context switch; IST1 owns the dedicated
-     * double-fault stack. The I/O bitmap is disabled. */
-    for (size_t i = 0; i < sizeof(tss); ++i) {
-        ((uint8_t *)&tss)[i] = 0;
-    }
-    tss.ist1 = (uint64_t)(uintptr_t)(double_fault_stack + sizeof(double_fault_stack));
-    tss.iomap_base = (uint16_t)sizeof(struct o0_tss);
-
+static void gdt_load_segments(void) {
     const struct o0_gdtr descriptor = {
         .limit = (uint16_t)(sizeof(gdt) - 1u),
         .base = (uint64_t)(uintptr_t)gdt
@@ -117,11 +128,9 @@ void o0_gdt_init(void) {
         :
         : [kc] "r"((uint64_t)O0_SEL_KERNEL_CODE)
         : "rax", "memory");
+}
 
-    __asm__ volatile ("ltr %0" : : "r"((uint16_t)O0_SEL_TSS));
-
-    o0_cpu_local_install(0);
-
+static void gdt_install_syscall_msrs(void) {
     /* EFER.SCE enables SYSCALL/SYSRET; NXE was set with the CR3 switch. */
     uint64_t efer = read_msr(O0_MSR_EFER);
     efer |= 1ull; /* SCE */
@@ -130,4 +139,32 @@ void o0_gdt_init(void) {
     write_msr(O0_MSR_STAR, O0_ABI_STAR);
     write_msr(O0_MSR_LSTAR, (uint64_t)(uintptr_t)o0_syscall_entry);
     write_msr(O0_MSR_FMASK, O0_ABI_FMASK);
+}
+
+void o0_gdt_load_for_ap(void) {
+    gdt_load_segments();
+    gdt_install_syscall_msrs();
+}
+
+void o0_gdt_init(void) {
+    struct o0_gdt_view view;
+    o0_gdt_build(&view, (uint64_t)(uintptr_t)&tss, (uint32_t)O0_TSS_LIMIT);
+    for (size_t i = 0; i < O0_GDT_ENTRIES; ++i) {
+        gdt[i] = view.entries[i];
+    }
+
+    /* TSS: RSP0 is replaced on every context switch; IST1 owns the dedicated
+     * double-fault stack. The I/O bitmap is disabled. */
+    for (size_t i = 0; i < sizeof(tss); ++i) {
+        ((uint8_t *)&tss)[i] = 0;
+    }
+    tss.ist1 = (uint64_t)(uintptr_t)(double_fault_stack + sizeof(double_fault_stack));
+    tss.iomap_base = (uint16_t)sizeof(struct o0_tss);
+
+    gdt_load_segments();
+    __asm__ volatile ("ltr %0" : : "r"((uint16_t)O0_SEL_TSS));
+
+    o0_cpu_local_install(0);
+    o0_cpu_local_mark_online(0, 0);
+    gdt_install_syscall_msrs();
 }
