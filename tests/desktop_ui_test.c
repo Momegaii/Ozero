@@ -126,8 +126,9 @@ static void test_activate_state_machine(void) {
     assert(ui.spheres[0].state == O0_SPHERE_ACTIVE);
     assert(ui.spheres[0].anim_phase == 0);
 
-    /* Advance activation: radius grows then shrinks, then feedback. */
-    for (uint32_t i = 0; i < 80; ++i) o0_desktop_ui_update(&ui);
+    /* Advance activation: radius grows then shrinks, then feedback.
+     * Phase 0-39 grow, 40-79 shrink, 80 -> FEEDBACK. */
+    for (uint32_t i = 0; i < 81; ++i) o0_desktop_ui_update(&ui);
     assert(ui.spheres[0].state == O0_SPHERE_FEEDBACK);
 
     for (uint32_t i = 0; i < 60; ++i) o0_desktop_ui_update(&ui);

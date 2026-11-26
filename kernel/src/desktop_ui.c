@@ -317,9 +317,7 @@ static void ui_draw_node(struct o0_desktop_ui *ui, struct o0_surface *s,
     for (;;) {
         if (x0 >= 0 && x0 < (int32_t)s->width && y0 >= 0 &&
             y0 < (int32_t)s->height) {
-            uint8_t *p = s->pixels + (size_t)y0 * s->pitch +
-                         (size_t)x0 * 4u;
-            pixel_write(p, s->format, line_color);
+            o0_surface_put_pixel(s, x0, y0, line_color);
         }
         if (x0 == x1 && y0 == y1) break;
         int32_t e2 = 2 * err;
@@ -328,7 +326,7 @@ static void ui_draw_node(struct o0_desktop_ui *ui, struct o0_surface *s,
     }
 }
 
-static void ui_draw_sphere(struct o0_desktop_ui *ui, struct o0_surface *s,
+static void ui_draw_sphere(struct o0_surface *s,
                            const struct o0_sphere *sph) {
     if (!sph->active) return;
 
@@ -368,13 +366,10 @@ static void ui_draw_particles(struct o0_desktop_ui *ui,
             p->y < 0 || p->y >= (int32_t)s->height) continue;
         /* Alpha by life. Dim for low life, bright for high. */
         uint8_t alpha = (uint8_t)((uint32_t)p->life * 255u / 200u);
-        if (alpha > 255u) alpha = 255u;
         uint32_t base = (p->life > 100) ? O0_PARTICLE_BRIGHT : O0_PARTICLE_DIM;
         uint32_t blended = o0_surface_blend_rgb(
             O0_DESKTOP_BG_COLOR, base, alpha);
-        uint8_t *px = s->pixels + (size_t)p->y * s->pitch +
-                      (size_t)p->x * 4u;
-        pixel_write(px, s->format, blended);
+        o0_surface_put_pixel(s, p->x, p->y, blended);
     }
 }
 
@@ -384,11 +379,7 @@ static void ui_draw_panel(struct o0_desktop_ui *ui, struct o0_surface *s) {
                  O0_PANEL_COLOR);
     /* Thin border. */
     for (int32_t y = ui->panel_y; y < ui->panel_y + ui->panel_h; ++y) {
-        if (y >= 0 && y < (int32_t)s->height) {
-            uint8_t *p = s->pixels + (size_t)y * s->pitch +
-                         (size_t)ui->panel_x * 4u;
-            pixel_write(p, s->format, O0_NODE_BRIGHT);
-        }
+        o0_surface_put_pixel(s, ui->panel_x, y, O0_NODE_BRIGHT);
     }
 }
 
@@ -398,11 +389,7 @@ static void ui_draw_taskbar(struct o0_desktop_ui *ui,
                  ui->taskbar_h, O0_TASKBAR_COLOR);
     /* Top edge highlight. */
     for (int32_t x = ui->taskbar_x; x < ui->taskbar_x + ui->taskbar_w; ++x) {
-        if (x >= 0 && x < (int32_t)s->width) {
-            uint8_t *p = s->pixels + (size_t)ui->taskbar_y * s->pitch +
-                         (size_t)x * 4u;
-            pixel_write(p, s->format, O0_NODE_BRIGHT);
-        }
+        o0_surface_put_pixel(s, x, ui->taskbar_y, O0_NODE_BRIGHT);
     }
 }
 
@@ -453,7 +440,7 @@ o0_status o0_desktop_ui_render(struct o0_desktop_ui *ui,
 
     /* 4. Spheres (desktop + taskbar). */
     for (uint32_t i = 0; i < ui->sphere_count; ++i) {
-        ui_draw_sphere(ui, backbuffer, &ui->spheres[i]);
+        ui_draw_sphere(backbuffer, &ui->spheres[i]);
     }
 
     /* 5. Taskbar strip. */

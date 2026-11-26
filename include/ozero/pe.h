@@ -75,25 +75,6 @@ extern "C" {
 #define O0_PE_REL_BASED_ABSOLUTE 0u
 #define O0_PE_REL_BASED_DIR64 10u
 
-/* ---- PE error codes (kernel-internal, not the user ABI) ---- */
-
-#define O0_PE_OK 0
-#define O0_PE_ERR_BAD_MZ 1
-#define O0_PE_ERR_LFANEW 2
-#define O0_PE_ERR_TRUNCATED 3
-#define O0_PE_ERR_BAD_SIGNATURE 4
-#define O0_PE_ERR_BAD_MACHINE 5
-#define O0_PE_ERR_BAD_OPTIONAL_MAGIC 6
-#define O0_PE_ERR_TOO_MANY_SECTIONS 7
-#define O0_PE_ERR_BAD_ALIGNMENT 8
-#define O0_PE_ERR_SECTION_RANGE 9
-#define O0_PE_ERR_SECTIONS_OVERLAP 10
-#define O0_PE_ERR_BAD_ENTRY 11
-#define O0_PE_ERR_WX 12
-#define O0_PE_ERR_BAD_DIRECTORY 13
-#define O0_PE_ERR_BAD_RELOCATION 14
-#define O0_PE_ERR_UNSUPPORTED 15
-
 /* ---- Parsed image description ---- */
 
 struct o0_pe_section {
