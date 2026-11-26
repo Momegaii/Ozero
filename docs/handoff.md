@@ -123,10 +123,31 @@ CPUs) are explicitly *not* covered by it.
     status latching, `FEATURES_OK` rejection, reset stalling, per-queue state and fixed
     register widths. A wrong-width or out-of-region access is refused by the model, so the
     tests cannot pass against a flat byte array.
+- **Rebase:** the branch was rebased onto `main` `be83019` (the PR #7 legacy virtio-blk
+  repair) and force-pushed as `6d35a53`; the PR diff is now exactly the modern virtio
+  work with no unrelated history.
+- **CI (inspected, not inferred):** [run 45807503749](https://github.com/Momegaii/Ozero/actions/runs/45807503749)
+  on `6d35a53` — `completed` / `success`, 15/15 jobs: 12 boot cells
+  (`{bios, uefi} × {qemu64, Haswell-v1, max} × -smp {1, 2}`), `lock-order-boot`,
+  `host-sanitizers` and `storage (virtio, smp=2)`. The storage cell serial log contains
+  `virtio-blk queue size=256`,
+  `virtio-blk ready pfn=0x10 status=0x7 ... capacity=16384 pci_cmd=0x107`,
+  `OZERO: virtio-blk read/write OK irq=0 sectors=16384`,
+  `OZERO: virtio-blk error path OK` and `OZERO: wave3 self-test complete`.
+  The `host-sanitizers` job therefore also ran `virtio_pci_cap_test`,
+  `virtio_pci_mmio_test` and `virtio_queue_test` under ASan/UBSan.
+- **Observed flake:** the first run of the same tree (run `45805993581`, commit `03bb3af`)
+  failed the `storage (virtio, smp=2)` cell: the serial log stopped after
+  `OZERO: smp user churn OK processes=16` and the job timed out 15 s later. QEMU's `-d int`
+  log shows one extra page fault after the three deliberate wave2 fault-injection
+  exceptions. The identical wave3 SMP scheduling test passed in the six `-smp 2` boot cells
+  of that same run and in the rebased re-run, so the failure is timing-sensitive and
+  predates this work, but it is unresolved and must not be assumed fixed.
 - **Not yet verified:**
-  - No QEMU run was possible in this workspace (no `qemu-system-x86_64`, no `xorriso`, no
-    root to install them). The two storage cells are therefore unobserved at the time of
-    writing; the CI run identifiers and conclusions are appended only after they exist.
+  - The **modern-only** cell (`virtio-blk-pci,disable-legacy=on`) has **not run**. Its
+    workflow change cannot be pushed: GitHub rejects any push that updates
+    `.github/workflows/*` unless the pushing token carries the `workflow` scope, and the
+    available tokens do not. The change is prepared and awaiting a Director decision.
   - No physical controller, no asynchronous submission, no performance claim.
 
 ## Open items
