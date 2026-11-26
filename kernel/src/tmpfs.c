@@ -82,6 +82,7 @@ static o0_status tmpfs_node_create(struct o0_tmpfs_state *fs, uint32_t type,
     node->vnode.private_data = node;
     node->vnode.type = type;
     node->fs = fs;
+    node->vnode.fs_identity = fs;
     __atomic_add_fetch(&fs->references, 1u, __ATOMIC_RELAXED);
     node->id = ++fs->next_id;
     if (name != NULL && name_len != 0) {
@@ -133,7 +134,6 @@ static o0_status tmpfs_create_node(struct o0_vnode *dir, const char *name,
     o0_status st = tmpfs_node_create(fs, type, name, name_len, &node);
     if (st == O0_OK) {
         node->vnode.ops = dir->ops;
-        node->vnode.parent = dir;
         node->next = parent->children;
         parent->children = node; /* object reference is owned by the directory */
         o0_object_ref(&node->vnode.obj);
@@ -281,7 +281,6 @@ static o0_status tmpfs_unlink(struct o0_vnode *vnode, const char *name,
             }
             *link = child->next;
             child->next = NULL;
-            child->vnode.parent = NULL;
             o0_spin_unlock(&fs->lock);
             o0_object_unref(&child->vnode.obj); /* drop directory's ownership */
             return O0_OK;
