@@ -157,6 +157,7 @@ required_markers=(
     "OZERO: budget exhaustion OK"
     "OZERO: ipc negative tests OK"
     "OZERO: wave3 churn OK pairs=8"
+    "OZERO: VFS ring3 file syscalls OK"
     "OZERO: wave3 self-test complete"
 )
 
