@@ -378,6 +378,12 @@ static void storage_pci_self_test(void) {
             panic("virtio-blk injected error was not reported");
         }
         o0_serial_puts("OZERO: virtio-blk error path OK\n");
+    } else if (st != O0_ENOENT) {
+        /* A function that is present but unusable must say why: the storage cell
+         * fails on the missing marker, and this line explains the reason. */
+        o0_serial_puts("OZERO: virtio-blk probe status=");
+        o0_serial_puts(o0_status_name(st));
+        o0_serial_puts("\n");
     }
 
     disk = NULL;

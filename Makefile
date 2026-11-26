@@ -31,7 +31,7 @@ KERNEL_OBJS := $(BUILD)/main.o $(BUILD)/serial.o $(BUILD)/string.o $(BUILD)/stat
                $(BUILD)/irq.o $(BUILD)/ioapic.o $(BUILD)/paging.o $(BUILD)/cpu.o $(BUILD)/pic.o $(BUILD)/smp.o $(BUILD)/ap_entry.o $(BUILD)/apic_timer.o $(BUILD)/kaslr.o \
                $(BUILD)/interrupts_c.o $(BUILD)/interrupts.o $(BUILD)/irq_stubs.o \
                $(BUILD)/context.o $(BUILD)/block.o $(BUILD)/ramdisk.o \
-               $(BUILD)/o0fs.o $(BUILD)/pci.o $(BUILD)/dma.o $(BUILD)/virtio_blk.o \
+               $(BUILD)/o0fs.o $(BUILD)/pci.o $(BUILD)/dma.o $(BUILD)/virtio_blk.o $(BUILD)/virtio_blk_modern.o \
                $(BUILD)/virtio_pci_cap.o $(BUILD)/virtio_pci_mmio.o $(BUILD)/virtio_pci_map.o \
                $(BUILD)/virtio_queue.o $(BUILD)/ahci.o $(BUILD)/nvme.o $(BUILD)/gpu.o $(BUILD)/gpu_hsw.o \
                $(BUILD)/gpu_device.o $(BUILD)/gpu_queue.o $(BUILD)/surface.o \

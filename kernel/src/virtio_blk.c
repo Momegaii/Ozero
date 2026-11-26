@@ -16,7 +16,9 @@
  * flight per device, which is why a single request header is enough.
  *
  * Evidence limits: this is QEMU evidence only. No physical controller is
- * claimed, and the modern (MMIO capability) transport is not implemented.
+ * claimed. The modern (MMIO capability) transport lives in virtio_blk_modern.c;
+ * this file probes for a legacy device and dispatches to that backend when the
+ * function only offers the modern transport.
  */
 
 #include <stdbool.h>
@@ -32,6 +34,8 @@
 #include "ozero/types.h"
 #include "ozero/virtio_blk.h"
 #include "ozero/virtio_ring.h"
+
+#include "virtio_blk_internal.h"
 
 #include "serial.h"
 #include "string.h"
@@ -396,21 +400,24 @@ static bool vblk_is_legacy(const struct o0_pci_device *pci) {
     return bar0.valid && !bar0.is_memory && bar0.assigned;
 }
 
-o0_status o0_virtio_blk_probe(const char *name, struct o0_block_dev **out) {
+o0_status o0_virtio_blk_legacy_probe(const char *name, struct o0_block_dev **out) {
     if (name == NULL || out == NULL || name[0] == '\0') {
         return O0_EINVAL;
     }
     *out = NULL;
 
     const struct o0_pci_device *found = NULL;
+    bool modern_only = false;
     for (size_t i = 0; i < o0_pci_device_count(); ++i) {
         const struct o0_pci_device *pci = o0_pci_device(i);
         if (pci == NULL) {
             continue;
         }
         if (pci->vendor_id == 0x1AF4u && pci->device_id == 0x1042u) {
-            /* Modern transport only: refuse rather than mis-program I/O ports. */
-            return O0_ENOTSUP;
+            /* Modern transport only: never mis-program I/O ports. The caller
+             * dispatches to the modern backend after this returns. */
+            modern_only = true;
+            continue;
         }
         if (vblk_is_legacy(pci)) {
             found = pci;
@@ -418,7 +425,7 @@ o0_status o0_virtio_blk_probe(const char *name, struct o0_block_dev **out) {
         }
     }
     if (found == NULL) {
-        return O0_ENOENT;
+        return modern_only ? O0_ENOTSUP : O0_ENOENT;
     }
 
     struct o0_virtio_blk *vd = NULL;
@@ -607,12 +614,12 @@ o0_status o0_virtio_blk_probe(const char *name, struct o0_block_dev **out) {
     return O0_OK;
 }
 
-uint64_t o0_virtio_blk_irq_count(struct o0_block_dev *dev) {
+uint64_t o0_virtio_blk_legacy_irq_count(struct o0_block_dev *dev) {
     struct o0_virtio_blk *vd = vblk_from_dev(dev);
     return vd != NULL ? vd->irq_count : 0u;
 }
 
-o0_status o0_virtio_blk_inject_error(struct o0_block_dev *dev) {
+o0_status o0_virtio_blk_legacy_inject_error(struct o0_block_dev *dev) {
     struct o0_virtio_blk *vd = vblk_from_dev(dev);
     if (vd == NULL) {
         return O0_ENOENT;
@@ -630,4 +637,39 @@ o0_status o0_virtio_blk_inject_error(struct o0_block_dev *dev) {
         return O0_EIO; /* the device accepted an out-of-range read */
     }
     return O0_OK;
+}
+
+/* ---- Transport-neutral public API ---- */
+
+o0_status o0_virtio_blk_probe(const char *name, struct o0_block_dev **out) {
+    if (name == NULL || out == NULL || name[0] == '\0') {
+        return O0_EINVAL;
+    }
+    o0_status legacy = o0_virtio_blk_legacy_probe(name, out);
+    if (legacy == O0_OK || legacy == O0_EINVAL || legacy == O0_EBUSY) {
+        return legacy;
+    }
+    /* Either no device was found, or the only virtio-blk function present
+     * exposes the modern transport exclusively. Only then is the modern backend
+     * tried, so a legacy device is never driven through MMIO. */
+    o0_status modern = o0_virtio_blk_modern_probe(name, out);
+    if (modern == O0_OK) {
+        return O0_OK;
+    }
+    return legacy;
+}
+
+uint64_t o0_virtio_blk_irq_count(struct o0_block_dev *dev) {
+    struct o0_virtio_blk *vd = vblk_from_dev(dev);
+    if (vd != NULL) {
+        return vd->irq_count;
+    }
+    return o0_virtio_blk_modern_irq_count(dev);
+}
+
+o0_status o0_virtio_blk_inject_error(struct o0_block_dev *dev) {
+    if (vblk_from_dev(dev) != NULL) {
+        return o0_virtio_blk_legacy_inject_error(dev);
+    }
+    return o0_virtio_blk_modern_inject_error(dev);
 }
