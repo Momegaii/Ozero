@@ -14,6 +14,10 @@
 #include "string.h"
 
 static struct o0_vnode *vfs_root;
+static struct {
+    struct o0_vnode *directory;
+    struct o0_vnode *root;
+} vfs_mounts[O0_VFS_MOUNT_MAX];
 static void cache_init(void);
 static void cache_invalidate_all(void);
 
@@ -163,19 +167,36 @@ o0_status o0_vfs_mount(struct o0_vnode *directory, struct o0_vnode *root) {
         directory->type != O0_VNODE_DIRECTORY ||
         root->type != O0_VNODE_DIRECTORY) return O0_EINVAL;
     if (directory->mounted_root != NULL) return O0_EBUSY;
+    size_t slot = O0_VFS_MOUNT_MAX;
+    for (size_t i = 0; i < O0_VFS_MOUNT_MAX; ++i) {
+        if (vfs_mounts[i].directory == directory) return O0_EBUSY;
+        if (slot == O0_VFS_MOUNT_MAX && vfs_mounts[i].directory == NULL) slot = i;
+    }
+    if (slot == O0_VFS_MOUNT_MAX) return O0_ENOSPC;
+    vnode_ref(directory);
     vnode_ref(root);
     directory->mounted_root = root;
+    vfs_mounts[slot].directory = directory;
+    vfs_mounts[slot].root = root;
     return O0_OK;
 }
 
 o0_status o0_vfs_unmount(struct o0_vnode *directory) {
-    if (directory == NULL || directory->mounted_root == NULL) return O0_EINVAL;
-    struct o0_vnode *root = directory->mounted_root;
-    /* The mount's reference must be the only remaining reference. */
+    if (directory == NULL) return O0_EINVAL;
+    size_t slot = O0_VFS_MOUNT_MAX;
+    for (size_t i = 0; i < O0_VFS_MOUNT_MAX; ++i) {
+        if (vfs_mounts[i].directory == directory) { slot = i; break; }
+    }
+    if (slot == O0_VFS_MOUNT_MAX) return O0_ENOENT;
+    struct o0_vnode *root = vfs_mounts[slot].root;
+    /* The mount's reference must be the only remaining root reference. */
     cache_invalidate_all();
     if (root->obj.refcount != 1) return O0_EBUSY;
     directory->mounted_root = NULL;
+    vfs_mounts[slot].directory = NULL;
+    vfs_mounts[slot].root = NULL;
     vnode_unref(root);
+    vnode_unref(directory);
     return O0_OK;
 }
 
