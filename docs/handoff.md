@@ -84,6 +84,51 @@ CPUs) are explicitly *not* covered by it.
   not have found its device. `775e333` probes BAR0 in the probe path; the Wave 4.2
   cell is still awaiting its first observed run.
 
+
+## Director-attested local QEMU validation (2026-11-26)
+
+- **Director report:** TCG and HAXM QEMU runs have been performed locally and are working so far.
+- **Evidence type:** Director-attested local QEMU validation. This is recorded as the Director's report, not independently inspected CI evidence.
+- **Scope limit:** This does not constitute physical-hardware validation and does not by itself close any Wave 4 driver, filesystem, or crash-recovery acceptance gate.
+- **Follow-up:** Preserve the local serial logs and exact QEMU command lines in the handoff when available, so later reviews can correlate the attestation with specific commits and test cells.
+
+## Wave 4.2 — modern virtio PCI transport (2026-11-26, branch `feat/wave4-modern-virtio-transport`)
+
+- **Branch:** `feat/wave4-modern-virtio-transport`, PR #8 (draft). Not merged.
+- **Implemented** (design record: [ADR 0016](decisions/0016-modern-virtio-pci-transport.md)):
+  - `include/ozero/virtio_pci_mmio.h` — register interface, common-configuration offsets,
+    status/feature bits, common/notify/ISR/device region accessors, reset, feature read and
+    negotiation, `DRIVER_OK`.
+  - `kernel/src/virtio_pci_mmio.c` — bounded little-endian MMIO accessors, reset with a
+    bounded poll, feature-bank reads, `VERSION_1` + `FEATURES_OK` negotiation that fails
+    closed.
+  - `kernel/src/virtio_pci_map.c` — capability-BAR mapping through `o0_pci_probe_bar` and
+    `o0_as_map` into a per-device uncached window.
+  - `include/ozero/virtio_queue.h`, `kernel/src/virtio_queue.c` — queue size selection,
+    notification offset arithmetic, DMA address validation, ordered queue programming,
+    descriptor free list, available-ring publication, used-ring completion validation,
+    reset/re-init bookkeeping.
+  - `kernel/src/virtio_blk_modern.c` — the modern block backend: capability discovery,
+    queue 0 configuration, header/data/status descriptor chains, doorbell, bounded poll,
+    injected-error path, and a reset-based quiesce path used on timeout or malformed
+    completion.
+  - `kernel/src/virtio_blk.c` — legacy driver kept intact and renamed to
+    `o0_virtio_blk_legacy_probe`; the public entry points now dispatch between transports.
+- **Tests (host, run in this workspace):**
+  - `make test` — all suites pass, including
+    `virtio_ring_test`, `virtio_pci_cap_test`, `virtio_pci_mmio_test`, `virtio_queue_test`.
+  - `make test-sanitize` — the same suites under ASan/UBSan with leak detection, exit 0.
+  - `make kernel` — freestanding ELF64 kernel builds with `-Werror`.
+  - The virtio tests use `tests/virtio_mock.h`, a device model with two feature banks,
+    status latching, `FEATURES_OK` rejection, reset stalling, per-queue state and fixed
+    register widths. A wrong-width or out-of-region access is refused by the model, so the
+    tests cannot pass against a flat byte array.
+- **Not yet verified:**
+  - No QEMU run was possible in this workspace (no `qemu-system-x86_64`, no `xorriso`, no
+    root to install them). The two storage cells are therefore unobserved at the time of
+    writing; the CI run identifiers and conclusions are appended only after they exist.
+  - No physical controller, no asynchronous submission, no performance claim.
+
 ## Open items
 
 - CI was inspected on the Wave 4.0 HEAD `3b48810`: 14/14 jobs `success` in run
@@ -91,7 +136,7 @@ CPUs) are explicitly *not* covered by it.
 - User threads remain BSP-pinned until per-CPU TSS/IST exists. [ADR 0015](decisions/0015-per-cpu-tss-ist.md)
   is the design note for that work; it is a blocking dependency before Stage 6 uses SMP
   beyond the BSP. Ring 3 and SMAP on non-boot CPUs are untested.
-- No physical-hardware evidence exists for any wave.
+- No physical-hardware evidence is claimed. The Director separately attests successful local QEMU TCG and HAXM runs (see above).
 - Stage 7–10 not started. Wave 4.0 is closed: ADRs 0012–0014 were approved by the
   Director on 2026-11-25 and the O0FS format is still a proposal. Wave 4.1 is
   implemented and CI-green on `24b8d23` (run `45708532478`). Wave 4.2 and 4.3 are
