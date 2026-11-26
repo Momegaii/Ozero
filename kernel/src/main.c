@@ -1344,7 +1344,7 @@ static void wave3_self_test(void *arg) {
     if (wave3_join(vfs_accept, "vfs-accept") != 0) {
         panic("ring-3 VFS acceptance failed");
     }
-    o0_serial_puts("OZERO: VFS ring3 file syscalls OK\\n");
+    o0_serial_puts("OZERO: VFS ring3 file syscalls OK\n");
 
     wave3_smp_stress();
     o0_serial_puts("OZERO: wave3 self-test complete\n");
