@@ -108,6 +108,75 @@ The surface layer does not allocate memory, map physical memory, or access a boo
 
 **Verification state:** Host-tested and passing. `make test` builds and runs `tests/surface_test.c` (descriptor errors, fill, clipping, format conversion, overlapping self-blits). The kernel build (`make iso`) links `surface.o` cleanly with `-Werror`. No QEMU display test has been run against the surface layer directly (the framebuffer is exercised by Phase 6.1); treat clipping and large-dimension edge cases as covered by `surface_test.c`.
 
+## Phase 6.7 — Custom O0 desktop UI
+
+### Intended implementation
+
+A dark, minimal 2D desktop rendered in software onto the backbuffer, replacing the previous solid-color shell. The design is specified in [ADR 0020](decisions/0020-custom-desktop-ui.md).
+
+1. **Black background** (`0x000000`) across the full backbuffer, drawn first each frame.
+2. **Neon-green sphere launchers** (`0x00FF00`) — solid filled circles, no pictograms inside.
+3. **Purple spheres** (`0x800080`) reserved for AI/special functions (O0 assistant).
+4. **Green particles** drifting on the black background, fading over lifetime.
+5. **Node network** — thin lines between sphere centers, brightening on interaction.
+6. **Bottom taskbar** — horizontal strip with spherical launchers.
+7. **Right-side information panel** — vertical panel with status area.
+8. **System tray** — bottom-right with clock placeholder and status indicators.
+9. **O0 assistant interface** — purple assistant sphere that opens an assistant panel on activation.
+
+### Sphere interaction state machine
+
+| State | Visual | Trigger |
+|---|---|---|
+| Idle | Solid sphere at base radius | Default |
+| Hover | Slightly enlarged, brighter | Pointer within hover radius |
+| Active | Expanding neon circular halo | Click / activation |
+| Feedback | Connected lines illuminate + ring | Activation complete |
+| Mouse exit | Smooth return to idle | Pointer leaves hover radius |
+
+### Rendering layer
+
+All drawing uses `o0_surface_*` primitives on the backbuffer:
+- `o0_surface_fill` for black background and panel/taskbar blocks.
+- `o0_surface_fill_circle` for solid spheres.
+- `o0_surface_draw_circle` for halos and rings.
+- `o0_surface_fill_rect` for panel, taskbar, tray blocks.
+- `o0_surface_blend_rgb` for particle alpha blending.
+- `o0_surface_put_pixel` for node lines and borders.
+
+Draw order per frame: background → particles → node network → spheres → taskbar → panel → tray → assistant panel. Windows are blitted on top after the desktop UI render.
+
+### Input integration
+
+Pointer position comes from the shell (`o0_shell_pointer_x/y`), updated by the input router from PS/2 mouse events. Hover testing uses circle hit-test: `(px - cx)^2 + (py - cy)^2 <= (radius + margin)^2`. Activation (`o0_desktop_ui_activate`) transitions a sphere to Active state and, for assistant spheres, opens the assistant panel.
+
+### Actual implementation status
+
+**Implemented.** `kernel/src/desktop_ui.c` and `include/ozero/desktop_ui.h` implement the full desktop UI subsystem. `kernel/src/main.c` `desktop_main()` calls `o0_desktop_ui_init`, `o0_desktop_ui_pointer`, `o0_desktop_ui_update`, and `o0_desktop_ui_render` each frame before blitting windows to the backbuffer and scanout.
+
+Verification evidence:
+- Host tests pass: `tests/desktop_ui_test.c` covers init, sphere colors, hover state machine, activation (idle→active→feedback→idle), assistant panel open, particle bounds, black background, neon-green sphere rendering, taskbar/panel/tray rendering, feedback ring, `o0_surface_fill_circle`, `o0_surface_draw_circle`, and `o0_surface_blend_rgb`. Passes under `make test` and `make test-sanitize`.
+- `kernel/src/surface.c` adds `o0_surface_fill_circle`, `o0_surface_draw_circle`, `o0_surface_blend_rgb`, and `o0_surface_put_pixel`. `tests/surface_test.c` continues to pass.
+- Kernel builds cleanly with `-Werror` (`make kernel`).
+- No ELF, Linux, X11, Wayland, or external GUI assumptions; Ozero-native software rendering only.
+
+Phase 6.7 is complete.
+
+### Phase 6.7 acceptance checklist
+
+- [x] Dark black background rendered each frame.
+- [x] Neon-green sphere launchers, solid color, no pictograms.
+- [x] Purple spheres for AI/special functions (O0 assistant).
+- [x] Green particles drifting and fading on black background.
+- [x] Node network lines between spheres, brightening on interaction.
+- [x] Bottom taskbar with spherical launchers.
+- [x] Right-side information panel.
+- [x] System tray with clock placeholder and status indicators.
+- [x] Integrated O0 assistant interface (assistant panel opens on assistant sphere activation).
+- [x] Sphere state machine: idle → hover → active → feedback → idle.
+- [x] Host tests pass (`tests/desktop_ui_test.c`, `make test` and `make test-sanitize`).
+- [x] Kernel builds with `-Werror` (`make kernel`).
+
 ## Remaining phases and agent handoff
 
 The Project Director requested that implementation/documentation proceed without running the Stage 6 test campaign. The following work is not claimed complete. Three agents should implement/review in parallel where dependencies permit, then run the consolidated test plan below.

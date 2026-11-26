@@ -51,7 +51,7 @@ Single source of truth for "where are we now". Every claim here cites a commit o
 | Stage 4 storage (RAM disk, O0FS draft) | implemented at substrate level | host tests, QEMU smoke |
 | Wave 4.2–4.3 PCI storage (virtio-blk, AHCI, NVMe) | AHCI and virtio-blk cells green in CI; NVMe still build-verified only | QEMU cells in run `45854731661`; emulator only |
 | Stage 5 GPU software foundation | closed as software milestone; physical GPU deferred | host tests, QEMU PCI discovery markers |
-| Stage 6.1–6.8 graphics/desktop | implemented, host-tested, wired into `kmain` | host tests; **no desktop QEMU acceptance claimed** |
+| Stage 6.1–6.8 graphics/desktop | implemented, host-tested, wired into `kmain`; Phase 6.7 custom O0 desktop UI implemented (spheres, particles, nodes, taskbar, panel, tray, assistant) | host tests; **no desktop QEMU acceptance claimed** |
 | Hardening Wave 1–3, 5.0, Q | implemented; Wave 3 signed off 2026-11-25 | local QEMU plus CI matrix (run `45697656276` on `e066168`) |
 
 ## Wave 3 sign-off (2026-11-25)

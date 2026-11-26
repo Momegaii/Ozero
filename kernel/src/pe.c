@@ -218,17 +218,17 @@ static int pe_section(const uint8_t *data, size_t size, uint32_t off,
     }
     memcpy(out->name, data + cursor, 8);
     cursor += 8;
-    uint32_t virtual_size = 0, size_of_raw_data = 0, pointer_to_raw_data = 0;
-    uint64_t virtual_address = 0;
+    uint32_t virtual_size = 0, virtual_address = 0;
+    uint32_t size_of_raw_data = 0, pointer_to_raw_data = 0;
     uint32_t characteristics = 0;
     if (pe_read_u32(data, size, cursor, &virtual_size) != 0) {
         return -1;
     }
     cursor += 4;
-    if (pe_read_u64(data, size, cursor, &virtual_address) != 0) {
+    if (pe_read_u32(data, size, cursor, &virtual_address) != 0) {
         return -1;
     }
-    cursor += 8;
+    cursor += 4;
     if (pe_read_u32(data, size, cursor, &size_of_raw_data) != 0) {
         return -1;
     }
