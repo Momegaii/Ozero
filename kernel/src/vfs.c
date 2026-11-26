@@ -71,6 +71,12 @@ static o0_status resolve_parent(struct o0_vnode *directory, const char *path,
 
     struct o0_vnode *current = directory;
     vnode_ref(current);
+    if (current->mounted_root != NULL) {
+        struct o0_vnode *mounted = current->mounted_root;
+        vnode_ref(mounted);
+        vnode_unref(current);
+        current = mounted;
+    }
     const char *cursor = path;
     uint32_t depth = 0;
     for (;;) {
@@ -315,6 +321,7 @@ static o0_status cache_get_locked(struct o0_vnode *node, uint64_t index,
         o0_status st = node->ops->read(node, index * O0_PAGE_SIZE,
                                        page->data, O0_PAGE_SIZE, &got);
         if (st != O0_OK) { cache_drop_page(page); return st; }
+        if (got > O0_PAGE_SIZE) { cache_drop_page(page); return O0_EIO; }
         page->valid_bytes = got;
         if (got < O0_PAGE_SIZE)
             memset(page->data + got, 0, O0_PAGE_SIZE - got);
@@ -387,6 +394,7 @@ o0_status o0_vfs_write(struct o0_vfs_file *file, uint64_t offset,
         o0_status st = cache_get_locked(file->node, page_index, !full_page, &page);
         if (st != O0_OK) {
             o0_spin_unlock(&vfs_cache_lock);
+            *out_length = done;
             return done != 0 ? O0_OK : st;
         }
         st = file->node->ops->write(file->node, position,
