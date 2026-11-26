@@ -67,6 +67,7 @@ static o0_status o0fs_vnode_lookup(struct o0_vnode *vnode, const char *name,
     o0_status st = o0fs_vnode_new(parent->fs, vnode->obj.budget, path, &child);
     if (st == O0_OK) {
         child->vnode.ops = vnode->ops;
+        child->vnode.parent = vnode;
         *out = &child->vnode;
     }
     return st;
