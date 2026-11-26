@@ -133,6 +133,16 @@ uint32_t o0_surface_blend_rgb(uint32_t dst, uint32_t src, uint8_t alpha) {
     return (r << 16) | (g << 8) | b;
 }
 
+o0_status o0_surface_put_pixel(struct o0_surface *s, int32_t x, int32_t y,
+                               uint32_t rgb) {
+    if (!surface_valid(s)) return O0_EINVAL;
+    if (x < 0 || x >= (int32_t)s->width || y < 0 || y >= (int32_t)s->height)
+        return O0_EINVAL;
+    uint8_t *p = s->pixels + (size_t)y * s->pitch + (size_t)x * 4u;
+    pixel_write(p, s->format, rgb);
+    return O0_OK;
+}
+
 o0_status o0_surface_fill_circle(struct o0_surface *s, int32_t cx, int32_t cy,
                                  int32_t r, uint32_t rgb) {
     if (!surface_valid(s) || r <= 0) return O0_EINVAL;

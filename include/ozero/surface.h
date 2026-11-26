@@ -48,6 +48,11 @@ o0_status o0_surface_draw_circle(struct o0_surface *surface, int32_t cx,
  * of RGBX8888 pixels; the X byte is set to 0xff. */
 uint32_t o0_surface_blend_rgb(uint32_t dst, uint32_t src, uint8_t alpha);
 
+/* Write a single pixel at (x, y). No clipping: the caller must ensure
+ * the coordinate is within bounds. */
+o0_status o0_surface_put_pixel(struct o0_surface *surface, int32_t x,
+                               int32_t y, uint32_t rgb);
+
 #ifdef __cplusplus
 }
 #endif
