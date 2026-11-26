@@ -169,21 +169,42 @@ o0_status o0_vfs_mount_root(struct o0_vnode *root) {
     return O0_OK;
 }
 
+static bool mount_would_cycle(void *start_fs, void *target_fs) {
+    if (start_fs == NULL || target_fs == NULL) return true;
+    void *pending[O0_VFS_MOUNT_MAX + 1u];
+    void *visited[O0_VFS_MOUNT_MAX + 1u];
+    size_t pending_count = 0;
+    size_t visited_count = 0;
+    pending[pending_count++] = start_fs;
+    while (pending_count != 0) {
+        void *current = pending[--pending_count];
+        if (current == target_fs) return true;
+        bool seen = false;
+        for (size_t i = 0; i < visited_count; ++i) {
+            if (visited[i] == current) { seen = true; break; }
+        }
+        if (seen) continue;
+        if (visited_count >= O0_VFS_MOUNT_MAX + 1u) return true;
+        visited[visited_count++] = current;
+        for (size_t i = 0; i < O0_VFS_MOUNT_MAX; ++i) {
+            if (vfs_mounts[i].directory != NULL &&
+                vfs_mounts[i].directory->fs_identity == current) {
+                void *next = vfs_mounts[i].root->fs_identity;
+                if (pending_count >= O0_VFS_MOUNT_MAX + 1u) return true;
+                pending[pending_count++] = next;
+            }
+        }
+    }
+    return false;
+}
+
 o0_status o0_vfs_mount(struct o0_vnode *directory, struct o0_vnode *root) {
     if (directory == NULL || root == NULL || directory == root ||
         directory->type != O0_VNODE_DIRECTORY ||
         root->type != O0_VNODE_DIRECTORY) return O0_EINVAL;
     if (directory->mounted_root != NULL || root->mounted_root != NULL) return O0_EBUSY;
-    for (struct o0_vnode *p = directory; p != NULL; p = p->parent) {
-        if (p == root) return O0_EINVAL;
-        for (size_t i = 0; i < O0_VFS_MOUNT_MAX; ++i) {
-            if (vfs_mounts[i].directory == root && vfs_mounts[i].root == p)
-                return O0_EINVAL;
-        }
-    }
-    for (struct o0_vnode *p = root; p != NULL; p = p->parent) {
-        if (p == directory) return O0_EINVAL;
-    }
+    if (mount_would_cycle(root->fs_identity, directory->fs_identity))
+        return O0_EINVAL;
     size_t slot = O0_VFS_MOUNT_MAX;
     for (size_t i = 0; i < O0_VFS_MOUNT_MAX; ++i) {
         if (vfs_mounts[i].directory == directory || vfs_mounts[i].root == root)
