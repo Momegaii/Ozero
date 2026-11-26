@@ -19,6 +19,7 @@ Single source of truth for "where are we now". Every claim here cites a commit o
 | Stage 2 memory | implemented | build, host tests, QEMU boot |
 | Stage 3 processes/threads/scheduler | implemented | host tests, QEMU BIOS boot |
 | Stage 4 storage (RAM disk, O0FS draft) | implemented at substrate level | host tests, QEMU smoke |
+| Wave 4.2–4.3 PCI storage (virtio-blk, AHCI, NVMe) | implemented, build-verified only | `make kernel` + host encoder test; **no run observed** |
 | Stage 5 GPU software foundation | closed as software milestone; physical GPU deferred | host tests, QEMU PCI discovery markers |
 | Stage 6.1–6.8 graphics/desktop | implemented, host-tested, wired into `kmain` | host tests; **no desktop QEMU acceptance claimed** |
 | Hardening Wave 1–3, 5.0, Q | implemented; Wave 3 signed off 2026-11-25 | local QEMU plus CI matrix (run `45697656276` on `e066168`) |
@@ -61,6 +62,28 @@ CPUs) are explicitly *not* covered by it.
 - **Not verified:** no storage device, no physical hardware, no MSI-X interrupt from a
   real device. Wave 4.2 is not started.
 
+## Wave 4.2–4.3 — PCI storage drivers (2026-11-26)
+
+- **Commits:** virtio-blk in `96a0b11`; AHCI, NVMe, the storage cells and the
+  virtio-blk BAR-probe correction in `775e333`, both on `main`.
+- **Implemented:** three drivers behind `o0_block_register` with one queue of depth
+  1 — legacy virtio PCI (`virtio_blk.c`), one AHCI port with command list, FIS,
+  PRDT and Identify Device (`ahci.c`), and NVMe with one admin plus one I/O queue
+  pair and MSI-X entries (`nvme.c`). Each has an injected past-end-of-medium read
+  proof. Completion in all three is a bounded poll; interrupts are counted but are
+  not load-bearing, and that is the documented claim.
+- **CI:** `storage-boot` now runs three cells, `(virtio|ahci|nvme, smp=2)`, each
+  requiring only its own driver's read/write and error-path markers.
+- **Evidence type:** build only. `make kernel` passes with `-Werror` and the new
+  `tests/storage_encode_test.c` passes in this workspace. No QEMU run was made
+  here, no run on `775e333` has been read, and no log from the `ci-evidence`
+  branch has been inspected. **No storage cell is claimed green.**
+- **Not verified:** physical controllers (never claimed), NCQ, multiple queues,
+  asynchronous submission, and any performance statement.
+- **Correction:** `o0_pci_init` never probes BARs, so the Wave 4.2 virtio probe could
+  not have found its device. `775e333` probes BAR0 in the probe path; the Wave 4.2
+  cell is still awaiting its first observed run.
+
 ## Open items
 
 - CI was inspected on the Wave 4.0 HEAD `3b48810`: 14/14 jobs `success` in run
@@ -71,7 +94,9 @@ CPUs) are explicitly *not* covered by it.
 - No physical-hardware evidence exists for any wave.
 - Stage 7–10 not started. Wave 4.0 is closed: ADRs 0012–0014 were approved by the
   Director on 2026-11-25 and the O0FS format is still a proposal. Wave 4.1 is
-  implemented and CI-green on `24b8d23` (run `45708532478`). Wave 4.2 has not started.
+  implemented and CI-green on `24b8d23` (run `45708532478`). Wave 4.2 and 4.3 are
+  implemented and build-verified on `775e333`; their three storage cells have not
+  been observed green, so they are not evidence until a run is recorded here.
 
 ## Rules that stay in force
 

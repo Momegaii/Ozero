@@ -149,6 +149,46 @@ cancellation rules apply unchanged.
 - **Not covered:** physical controllers (never), modern transport, multiple queues,
   asynchronous submission, and any performance claim.
 
+### Wave 4.3 status
+
+Implemented in `kernel/src/ahci.c` and `kernel/src/nvme.c`, both registered through
+`o0_block_register` with one queue of depth 1, so the block layer's validation,
+timeout, quarantine and cancellation rules apply unchanged.
+
+- **AHCI:** one port (the first with `PxSTS.DET == 3` and a plain SATA disk
+  signature), 32-slot command list, one command table with one PRDT entry, and the
+  Identify Device data. The probe walks every AHCI controller because a q35 machine
+  already has one and a cell that adds `-device ich9-ahci` gets a second, empty one.
+- **NVMe:** BAR0 mapped uncached, one admin queue pair and one I/O queue pair in
+  NVM mode, command queues and data buffers from the DMA allocator. MSI-X entry 0
+  carries admin completions and entry 1 the I/O completions, both targeting one
+  vector; the I/O entry is unmasked only after the function mask is clear.
+- **Completion:** both drivers poll with a bounded spin (AHCI `PxCI` clear, NVMe
+  completion phase tag). A lost or misrouted interrupt is `O0_BLOCK_ERR_TIMEOUT`, not
+  a hang. The interrupt handlers count and acknowledge (AHCI clears `PxIS`) but
+  completion does not depend on them.
+- **Markers:** `OZERO: ahci read/write OK irq=<n> sectors=<n>`, `OZERO: ahci error
+  path OK`, `OZERO: nvme read/write OK irq=<n> sectors=<n>`, `OZERO: nvme error
+  path OK`. The error-path markers are injected tests: a read that runs past the
+  end of the medium must be refused by the controller and decoded by the driver.
+- **CI cells:** `storage (ahci, smp=2)` and `storage (nvme, smp=2)` join
+  `storage (virtio, smp=2)` in `.github/workflows/quality.yml`, each with its own
+  `-device` line and both markers required only in its own cell.
+- **Evidence:** build-verified only in this workspace (`make kernel` with `-Werror`,
+  plus the new `tests/storage_encode_test.c` host test for the pure encoders). No
+  QEMU run was performed here and no run on `775e333` has been read, so no cell is
+  claimed green. No physical controller is claimed, and none of this is evidence
+  for real hardware.
+- **Not covered:** physical controllers (never), NCQ, multiple queues, PRP lists,
+  asynchronous submission, hotplug and any performance claim.
+
+#### Correction to Wave 4.2
+
+`o0_pci_init` records identity and capabilities but never probes BARs, and
+`virtio_blk` read its legacy I/O BAR from that unprobed record. `775e333` probes
+BAR0 inside the probe path, so the Wave 4.2 cell can find its device at all; that
+cell still needs a run and a log read before it is evidence.
+
 ## Wave 4.2 — virtio-blk first
 
 1. Legacy and modern virtio PCI transport, one virtqueue, and interrupt-driven completion.
