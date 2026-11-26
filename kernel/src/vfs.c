@@ -250,6 +250,7 @@ struct o0_vfs_cache_page {
     struct o0_vnode *node;
     uint64_t index;
     uint64_t age;
+    size_t valid_bytes;
     bool valid;
     uint8_t data[O0_PAGE_SIZE];
 };
@@ -312,6 +313,7 @@ static o0_status cache_get_locked(struct o0_vnode *node, uint64_t index,
         o0_status st = node->ops->read(node, index * O0_PAGE_SIZE,
                                        page->data, O0_PAGE_SIZE, &got);
         if (st != O0_OK) { cache_drop_page(page); return st; }
+        page->valid_bytes = got;
         if (got < O0_PAGE_SIZE)
             memset(page->data + got, 0, O0_PAGE_SIZE - got);
     }
@@ -347,8 +349,12 @@ o0_status o0_vfs_read(struct o0_vfs_file *file, uint64_t offset, void *buffer,
         o0_status st = cache_get_locked(file->node, page_index, true, &page);
         if (st != O0_OK) {
             o0_spin_unlock(&vfs_cache_lock);
+            *out_length = done;
             return done != 0 ? O0_OK : st;
         }
+        if (in_page >= page->valid_bytes) break;
+        if (take > page->valid_bytes - in_page)
+            take = page->valid_bytes - in_page;
         memcpy((uint8_t *)buffer + done, page->data + in_page, take);
         done += take;
     }
@@ -391,6 +397,8 @@ o0_status o0_vfs_write(struct o0_vfs_file *file, uint64_t offset,
             return st != O0_OK ? st : O0_EIO;
         }
         memcpy(page->data + in_page, (const uint8_t *)buffer + done, take);
+        if (in_page + take > page->valid_bytes)
+            page->valid_bytes = in_page + take;
         done += take;
     }
     o0_spin_unlock(&vfs_cache_lock);
