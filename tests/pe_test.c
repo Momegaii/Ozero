@@ -181,14 +181,14 @@ static void test_bad_alignment(void) {
 static void test_section_range(void) {
     make_valid();
     /* .data raw data extends past end of file. */
-    put32(file + SECT_OFF + 64, 0x4000u); /* .data PointerToRawData beyond file */
+    put32(file + SECT_OFF + 60, 0x4000u); /* .data PointerToRawData beyond file */
     expect(O0_EPE_SECTION_RANGE);
 }
 
 static void test_sections_overlap(void) {
     make_valid();
     /* Make .data virtual range overlap .text. */
-    put64(file + SECT_OFF + 52, 0x1200u); /* .data VirtualAddress inside .text */
+    put32(file + SECT_OFF + 52, 0x1200u); /* .data VirtualAddress inside .text */
     expect(O0_EPE_SECTIONS_OVERLAP);
 }
 
@@ -202,14 +202,16 @@ static void test_bad_entry(void) {
 static void test_wx(void) {
     make_valid();
     /* Make .text writable as well as executable. */
-    put32(file + SECT_OFF + 40, 0xE0000020u); /* R|W|X|CNT_CODE */
+    put32(file + SECT_OFF + 36, 0xE0000020u); /* R|W|X|CNT_CODE */
     expect(O0_EPE_WX);
 }
 
 static void test_bad_directory(void) {
     make_valid();
-    /* Data directory 0 (export) points beyond the image. */
-    put32(file + OPT_OFF + 108, 0x4000u); /* Export Directory VirtualAddress */
+    /* Data directory 0 (export) points beyond the image: VA 0x4000 + size 0x1000
+     * exceeds SizeOfImage 0x3000. */
+    put32(file + OPT_OFF + 108, 0x4000u);  /* Export Directory VirtualAddress */
+    put32(file + OPT_OFF + 112, 0x1000u);  /* Export Directory Size */
     expect(O0_EPE_BAD_DIRECTORY);
 }
 
