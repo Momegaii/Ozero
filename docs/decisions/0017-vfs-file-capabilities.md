@@ -41,8 +41,9 @@ change native handle semantics.
    uses the existing generic `handle_close` operation; there is no separate
    file-close syscall.
 5. **Path rules.** Paths are bounded and relative to the supplied directory
-   capability. Empty components and `.` are normalised; `..` is rejected
-   rather than allowed to escape the granted directory. Symlinks are not part
+   capability. Repeated separators are collapsed. Explicit `.` components are
+   rejected during traversal (standalone `.` is accepted only by `file_stat` to
+   query the granted directory itself); `..` is always rejected. Symlinks are not part
    of this wave. Component and traversal limits are enforced before backend
    calls.
 6. **Backends.** A writable, bounded tmpfs is the reference VFS backend. O0FS
