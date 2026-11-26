@@ -37,6 +37,7 @@ static o0_status o0fs_vnode_new(struct o0fs *fs, struct o0_budget *budget,
                            ? O0_VNODE_DIRECTORY : O0_VNODE_FILE;
     node->vnode.private_data = node;
     node->fs = fs;
+    node->vnode.fs_identity = fs;
     size_t n = strlen(path);
     if (n > O0FS_PATH_MAX) {
         o0_object_unref(object);
@@ -67,7 +68,6 @@ static o0_status o0fs_vnode_lookup(struct o0_vnode *vnode, const char *name,
     o0_status st = o0fs_vnode_new(parent->fs, vnode->obj.budget, path, &child);
     if (st == O0_OK) {
         child->vnode.ops = vnode->ops;
-        child->vnode.parent = vnode;
         *out = &child->vnode;
     }
     return st;
