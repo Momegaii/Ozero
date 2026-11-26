@@ -114,6 +114,29 @@ CPUs) are explicitly *not* covered by it.
   not have found its device. `775e333` probes BAR0 in the probe path; the Wave 4.2
   cell is still awaiting its first observed run.
 
+## Wave 4.5 — Crash-consistent O0FS (2026-11-26)
+
+- **Commit:** `f66b082` on branch `kilo/late-alpaca-bx7`, not pushed to `main`.
+- **ADR:** [0018](decisions/0018-o0fs-redo-journal-implementation.md) — `Accepted`.
+- **CI:** not yet observed; `make test` (fs_test 10/10, o0fs_journal_test 5/5) and
+  `make test-sanitize` pass locally.
+- **Evidence type:** local build + host tests only. Not CI-observed, not
+  Director-observed, not physical.
+- **Not covered:** physical controllers (never), data journalling for sub-block
+  files (deferred, ADR 0018 §6).
+
+## Wave 4.6 — VFS and file syscalls (2026-11-26)
+
+- **Commit:** `64679eb` on branch `kilo/late-alpaca-bx7`, not pushed to `main`.
+- **ADR:** [0019](decisions/0019-vfs-layer-file-syscalls.md) — `Accepted`.
+- **CI:** not yet observed; `make test` (vfs_test 10/10 in addition to existing
+  suites) and `make test-sanitize` pass locally.
+- **Evidence type:** local build + host tests only. Not CI-observed, not
+  Director-observed, not physical.
+- **Not covered:** recursive path resolution, directory listing for
+  subdirectories, `O0_O_CREAT`/`O0_O_DIRECTORY` semantics, a second filesystem
+  type, user process read/write (deferred).
+
 ## Open items
 
 - CI was inspected on the Wave 4.0 HEAD `3b48810`: 14/14 jobs `success` in run
