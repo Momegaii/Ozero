@@ -143,11 +143,32 @@ CPUs) are explicitly *not* covered by it.
   exceptions. The identical wave3 SMP scheduling test passed in the six `-smp 2` boot cells
   of that same run and in the rebased re-run, so the failure is timing-sensitive and
   predates this work, but it is unresolved and must not be assumed fixed.
+- **Modern-only cell (green):** the workflow change that could not be pushed through
+  `git` was committed through the Git Data API as `80ba1c0`, adding
+  `storage (modern-virtio, smp=2)` with
+  `-device virtio-blk-pci,drive=vd1,disable-legacy=on`. Run
+  [45822308326](https://github.com/Momegaii/Ozero/actions/runs/45822308326) on `cba9669`
+  passed the cell with:
+  - `OZERO: virtio-blk modern ready queue=8 qindex=0 notify_off=0 notify_mul=4 desc=0x12000 features=0x30007e54/0x101 capacity=16384 pci_cmd=0x107 msi=off`
+  - `OZERO: virtio-blk read/write OK irq=0 sectors=16384`
+  - `OZERO: virtio-blk error path OK`
+  Legacy `storage (virtio, smp=2)` stayed green in the same run.
+- **Bugs the modern cell found (fixed here):**
+  1. `vbm_snapshot` read config-space byte offsets `0xFD..=0xFF`, which the Ozero byte
+     accessor rejects, so the probe died with EIO before parsing a capability
+     (run 45819811322, `fail stage=snapshot`). Now 64 aligned dword reads.
+  2. The dispatcher returned the legacy status whenever the modern backend failed,
+     hiding every modern reason. It now returns the modern status unless no modern
+     function was present.
+  3. The ready milestone lacked the `OZERO: ` prefix the cell gates on
+     (run 45821010655: all three markers in the log, milestone reported missing).
+- **Unresolved flake (not storage):** the wave3 SMP stress test intermittently stops
+  after `OZERO: smp user churn OK processes=16`; `o0_thread_join` never returns. Seen in
+  run 45805993581 (`storage (virtio, smp=2)`) and run 45822308326
+  (`boot (uefi, max, smp=2)`, a cell with no virtio device attached). Two of the last
+  three full runs were red because of it. It needs its own investigation in the
+  scheduler/thread-discovery path.
 - **Not yet verified:**
-  - The **modern-only** cell (`virtio-blk-pci,disable-legacy=on`) has **not run**. Its
-    workflow change cannot be pushed: GitHub rejects any push that updates
-    `.github/workflows/*` unless the pushing token carries the `workflow` scope, and the
-    available tokens do not. The change is prepared and awaiting a Director decision.
   - No physical controller, no asynchronous submission, no performance claim.
 
 ## Open items

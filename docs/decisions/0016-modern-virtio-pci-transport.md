@@ -1,8 +1,13 @@
 # ADR 0016 — Modern virtio PCI transport for block storage
 
-- **Status:** Proposed for implementation. Implementation is written and host-tested;
-  no modern-transport CI cell has been observed green yet, so this record does **not**
-  approve the transport. Promote to *Accepted-provisional* only against a recorded CI run.
+- **Status:** Accepted-provisional. The transport is implemented, host-tested under
+  ASan/UBSan, and a modern-only CI cell (`virtio-blk-pci,disable-legacy=on`) passed in
+  run [45822308326](https://github.com/Momegaii/Ozero/actions/runs/45822308326) on
+  `cba9669`, printing `OZERO: virtio-blk modern ready queue=8 ... capacity=16384`,
+  `OZERO: virtio-blk read/write OK` and `OZERO: virtio-blk error path OK`.
+  *Provisional* because the evidence is a single QEMU configuration, the transport is
+  polled with request depth one, and no physical device has been exercised. This record
+  does not decide the O0FS format and makes no hardware claim.
 - **Scope:** Wave 4.2. Add the modern virtio PCI transport for the existing block driver
   without changing the block-layer contract or Ozero's native ABI.
 - **Date:** 2026-11-26
@@ -84,6 +89,26 @@ interfaces remain the only internal dependencies.
   `virtio-blk-pci,disable-legacy=on`. It must print `OZERO: virtio-blk modern ready
   queue=`, the read/write marker and the injected-error marker.
 - No physical device is claimed. No performance statement is made.
+
+## Evidence (Wave 4.2)
+
+| Check | Evidence |
+|---|---|
+| Capability parsing, BAR validation, register access, queue runtime | host tests `virtio_pci_cap_test`, `virtio_pci_mmio_test`, `virtio_queue_test` in `make test` and `make test-sanitize` |
+| Legacy transport unchanged | `storage (virtio, smp=2)` green in runs 45809160042 and 45822308326 |
+| Modern-only device | `storage (modern-virtio, smp=2)` green in run 45822308326, `disable-legacy=on`, queue 8, notify multiplier 4, capacity 16384 sectors |
+| Error path | `OZERO: virtio-blk error path OK` on the modern cell (out-of-range read decoded as an error, not a hang) |
+
+Bring-up defects found by the modern cell, and fixed here: the config-space snapshot
+read byte offsets above `0xFC` (rejected by the PCI accessor), the dispatcher masked the
+modern failure status with the legacy one, and the ready milestone lacked the `OZERO: `
+prefix the cell gates on.
+
+Known gap: the wave3 SMP stress test in `kernel/src/main.c` intermittently stops after
+`OZERO: smp user churn OK processes=16` and leaves `o0_thread_join` blocked. It has been
+observed in cells that attach no virtio device (run 45822308326, `boot (uefi, max, smp=2)`),
+so it is a scheduler/thread-discovery issue rather than a storage-transport one. It is
+unfixed here and tracked in `docs/handoff.md`.
 
 ## Alternatives considered
 
