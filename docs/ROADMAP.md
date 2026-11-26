@@ -11,7 +11,7 @@ These are development stages, not delivery-date promises. The order is intention
 | 4 | Storage, filesystem and drivers | Block layer, initial storage drivers, filesystem operations and fault tests |
 | 5 | GPU memory and Haswell submission | GPU virtual memory/residency and generation-correct Haswell submission/completion |
 | 6 | Native graphical application environment | QEMU framebuffer display, input, surfaces, window manager, software compositor, desktop shell and documented integration evidence (see `docs/stage6.md`) |
-| 7 | PE loader and Windows user-mode ABI | PE loading plus a measured initial Win32 compatibility test suite |
+| 7 | PE loader and Windows user-mode ABI | Approved ADR, validated PE32+ loading, console hello-world, handles/files/synchronization, threads, bounded SEH/registry surface and a measured small-program compatibility report (see `docs/stage7.md`) |
 | 8 | Graphics compatibility and gaming | Graphics stack milestones, frame-time and compatibility measurements |
 | 9 | Modern hardware expansion | Validated support added across selected modern platforms and devices |
 | 10 | Advanced Windows compatibility | Broader API/runtime coverage with explicit compatibility results and known gaps |
@@ -25,7 +25,8 @@ These are development stages, not delivery-date promises. The order is intention
 - **Stage 4** — Implemented and verified at the QEMU BIOS substrate level: block layer with validated registration, request/transfer limits, atomic completion and safe timed-out request ownership; RAM disk with fault injection; draft OzeroFS with checksummed layout validation and runtime undo-image rollback for failed writes; expanded host tests pass (block 6/6, OzeroFS 10/10); QEMU BIOS **and UEFI/OVMF** smoke passes on q35 with qemu64 and Haswell-v1 CPU models (UEFI added in hardening Wave 1, QEMU 8.2.2 and 10.1.0), and the closing-fix regressions are executed. Remaining: real hardware protocol drivers (AHCI/NVMe), partition discovery, the asynchronous I/O model, an approved filesystem format and crash-consistency/recovery design, and physical validation. See `docs/decisions/0003-stage4-storage.md`.
 - **Stage 5** — Software-foundation milestone closed by Project Director direction. Physical HD 4600 validation (device identification, MMIO, memory mapping, PPGTT/GGTT, submission, fences, timeouts, reset, repeated-workload stability) reported complete by user attestation (2026-11-25); captured output to be attached. Vendor-specific acceleration backends remain future work. See `docs/decisions/0004-stage5-software-graphics-architecture.md` and `docs/stage5-gpu.md`.
 - **Stage 6** — Paused by Rule 0 of the hardening directive. Phases 6.3–6.8 are implemented, host-tested and wired into the boot path (window manager, compositor, input router, desktop shell loop); no Stage 6 desktop or QEMU acceptance is claimed. Stage 6/5 GPU work resumes in hardening Wave 7, after user mode, SMP and a real storage driver exist. Handoff: [docs/stage6.md](stage6.md).
-- **Stages 7–10** — Not started.
+- **Stage 7** — Planning baseline prepared 2026-11-27. ADR 0021 exists as a proposal; a stage handoff and acceptance plan are being added. A PE32+ parser plus host tests/fuzz harness exist, but no PE address-space loader or Win32 runtime is present in the inspected tree. Implementation remains gated on Project Director approval of ADR 0021.
+- **Stages 8–10** — Not started.
 
 ## Hardening waves (2026-11-24)
 
