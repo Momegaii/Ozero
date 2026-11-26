@@ -74,6 +74,9 @@ int main(void) {
     CHECK(count == 7u);
     for (size_t i = 0; i < 5u; ++i) CHECK(data[i] == 0);
     CHECK(data[5] == 'o' && data[6] == 'k');
+    memset(data, 0xCC, sizeof(data));
+    CHECK(o0_vfs_read(file, 0, data, sizeof(data), &count) == O0_OK);
+    CHECK(count == 7u); /* EOF is not a zero-filled successful read. */
 
     /* Write-through page-cache coherence. */
     static const char changed[] = "NO";
@@ -83,6 +86,10 @@ int main(void) {
     CHECK(data[5] == 'N' && data[6] == 'O');
 
     struct o0_vfs_stat info;
+    struct o0_vfs_file *read_only = NULL;
+    CHECK(o0_vfs_open(docs, "note", 4u, 0, O0_RIGHT_READ, budget,
+                      &read_only) == O0_OK);
+    CHECK(o0_vfs_write(read_only, 0, changed, 2u, &count) == O0_EPERM);
     CHECK(o0_vfs_stat(docs, "note", 4u, &info) == O0_OK);
     CHECK(info.type == O0_VNODE_FILE && info.size == 7u);
 
@@ -91,15 +98,19 @@ int main(void) {
     CHECK(o0_vfs_readdir(docs, &cursor, &entry) == O0_OK);
     CHECK(entry.name_len == 4u && strcmp(entry.name, "note") == 0);
     CHECK(o0_vfs_readdir(docs, &cursor, &entry) == O0_ENOENT);
+    CHECK(o0_vfs_open(docs, "note", 4u, O0_VFS_OPEN_CREATE | O0_VFS_OPEN_EXCLUSIVE,
+                      O0_RIGHT_READ, budget, &missing) == O0_EEXIST);
 
     /* Open vnode survives unlink until its final file reference is released. */
     CHECK(o0_vfs_unlink(docs, "note", 4u) == O0_OK);
     CHECK(o0_vfs_read(file, 0, data, 7u, &count) == O0_OK && count == 7u);
+    o0_object_unref(&read_only->obj);
     struct o0_vfs_file *missing = NULL;
     CHECK(o0_vfs_open(docs, "note", 4u, 0, O0_RIGHT_READ, budget, &missing) ==
           O0_ENOENT);
     o0_object_unref(&file->obj);
 
+    CHECK(o0_vfs_mkdir(root, "../escape", 8u) == O0_EPERM);
     CHECK(o0_vfs_open(root, "../escape", 8u, 0, O0_RIGHT_READ,
                       budget, &missing) == O0_EPERM);
     char long_path[O0_VFS_PATH_MAX + 2u];
