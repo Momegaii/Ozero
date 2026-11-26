@@ -133,6 +133,7 @@ static o0_status tmpfs_create_node(struct o0_vnode *dir, const char *name,
     o0_status st = tmpfs_node_create(fs, type, name, name_len, &node);
     if (st == O0_OK) {
         node->vnode.ops = dir->ops;
+        node->vnode.parent = dir;
         node->next = parent->children;
         parent->children = node; /* object reference is owned by the directory */
         o0_object_ref(&node->vnode.obj);
