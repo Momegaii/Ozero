@@ -443,6 +443,7 @@ static int64_t sys_file_open(uint64_t directory_handle, const char *user_path,
     if (node != NULL) o0_object_unref(&node->obj);
     if (st != O0_OK && st != O0_ENOENT)
         return o0_uapi_error_from_status(st);
+    bool created = st == O0_ENOENT && (flags & O0_VFS_OPEN_CREATE) != 0;
 
     struct o0_vfs_file *file = NULL;
     st = o0_vfs_open((struct o0_vnode *)directory, path, (size_t)path_length,
@@ -452,6 +453,7 @@ static int64_t sys_file_open(uint64_t directory_handle, const char *user_path,
     st = o0_handle_install(proc->handles, &file->obj, rights, &handle);
     if (st != O0_OK) {
         o0_object_unref(&file->obj);
+        if (created) { o0_status cleanup = o0_vfs_unlink((struct o0_vnode *)directory, path, (size_t)path_length); (void)cleanup; }
         return o0_uapi_error_from_status(st);
     }
     o0_object_unref(&file->obj);
