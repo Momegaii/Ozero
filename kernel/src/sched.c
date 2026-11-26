@@ -340,6 +340,13 @@ void o0_sched_block(uint32_t reason) {
         o0_irq_restore(irq);
         return;
     }
+    if (reason == O0_BLOCK_JOIN &&
+        __atomic_exchange_n(&me->join_wake, 0u, __ATOMIC_ACQ_REL) != 0u) {
+        /* A join wake arrived before this thread reached the block. Consume it
+         * instead of sleeping: the caller re-tests its condition. */
+        o0_irq_restore(irq);
+        return;
+    }
     me->state = O0_THREAD_BLOCKED;
     me->block_reason = reason;
     me->timeslice = O0_DEFAULT_TIMESLICE;

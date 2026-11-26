@@ -475,10 +475,20 @@ O0_NORETURN void o0_thread_exit(int status) {
         me->exit_status = status;
         me->block_reason = O0_BLOCK_NONE;
 
-        struct o0_thread *waiter = me->join_waiter;
+        /* The waiter may be on another CPU, between its `exited` test and its
+         * block: `exited` is published before the waiter is read, and a waiter
+         * that is not blocked yet gets a token instead of a queue entry, so the
+         * wake can never be dropped. */
+        struct o0_thread *waiter = __atomic_load_n(&me->join_waiter, __ATOMIC_ACQUIRE);
         if (waiter != NULL) {
-            me->join_waiter = NULL;
-            make_ready(waiter);
+            __atomic_store_n(&me->join_waiter, NULL, __ATOMIC_RELEASE);
+            o0_irq_state_t w_irq = o0_irq_save();
+            if (waiter->state == O0_THREAD_BLOCKED) {
+                make_ready(waiter);
+            } else {
+                __atomic_store_n(&waiter->join_wake, 1u, __ATOMIC_RELEASE);
+            }
+            o0_irq_restore(w_irq);
         }
     }
     o0_irq_restore(irq);
@@ -509,7 +519,15 @@ o0_status o0_thread_join(o0_thread_t *thread, int *status) {
         /* Register and block in the same interrupt-disabled section: the target
          * sets `exited` and wakes its waiter under the same lock, so an exit
          * between the test and the block cannot be missed. */
-        thread->join_waiter = self;
+        __atomic_store_n(&self->join_wake, 0u, __ATOMIC_RELAXED);
+        __atomic_store_n(&thread->join_waiter, self, __ATOMIC_RELEASE);
+        /* Publish first, then look again: an exit that ran before the publish
+         * set `exited`, and an exit that runs after it can see the waiter. */
+        if (__atomic_load_n(&thread->exited, __ATOMIC_ACQUIRE)) {
+            __atomic_store_n(&thread->join_waiter, NULL, __ATOMIC_RELEASE);
+            o0_irq_restore(irq);
+            break;
+        }
         o0_sched_block(O0_BLOCK_JOIN);
         o0_irq_restore(irq);
     }

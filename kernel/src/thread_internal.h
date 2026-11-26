@@ -44,7 +44,8 @@ struct o0_thread {
     uint64_t rsp;                     /* saved stack pointer while not running */
     struct o0_thread *next_ready;     /* ready-queue link */
     struct o0_thread *wait_next;      /* wait-list link (mutexes) */
-    struct o0_thread *join_waiter;    /* thread blocked in o0_thread_join */
+    struct o0_thread *join_waiter;    /* thread in o0_thread_join */
+    volatile uint32_t join_wake;      /* wake that arrived before the block */
     struct o0_process *proc;
 
     void (*entry)(void *arg);

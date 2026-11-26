@@ -332,6 +332,27 @@ static void test_offline_cpu_not_kicked(void) {
     PASS();
 }
 
+
+/* The exiting thread runs on another CPU, so interrupt masking on the joining
+ * CPU does not exclude it. A wake that lands between "is it exited?" and the
+ * block used to be dropped, and the joiner slept forever. The wake is now a
+ * token the block consumes, so the ordering does not matter. */
+static void test_join_wake_before_block(void) {
+    TEST("a join wake that arrives before the block is not lost");
+    reset_scheduler();
+
+    struct o0_thread *joiner = o0_sched_current();
+    __atomic_store_n(&joiner->join_wake, 1u, __ATOMIC_RELEASE);
+
+    o0_sched_block(O0_BLOCK_JOIN);
+
+    ASSERT(joiner->state == O0_THREAD_RUNNING,
+           "the joiner must not sleep when a wake is already pending");
+    ASSERT(joiner->join_wake == 0, "the pending wake must be consumed");
+    ASSERT(o0_sched_ready_count_cpu(0) == 0, "no thread should have been queued");
+    PASS();
+}
+
 static void test_timeslice_rotation(void) {
     TEST("timeslice rotation");
     reset_scheduler();
@@ -366,6 +387,7 @@ int main(void) {
     test_tick_and_preemption();
     test_remote_enqueue_kicks_target();
     test_offline_cpu_not_kicked();
+    test_join_wake_before_block();
     test_timeslice_rotation();
 
     printf("\n%d test(s) run, %d failure(s)\n", tests_run, failures);
