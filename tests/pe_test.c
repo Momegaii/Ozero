@@ -202,7 +202,7 @@ static void test_bad_entry(void) {
 static void test_wx(void) {
     make_valid();
     /* Make .text writable as well as executable. */
-    put32(file + SECT_OFF + 40, 0xE0000020u); /* R|W|X|CNT_CODE */
+    put32(file + SECT_OFF + 36, 0xE0000020u); /* R|W|X|CNT_CODE */
     expect(O0_EPE_WX);
 }
 
