@@ -86,6 +86,7 @@ int main(void) {
     CHECK(data[5] == 'N' && data[6] == 'O');
 
     struct o0_vfs_stat info;
+    struct o0_vfs_file *missing = NULL;
     struct o0_vfs_file *read_only = NULL;
     CHECK(o0_vfs_open(docs, "note", 4u, 0, O0_RIGHT_READ, budget,
                       &read_only) == O0_OK);
@@ -105,7 +106,6 @@ int main(void) {
     CHECK(o0_vfs_unlink(docs, "note", 4u) == O0_OK);
     CHECK(o0_vfs_read(file, 0, data, 7u, &count) == O0_OK && count == 7u);
     o0_object_unref(&read_only->obj);
-    struct o0_vfs_file *missing = NULL;
     CHECK(o0_vfs_open(docs, "note", 4u, 0, O0_RIGHT_READ, budget, &missing) ==
           O0_ENOENT);
     o0_object_unref(&file->obj);
