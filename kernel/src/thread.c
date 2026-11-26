@@ -472,7 +472,7 @@ O0_NORETURN void o0_thread_exit(int status) {
 
     if (me != NULL) {
         me->state = O0_THREAD_EXITED;
-        me->exited = true;
+        __atomic_store_n(&me->exited, true, __ATOMIC_SEQ_CST);
         me->exit_status = status;
         me->block_reason = O0_BLOCK_NONE;
 
@@ -480,7 +480,7 @@ O0_NORETURN void o0_thread_exit(int status) {
          * block: `exited` is published before the waiter is read, and a waiter
          * that is not blocked yet gets a token instead of a queue entry, so the
          * wake can never be dropped. */
-        struct o0_thread *waiter = __atomic_load_n(&me->join_waiter, __ATOMIC_ACQUIRE);
+        struct o0_thread *waiter = __atomic_load_n(&me->join_waiter, __ATOMIC_SEQ_CST);
         if (waiter != NULL) {
             __atomic_store_n(&me->join_waiter, NULL, __ATOMIC_RELEASE);
             o0_irq_state_t w_irq = o0_irq_save();
@@ -504,9 +504,11 @@ O0_NORETURN void o0_thread_exit(int status) {
 
 /* A join that never returns used to be invisible: the log simply stopped and CI
  * timed out with no idea whether the target had exited, blocked or vanished out
- * of every run queue. Dump the whole thread table once, then fail. */
-static void join_timeout_dump(const struct o0_thread *target) {
-    o0_serial_puts("OZERO: join timeout target=");
+ * of every run queue. Dump the whole thread table. */
+static void thread_dump_table(const char *why, const struct o0_thread *target) {
+    o0_serial_puts("OZERO: ");
+    o0_serial_puts(why);
+    o0_serial_puts(" target=");
     o0_serial_puts(o0_thread_name(target));
     o0_serial_puts(" ready=");
     for (uint32_t cpu = 0; cpu < O0_MAX_CPUS; ++cpu) {
@@ -539,6 +541,25 @@ static void join_timeout_dump(const struct o0_thread *target) {
 
 #define O0_JOIN_TIMEOUT_TICKS 1000u
 
+/* The joiner is asleep when a join is lost, so its own deadline never runs. The
+ * tick handler on CPU0 counts instead and reports from outside the stalled
+ * thread, once. */
+static volatile uint32_t join_watch_active;
+static uint32_t join_watch_reported;
+static uint64_t join_watch_deadline;
+
+void o0_thread_join_watchdog_check(uint64_t ticks) {
+    if (join_watch_active == 0u || join_watch_reported != 0u) {
+        return;
+    }
+    if (ticks <= join_watch_deadline) {
+        return;
+    }
+    join_watch_reported = 1u;
+    thread_dump_table("sched watchdog join stalled", NULL);
+}
+
+
 o0_status o0_thread_join(o0_thread_t *thread, int *status) {
     if (thread == NULL) {
         return O0_EINVAL;
@@ -549,10 +570,13 @@ o0_status o0_thread_join(o0_thread_t *thread, int *status) {
     }
 
     uint64_t deadline = o0_sched_ticks() + O0_JOIN_TIMEOUT_TICKS;
+    join_watch_deadline = deadline;
+    join_watch_reported = 0u;
+    join_watch_active = 1u;
     for (;;) {
         o0_irq_state_t irq = o0_irq_save();
         if (o0_sched_ticks() > deadline) {
-            join_timeout_dump(thread);
+            thread_dump_table("join timeout", thread);
             o0_irq_restore(irq);
             return O0_ETIMEDOUT;
         }
@@ -564,10 +588,14 @@ o0_status o0_thread_join(o0_thread_t *thread, int *status) {
          * sets `exited` and wakes its waiter under the same lock, so an exit
          * between the test and the block cannot be missed. */
         __atomic_store_n(&self->join_wake, 0u, __ATOMIC_RELAXED);
-        __atomic_store_n(&thread->join_waiter, self, __ATOMIC_RELEASE);
+        /* x86 may perform a load before an earlier store, so a release store
+         * followed by an acquire load is not a Dekker pair. Both sides use
+         * seq_cst: the joiner's publish, and the exit path's `exited` store and
+         * waiter load. */
+        __atomic_store_n(&thread->join_waiter, self, __ATOMIC_SEQ_CST);
         /* Publish first, then look again: an exit that ran before the publish
          * set `exited`, and an exit that runs after it can see the waiter. */
-        if (__atomic_load_n(&thread->exited, __ATOMIC_ACQUIRE)) {
+        if (__atomic_load_n(&thread->exited, __ATOMIC_SEQ_CST)) {
             __atomic_store_n(&thread->join_waiter, NULL, __ATOMIC_RELEASE);
             o0_irq_restore(irq);
             break;
@@ -576,6 +604,7 @@ o0_status o0_thread_join(o0_thread_t *thread, int *status) {
         o0_irq_restore(irq);
     }
 
+    join_watch_active = 0u;
     if (status != NULL) {
         *status = thread->exit_status;
     }

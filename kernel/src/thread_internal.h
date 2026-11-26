@@ -104,6 +104,10 @@ struct o0_process {
 struct o0_thread *o0_thread_alloc_slot(void);
 void o0_thread_release_slot(struct o0_thread *thread);
 void o0_thread_reap_detached(void);
+
+/* Called from the CPU0 tick: reports a join that has stopped making progress even
+ * though the joining thread is asleep and cannot report it itself. */
+void o0_thread_join_watchdog_check(uint64_t ticks);
 /* Frees the kernel stack and, when the last thread leaves, the process and its
  * user address space. The thread must not be running. */
 void o0_thread_free_resources(struct o0_thread *thread);

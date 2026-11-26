@@ -377,6 +377,7 @@ void o0_sched_tick(void) {
         ++ticks;
         o0_thread_tick(ticks);
         o0_thread_reap_detached();
+        o0_thread_join_watchdog_check(ticks);
     }
 
     if (!preemption_enabled) {
