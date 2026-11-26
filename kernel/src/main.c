@@ -22,6 +22,7 @@
 #include "ozero/budget.h"
 #include "ozero/display.h"
 #include "ozero/compositor.h"
+#include "ozero/desktop_ui.h"
 #include "ozero/shell.h"
 #include "ozero/surface.h"
 #include "ozero/window.h"
