@@ -174,6 +174,16 @@ o0_status o0_vfs_mount(struct o0_vnode *directory, struct o0_vnode *root) {
         directory->type != O0_VNODE_DIRECTORY ||
         root->type != O0_VNODE_DIRECTORY) return O0_EINVAL;
     if (directory->mounted_root != NULL || root->mounted_root != NULL) return O0_EBUSY;
+    for (struct o0_vnode *p = directory; p != NULL; p = p->parent) {
+        if (p == root) return O0_EINVAL;
+        for (size_t i = 0; i < O0_VFS_MOUNT_MAX; ++i) {
+            if (vfs_mounts[i].directory == root && vfs_mounts[i].root == p)
+                return O0_EINVAL;
+        }
+    }
+    for (struct o0_vnode *p = root; p != NULL; p = p->parent) {
+        if (p == directory) return O0_EINVAL;
+    }
     size_t slot = O0_VFS_MOUNT_MAX;
     for (size_t i = 0; i < O0_VFS_MOUNT_MAX; ++i) {
         if (vfs_mounts[i].directory == directory || vfs_mounts[i].root == root)
