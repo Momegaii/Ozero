@@ -18,7 +18,7 @@
 extern "C" {
 #endif
 
-/* ---- Syscall numbers (wave 3 set) ---- */
+/* ---- Syscall numbers (append-only native ABI; Wave 4.6 additions) ---- */
 
 #define O0_SYS_INVALID 0u /* reserved: returns -O0_UE_INVAL */
 #define O0_SYS_EXIT 1u
