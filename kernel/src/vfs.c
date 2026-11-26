@@ -9,6 +9,7 @@
 
 #include "ozero/vfs.h"
 #include "ozero/mm.h"
+#include "ozero/sync.h"
 
 #include "string.h"
 
@@ -163,6 +164,7 @@ o0_status o0_vfs_unmount(struct o0_vnode *directory) {
     if (directory == NULL || directory->mounted_root == NULL) return O0_EINVAL;
     struct o0_vnode *root = directory->mounted_root;
     /* The mount's reference must be the only remaining reference. */
+    cache_invalidate_all();
     if (root->obj.refcount != 1) return O0_EBUSY;
     directory->mounted_root = NULL;
     vnode_unref(root);
@@ -231,6 +233,88 @@ o0_status o0_vfs_open(struct o0_vnode *directory, const char *path,
     return O0_OK;
 }
 
+#define O0_VFS_CACHE_PAGES 8u
+
+struct o0_vfs_cache_page {
+    struct o0_vnode *node;
+    uint64_t index;
+    uint64_t age;
+    bool valid;
+    uint8_t data[O0_PAGE_SIZE];
+};
+
+static struct o0_vfs_cache_page vfs_cache[O0_VFS_CACHE_PAGES];
+static o0_spinlock_t vfs_cache_lock;
+static uint64_t vfs_cache_age;
+static bool vfs_cache_ready;
+
+static void cache_init(void) {
+    if (!vfs_cache_ready) {
+        o0_spin_init(&vfs_cache_lock);
+        vfs_cache_ready = true;
+    }
+}
+
+static void cache_drop_page(struct o0_vfs_cache_page *page) {
+    if (page->valid && page->node != NULL) vnode_unref(page->node);
+    memset(page, 0, sizeof(*page));
+}
+
+static struct o0_vfs_cache_page *cache_find_locked(struct o0_vnode *node,
+                                                    uint64_t index) {
+    for (size_t i = 0; i < O0_VFS_CACHE_PAGES; ++i) {
+        if (vfs_cache[i].valid && vfs_cache[i].node == node &&
+            vfs_cache[i].index == index) {
+            vfs_cache[i].age = ++vfs_cache_age;
+            return &vfs_cache[i];
+        }
+    }
+    return NULL;
+}
+
+/* Called with vfs_cache_lock held. The cache is write-through: no dirty page
+ * can be lost on eviction or unmount. */
+static o0_status cache_get_locked(struct o0_vnode *node, uint64_t index,
+                                  bool read_existing,
+                                  struct o0_vfs_cache_page **out) {
+    struct o0_vfs_cache_page *page = cache_find_locked(node, index);
+    if (page != NULL) { *out = page; return O0_OK; }
+    size_t victim = 0;
+    for (size_t i = 0; i < O0_VFS_CACHE_PAGES; ++i) {
+        if (!vfs_cache[i].valid) { victim = i; break; }
+        if (vfs_cache[i].age < vfs_cache[victim].age) victim = i;
+    }
+    page = &vfs_cache[victim];
+    cache_drop_page(page);
+    page->node = node;
+    page->index = index;
+    page->age = ++vfs_cache_age;
+    page->valid = true;
+    vnode_ref(node);
+    memset(page->data, 0, sizeof(page->data));
+    if (read_existing) {
+        if (node->ops == NULL || node->ops->read == NULL) {
+            cache_drop_page(page);
+            return O0_ENOTSUP;
+        }
+        size_t got = 0;
+        o0_status st = node->ops->read(node, index * O0_PAGE_SIZE,
+                                       page->data, O0_PAGE_SIZE, &got);
+        if (st != O0_OK) { cache_drop_page(page); return st; }
+        if (got < O0_PAGE_SIZE)
+            memset(page->data + got, 0, O0_PAGE_SIZE - got);
+    }
+    *out = page;
+    return O0_OK;
+}
+
+static void cache_invalidate_all(void) {
+    if (!vfs_cache_ready) return;
+    o0_spin_lock(&vfs_cache_lock);
+    for (size_t i = 0; i < O0_VFS_CACHE_PAGES; ++i) cache_drop_page(&vfs_cache[i]);
+    o0_spin_unlock(&vfs_cache_lock);
+}
+
 o0_status o0_vfs_read(struct o0_vfs_file *file, uint64_t offset, void *buffer,
                       size_t length, size_t *out_length) {
     if (file == NULL || out_length == NULL || (buffer == NULL && length != 0))
@@ -239,7 +323,27 @@ o0_status o0_vfs_read(struct o0_vfs_file *file, uint64_t offset, void *buffer,
     if ((file->rights & O0_RIGHT_READ) == 0) return O0_EPERM;
     if (length > O0_VFS_IO_MAX || offset > UINT64_MAX - length) return O0_ERANGE;
     if (file->node->ops == NULL || file->node->ops->read == NULL) return O0_ENOTSUP;
-    return file->node->ops->read(file->node, offset, buffer, length, out_length);
+    cache_init();
+    o0_spin_lock(&vfs_cache_lock);
+    size_t done = 0;
+    while (done < length) {
+        uint64_t position = offset + done;
+        uint64_t page_index = position / O0_PAGE_SIZE;
+        size_t in_page = (size_t)(position % O0_PAGE_SIZE);
+        size_t take = O0_PAGE_SIZE - in_page;
+        if (take > length - done) take = length - done;
+        struct o0_vfs_cache_page *page = NULL;
+        o0_status st = cache_get_locked(file->node, page_index, true, &page);
+        if (st != O0_OK) {
+            o0_spin_unlock(&vfs_cache_lock);
+            return done != 0 ? O0_OK : st;
+        }
+        memcpy((uint8_t *)buffer + done, page->data + in_page, take);
+        done += take;
+    }
+    o0_spin_unlock(&vfs_cache_lock);
+    *out_length = done;
+    return O0_OK;
 }
 
 o0_status o0_vfs_write(struct o0_vfs_file *file, uint64_t offset,
@@ -250,7 +354,37 @@ o0_status o0_vfs_write(struct o0_vfs_file *file, uint64_t offset,
     if ((file->rights & O0_RIGHT_WRITE) == 0) return O0_EPERM;
     if (length > O0_VFS_IO_MAX || offset > UINT64_MAX - length) return O0_ERANGE;
     if (file->node->ops == NULL || file->node->ops->write == NULL) return O0_EPERM;
-    return file->node->ops->write(file->node, offset, buffer, length, out_length);
+    cache_init();
+    o0_spin_lock(&vfs_cache_lock);
+    size_t done = 0;
+    while (done < length) {
+        uint64_t position = offset + done;
+        uint64_t page_index = position / O0_PAGE_SIZE;
+        size_t in_page = (size_t)(position % O0_PAGE_SIZE);
+        size_t take = O0_PAGE_SIZE - in_page;
+        if (take > length - done) take = length - done;
+        bool full_page = in_page == 0 && take == O0_PAGE_SIZE;
+        struct o0_vfs_cache_page *page = NULL;
+        o0_status st = cache_get_locked(file->node, page_index, !full_page, &page);
+        if (st != O0_OK) {
+            o0_spin_unlock(&vfs_cache_lock);
+            return done != 0 ? O0_OK : st;
+        }
+        st = file->node->ops->write(file->node, position,
+                                    (const uint8_t *)buffer + done, take,
+                                    out_length);
+        if (st != O0_OK || *out_length != take) {
+            cache_drop_page(page);
+            o0_spin_unlock(&vfs_cache_lock);
+            *out_length = done;
+            return st != O0_OK ? st : O0_EIO;
+        }
+        memcpy(page->data + in_page, (const uint8_t *)buffer + done, take);
+        done += take;
+    }
+    o0_spin_unlock(&vfs_cache_lock);
+    *out_length = done;
+    return O0_OK;
 }
 
 o0_status o0_vfs_stat(struct o0_vnode *directory, const char *path,
@@ -284,6 +418,25 @@ o0_status o0_vfs_unlink(struct o0_vnode *directory, const char *path,
     if (st != O0_OK) return st;
     if (parent->ops == NULL || parent->ops->unlink == NULL) st = O0_ENOTSUP;
     else st = parent->ops->unlink(parent, leaf, leaf_len);
+    vnode_unref(parent);
+    return st;
+}
+
+o0_status o0_vfs_mkdir(struct o0_vnode *directory, const char *path,
+                       size_t path_length) {
+    struct o0_vnode *parent = NULL;
+    const char *leaf = NULL;
+    size_t leaf_len = 0;
+    o0_status st = resolve_parent(directory, path, path_length, &parent,
+                                  &leaf, &leaf_len);
+    if (st != O0_OK) return st;
+    if (parent->ops == NULL || parent->ops->create == NULL) st = O0_ENOTSUP;
+    else {
+        struct o0_vnode *created = NULL;
+        st = parent->ops->create(parent, leaf, leaf_len,
+                                 O0_VNODE_DIRECTORY, &created);
+        if (created != NULL) vnode_unref(created);
+    }
     vnode_unref(parent);
     return st;
 }
