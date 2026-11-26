@@ -203,6 +203,8 @@ test: $(BUILD)
 	$(HOST_RUN_ENV) ./$(BUILD)/usercopy_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/cap_test tests/cap_test.c kernel/src/object.c kernel/src/budget.c kernel/src/handle.c kernel/src/memory.c kernel/src/endpoint.c
 	$(HOST_RUN_ENV) ./$(BUILD)/cap_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/vfs_test tests/vfs_test.c kernel/src/vfs.c kernel/src/tmpfs.c kernel/src/object.c kernel/src/budget.c
+	$(HOST_RUN_ENV) ./$(BUILD)/vfs_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/block_test tests/block_test.c
 	$(HOST_RUN_ENV) ./$(BUILD)/block_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/partition_test tests/partition_test.c kernel/src/partition.c kernel/src/block.c kernel/src/ramdisk.c
@@ -243,7 +245,7 @@ test-sanitize: $(BUILD)
 	rm -f $(BUILD)/pmm_test $(BUILD)/slab_test $(BUILD)/sched_test \
 	      $(BUILD)/cpu_test $(BUILD)/abi_test $(BUILD)/elf_test $(BUILD)/acpi_test $(BUILD)/ioapic_test $(BUILD)/lock_order_test $(BUILD)/kaslr_test $(BUILD)/cap_test \
 	      $(BUILD)/block_test $(BUILD)/partition_test $(BUILD)/fs_test $(BUILD)/storage_encode_test \
-	      $(BUILD)/pci_test $(BUILD)/dma_test $(BUILD)/gpu_test $(BUILD)/display_test \
+	      $(BUILD)/vfs_test $(BUILD)/pci_test $(BUILD)/dma_test $(BUILD)/gpu_test $(BUILD)/display_test \
 	      $(BUILD)/input_test $(BUILD)/surface_test $(BUILD)/input_ps2_test \
 	      $(BUILD)/window_test $(BUILD)/compositor_test $(BUILD)/gfx_backend_test $(BUILD)/shell_test
 	$(MAKE) test HOST_EXTRA_CFLAGS="$(SAN_CFLAGS)" HOST_RUN_ENV="$(SAN_ENV)"
