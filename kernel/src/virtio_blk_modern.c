@@ -120,6 +120,15 @@ static void vbm_ignore(o0_status status) {
     (void)status;
 }
 
+static o0_status vbm_fail(const char *stage, o0_status status) {
+    o0_serial_puts("virtio-blk modern: fail stage=");
+    o0_serial_puts(stage);
+    o0_serial_puts(" status=");
+    o0_serial_puts(o0_status_name(status));
+    o0_serial_puts("\n");
+    return status;
+}
+
 static struct vblk_modern *vbm_from_dev(const struct o0_block_dev *dev) {
     for (size_t i = 0; i < VBM_MAX_DEVICES; ++i) {
         if (&vbm_devices[i].dev == dev && vbm_devices[i].in_use) {
@@ -217,25 +226,25 @@ static o0_status vbm_read_capacity(struct vblk_modern *vm, uint64_t *out) {
  * again after a fault, so it must not free or reallocate anything. */
 static o0_status vbm_device_init(struct vblk_modern *vm) {
     o0_status st = o0_virtio_reset(&vm->common);
-    if (st != O0_OK) return st;
+    if (st != O0_OK) return vbm_fail("reset", st);
 
     uint32_t low = 0, high = 0;
     st = o0_virtio_features(&vm->common, &low, &high);
-    if (st != O0_OK) return st;
+    if (st != O0_OK) return vbm_fail("features", st);
 
     uint32_t accept_low = 0;
     vm->has_flush = (low & VBM_F_FLUSH) != 0u;
     if (vm->has_flush) accept_low |= VBM_F_FLUSH;
     st = o0_virtio_negotiate(&vm->common, accept_low,
                              1u << (O0_VIRTIO_F_VERSION_1 - 32u), &low, &high);
-    if (st != O0_OK) return st;
+    if (st != O0_OK) return vbm_fail("negotiate", st);
     vm->features_low = low;
     vm->features_high = high;
 
     uint16_t num_queues = 0;
     if (!o0_virtio_reg_read16(&vm->common, O0_VIRTIO_COMMON_NUM_QUEUES, &num_queues) ||
         num_queues <= VBM_QUEUE_INDEX) {
-        return O0_ENOTSUP;
+        return vbm_fail("num_queues", O0_ENOTSUP);
     }
     if (!o0_virtio_reg_write16(&vm->common, O0_VIRTIO_COMMON_QUEUE_SELECT,
                                VBM_QUEUE_INDEX)) {
@@ -247,7 +256,7 @@ static o0_status vbm_device_init(struct vblk_modern *vm) {
     }
     uint16_t qsize = 0;
     if (!o0_virtio_queue_size_choose(device_max, VBM_QUEUE_SIZE, &qsize)) {
-        return O0_ENOTSUP;
+        return vbm_fail("queue_size", O0_ENOTSUP);
     }
 
     size_t avail_off = 0, used_off = 0, total = 0;
@@ -255,7 +264,7 @@ static o0_status vbm_device_init(struct vblk_modern *vm) {
         return O0_EINVAL;
     }
     st = vbm_alloc_buffers(vm, total, O0_PAGE_SIZE);
-    if (st != O0_OK) return st;
+    if (st != O0_OK) return vbm_fail("dma_alloc", st);
     if (vm->ring.size < total) return O0_ENOMEM;
 
     /* The rings are zeroed before the queue is enabled, so the device never
@@ -271,7 +280,7 @@ static o0_status vbm_device_init(struct vblk_modern *vm) {
         .addr_mask = VBM_DMA_MASK
     };
     st = o0_virtio_queue_configure(&vm->common, &plan, &vm->qinfo);
-    if (st != O0_OK) return st;
+    if (st != O0_OK) return vbm_fail("queue_configure", st);
 
     /* Re-arm the vector: a device reset clears the MSI enable state. */
     if (vm->vector_ok && vm->pci.resources.msi_supported) {
@@ -280,8 +289,10 @@ static o0_status vbm_device_init(struct vblk_modern *vm) {
     }
 
     st = o0_virtio_driver_ok(&vm->common);
-    if (st != O0_OK) return st;
-    return vbm_read_capacity(vm, &vm->capacity);
+    if (st != O0_OK) return vbm_fail("driver_ok", st);
+    st = vbm_read_capacity(vm, &vm->capacity);
+    if (st != O0_OK) return vbm_fail("capacity", st);
+    return O0_OK;
 }
 
 /* ---- Request submission and completion ---- */
@@ -368,6 +379,8 @@ static o0_block_status vbm_run(struct vblk_modern *vm, uint32_t type,
     o0_serial_puts(" status="); o0_serial_hex(vm->status_byte != NULL ? *vm->status_byte : 0xFFu);
     o0_serial_puts(" features="); o0_serial_hex(vm->features_low);
     o0_serial_puts("/"); o0_serial_hex(vm->features_high);
+    o0_serial_puts(" dev_off="); o0_serial_hex(vm->caps.device.offset);
+    o0_serial_puts(" dev_len="); o0_serial_dec(vm->caps.device.length);
     o0_serial_puts(" capacity="); o0_serial_dec(vm->capacity);
     o0_serial_puts(" notify_off="); o0_serial_dec(vm->qinfo.notify_off);
     o0_serial_puts(" avail="); o0_serial_dec(vm->vq.next_avail);
@@ -539,9 +552,9 @@ o0_status o0_virtio_blk_modern_probe(const char *name, struct o0_block_dev **out
         bar_lengths[bar] = bars[bar].size > UINT32_MAX ? 0u : (uint32_t)bars[bar].size;
     }
     if (!o0_virtio_pci_parse_caps(cfg, sizeof(cfg), bar_lengths, &vm->caps)) {
-        return O0_ENOTSUP;
+        return vbm_fail("caps", O0_ENOTSUP);
     }
-    if (!o0_virtio_pci_validate_bars(&vm->caps, bars)) return O0_ENOTSUP;
+    if (!o0_virtio_pci_validate_bars(&vm->caps, bars)) return vbm_fail("bars", O0_ENOTSUP);
 
     /* Memory decode and bus mastering: a modern device has no I/O BAR. */
     uint16_t command = 0;
@@ -558,7 +571,7 @@ o0_status o0_virtio_blk_modern_probe(const char *name, struct o0_block_dev **out
         &found->bdf, found->resources.header_type, &vm->caps,
         VBM_WINDOW_BASE + (uint64_t)slot * VBM_DEVICE_STRIDE, VBM_BAR_STRIDE,
         &vm->map);
-    if (st != O0_OK) return st;
+    if (st != O0_OK) return vbm_fail("map", st);
 
     if (!o0_virtio_pci_common_regs(&vm->caps, &vm->map, &vm->common) ||
         !o0_virtio_pci_region_regs(&vm->caps.notify, &vm->map, &vm->notify) ||
