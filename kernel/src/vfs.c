@@ -144,6 +144,7 @@ static o0_status resolve_node(struct o0_vnode *directory, const char *path,
 
 o0_status o0_vfs_mount_root(struct o0_vnode *root) {
     if (root == NULL || root->type != O0_VNODE_DIRECTORY) return O0_EINVAL;
+    cache_init();
     if (vfs_root != NULL) return O0_EBUSY;
     vnode_ref(root);
     vfs_root = root;
@@ -180,6 +181,13 @@ o0_status o0_vfs_root(struct o0_vnode **out) {
     return O0_OK;
 }
 
+o0_status o0_vfs_lookup(struct o0_vnode *directory, const char *path,
+                         size_t path_length, struct o0_vnode **out) {
+    if (out == NULL) return O0_EINVAL;
+    *out = NULL;
+    return resolve_node(directory, path, path_length, out);
+}
+
 o0_status o0_vfs_open(struct o0_vnode *directory, const char *path,
                       size_t path_length, uint32_t flags, uint32_t rights,
                       struct o0_budget *budget, struct o0_vfs_file **out) {
@@ -191,6 +199,12 @@ o0_status o0_vfs_open(struct o0_vnode *directory, const char *path,
         return O0_EINVAL;
     }
     *out = NULL;
+    if (directory != NULL && path != NULL && path_length == 1u &&
+        path[0] == '.' && path[1] == '\\0') {
+        if (directory->mounted_root != NULL) directory = directory->mounted_root;
+        if (directory->ops == NULL || directory->ops->stat == NULL) return O0_ENOTSUP;
+        return directory->ops->stat(directory, out);
+    }
     struct o0_vnode *node = NULL;
     o0_status st = resolve_node(directory, path, path_length, &node);
     if (st == O0_ENOENT && (flags & O0_VFS_OPEN_CREATE) != 0) {
@@ -244,8 +258,16 @@ struct o0_vfs_cache_page {
 };
 
 static struct o0_vfs_cache_page vfs_cache[O0_VFS_CACHE_PAGES];
-static o0_spinlock_t vfs_cache_lock = O0_SPINLOCK_INIT;
+static o0_spinlock_t vfs_cache_lock;
 static uint64_t vfs_cache_age;
+static bool vfs_cache_ready;
+
+static void cache_init(void) {
+    if (!vfs_cache_ready) {
+        o0_spin_init_ordered(&vfs_cache_lock, 5u);
+        vfs_cache_ready = true;
+    }
+}
 
 static void cache_drop_page(struct o0_vfs_cache_page *page) {
     if (page->valid && page->node != NULL) vnode_unref(page->node);
@@ -301,6 +323,7 @@ static o0_status cache_get_locked(struct o0_vnode *node, uint64_t index,
 }
 
 static void cache_invalidate_all(void) {
+    if (!vfs_cache_ready) return;
     o0_spin_lock(&vfs_cache_lock);
     for (size_t i = 0; i < O0_VFS_CACHE_PAGES; ++i) cache_drop_page(&vfs_cache[i]);
     o0_spin_unlock(&vfs_cache_lock);
@@ -344,7 +367,7 @@ o0_status o0_vfs_write(struct o0_vfs_file *file, uint64_t offset,
     if ((file->rights & O0_RIGHT_WRITE) == 0) return O0_EPERM;
     if (length > O0_VFS_IO_MAX || offset > UINT64_MAX - length) return O0_ERANGE;
     if (file->node->ops == NULL || file->node->ops->write == NULL) return O0_EPERM;
-    cache_init();
+    if (!vfs_cache_ready) return O0_EINVAL;
     o0_spin_lock(&vfs_cache_lock);
     size_t done = 0;
     while (done < length) {
