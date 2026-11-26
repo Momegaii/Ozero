@@ -210,6 +210,7 @@ static void test_bad_directory(void) {
     make_valid();
     /* Data directory 0 (export) points beyond the image. */
     put32(file + OPT_OFF + 108, 0x4000u); /* Export Directory VirtualAddress */
+    put32(file + OPT_OFF + 112, 0x100u);  /* Export Directory Size: non-empty */
     expect(O0_EPE_BAD_DIRECTORY);
 }
 
