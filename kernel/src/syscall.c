@@ -9,6 +9,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "ozero/abi.h"
 #include "ozero/budget.h"
@@ -398,13 +399,19 @@ static int64_t sys_file_open(uint64_t directory_handle, const char *user_path,
     char path[O0_UAPI_PATH_MAX + 1u];
     o0_status st = syscall_copy_path(path, user_path, path_length);
     if (st != O0_OK) return o0_uapi_error_from_status(st);
-    uint32_t required = O0_RIGHT_READ;
-    if ((rights & O0_RIGHT_WRITE) != 0) required |= O0_RIGHT_WRITE;
-    if ((flags & O0_VFS_OPEN_CREATE) != 0) required |= O0_RIGHT_CREATE;
+    uint32_t directory_rights = 0;
     struct o0_object *directory = NULL;
-    st = o0_handle_lookup(proc->handles, directory_handle, O0_OBJ_VNODE,
-                          required, &directory);
+    st = o0_handle_lookup_any(proc->handles, directory_handle, &directory,
+                              &directory_rights);
     if (st != O0_OK) return o0_uapi_error_from_status(st);
+    if (directory->type != O0_OBJ_VNODE ||
+        (((rights & (O0_RIGHT_READ | O0_RIGHT_WRITE | O0_RIGHT_INFO |
+                     O0_RIGHT_DUP | O0_RIGHT_TRANSFER)) &
+          ~directory_rights) != 0) ||
+        ((flags & O0_VFS_OPEN_CREATE) != 0 &&
+         (directory_rights & O0_RIGHT_CREATE) == 0)) {
+        return O0_UE_PERM;
+    }
     struct o0_vfs_file *file = NULL;
     st = o0_vfs_open((struct o0_vnode *)directory, path, (size_t)path_length,
                      flags, rights, proc->budget, &file);
