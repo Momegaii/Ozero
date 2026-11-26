@@ -447,39 +447,30 @@ o0_status o0_vfs_write(struct o0_vfs_file *file, uint64_t offset,
     if (length > O0_VFS_IO_MAX || offset > UINT64_MAX - length) return O0_ERANGE;
     if (file->node->ops == NULL || file->node->ops->write == NULL) return O0_EPERM;
     if (!vfs_cache_ready) return O0_EINVAL;
+    if (length == 0) return O0_OK;
+
+    /*
+     * Submit the complete range to the backend in one operation. Splitting
+     * here at cache-page boundaries can commit an early page and then fail
+     * while allocating a later one, turning an all-or-nothing backend write
+     * into an unexpected partial write. Backends own write atomicity.
+     *
+     * Serialize against cached reads, then invalidate this vnode's pages
+     * whether the backend succeeds or fails so no stale data survives.
+     */
     o0_spin_lock(&vfs_cache_lock);
-    size_t done = 0;
-    while (done < length) {
-        uint64_t position = offset + done;
-        uint64_t page_index = position / O0_PAGE_SIZE;
-        size_t in_page = (size_t)(position % O0_PAGE_SIZE);
-        size_t take = O0_PAGE_SIZE - in_page;
-        if (take > length - done) take = length - done;
-        bool full_page = in_page == 0 && take == O0_PAGE_SIZE;
-        struct o0_vfs_cache_page *page = NULL;
-        o0_status st = cache_get_locked(file->node, page_index, !full_page, &page);
-        if (st != O0_OK) {
-            o0_spin_unlock(&vfs_cache_lock);
-            *out_length = done;
-            return done != 0 ? O0_OK : st;
-        }
-        st = file->node->ops->write(file->node, position,
-                                    (const uint8_t *)buffer + done, take,
-                                    out_length);
-        if (st != O0_OK || *out_length != take) {
-            cache_drop_page(page);
-            o0_spin_unlock(&vfs_cache_lock);
-            *out_length = done;
-            if (done != 0) return O0_OK;
-            return st != O0_OK ? st : O0_EIO;
-        }
-        memcpy(page->data + in_page, (const uint8_t *)buffer + done, take);
-        if (in_page + take > page->valid_bytes)
-            page->valid_bytes = in_page + take;
-        done += take;
+    size_t written = 0;
+    o0_status st = file->node->ops->write(file->node, offset, buffer, length,
+                                         &written);
+    for (size_t i = 0; i < O0_VFS_CACHE_PAGES; ++i) {
+        if (vfs_cache[i].valid && vfs_cache[i].node == file->node)
+            cache_drop_page(&vfs_cache[i]);
     }
     o0_spin_unlock(&vfs_cache_lock);
-    *out_length = done;
+
+    if (st != O0_OK) return st;
+    if (written > length) return O0_EIO;
+    *out_length = written;
     return O0_OK;
 }
 
