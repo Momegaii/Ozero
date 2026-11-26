@@ -55,6 +55,13 @@ static o0_status path_component(const char **cursor, const char **name,
     return O0_OK;
 }
 
+static bool path_has_nul(const char *path, size_t length) {
+    for (size_t i = 0; i < length; ++i) {
+        if (path[i] == '\\0') return true;
+    }
+    return false;
+}
+
 static bool component_is(const char *name, size_t length, const char *literal) {
     size_t n = strlen(literal);
     return n == length && memcmp(name, literal, n) == 0;
