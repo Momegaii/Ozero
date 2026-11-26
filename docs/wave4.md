@@ -227,6 +227,21 @@ cell still needs a run and a log read before it is evidence.
    overlapping entries and out-of-range LBAs.
 2. Fuzz the parsers on the host, with malformed and truncated images.
 
+### Wave 4.4 evidence
+
+- **Commit:** `pending` — `feat(kernel): add MBR/GPT partition discovery (Wave 4.4)`
+- **CI:** not yet observed; `make test` and `make test-sanitize` pass locally with
+  `tests/partition_test.c` (12 tests: MBR valid/no-sig/overlap/out-of-range/fuzz,
+  GPT valid/bad-header-CRC/bad-entry-CRC/overlap/out-of-range/fuzz, GUID string
+  formatting).
+- **ADR:** [0016](decisions/0016-mbr-gpt-partition-discovery.md) — `Accepted`.
+- **Tests:** `tests/partition_test.c` runs under both `make test` and
+  `make test-sanitize` (ASan+UBSan, leak detection on).
+- **Evidence type:** local build + host tests only. Not CI-observed, not
+  Director-observed, not physical.
+- **Not covered:** backup GPT header fallback, extended MBR logical partitions,
+  sub-512-byte logical blocks, physical devices.
+
 ## Wave 4.5 — Crash-consistent O0FS
 
 1. Implement the ADR's choice, replacing rollback-only recovery.
