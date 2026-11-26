@@ -15,6 +15,7 @@
 #include "ozero/cpu.h"
 #include "ozero/cpu_local.h"
 #include "ozero/irq.h"
+#include "ozero/lapic.h"
 #include "ozero/status.h"
 #include "ozero/sync.h"
 #include "ozero/thread.h"
@@ -51,9 +52,14 @@ struct o0_cpu_local o0_cpu_local[O0_MAX_CPUS];
 
 uint32_t o0_cpu_index(void) { return 0; }
 uint32_t o0_cpu_count(void) { return O0_MAX_CPUS; }
+static unsigned ipi_count;
+static uint32_t ipi_last_apic;
+static uint32_t ipi_last_vector;
+
 o0_status o0_lapic_send_ipi(uint32_t apic_id, uint32_t vector) {
-    (void)apic_id;
-    (void)vector;
+    ++ipi_count;
+    ipi_last_apic = apic_id;
+    ipi_last_vector = vector;
     return O0_OK;
 }
 struct o0_cpu_local *o0_cpu_local_current(void) { return &o0_cpu_local[0]; }
@@ -168,10 +174,15 @@ static void reset_scheduler(void) {
         o0_cpu_local[i].online = 1;
         o0_cpu_local[i].cpu_index = i;
         o0_cpu_local[i].current = 0;
+        o0_cpu_local[i].apic_id = i + 1u;
+        o0_cpu_local[i].resched_pending = 0;
     }
     o0_sched_init();
     o0_sched_set_hz(100);
     o0_sched_set_preemption(false);
+    ipi_count = 0;
+    ipi_last_apic = 0;
+    ipi_last_vector = 0;
 }
 
 static void test_priority_selection(void) {
@@ -281,6 +292,46 @@ static void test_per_cpu_migration(void) {
     PASS();
 }
 
+
+/* A thread made ready on another CPU must make that CPU look at its run queue.
+ * Without the kick the thread waits for that CPU's next tick, and a CPU halted
+ * with no timer running never runs it at all. */
+static void test_remote_enqueue_kicks_target(void) {
+    TEST("remote enqueue requests a reschedule on the target CPU");
+    reset_scheduler();
+
+    struct o0_thread *local = make_thread("local", 0);
+    o0_sched_enqueue(local);
+    ASSERT(ipi_count == 0, "enqueue on the current CPU must not send an IPI");
+
+    struct o0_thread *remote = make_thread("remote", 0);
+    remote->cpu = 1;
+    o0_sched_enqueue(remote);
+    ASSERT(ipi_count == 1, "remote enqueue must send exactly one IPI");
+    ASSERT(ipi_last_apic == o0_cpu_local[1].apic_id,
+           "IPI must target the CPU that owns the run queue");
+    ASSERT(ipi_last_vector == O0_LAPIC_IPI_VECTOR, "wrong IPI vector");
+    ASSERT(o0_cpu_local[1].resched_pending == 1,
+           "target CPU must have a pending reschedule");
+    ASSERT(o0_cpu_local[0].resched_pending == 0,
+           "current CPU must not be marked for reschedule");
+    ASSERT(o0_sched_ready_count_cpu(1) == 1, "thread must be queued on the target");
+    PASS();
+}
+
+/* A CPU that is not online cannot be kicked, and must not be selected either. */
+static void test_offline_cpu_not_kicked(void) {
+    TEST("enqueue for an offline CPU sends no IPI");
+    reset_scheduler();
+    o0_cpu_local[1].online = 0;
+
+    struct o0_thread *remote = make_thread("remote", 0);
+    remote->cpu = 1;
+    o0_sched_enqueue(remote);
+    ASSERT(ipi_count == 0, "an offline CPU must not be kicked");
+    PASS();
+}
+
 static void test_timeslice_rotation(void) {
     TEST("timeslice rotation");
     reset_scheduler();
@@ -313,6 +364,8 @@ int main(void) {
     test_blocking();
     test_per_cpu_migration();
     test_tick_and_preemption();
+    test_remote_enqueue_kicks_target();
+    test_offline_cpu_not_kicked();
     test_timeslice_rotation();
 
     printf("\n%d test(s) run, %d failure(s)\n", tests_run, failures);

@@ -143,6 +143,25 @@ void o0_sched_note_resume(struct o0_thread *thread) {
     }
 }
 
+/* Asks a CPU to look at its run queue now. A thread made ready on another CPU
+ * would otherwise wait for that CPU's next timer tick, and a CPU halted in its
+ * idle loop with no timer running would never pick the thread up at all: the
+ * wave3 stress test lost a migration worker that way and then blocked forever
+ * in o0_thread_join. */
+static void kick_cpu(uint32_t cpu) {
+    if (!scheduler_ready || cpu >= O0_MAX_CPUS || cpu == cpu_index()) {
+        return;
+    }
+    struct o0_cpu_local *local = &o0_cpu_local[cpu];
+    if (__atomic_load_n(&local->online, __ATOMIC_ACQUIRE) == 0u) {
+        return;
+    }
+    /* A pending flag that the target clears without work is harmless: the
+     * handler reschedules and returns. */
+    __atomic_store_n(&local->resched_pending, 1u, __ATOMIC_RELEASE);
+    (void)o0_lapic_send_ipi(local->apic_id, O0_LAPIC_IPI_VECTOR);
+}
+
 void o0_sched_enqueue(struct o0_thread *thread) {
     if (thread == NULL) {
         return;
@@ -170,6 +189,7 @@ void o0_sched_enqueue(struct o0_thread *thread) {
     ++rq->count;
     o0_spin_unlock(&rq->lock);
     o0_irq_restore(irq);
+    kick_cpu(cpu);
 }
 
 /* Highest priority ready thread on one CPU; ties are broken by queue order.
