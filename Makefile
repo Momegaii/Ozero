@@ -208,6 +208,8 @@ test: $(BUILD)
 	$(HOST_RUN_ENV) ./$(BUILD)/fs_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/storage_encode_test tests/storage_encode_test.c
 	$(HOST_RUN_ENV) ./$(BUILD)/storage_encode_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/virtio_ring_test tests/virtio_ring_test.c
+	$(HOST_RUN_ENV) ./$(BUILD)/virtio_ring_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/pci_test tests/pci_test.c
 	$(HOST_RUN_ENV) ./$(BUILD)/pci_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/dma_test tests/dma_test.c
