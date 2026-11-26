@@ -197,6 +197,8 @@ test: $(BUILD)
 	$(HOST_RUN_ENV) ./$(BUILD)/cpu_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/abi_test tests/abi_test.c kernel/src/abi.c
 	$(HOST_RUN_ENV) ./$(BUILD)/abi_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/vfs_test tests/vfs_test.c kernel/src/vfs.c kernel/src/tmpfs.c kernel/src/object.c kernel/src/budget.c
+	$(HOST_RUN_ENV) ./$(BUILD)/vfs_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/elf_test tests/elf_test.c kernel/src/elf.c
 	$(HOST_RUN_ENV) ./$(BUILD)/elf_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/pe_test tests/pe_test.c kernel/src/pe.c
@@ -221,8 +223,6 @@ test: $(BUILD)
 	$(HOST_RUN_ENV) ./$(BUILD)/virtio_blk_modern_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/o0fs_journal_test tests/o0fs_journal_test.c
 	$(HOST_RUN_ENV) ./$(BUILD)/o0fs_journal_test
-	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/vfs_test tests/vfs_test.c kernel/src/vfs.c kernel/src/tmpfs.c kernel/src/object.c kernel/src/budget.c
-	$(HOST_RUN_ENV) ./$(BUILD)/vfs_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/pci_test tests/pci_test.c
 	$(HOST_RUN_ENV) ./$(BUILD)/pci_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/dma_test tests/dma_test.c
