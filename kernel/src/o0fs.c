@@ -2234,3 +2234,70 @@ uint32_t o0fs_free_blocks(const struct o0fs *fs) {
 uint32_t o0fs_free_inodes(const struct o0fs *fs) {
     return fs != NULL && fs->mounted ? fs->super.free_inodes : 0;
 }
+
+struct o0_block_dev *o0fs_dev(const struct o0fs *fs) {
+    return fs != NULL ? fs->dev : NULL;
+}
+
+/* ---- inode-level operations for the VFS layer ---- */
+
+o0_status o0fs_inode_read(struct o0fs *fs, uint32_t inode_no,
+                          uint64_t offset, void *buffer, size_t capacity,
+                          size_t *out_len) {
+    if (fs == NULL || !fs->mounted || out_len == NULL) {
+        return O0_EINVAL;
+    }
+    struct o0fs_inode_disk inode;
+    o0_status st = fs_read_inode(fs, inode_no, &inode);
+    if (st != O0_OK) {
+        return st;
+    }
+    if (inode.mode != O0FS_TYPE_FILE) {
+        return O0_EISDIR;
+    }
+    return fs_read_range(fs, &inode, offset, buffer, capacity, out_len);
+}
+
+o0_status o0fs_inode_write(struct o0fs *fs, uint32_t inode_no,
+                           uint64_t offset, const void *buffer, size_t len,
+                           size_t *out_len) {
+    if (fs == NULL || !fs->mounted || out_len == NULL) {
+        return O0_EINVAL;
+    }
+    *out_len = 0;
+    if (buffer == NULL && len != 0) {
+        return O0_EINVAL;
+    }
+    struct o0fs_inode_disk inode;
+    o0_status st = fs_read_inode(fs, inode_no, &inode);
+    if (st != O0_OK) {
+        return st;
+    }
+    if (inode.mode != O0FS_TYPE_FILE) {
+        return O0_EISDIR;
+    }
+    st = fs_write_checked(fs, inode_no, &inode, offset,
+                          (const uint8_t *)buffer, len);
+    if (st != O0_OK) {
+        return st;
+    }
+    if (offset + len > inode.size) {
+        inode.size = (uint32_t)(offset + len);
+    }
+    *out_len = len;
+    return O0_OK;
+}
+
+o0_status o0fs_inode_stat(struct o0fs *fs, uint32_t inode_no,
+                          struct o0fs_stat *out) {
+    if (fs == NULL || !fs->mounted || out == NULL) {
+        return O0_EINVAL;
+    }
+    struct o0fs_inode_disk inode;
+    o0_status st = fs_read_inode(fs, inode_no, &inode);
+    if (st != O0_OK) {
+        return st;
+    }
+    fs_fill_stat(inode_no, &inode, out);
+    return O0_OK;
+}

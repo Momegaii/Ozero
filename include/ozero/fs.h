@@ -90,6 +90,17 @@ O0_NODISCARD o0_status o0fs_stat(struct o0fs *fs, const char *path,
 O0_NODISCARD o0_status o0fs_lookup(struct o0fs *fs, const char *path,
                                    uint32_t *inode_out);
 
+/* Inode-level operations used by the VFS layer. These bypass path resolution
+ * and operate directly on an inode number. */
+O0_NODISCARD o0_status o0fs_inode_read(struct o0fs *fs, uint32_t inode_no,
+                                       uint64_t offset, void *buffer,
+                                       size_t capacity, size_t *out_len);
+O0_NODISCARD o0_status o0fs_inode_write(struct o0fs *fs, uint32_t inode_no,
+                                        uint64_t offset, const void *buffer,
+                                        size_t len, size_t *out_len);
+O0_NODISCARD o0_status o0fs_inode_stat(struct o0fs *fs, uint32_t inode_no,
+                                       struct o0fs_stat *out);
+
 O0_NODISCARD o0_status o0fs_create_file(struct o0fs *fs, const char *path);
 O0_NODISCARD o0_status o0fs_mkdir(struct o0fs *fs, const char *path);
 
@@ -121,6 +132,9 @@ O0_NODISCARD o0_status o0fs_list(struct o0fs *fs, const char *path,
 uint32_t o0fs_block_count(const struct o0fs *fs);
 uint32_t o0fs_free_blocks(const struct o0fs *fs);
 uint32_t o0fs_free_inodes(const struct o0fs *fs);
+
+/* Return the block device backing a mounted filesystem. */
+struct o0_block_dev *o0fs_dev(const struct o0fs *fs);
 
 #ifdef __cplusplus
 }
