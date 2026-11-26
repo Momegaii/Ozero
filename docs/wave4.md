@@ -171,9 +171,11 @@ timeout, quarantine and cancellation rules apply unchanged.
   path OK`, `OZERO: nvme read/write OK irq=<n> sectors=<n>`, `OZERO: nvme error
   path OK`. The error-path markers are injected tests: a read that runs past the
   end of the medium must be refused by the controller and decoded by the driver.
-- **CI cells:** `storage (ahci, smp=2)` and `storage (nvme, smp=2)` join
-  `storage (virtio, smp=2)` in `.github/workflows/quality.yml`, each with its own
-  `-device` line and both markers required only in its own cell.
+- **CI cells:** `storage (ahci, smp=2)` is enabled with its own `-device` line and
+  gates only on the AHCI markers, so it cannot pass on another driver's output. The
+  NVMe cell is not enabled yet: one controller at a time, each with its own observed
+  run. The cell attaches `-device ide-hd,drive=ad0` to the q35 onboard `ich9-ahci`
+  controller.
 - **Evidence:** build-verified only in this workspace (`make kernel` with `-Werror`,
   plus the new `tests/storage_encode_test.c` host test for the pure encoders). No
   QEMU run was performed here and no run on `775e333` has been read, so no cell is

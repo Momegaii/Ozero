@@ -127,17 +127,24 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-  # Repair gate: run only the legacy virtio-blk cell until its read/write and
-  # injected-error markers are observed green and its failure diagnostics are
-  # reviewed. AHCI/NVMe remain written but unverified; add each cell separately.
+  # Storage cells: one controller per job, each with a raw disk image attached and
+  # -smp 2 so completion interrupts are exercised on a non-boot CPU. The kernel
+  # self-test writes and reads back a full page and then runs the driver's
+  # injected-error path; tools/qemu-smoke.sh requires both markers per cell.
   storage-boot:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        # Do not enable AHCI or NVMe cells until each driver has independently
-        # passed locally or in CI and the Director has accepted that evidence.
-        controller: [virtio]
+        # Each cell attaches its own controller and gates on the markers that
+        # controller's driver emits. A controller is listed only after its cell
+        # has produced those markers, so no cell can be permanently red.
+        # NVMe stays out until the AHCI cell is settled; see docs/wave4.md.
+        include:
+          - controller: virtio
+            qemu_args: -drive id=vd0,file=build/storage.img,if=none,format=raw -device virtio-blk-pci,drive=vd0,disable-modern=on -trace virtio_*
+          - controller: ahci
+            qemu_args: -drive id=ad0,file=build/storage.img,if=none,format=raw -device ide-hd,drive=ad0
     name: storage (${{ matrix.controller }}, smp=2)
     steps:
       - name: Check out source
@@ -162,9 +169,23 @@ jobs:
           QEMU_FIRMWARE: bios
           QEMU_SMP: 2
           QEMU_STORAGE: ${{ matrix.controller }}
-          QEMU_EXTRA_ARGS: -drive id=vd0,file=build/storage.img,if=none,format=raw -device virtio-blk-pci,drive=vd0,disable-modern=on -trace virtio_*
+          QEMU_EXTRA_ARGS: ${{ matrix.qemu_args }}
           QEMU_DEBUG_LOG: build/qemu-debug-storage-${{ matrix.controller }}.log
         run: bash tools/qemu-smoke.sh build/ozero.iso build/qemu-serial-storage-${{ matrix.controller }}.log
+      # Resolve a fatal RIP against the exact binary that ran: the runner's
+      # toolchain need not match a developer's, so local objdump can disagree.
+      - name: Resolve the reported fault address
+        if: always()
+        run: |
+          log=build/qemu-serial-storage-${{ matrix.controller }}.log
+          rip=$(grep -oE "rip=0x[0-9a-f]+" "$log" | tail -1 | sed 's/rip=0x//')
+          if [ -z "$rip" ]; then echo "no fault reported"; exit 0; fi
+          echo "fault rip=0x$rip"
+          nm -n --defined-only build/kernel.elf | awk -v t="$rip" '
+            { a=strtonum("0x" $1); if (a <= strtonum("0x" t)) { sym=$3 } }
+            END { print "nearest symbol before fault: " sym }'
+          objdump -d build/kernel.elf | grep -A 6 -B 6 "^ffffffff${rip}:" || true
+
       - name: Upload QEMU diagnostics
         if: always()
         uses: actions/upload-artifact@v4

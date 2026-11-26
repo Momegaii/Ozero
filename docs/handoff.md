@@ -3,6 +3,19 @@
 Single source of truth for "where are we now". Every claim here cites a commit on
 `main`; `main` is the only branch of record.
 
+## Wave 4.3 AHCI — cell enabled
+
+**Status:** IN PROGRESS — the cell is enabled and its first run is being read.
+
+- The `storage (ahci, smp=2)` cell attaches
+  `-drive id=ad0,file=build/storage.img,if=none,format=raw -device ide-hd,drive=ad0`
+  to the q35 onboard `ich9-ahci` controller and requires
+  `OZERO: ahci read/write OK` and `OZERO: ahci error path OK`.
+- The matrix moved to an `include:` list so each cell carries its own QEMU arguments;
+  the previous `||` chain in `QEMU_EXTRA_ARGS` could not express a third cell.
+- The NVMe cell stays disabled until the AHCI cell is settled.
+- Evidence for this driver before now: `make kernel` only. No run had been read.
+
 ## Line of record
 
 - Branch: `main`
