@@ -393,10 +393,6 @@ static bool vblk_is_legacy(const struct o0_pci_device *pci) {
     return bar0.valid && !bar0.is_memory && bar0.assigned;
 }
 
-static uint8_t *vblk_align(uint8_t *p, uintptr_t alignment) {
-    return (uint8_t *)(((uintptr_t)p + alignment - 1u) & ~(alignment - 1u));
-}
-
 o0_status o0_virtio_blk_probe(const char *name, struct o0_block_dev **out) {
     if (name == NULL || out == NULL || name[0] == '\0') {
         return O0_EINVAL;
@@ -479,7 +475,7 @@ o0_status o0_virtio_blk_probe(const char *name, struct o0_block_dev **out) {
 
     struct o0_dma_constraint constraint;
     memset(&constraint, 0, sizeof(constraint));
-    constraint.addr_mask = UINT64_MAX;
+    constraint.addr_mask = (UINT64_C(1) << 44) - 1u;
     constraint.alignment = O0_PAGE_SIZE;
     constraint.max_segment = 0;
     constraint.coherent = true;
