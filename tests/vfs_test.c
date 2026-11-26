@@ -110,6 +110,32 @@ int main(void) {
           O0_ENOENT);
     o0_object_unref(&file->obj);
 
+    /* Mount traversal, mountpoint lifetime and busy-unmount semantics. */
+    CHECK(o0_vfs_mkdir(docs, "mnt", 3u) == O0_OK);
+    struct o0_vnode *mountpoint = NULL;
+    CHECK(o0_vfs_lookup(docs, "mnt", 3u, &mountpoint) == O0_OK);
+    struct o0_vnode *mounted_root = NULL;
+    CHECK(o0_tmpfs_create(budget, 4096u, &mounted_root) == O0_OK);
+    struct o0_vfs_file *mounted_file = NULL;
+    CHECK(o0_vfs_open(mounted_root, "inside", 6u, O0_VFS_OPEN_CREATE,
+                      O0_RIGHT_READ | O0_RIGHT_WRITE | O0_RIGHT_INFO,
+                      budget, &mounted_file) == O0_OK);
+    CHECK(o0_vfs_write(mounted_file, 0, "mount", 5u, &count) == O0_OK);
+    o0_object_unref(&mounted_file->obj);
+    CHECK(o0_vfs_mount(mountpoint, mounted_root) == O0_OK);
+    o0_object_unref(&mounted_root->obj);
+    CHECK(o0_vfs_unlink(docs, "mnt", 3u) == O0_EBUSY);
+    CHECK(o0_vfs_open(root, "docs/mnt/inside", 15u, 0, O0_RIGHT_READ,
+                      budget, &mounted_file) == O0_OK);
+    memset(data, 0, sizeof(data));
+    CHECK(o0_vfs_read(mounted_file, 0, data, 5u, &count) == O0_OK);
+    CHECK(count == 5u && memcmp(data, "mount", 5u) == 0);
+    o0_object_unref(&mounted_file->obj);
+    CHECK(o0_vfs_unmount(mountpoint) == O0_OK);
+    o0_object_unref(&mountpoint->obj);
+    struct o0_vnode *gone = NULL;
+    CHECK(o0_vfs_lookup(root, "docs/mnt/inside", 15u, &gone) == O0_ENOENT);
+
     CHECK(o0_vfs_mkdir(root, "../escape", 8u) == O0_EPERM);
     CHECK(o0_vfs_open(root, "../escape", 8u, 0, O0_RIGHT_READ,
                       budget, &missing) == O0_EPERM);
