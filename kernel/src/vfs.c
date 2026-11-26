@@ -154,7 +154,7 @@ o0_status o0_vfs_mount_root(struct o0_vnode *root) {
 }
 
 o0_status o0_vfs_mount(struct o0_vnode *directory, struct o0_vnode *root) {
-    if (directory == NULL || root == NULL ||
+    if (directory == NULL || root == NULL || directory == root ||
         directory->type != O0_VNODE_DIRECTORY ||
         root->type != O0_VNODE_DIRECTORY) return O0_EINVAL;
     if (directory->mounted_root != NULL) return O0_EBUSY;
@@ -197,7 +197,9 @@ o0_status o0_vfs_open(struct o0_vnode *directory, const char *path,
         (rights & ~(O0_RIGHT_READ | O0_RIGHT_WRITE | O0_RIGHT_INFO |
                     O0_RIGHT_DUP | O0_RIGHT_TRANSFER)) != 0 ||
         (rights & (O0_RIGHT_READ | O0_RIGHT_WRITE | O0_RIGHT_INFO)) == 0 ||
-        (flags & ~(O0_VFS_OPEN_CREATE | O0_VFS_OPEN_EXCLUSIVE)) != 0) {
+        (flags & ~(O0_VFS_OPEN_CREATE | O0_VFS_OPEN_EXCLUSIVE)) != 0 ||
+        ((flags & O0_VFS_OPEN_EXCLUSIVE) != 0 &&
+         (flags & O0_VFS_OPEN_CREATE) == 0)) {
         return O0_EINVAL;
     }
     *out = NULL;
