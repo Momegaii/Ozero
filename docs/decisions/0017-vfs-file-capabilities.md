@@ -91,8 +91,11 @@ must use the returned object type and matching rights. `handle_close` (syscall 5
   invalidate already-open file objects; the backend must defer reclamation
   until the last open/reference is released. If a backend cannot provide that
   guarantee, unlink of an open vnode returns a defined busy status.
-- Mounts hold references to their root vnode and backend state. Unmount refuses
-  while external vnode/file references remain.
+- Mount entries retain their mountpoint and root vnode. Unmount refuses while
+  external references to the mounted root remain. Open file vnodes retain their
+  backend's lifetime independently and may continue after namespace detachment;
+  each backend must keep its state alive until its last vnode is released. The
+  boot O0FS instance is pinned for the lifetime of the current kernel image.
 - Readdir cursors are opaque, backend-independent tokens. A stale or malformed
   cursor fails closed.
 - Handle duplication and transfer can only preserve or reduce rights.
