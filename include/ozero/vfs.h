@@ -112,6 +112,13 @@ O0_NODISCARD o0_status o0_vfs_unlink(struct o0_vnode *directory,
 
 /* tmpfs is the first writable backend. Its root vnode is returned with one
  * reference; capacity is a hard per-instance limit, not a hint. */
+struct o0fs;
+O0_NODISCARD o0_status o0_vfs_o0fs_create(struct o0fs *fs,
+                                         struct o0_budget *budget,
+                                         struct o0_vnode **root_out);
+O0_NODISCARD o0_status o0_vfs_mkdir(struct o0_vnode *directory,
+                                    const char *path, size_t path_length);
+
 O0_NODISCARD o0_status o0_tmpfs_create(struct o0_budget *budget,
                                        size_t capacity,
                                        struct o0_vnode **root_out);
