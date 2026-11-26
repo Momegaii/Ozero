@@ -211,10 +211,12 @@ static void vblk_complete(struct o0_bio *bio, o0_block_status status,
 static bool vblk_wait_used(struct o0_virtio_blk *vd) {
     for (uint32_t spin = 0; spin < VBLK_TIMEOUT_SPINS; ++spin) {
         uint16_t idx = vd->used->idx;
-        __asm__ volatile ("" : : : "memory");
         if (idx != vd->last_used) {
+            /* Device completion stores must be visible before consuming status. */
+            __asm__ volatile ("lfence" : : : "memory");
             return true;
         }
+        __asm__ volatile ("" : : : "memory");
     }
     return false;
 }
@@ -222,6 +224,7 @@ static bool vblk_wait_used(struct o0_virtio_blk *vd) {
 static void vblk_submit_chain(struct o0_virtio_blk *vd) {
     uint16_t slot = (uint16_t)(vd->avail->idx % vd->queue_size);
     vd->avail->ring[slot] = 0;
+    /* Publish descriptor/avail entry before making the new index visible. */
     __asm__ volatile ("mfence" : : : "memory");
     vd->avail->idx = (uint16_t)(vd->avail->idx + 1u);
     __asm__ volatile ("mfence" : : : "memory");
@@ -466,8 +469,19 @@ o0_status o0_virtio_blk_probe(const char *name, struct o0_block_dev **out) {
     vblk_outw((uint16_t)(vd->io_base + VBLK_REG_QUEUE_SELECT), 0);
     vd->queue_size = vblk_inw((uint16_t)(vd->io_base + VBLK_REG_QUEUE_SIZE));
     size_t used_offset = 0, ring_bytes = 0;
+    if (vd->queue_size == 0u) {
+        o0_serial_puts("virtio-blk: queue 0 unavailable (QUEUE_SIZE=0)\\n");
+        vblk_outb((uint16_t)(vd->io_base + VBLK_REG_STATUS), VBLK_STATUS_FAILED);
+        return O0_ENOTSUP;
+    }
+    if ((vd->queue_size & (uint16_t)(vd->queue_size - 1u)) != 0u) {
+        o0_serial_puts("virtio-blk: invalid non-power-of-two QUEUE_SIZE\\n");
+        vblk_outb((uint16_t)(vd->io_base + VBLK_REG_STATUS), VBLK_STATUS_FAILED);
+        return O0_ENOTSUP;
+    }
     if (vd->queue_size < 3u ||
         !o0_virtio_legacy_ring_layout(vd->queue_size, &used_offset, &ring_bytes)) {
+        o0_serial_puts("virtio-blk: queue too small or ring layout overflow\\n");
         vblk_outb((uint16_t)(vd->io_base + VBLK_REG_STATUS), VBLK_STATUS_FAILED);
         return O0_ENOTSUP;
     }
@@ -481,7 +495,9 @@ o0_status o0_virtio_blk_probe(const char *name, struct o0_block_dev **out) {
     constraint.max_segment = 0;
     constraint.coherent = true;
 
-    if (o0_dma_alloc(&constraint, ring_bytes, &vd->ring) != O0_OK) {
+    size_t ring_alloc_bytes = (ring_bytes + O0_PAGE_SIZE - 1u) &
+                              ~(size_t)(O0_PAGE_SIZE - 1u);
+    if (o0_dma_alloc(&constraint, ring_alloc_bytes, &vd->ring) != O0_OK) {
         return O0_ENOMEM;
     }
     if (o0_dma_alloc(&constraint, O0_PAGE_SIZE, &vd->req) != O0_OK) {
