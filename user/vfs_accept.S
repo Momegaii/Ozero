@@ -129,11 +129,11 @@ _start:
     syscall
     testq %rax, %rax
     jne fail
-    cmpl $7, dirent_out+28(%rip)
+    cmpl $4, dirent_out+28(%rip)
     jne fail
     leaq dirent_out+32(%rip), %rdi
-    leaq new_path(%rip), %rsi
-    movl $7, %ecx
+    leaq mount_name(%rip), %rsi
+    movl $4, %ecx
     repe cmpsb
     jne fail
 
@@ -215,6 +215,7 @@ seed_expected:   .ascii "seed-data"
 o0fs_path:       .ascii "o0fs/sys/log"
 o0fs_expected:   .ascii "o0fs online"
 new_path:        .ascii "created"
+mount_name:      .ascii "o0fs"
 traversal_path:  .ascii "../seed"
 payload:         .ascii "vfs-write-pass"
 
