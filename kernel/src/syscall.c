@@ -406,13 +406,36 @@ static int64_t sys_file_open(uint64_t directory_handle, const char *user_path,
     if (st != O0_OK) return o0_uapi_error_from_status(st);
     if (directory->type != O0_OBJ_VNODE ||
         (directory_rights & O0_RIGHT_READ) == 0 ||
-        (((rights & (O0_RIGHT_READ | O0_RIGHT_WRITE | O0_RIGHT_INFO |
-                     O0_RIGHT_DUP | O0_RIGHT_TRANSFER)) &
-          ~directory_rights) != 0) ||
+        (rights & ~directory_rights) != 0 ||
+        (rights & (O0_RIGHT_READ | O0_RIGHT_WRITE | O0_RIGHT_INFO |
+                   O0_RIGHT_ENUM | O0_RIGHT_CREATE | O0_RIGHT_REMOVE)) == 0 ||
         ((flags & O0_VFS_OPEN_CREATE) != 0 &&
          (directory_rights & O0_RIGHT_CREATE) == 0)) {
         return O0_UE_PERM;
     }
+
+    /* Opening a directory returns another vnode capability; opening a file
+     * returns an O0_OBJ_FILE capability. The object type is never ambiguous. */
+    struct o0_vnode *node = NULL;
+    st = o0_vfs_lookup((struct o0_vnode *)directory, path,
+                       (size_t)path_length, &node);
+    if (st == O0_OK && node != NULL && node->type == O0_VNODE_DIRECTORY) {
+        if ((flags & (O0_VFS_OPEN_CREATE | O0_VFS_OPEN_EXCLUSIVE)) ==
+            (O0_VFS_OPEN_CREATE | O0_VFS_OPEN_EXCLUSIVE)) {
+            o0_object_unref(&node->obj);
+            return O0_UE_EXIST;
+        }
+        uint64_t handle = 0;
+        o0_status install = o0_handle_install(proc->handles, &node->obj,
+                                              rights, &handle);
+        o0_object_unref(&node->obj);
+        return install == O0_OK ? (int64_t)handle
+                                : o0_uapi_error_from_status(install);
+    }
+    if (node != NULL) o0_object_unref(&node->obj);
+    if (st != O0_OK && st != O0_ENOENT)
+        return o0_uapi_error_from_status(st);
+
     struct o0_vfs_file *file = NULL;
     st = o0_vfs_open((struct o0_vnode *)directory, path, (size_t)path_length,
                      flags, rights, proc->budget, &file);
