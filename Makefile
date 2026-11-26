@@ -44,7 +44,7 @@ KERNEL_OBJS := $(BUILD)/main.o $(BUILD)/serial.o $(BUILD)/string.o $(BUILD)/stat
 
 # Static user images, embedded in the kernel image for the Wave 2 self-tests.
 USER_PROGS := init quiet fault_null fault_priv fault_kjump badptr \
-              spawner spawn_child ipc_server ipc_client handles budget ipcneg peer_server
+              spawner spawn_child ipc_server ipc_client handles budget ipcneg peer_server vfs_accept
 USER_ELFS := $(addprefix $(BUILD)/user_,$(addsuffix .elf,$(USER_PROGS)))
 USER_BLOBS := $(addprefix $(BUILD)/blob_,$(addsuffix .o,$(USER_PROGS)))
 KERNEL_OBJS += $(USER_BLOBS)
