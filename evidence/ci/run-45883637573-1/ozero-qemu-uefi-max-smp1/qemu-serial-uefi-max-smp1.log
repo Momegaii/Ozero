@@ -1,0 +1,262 @@
+[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;042;160t[2J[001;001H[2J[001;001H[8;056;240t[2J[001;001HBdsDxe: loading Boot0002 "UEFI QEMU DVD-ROM QM00005 " from PciRoot(0x0)/Pci(0x1F,0x2)/Sata(0x2,0xFFFF,0x0)
+BdsDxe: starting Boot0002 "UEFI QEMU DVD-ROM QM00005 " from PciRoot(0x0)/Pci(0x1F,0x2)/Sata(0x2,0xFFFF,0x0)
+[001;001H[001;001H
+OZERO: build commit=476f29003527
+OZERO: cpu vendor=AuthenticAMD family=6 model=6 stepping=3 brand=QEMU TCG CPU version 2.5+
+OZERO: platform=qemu-tcg hypervisor=TCGTCGTCGTCG signature=0x0000000000000000 firmware=UEFI
+OZERO: kernel entry reached
+OZERO: lock order check=off
+OZERO: architecture=x86_64
+OZERO: boot protocol=Limine
+OZERO: Limine base revision accepted
+OZERO: IDT installed (CPU exceptions 0-31)
+OZERO: hhdm_offset=0xffff800000000000
+OZERO: boot info populated
+OZERO: acpi cpus=1 ioapics=1 overrides=5 lapic=0x00000000fee00000 bsp_apic=0
+OZERO: kernel_phys=0x000000001a21d000 kernel_virt=0xffffffff80000000 size=758920
+OZERO: PMM initialised
+OZERO: total memory=529604608
+OZERO: free memory=489041920
+OZERO: CPU long_mode=yes pae=yes nx=yes sse2=yes apic=yes page_1gb=yes invariant_tsc=no
+OZERO: framebuffer discovery valid
+OZERO: kaslr layout offset=0x000000001c000000
+OZERO: page tables built
+OZERO: page tables active
+OZERO: smep=on smap=on
+OZERO: gdt+tss installed
+OZERO: framebuffer presentation active physical=0x0000000080000000 bytes=4096000
+OZERO: framebuffer bars=8 width=1280 height=800
+OZERO: framebuffer sample bar=0 pixel=0x0000000000121836 expected=0x0000000000121836
+OZERO: framebuffer sample bar=1 pixel=0x0000000000185c96 expected=0x0000000000185c96
+OZERO: framebuffer sample bar=2 pixel=0x0000000000149678 expected=0x0000000000149678
+OZERO: framebuffer sample bar=3 pixel=0x0000000000367824 expected=0x0000000000367824
+OZERO: framebuffer sample bar=4 pixel=0x0000000000d2aa20 expected=0x0000000000d2aa20
+OZERO: framebuffer sample bar=5 pixel=0x0000000000d26420 expected=0x0000000000d26420
+OZERO: framebuffer sample bar=6 pixel=0x0000000000782436 expected=0x0000000000782436
+OZERO: framebuffer sample bar=7 pixel=0x0000000000dcdcdc expected=0x0000000000dcdcdc
+OZERO: framebuffer checksum=0x000000008acf6953 expected=0x000000008acf6953
+OZERO: kernel heap ready
+OZERO: root budget ready
+OZERO: PIC remapped to vectors 32-47
+OZERO: interrupt delivery=lapic-extint
+OZERO: scheduler initialised
+OZERO: timer IRQ enabled at 100 Hz
+OZERO: timer=lapic hz=100
+OZERO: ioapic=active gsis=24
+OZERO: smp cpus=1 online=1
+OZERO: bootloader reclaim bytes=40558592
+OZERO: input: PS/2 keyboard+mouse initialized
+OZERO: stage3 self-test
+OZERO: heap OK total=16384 live=1
+OZERO: address spaces OK
+OZERO: synchronization OK
+OZERO: stage3 self-test complete
+OZERO: block layer ready devices=0
+OZERO: pci devices=6
+OZERO: pci caps msi=2 msix=1
+OZERO: ramdisk registered name=ram0 blocks=512
+OZERO: o0fs formatted blocks=512
+OZERO: o0fs mounted free blocks=493 inodes=510
+OZERO: o0fs file OK bytes=11
+OZERO: o0fs fault test OK
+OZERO: storage self-test complete
+OZERO: stage5 self-test
+OZERO: gpu core self-test complete
+OZERO: gpu pci display devices=1
+OZERO: gpu device bdf=0:1.0 vendor=0x0000000000001234 device=0x0000000000001111 class=0x0000000000000003 rev=0x0000000000000002 mmio=yes backend=none supported=no
+OZERO: gpu discovery complete
+OZERO: gpu context isolation OK
+OZERO: gpu submit seqno=1
+OZERO: gpu fence timeout OK
+OZERO: gpu faulted queue refused work
+OZERO: gpu recovery refused without verified reset
+OZERO: gpu unconsumed work quarantined
+OZERO: gpu submission self-test complete
+OZERO: ahci port ssts sig=0x0x0000000000000000 0x0x00000000ffff0101
+OZERO: ahci port ssts sig=0x0x0000000000000000 0x0x00000000ffff0101
+OZERO: ahci port ssts sig=0x0x0000000000000113 0x0x00000000eb140101
+OZERO: ahci port ssts sig=0x0x0000000000000000 0x0x00000000ffff0101
+OZERO: ahci probe stage=port status=3
+OZERO: ahci probe stage=controller status=3
+OZERO: memory map entries=33
+  [0] base=0x0000000000000000 length=0x0000000000087000 type=usable
+  [1] base=0x0000000000087000 length=0x0000000000001000 type=boot-reclaim
+  [2] base=0x0000000000088000 length=0x0000000000018000 type=usable
+  [3] base=0x0000000000100000 length=0x0000000000700000 type=usable
+  [4] base=0x0000000000800000 length=0x0000000000008000 type=acpi-nvs
+  [5] base=0x0000000000808000 length=0x0000000000003000 type=usable
+  [6] base=0x000000000080b000 length=0x0000000000001000 type=acpi-nvs
+  [7] base=0x000000000080c000 length=0x0000000000008000 type=usable
+  [8] base=0x0000000000814000 length=0x00000000000ec000 type=acpi-nvs
+  [9] base=0x0000000000900000 length=0x0000000000e80000 type=boot-reclaim
+  [10] base=0x0000000001780000 length=0x0000000018a9a000 type=usable
+  [11] base=0x000000001a21a000 length=0x0000000000003000 type=boot-reclaim
+  [12] base=0x000000001a21d000 length=0x00000000000ba000 type=kernel/modules
+  [13] base=0x000000001a2d7000 length=0x0000000000048000 type=boot-reclaim
+  [14] base=0x000000001a31f000 length=0x0000000000036000 type=usable
+  [15] base=0x000000001a355000 length=0x0000000000017000 type=boot-reclaim
+  [16] base=0x000000001a36c000 length=0x0000000001c00000 type=usable
+  [17] base=0x000000001bf6c000 length=0x000000000003b000 type=boot-reclaim
+  [18] base=0x000000001bfa7000 length=0x00000000023ea000 type=usable
+  [19] base=0x000000001e391000 length=0x00000000009ae000 type=boot-reclaim
+  [20] base=0x000000001ed3f000 length=0x00000000000c1000 type=reserved-mapped
+  [21] base=0x000000001ee00000 length=0x0000000000aed000 type=boot-reclaim
+  [22] base=0x000000001f8ed000 length=0x0000000000200000 type=reserved-mapped
+  [23] base=0x000000001faed000 length=0x0000000000080000 type=reserved
+  [24] base=0x000000001fb6d000 length=0x0000000000012000 type=acpi-reclaim
+  [25] base=0x000000001fb7f000 length=0x0000000000080000 type=acpi-nvs
+  [26] base=0x000000001fbff000 length=0x00000000002f5000 type=boot-reclaim
+  [27] base=0x000000001fef4000 length=0x0000000000084000 type=reserved-mapped
+  [28] base=0x000000001ff78000 length=0x0000000000088000 type=acpi-nvs
+  [29] base=0x0000000080000000 length=0x00000000003e8000 type=framebuffer
+  [30] base=0x00000000e0000000 length=0x0000000010000000 type=reserved
+  [31] base=0x00000000ffc00000 length=0x0000000000400000 type=reserved
+  [32] base=0x000000fd00000000 length=0x0000000300000000 type=reserved
+OZERO: kernel threads created=2
+OZERO: boot success; starting scheduler
+OZERO: wave2 run init
+OZERO: worker-a iteration=0 counter=1
+OZERO: worker-b iteration=0 counter=2
+OZERO: stage6 desktop backbuffer unavailable
+OZERO: user entry OK
+OZERO: wave2 done init status=0
+OZERO: syscall exit status=0
+OZERO: wave2 run fault-null
+OZERO: worker-a iteration=1 counter=3
+OZERO: worker-b iteration=1 counter=4
+OZERO: user fault contained vector=14 rip=0x0000000040000003 cr2=0x0000000000000000 error=0x0000000000000004
+OZERO: wave2 done fault-null status=-1
+OZERO: wave2 run fault-priv
+OZERO: user fault contained vector=13 rip=0x0000000040000000 cr2=0x0000000000000000 error=0x0000000000000000
+OZERO: wave2 done fault-priv status=-1
+OZERO: wave2 run fault-kjump
+OZERO: worker-a iteration=2 counter=5
+OZERO: worker-b iteration=2 counter=6
+OZERO: user fault contained vector=14 rip=0xffffffff80000000 cr2=0xffffffff80000000 error=0x0000000000000015
+OZERO: wave2 done fault-kjump status=-1
+OZERO: wave2 run badptr
+OZERO: wave2 done badptr status=0
+OZERO: syscall bad pointer rejected
+OZERO: wave2 run churn
+OZERO: wave2 done churn status=0
+OZERO: wave2 run churn
+OZERO: wave2 done churn status=0
+OZERO: wave2 run churn
+OZERO: wave2 done churn status=0
+OZERO: wave2 run churn
+OZERO: wave2 done churn status=0
+OZERO: wave2 run churn
+OZERO: wave2 done churn status=0
+OZERO: wave2 run churn
+OZERO: wave2 done churn status=0
+OZERO: wave2 run churn
+OZERO: wave2 done churn status=0
+OZERO: wave2 run churn
+OZERO: wave2 done churn status=0
+OZERO: wave2 run churn
+OZERO: wave2 done churn status=0
+OZERO: wave2 run churn
+OZERO: wave2 done churn status=0
+OZERO: wave2 run churn
+OZERO: wave2 done churn status=0
+OZERO: wave2 run churn
+OZERO: wave2 done churn status=0
+OZERO: wave2 run churn
+OZERO: wave2 done churn status=0
+OZERO: wave2 run churn
+OZERO: wave2 done churn status=0
+OZERO: wave2 run churn
+OZERO: wave2 done churn status=0
+OZERO: wave2 run churn
+OZERO: wave2 done churn status=0
+OZERO: user churn OK processes=16
+OZERO: wave2 self-test complete
+OZERO: handle table ready
+OZERO: budget accounting ready
+OZERO: spawn syscall OK
+OZERO: wave3 done spawner status=0
+OZERO: worker-a exiting
+OZERO: worker-b exiting
+OZERO: spawn syscall child reaped
+OZERO: ipc client
+OZERO: ipc server got request
+OZERO: ipc call OK
+OZERO: ipc server replied
+OZERO: wave3 done pair-1 status=0
+OZERO: wave3 done pair-1 status=0
+OZERO: ipc pair OK pair-1
+OZERO: ipc self-test complete
+OZERO: handle negative tests OK
+OZERO: wave3 done handles status=0
+OZERO: budget exhaustion OK
+OZERO: wave3 done budget status=0
+OZERO: ipc peer exited
+OZERO: wave3 done peer-server status=0
+OZERO: ipc negative tests OK
+OZERO: wave3 done ipcneg status=0
+OZERO: ipc client
+OZERO: ipc server got request
+OZERO: ipc call OK
+OZERO: ipc server replied
+OZERO: wave3 done warm-up status=0
+OZERO: wave3 done warm-up status=0
+OZERO: ipc pair OK warm-up
+OZERO: ipc client
+OZERO: ipc server got request
+OZERO: ipc call OK
+OZERO: ipc server replied
+OZERO: wave3 done churn status=0
+OZERO: wave3 done churn status=0
+OZERO: ipc pair OK churn
+OZERO: ipc client
+OZERO: ipc server got request
+OZERO: ipc call OK
+OZERO: ipc server replied
+OZERO: wave3 done churn status=0
+OZERO: wave3 done churn status=0
+OZERO: ipc pair OK churn
+OZERO: ipc client
+OZERO: ipc server got request
+OZERO: ipc call OK
+OZERO: ipc server replied
+OZERO: wave3 done churn status=0
+OZERO: wave3 done churn status=0
+OZERO: ipc pair OK churn
+OZERO: ipc client
+OZERO: ipc server got request
+OZERO: ipc call OK
+OZERO: ipc server replied
+OZERO: wave3 done churn status=0
+OZERO: wave3 done churn status=0
+OZERO: ipc pair OK churn
+OZERO: ipc client
+OZERO: ipc server got request
+OZERO: ipc call OK
+OZERO: ipc server replied
+OZERO: wave3 done churn status=0
+OZERO: wave3 done churn status=0
+OZERO: ipc pair OK churn
+OZERO: ipc client
+OZERO: ipc server got request
+OZERO: ipc call OK
+OZERO: ipc server replied
+OZERO: wave3 done churn status=0
+OZERO: wave3 done churn status=0
+OZERO: ipc pair OK churn
+OZERO: ipc client
+OZERO: ipc server got request
+OZERO: ipc call OK
+OZERO: ipc server replied
+OZERO: wave3 done churn status=0
+OZERO: wave3 done churn status=0
+OZERO: ipc pair OK churn
+OZERO: ipc client
+OZERO: ipc server got request
+OZERO: ipc call OK
+OZERO: ipc server replied
+OZERO: wave3 done churn status=0
+OZERO: wave3 done churn status=0
+OZERO: ipc pair OK churn
+OZERO: wave3 churn OK pairs=8
+OZERO: smp scheduling skipped online=1
+OZERO: wave3 self-test complete
