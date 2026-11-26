@@ -57,7 +57,7 @@ static o0_status path_component(const char **cursor, const char **name,
 
 static bool path_has_nul(const char *path, size_t length) {
     for (size_t i = 0; i < length; ++i) {
-        if (path[i] == '\\0') return true;
+        if (path[i] == '\0') return true;
     }
     return false;
 }
