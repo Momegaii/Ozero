@@ -35,7 +35,7 @@ static struct o0_tmpfs_node *tmpfs_node(struct o0_vnode *vnode) {
 }
 
 static void tmpfs_state_put(struct o0_tmpfs_state *fs) {
-    if (fs == NULL || --fs->references != 0) return;
+    if (fs == NULL || __atomic_sub_fetch(&fs->references, 1u, __ATOMIC_ACQ_REL) != 0) return;
     struct o0_budget *budget = fs->budget;
     o0_kfree(fs, sizeof(*fs));
     o0_budget_uncharge(budget, sizeof(*fs));
@@ -57,7 +57,9 @@ static void tmpfs_node_destroy(struct o0_object *object) {
     if (node->data != NULL) {
         o0_kfree(node->data, node->data_capacity);
         o0_budget_uncharge(fs->budget, node->data_capacity);
+        o0_spin_lock(&fs->lock);
         if (fs->used >= node->data_capacity) fs->used -= node->data_capacity;
+        o0_spin_unlock(&fs->lock);
         node->data = NULL;
     }
     tmpfs_state_put(fs);
@@ -80,7 +82,7 @@ static o0_status tmpfs_node_create(struct o0_tmpfs_state *fs, uint32_t type,
     node->vnode.private_data = node;
     node->vnode.type = type;
     node->fs = fs;
-    ++fs->references;
+    __atomic_add_fetch(&fs->references, 1u, __ATOMIC_RELAXED);
     node->id = ++fs->next_id;
     if (name != NULL && name_len != 0) {
         memcpy(node->name, name, name_len);
@@ -219,10 +221,12 @@ static o0_status tmpfs_write(struct o0_vnode *vnode, uint64_t offset,
 static o0_status tmpfs_stat(struct o0_vnode *vnode, struct o0_vfs_stat *out) {
     if (vnode == NULL || out == NULL) return O0_EINVAL;
     struct o0_tmpfs_node *node = tmpfs_node(vnode);
+    o0_spin_lock(&node->fs->lock);
     out->size = node->size;
     out->object_id = node->id;
     out->type = vnode->type;
     out->flags = 0;
+    o0_spin_unlock(&node->fs->lock);
     return O0_OK;
 }
 
@@ -266,6 +270,10 @@ static o0_status tmpfs_unlink(struct o0_vnode *vnode, const char *name,
         struct o0_tmpfs_node *child = *link;
         if (strlen(child->name) == name_len &&
             memcmp(child->name, name, name_len) == 0) {
+            if (child->vnode.mounted_root != NULL) {
+                o0_spin_unlock(&fs->lock);
+                return O0_EBUSY;
+            }
             if (child->vnode.type == O0_VNODE_DIRECTORY && child->children != NULL) {
                 o0_spin_unlock(&fs->lock);
                 return O0_ENOTEMPTY;
