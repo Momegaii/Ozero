@@ -35,6 +35,7 @@ KERNEL_OBJS := $(BUILD)/main.o $(BUILD)/serial.o $(BUILD)/string.o $(BUILD)/stat
                $(BUILD)/gpu_device.o $(BUILD)/gpu_queue.o $(BUILD)/surface.o \
                $(BUILD)/display.o $(BUILD)/input.o $(BUILD)/input_ps2.o $(BUILD)/input_router.o $(BUILD)/window.o \
                $(BUILD)/compositor.o $(BUILD)/gfx_backend.o $(BUILD)/shell.o \
+               $(BUILD)/desktop_ui.o \
                $(BUILD)/abi.o $(BUILD)/elf.o $(BUILD)/usercopy.o $(BUILD)/usercopy_stub.o \
                $(BUILD)/user.o $(BUILD)/syscall_c.o $(BUILD)/syscall_entry.o \
                $(BUILD)/gdt.o \
