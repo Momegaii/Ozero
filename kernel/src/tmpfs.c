@@ -74,8 +74,8 @@ static o0_status tmpfs_node_create(struct o0_tmpfs_state *fs, uint32_t type,
                                    fs->budget, tmpfs_node_destroy, &object);
     if (st != O0_OK) return st;
     struct o0_tmpfs_node *node = (struct o0_tmpfs_node *)object;
-    memset(node, 0, sizeof(*node));
-    node->vnode.obj = *object;
+    memset((uint8_t *)node + sizeof(node->vnode.obj), 0,
+           sizeof(*node) - sizeof(node->vnode.obj));
     node->vnode.ops = NULL;
     node->vnode.private_data = node;
     node->vnode.type = type;
