@@ -31,7 +31,7 @@ KERNEL_OBJS := $(BUILD)/main.o $(BUILD)/serial.o $(BUILD)/string.o $(BUILD)/stat
                $(BUILD)/irq.o $(BUILD)/ioapic.o $(BUILD)/paging.o $(BUILD)/cpu.o $(BUILD)/pic.o $(BUILD)/smp.o $(BUILD)/ap_entry.o $(BUILD)/apic_timer.o $(BUILD)/kaslr.o \
                $(BUILD)/interrupts_c.o $(BUILD)/interrupts.o $(BUILD)/irq_stubs.o \
                $(BUILD)/context.o $(BUILD)/block.o $(BUILD)/ramdisk.o \
-               $(BUILD)/o0fs.o $(BUILD)/pci.o $(BUILD)/dma.o $(BUILD)/virtio_blk.o $(BUILD)/ahci.o $(BUILD)/nvme.o $(BUILD)/partition.o $(BUILD)/gpu.o $(BUILD)/gpu_hsw.o \
+               $(BUILD)/o0fs.o $(BUILD)/pci.o $(BUILD)/dma.o $(BUILD)/virtio_blk.o $(BUILD)/virtio_blk_modern.o $(BUILD)/ahci.o $(BUILD)/nvme.o $(BUILD)/partition.o $(BUILD)/gpu.o $(BUILD)/gpu_hsw.o \
                $(BUILD)/gpu_device.o $(BUILD)/gpu_queue.o $(BUILD)/surface.o \
                $(BUILD)/display.o $(BUILD)/input.o $(BUILD)/input_ps2.o $(BUILD)/input_router.o $(BUILD)/window.o \
                $(BUILD)/compositor.o $(BUILD)/gfx_backend.o $(BUILD)/shell.o \
@@ -212,6 +212,8 @@ test: $(BUILD)
 	$(HOST_RUN_ENV) ./$(BUILD)/storage_encode_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/virtio_ring_test tests/virtio_ring_test.c
 	$(HOST_RUN_ENV) ./$(BUILD)/virtio_ring_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/virtio_blk_modern_test tests/virtio_blk_modern_test.c
+	$(HOST_RUN_ENV) ./$(BUILD)/virtio_blk_modern_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/pci_test tests/pci_test.c
 	$(HOST_RUN_ENV) ./$(BUILD)/pci_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/dma_test tests/dma_test.c

@@ -2,10 +2,11 @@
  * Ozero (o0) virtio-blk driver interface (Wave 4.2).
  *
  * The driver registers a real o0_block_dev, so the block layer's validation,
- * timeout, quarantine and cancellation rules apply unchanged. It speaks the
- * legacy virtio PCI transport (I/O BAR0 + PFN queue programming); the modern
- * transport is not implemented yet and probe reports O0_ENOTSUP rather than
- * pretending otherwise.
+ * timeout, quarantine and cancellation rules apply unchanged. Two PCI
+ * transports are supported: legacy virtio (I/O BAR0 + PFN queue programming)
+ * and modern virtio (MMIO BAR + capability-discovered config regions).
+ * Probe tries modern first, then legacy; a device that exposes neither returns
+ * O0_ENOENT.
  *
  * Completion: one request is in flight per device. The MSI vector (or the
  * legacy line, when no MSI capability exists) runs an interrupt handler that
@@ -26,8 +27,8 @@ extern "C" {
 #endif
 
 /* Probes PCI for a virtio block device and registers it under `name` when
- * found. Returns O0_ENOENT when no device is present and O0_ENOTSUP when the
- * device only exposes the modern transport. */
+ * found. Tries the modern (MMIO) transport first, then the legacy (I/O port)
+ * transport. Returns O0_ENOENT when no device is present. */
 O0_NODISCARD o0_status o0_virtio_blk_probe(const char *name,
                                            struct o0_block_dev **out);
 
@@ -38,6 +39,13 @@ O0_NODISCARD o0_status o0_virtio_blk_inject_error(struct o0_block_dev *dev);
 
 /* Interrupts taken by the driver since probe (diagnostics). */
 uint64_t o0_virtio_blk_irq_count(struct o0_block_dev *dev);
+
+/* Modern-transport-only entry points (diagnostics and tests). */
+O0_NODISCARD o0_status o0_virtio_blk_modern_probe(const char *name,
+                                                   struct o0_block_dev **out);
+uint64_t o0_virtio_blk_modern_irq_count(struct o0_block_dev *dev);
+O0_NODISCARD o0_status o0_virtio_blk_modern_inject_error(
+    struct o0_block_dev *dev);
 
 #ifdef __cplusplus
 }

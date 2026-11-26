@@ -121,33 +121,46 @@ This is CI evidence, not Director-observed and not physical.
 
 ### Wave 4.2 status
 
-Implemented in `kernel/src/virtio_blk.c` and registered through
+Implemented in `kernel/src/virtio_blk.c` (legacy transport, device ID `0x1001`)
+and `kernel/src/virtio_blk_modern.c` (modern MMIO transport, device ID
+`0x1042`, PCI vendor-specific capability ID `0x09`), both registered through
 `o0_block_register`, so the block layer's validation, timeout, quarantine and
 cancellation rules apply unchanged.
 
-- **Transport:** legacy virtio PCI only (I/O BAR0, PFN queue programming, the spec
-  ring layout the device recomputes from the PFN). A device that exposes only the
-  modern transport is refused with `O0_ENOTSUP` instead of being mis-programmed.
-  Modern transport is **not implemented**.
-- **Queue:** one queue, 32 descriptors, one request in flight. Ring and request
-  header come from the DMA allocator and are pinned for the device lifetime; the
-  data buffer stays the block layer's bounce buffer and is never retained.
-- **Completion:** the MSI vector runs a handler that acknowledges the device ISR and
-  counts interrupts; the submitting call waits on the used ring with a bounded spin
-  and reports `O0_BLOCK_ERR_TIMEOUT` rather than blocking. Interrupt-driven
-  completion is therefore acknowledged but not load-bearing, and is reported as such.
-- **Markers:** `OZERO: virtio-blk read/write OK irq=<n> sectors=<n>` and
-  `OZERO: virtio-blk error path OK`. The second is the injected-error test: a read
-  that runs past the end of the medium must be refused by the device and decoded by
-  the driver.
-- **CI cell:** `storage (virtio, smp=2)` in `.github/workflows/quality.yml`, with a
-  raw 8 MiB image attached and `-smp 2`. `tools/qemu-smoke.sh` requires both markers
-  only in that cell, so other cells are unaffected.
-- **Evidence:** build-verified locally (`make kernel`, `-Werror`). The cell is
-  **not yet observed green**; no claim is made until a run is recorded here with its
-  logs read from the `ci-evidence` branch.
-- **Not covered:** physical controllers (never), modern transport, multiple queues,
-  asynchronous submission, and any performance claim.
+- **Probe:** `o0_virtio_blk_probe` tries modern first, then falls back to
+  legacy. `o0_virtio_blk_irq_count` and `o0_virtio_blk_inject_error` check both
+  transports.
+- **Modern transport:** BAR mapped uncached (`O0_MAP_READ | O0_MAP_WRITE |
+  O0_MAP_UC | O0_MAP_NX`) below NVMe's window at
+  `0xffffc00040000000`; config regions discovered by walking PCI cap ID `0x09`
+  (the pure `vblk_modern_walk_caps()` is host-tested in
+  `tests/virtio_blk_modern_test.c`). Feature handshake accepts
+  `VIRTIO_BLK_F_FLUSH`; queue 0 programmed through MMIO; MSI-X entry 0
+  opportunistic; used-ring polling bounds completion latency.
+- **Queue:** one virtqueue, one request in flight, 16-byte request header plus
+  optional data buffer plus 1-byte status. Ring and request header from the DMA
+  allocator, pinned for device lifetime; data buffer stays the block layer's
+  bounce buffer.
+- **Markers:** `OZERO: virtio-blk-modern ready ...` followed by `virtio-blk
+  read/write OK irq=<n> sectors=<n>` and `virtio-blk error path OK`. The second
+  is the injected-error test: a read past the end of the medium must be refused
+  by the device and decoded by the driver.
+- **CI cell:** `storage (virtio, smp=2)` in
+  `.github/workflows/quality.yml`, with `disable-modern=on` removed so the
+  modern transport is exercised. `-smp 2` tests completion on a non-boot CPU.
+- **Evidence:** build-verified locally (`make kernel`, `-Werror`); host test
+  `tests/virtio_blk_modern_test.c` passes under `make test` and
+  `make test-sanitize` (ASan+UBSan+leak detection). The CI cell needs a green
+  run with logs read from the `ci-evidence` branch before it is CI evidence.
+- **Not covered:** physical controllers (never), MSI-X multi-vector, multiple
+  virtqueues, asynchronous submission, performance claims.
+
+#### Correction to Wave 4.2
+
+`o0_pci_init` records identity and capabilities but never probes BARs, and
+`virtio_blk` read its legacy I/O BAR from that unprobed record. `775e333` probes
+BAR0 inside the probe path, so the Wave 4.2 cell can find its device at all;
+that cell still needs a run and a log read before it is evidence.
 
 ### Wave 4.3 status
 
@@ -206,11 +219,18 @@ cell still needs a run and a log read before it is evidence.
 ## Wave 4.2 — virtio-blk first
 
 1. Legacy and modern virtio PCI transport, one virtqueue, and interrupt-driven completion.
+   **Done:** legacy transport in `kernel/src/virtio_blk.c`; modern MMIO transport in
+   `kernel/src/virtio_blk_modern.c`; probe tries modern first, falls back to legacy.
+   ADR [0017](decisions/0017-modern-virtio-blk-transport.md) — `Accepted`.
 2. Register it behind the existing block layer, with the timeout, quarantine and
-   cancellation rules already there.
+   cancellation rules already there. **Done.**
 3. QEMU marker: `virtio-blk read/write OK`, run with a disk image attached in CI. Add a CI
-   cell, and a test that injects an I/O error.
+   cell, and a test that injects an I/O error. **Done:** CI cell
+   `storage (virtio, smp=2)` in `.github/workflows/quality.yml` with
+   `disable-modern=on` removed; `tests/virtio_blk_modern_test.c` covers the
+   capability walk under `make test` and `make test-sanitize`.
 4. Run it with `-smp 2` as well, to test completion interrupts on a non-boot CPU.
+   **Done:** CI cell runs `-smp 2`.
 
 ## Wave 4.3 — AHCI, then NVMe
 

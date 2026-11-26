@@ -380,39 +380,30 @@ static void vblk_set_name(char *dst, const char *src) {
     dst[i] = '\0';
 }
 
-static bool vblk_is_legacy(const struct o0_pci_device *pci) {
-    if (pci == NULL || pci->vendor_id != 0x1AF4u) {
-        return false;
-    }
-    if (pci->device_id != 0x1001u) {
-        return false;
-    }
-    /* o0_pci_init records identity and capabilities but does not touch BARs, so
-     * the legacy I/O BAR has to be probed before it can be used. */
-    struct o0_pci_bar bar0;
-    if (o0_pci_probe_bar(pci->bdf, 0u, pci->resources.header_type, &bar0) != 0) {
-        return false;
-    }
-    return bar0.valid && !bar0.is_memory && bar0.assigned;
-}
-
 o0_status o0_virtio_blk_probe(const char *name, struct o0_block_dev **out) {
     if (name == NULL || out == NULL || name[0] == '\0') {
         return O0_EINVAL;
     }
     *out = NULL;
+    o0_status st;
 
+    /* Try the modern (MMIO) transport first. */
+    st = o0_virtio_blk_modern_probe(name, out);
+    if (st == O0_OK && *out != NULL) {
+        return O0_OK;
+    }
+    if (st != O0_ENOENT && st != O0_ENOTSUP) {
+        return st;
+    }
+
+    /* Fall back to the legacy (I/O port) transport. */
     const struct o0_pci_device *found = NULL;
     for (size_t i = 0; i < o0_pci_device_count(); ++i) {
         const struct o0_pci_device *pci = o0_pci_device(i);
         if (pci == NULL) {
             continue;
         }
-        if (pci->vendor_id == 0x1AF4u && pci->device_id == 0x1042u) {
-            /* Modern transport only: refuse rather than mis-program I/O ports. */
-            return O0_ENOTSUP;
-        }
-        if (vblk_is_legacy(pci)) {
+        if (pci->vendor_id == 0x1AF4u && pci->device_id == 0x1001u) {
             found = pci;
             break;
         }
@@ -593,7 +584,7 @@ o0_status o0_virtio_blk_probe(const char *name, struct o0_block_dev **out) {
     vd->queue.ops = &vblk_queue_ops;
     vd->queue.driver_data = vd;
 
-    o0_status st = o0_block_register(&vd->dev);
+    st = o0_block_register(&vd->dev);
     if (st != O0_OK) {
         vd->in_use = false;
         vblk_ignore(o0_dma_unpin(&vd->req));
@@ -609,25 +600,28 @@ o0_status o0_virtio_blk_probe(const char *name, struct o0_block_dev **out) {
 
 uint64_t o0_virtio_blk_irq_count(struct o0_block_dev *dev) {
     struct o0_virtio_blk *vd = vblk_from_dev(dev);
-    return vd != NULL ? vd->irq_count : 0u;
+    if (vd != NULL) {
+        return vd->irq_count;
+    }
+    return o0_virtio_blk_modern_irq_count(dev);
 }
 
 o0_status o0_virtio_blk_inject_error(struct o0_block_dev *dev) {
     struct o0_virtio_blk *vd = vblk_from_dev(dev);
-    if (vd == NULL) {
-        return O0_ENOENT;
+    if (vd != NULL) {
+        /* A read starting at the last sector but two sectors long runs off the end
+         * of the medium. The device reports the failure; the driver must decode it
+         * rather than hang or report success. */
+        uint64_t sector = vd->capacity > 1u ? vd->capacity - 1u : 0u;
+        uint64_t phys = vd->req.phys + 512u;
+        if (vd->req.size < 512u + 1024u) {
+            return O0_ENOMEM;
+        }
+        o0_block_status st = vblk_run(vd, VBLK_T_IN, sector, phys, 1024u, false);
+        if (st == O0_BLOCK_OK) {
+            return O0_EIO; /* the device accepted an out-of-range read */
+        }
+        return O0_OK;
     }
-    /* A read starting at the last sector but two sectors long runs off the end
-     * of the medium. The device reports the failure; the driver must decode it
-     * rather than hang or report success. */
-    uint64_t sector = vd->capacity > 1u ? vd->capacity - 1u : 0u;
-    uint64_t phys = vd->req.phys + 512u;
-    if (vd->req.size < 512u + 1024u) {
-        return O0_ENOMEM;
-    }
-    o0_block_status st = vblk_run(vd, VBLK_T_IN, sector, phys, 1024u, false);
-    if (st == O0_BLOCK_OK) {
-        return O0_EIO; /* the device accepted an out-of-range read */
-    }
-    return O0_OK;
+    return o0_virtio_blk_modern_inject_error(dev);
 }

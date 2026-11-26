@@ -141,7 +141,7 @@ jobs:
         # has produced those markers, so no cell can be permanently red.
         include:
           - controller: virtio
-            qemu_args: -drive id=vd0,file=build/storage.img,if=none,format=raw -device virtio-blk-pci,drive=vd0,disable-modern=on -trace virtio_*
+            qemu_args: -drive id=vd0,file=build/storage.img,if=none,format=raw -device virtio-blk-pci,drive=vd0 -trace virtio_*
           - controller: ahci
             qemu_args: -drive id=ad0,file=build/storage.img,if=none,format=raw -device ide-hd,drive=ad0
           - controller: nvme
