@@ -63,7 +63,8 @@ static o0_status resolve_parent(struct o0_vnode *directory, const char *path,
     *leaf_out = NULL;
     *leaf_len_out = 0;
     if (path_length == 0 || path_length > O0_VFS_PATH_MAX ||
-        path[0] == '/' || path[path_length] != '\0') return O0_EINVAL;
+        path[0] == '/' || path[path_length] != '\0' ||
+        memchr(path, '\0', path_length) != NULL) return O0_EINVAL;
 
     struct o0_vnode *current = directory;
     vnode_ref(current);
