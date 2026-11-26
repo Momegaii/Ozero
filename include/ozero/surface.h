@@ -34,6 +34,20 @@ o0_status o0_surface_blit(struct o0_surface *destination, int32_t dx, int32_t dy
                           const struct o0_surface *source, int32_t sx, int32_t sy,
                           int32_t width, int32_t height);
 
+/* Filled circle. Pixels whose centre lies within radius `r` of (cx, cy) are
+ * set to `rgb`. No anti-aliasing; suitable for small spheres and dots. */
+o0_status o0_surface_fill_circle(struct o0_surface *surface, int32_t cx,
+                                 int32_t cy, int32_t r, uint32_t rgb);
+
+/* Circle outline (1 pixel wide). Used for halos and ring indicators. */
+o0_status o0_surface_draw_circle(struct o0_surface *surface, int32_t cx,
+                                 int32_t cy, int32_t r, uint32_t rgb);
+
+/* Alpha-blend a source RGB over a destination RGB with the given alpha
+ * (0 = fully transparent, 255 = fully opaque). Operates on the RGB channels
+ * of RGBX8888 pixels; the X byte is set to 0xff. */
+uint32_t o0_surface_blend_rgb(uint32_t dst, uint32_t src, uint8_t alpha);
+
 #ifdef __cplusplus
 }
 #endif
