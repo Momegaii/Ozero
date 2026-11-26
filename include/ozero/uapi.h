@@ -37,7 +37,12 @@ extern "C" {
 #define O0_SYS_MEMORY_CREATE 14u
 #define O0_SYS_MEMORY_MAP 15u
 #define O0_SYS_PROCESS_SPAWN 16u
-#define O0_SYS_MAX 16u
+#define O0_SYS_FILE_OPEN 17u
+#define O0_SYS_FILE_READ 18u
+#define O0_SYS_FILE_WRITE 19u
+#define O0_SYS_FILE_STAT 20u
+#define O0_SYS_FILE_READDIR 21u
+#define O0_SYS_MAX 21u
 
 /* ---- User-visible error codes ----
  *
@@ -95,6 +100,31 @@ struct o0_uapi_budget_info {
 #define O0_PROT_READ 1u
 #define O0_PROT_WRITE 2u
 #define O0_PROT_EXEC 4u
+
+/* ---- Wave 4.6 file metadata ---- */
+
+#define O0_UAPI_PATH_MAX 256u
+#define O0_UAPI_FILE_IO_MAX 4096u
+#define O0_UAPI_VNODE_FILE 1u
+#define O0_UAPI_VNODE_DIRECTORY 2u
+#define O0_UAPI_FILE_CREATE (1u << 0)
+#define O0_UAPI_FILE_EXCLUSIVE (1u << 1)
+
+struct o0_uapi_vfs_stat {
+    uint64_t size;
+    uint64_t object_id;
+    uint32_t type;
+    uint32_t flags;
+};
+
+struct o0_uapi_vfs_dirent {
+    uint64_t next_cursor;
+    uint64_t object_id;
+    uint64_t size;
+    uint32_t type;
+    uint32_t name_len;
+    char name[64];
+};
 
 /* ---- Segment selectors (GDT layout) ---- */
 
