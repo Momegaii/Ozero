@@ -15,6 +15,7 @@
 #include "ozero/cpu.h"
 #include "ozero/cpu_local.h"
 #include "ozero/irq.h"
+#include "ozero/lapic.h"
 #include "ozero/status.h"
 #include "ozero/sync.h"
 #include "ozero/thread.h"
@@ -51,9 +52,14 @@ struct o0_cpu_local o0_cpu_local[O0_MAX_CPUS];
 
 uint32_t o0_cpu_index(void) { return 0; }
 uint32_t o0_cpu_count(void) { return O0_MAX_CPUS; }
+static unsigned ipi_count;
+static uint32_t ipi_last_apic;
+static uint32_t ipi_last_vector;
+
 o0_status o0_lapic_send_ipi(uint32_t apic_id, uint32_t vector) {
-    (void)apic_id;
-    (void)vector;
+    ++ipi_count;
+    ipi_last_apic = apic_id;
+    ipi_last_vector = vector;
     return O0_OK;
 }
 struct o0_cpu_local *o0_cpu_local_current(void) { return &o0_cpu_local[0]; }
@@ -168,10 +174,15 @@ static void reset_scheduler(void) {
         o0_cpu_local[i].online = 1;
         o0_cpu_local[i].cpu_index = i;
         o0_cpu_local[i].current = 0;
+        o0_cpu_local[i].apic_id = i + 1u;
+        o0_cpu_local[i].resched_pending = 0;
     }
     o0_sched_init();
     o0_sched_set_hz(100);
     o0_sched_set_preemption(false);
+    ipi_count = 0;
+    ipi_last_apic = 0;
+    ipi_last_vector = 0;
 }
 
 static void test_priority_selection(void) {
@@ -281,6 +292,29 @@ static void test_per_cpu_migration(void) {
     PASS();
 }
 
+
+
+
+/* The exiting thread runs on another CPU, so interrupt masking on the joining
+ * CPU does not exclude it. A wake that lands between "is it exited?" and the
+ * block used to be dropped, and the joiner slept forever. The wake is now a
+ * token the block consumes, so the ordering does not matter. */
+static void test_join_wake_before_block(void) {
+    TEST("a join wake that arrives before the block is not lost");
+    reset_scheduler();
+
+    struct o0_thread *joiner = o0_sched_current();
+    __atomic_store_n(&joiner->join_wake, 1u, __ATOMIC_RELEASE);
+
+    o0_sched_block(O0_BLOCK_JOIN);
+
+    ASSERT(joiner->state == O0_THREAD_RUNNING,
+           "the joiner must not sleep when a wake is already pending");
+    ASSERT(joiner->join_wake == 0, "the pending wake must be consumed");
+    ASSERT(o0_sched_ready_count_cpu(0) == 0, "no thread should have been queued");
+    PASS();
+}
+
 static void test_timeslice_rotation(void) {
     TEST("timeslice rotation");
     reset_scheduler();
@@ -313,6 +347,7 @@ int main(void) {
     test_blocking();
     test_per_cpu_migration();
     test_tick_and_preemption();
+    test_join_wake_before_block();
     test_timeslice_rotation();
 
     printf("\n%d test(s) run, %d failure(s)\n", tests_run, failures);

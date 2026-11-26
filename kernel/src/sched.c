@@ -143,6 +143,12 @@ void o0_sched_note_resume(struct o0_thread *thread) {
     }
 }
 
+/* Asks a CPU to look at its run queue now. A thread made ready on another CPU
+ * would otherwise wait for that CPU's next timer tick, and a CPU halted in its
+ * idle loop with no timer running would never pick the thread up at all: the
+ * wave3 stress test lost a migration worker that way and then blocked forever
+ * in o0_thread_join. */
+
 void o0_sched_enqueue(struct o0_thread *thread) {
     if (thread == NULL) {
         return;
@@ -317,6 +323,13 @@ void o0_sched_block(uint32_t reason) {
     uint32_t cpu = cpu_index();
     struct o0_thread *me = runqueues[cpu].current;
     if (me == NULL) {
+        o0_irq_restore(irq);
+        return;
+    }
+    if (reason == O0_BLOCK_JOIN &&
+        __atomic_exchange_n(&me->join_wake, 0u, __ATOMIC_ACQ_REL) != 0u) {
+        /* A join wake arrived before this thread reached the block. Consume it
+         * instead of sleeping: the caller re-tests its condition. */
         o0_irq_restore(irq);
         return;
     }

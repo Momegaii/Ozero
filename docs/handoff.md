@@ -3,6 +3,50 @@
 Single source of truth for "where are we now". Every claim here cites a commit on
 `main`; `main` is the only branch of record.
 
+## Wave 3 scheduler fix — reschedule kick on remote enqueue
+
+**Status:** IMPLEMENTED — awaiting CI on `fix/wave3-smp-resched-kick`.
+
+- **Defect.** `o0_sched_enqueue` pushed a thread onto a remote CPU's run queue
+  without asking that CPU to look at it. A CPU halted in its idle loop only noticed
+  the new thread at its next timer tick, and a CPU with no tick pending never
+  noticed it. The wave3 stress test moves two workers between both CPUs once per
+  iteration, so a worker could be left ready on a halted CPU; the main thread then
+  blocked in `o0_thread_join` for the rest of the run.
+- **Evidence.** `storage (virtio, smp=2)` in run 45805993581 and
+  `boot (uefi, max, smp=2)` in run 45822308326 both stop right after
+  `OZERO: smp user churn OK processes=16`, the statement before `smp_stop = 1` and
+  the joins. The second cell attaches no virtio device, so the fault is not in the
+  storage work. A worker that is still running sees `smp_stop` within microseconds
+  and exits, so the worker that never returns is not running at all: it is ready
+  and never scheduled.
+- **Root cause (established from a QEMU state dump, not from theory).** The failing
+  run 45835925274 leaves the AP spinning in the `o0_sched_ap_start` idle loop
+  (`sti; hlt; take_next`), taking the timer 3160 times, with an **empty run queue**,
+  while the boot thread waits in `o0_thread_join`. The worker is therefore in no run
+  queue at all: it exited and its wake was dropped.
+  `o0_thread_join` cleared its condition, published `join_waiter` and blocked with
+  interrupts masked. Masking only excludes the local CPU, and the exiting worker runs
+  on the *other* CPU, so `make_ready()` could observe the joiner in
+  `O0_THREAD_RUNNING`, decide there was nothing to wake, and drop the wake for good.
+- **Fix 1 — lost wakeup.** `exited` is published before the waiter is read, and a
+  waiter that is not blocked yet gets a `join_wake` token instead of a queue entry.
+  `o0_sched_block(O0_BLOCK_JOIN)` consumes the token and returns instead of sleeping.
+  `join` re-tests `exited` after publishing the waiter, so an exit on either side of
+  the publish is observed.
+- **Fix 2 — reschedule kick.** `kick_cpu()` sets the target's `resched_pending` and
+  sends `O0_LAPIC_IPI_VECTOR`, the same mechanism the migration path already used, so
+  a thread made ready on another CPU runs now instead of at that CPU's next tick. It
+  is skipped for the current CPU, for offline CPUs and before the scheduler starts.
+- No test semantics changed: the stress test and its markers are untouched.
+- **Tests.** `tests/sched_test.c` adds `remote enqueue requests a reschedule on the
+  target CPU` (one IPI, correct APIC id and vector, pending flag on the target
+  only, thread queued on the target), `enqueue for an offline CPU sends no IPI`, and
+  `a join wake that arrives before the block is not lost` (token consumed, joiner
+  stays runnable, nothing queued). All three fail against the previous code.
+- **CI.** Pending. The failure is intermittent (two of the last three full runs), so
+  a single green matrix run is weak evidence and the run is repeated.
+
 ## Line of record
 
 - Branch: `main`
