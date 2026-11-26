@@ -99,6 +99,11 @@ static void test_wave46_file_abi(void) {
     assert(O0_SYS_MAX == 21u);
     assert(O0_UAPI_PATH_MAX == 256u);
     assert(O0_UAPI_FILE_IO_MAX == 4096u);
+    assert(O0_UAPI_RIGHT_READ == (1u << 0));
+    assert(O0_UAPI_RIGHT_WRITE == (1u << 1));
+    assert(O0_UAPI_RIGHT_INFO == (1u << 9));
+    assert(O0_UAPI_RIGHT_ENUM == (1u << 11));
+    assert(O0_UAPI_RIGHT_CREATE == (1u << 12));
     assert(sizeof(struct o0_uapi_vfs_stat) == 24u);
     assert(offsetof(struct o0_uapi_vfs_stat, type) == 16u);
     assert(sizeof(struct o0_uapi_vfs_dirent) == 96u);
