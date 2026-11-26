@@ -656,6 +656,12 @@ o0_status o0_virtio_blk_probe(const char *name, struct o0_block_dev **out) {
     if (modern == O0_OK) {
         return O0_OK;
     }
+    /* A modern function that was found but failed has the useful answer; the
+     * legacy status only describes "no usable legacy function" and would hide
+     * the modern reason. */
+    if (modern != O0_ENOENT) {
+        return modern;
+    }
     return legacy;
 }
 

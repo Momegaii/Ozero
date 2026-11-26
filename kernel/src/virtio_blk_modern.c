@@ -129,6 +129,26 @@ static o0_status vbm_fail(const char *stage, o0_status status) {
     return status;
 }
 
+static void vbm_print_region(const char *tag, const struct o0_virtio_pci_region *r) {
+    o0_serial_puts("virtio-blk modern: region ");
+    o0_serial_puts(tag);
+    o0_serial_puts(" bar=");
+    o0_serial_dec(r->present ? r->bar : 0xFFu);
+    o0_serial_puts(" off=");
+    o0_serial_hex(r->offset);
+    o0_serial_puts(" len=");
+    o0_serial_dec(r->length);
+    o0_serial_puts(r->present ? "" : " absent");
+    o0_serial_puts("\n");
+}
+
+static void vbm_print_regions(const struct vblk_modern *vm) {
+    vbm_print_region("common", &vm->caps.common);
+    vbm_print_region("notify", &vm->caps.notify);
+    vbm_print_region("isr", &vm->caps.isr);
+    vbm_print_region("device", &vm->caps.device);
+}
+
 static struct vblk_modern *vbm_from_dev(const struct o0_block_dev *dev) {
     for (size_t i = 0; i < VBM_MAX_DEVICES; ++i) {
         if (&vbm_devices[i].dev == dev && vbm_devices[i].in_use) {
@@ -523,7 +543,14 @@ o0_status o0_virtio_blk_modern_probe(const char *name, struct o0_block_dev **out
             break;
         }
     }
-    if (found == NULL) return O0_ENOENT;
+    if (found == NULL) {
+        o0_serial_puts("virtio-blk modern: no function id=");
+        o0_serial_hex(VBM_PCI_DEVICE_ID);
+        o0_serial_puts(" among ");
+        o0_serial_dec(o0_pci_device_count());
+        o0_serial_puts(" pci devices\n");
+        return O0_ENOENT;
+    }
 
     struct vblk_modern *vm = NULL;
     size_t slot = 0;
@@ -539,7 +566,7 @@ o0_status o0_virtio_blk_modern_probe(const char *name, struct o0_block_dev **out
     vm->pci = *found;
 
     uint8_t cfg[256];
-    if (!vbm_snapshot(&found->bdf, cfg)) return O0_EIO;
+    if (!vbm_snapshot(&found->bdf, cfg)) return vbm_fail("snapshot", O0_EIO);
 
     struct o0_pci_bar bars[O0_VIRTIO_PCI_CFG_MAX_BARS];
     uint32_t bar_lengths[O0_VIRTIO_PCI_CFG_MAX_BARS];
@@ -547,7 +574,7 @@ o0_status o0_virtio_blk_modern_probe(const char *name, struct o0_block_dev **out
         memset(&bars[bar], 0, sizeof(bars[bar]));
         if (o0_pci_probe_bar(found->bdf, bar, found->resources.header_type,
                              &bars[bar]) != 0) {
-            return O0_EIO;
+            return vbm_fail("bar_probe", O0_EIO);
         }
         bar_lengths[bar] = bars[bar].size > UINT32_MAX ? 0u : (uint32_t)bars[bar].size;
     }
@@ -558,13 +585,17 @@ o0_status o0_virtio_blk_modern_probe(const char *name, struct o0_block_dev **out
 
     /* Memory decode and bus mastering: a modern device has no I/O BAR. */
     uint16_t command = 0;
-    if (o0_pci_config_read16(found->bdf, 0x04u, &command) != 0) return O0_EIO;
+    if (o0_pci_config_read16(found->bdf, 0x04u, &command) != 0) {
+        return vbm_fail("pci_cmd_read", O0_EIO);
+    }
     command = (uint16_t)(command | 0x0002u | 0x0004u);
-    if (o0_pci_config_write16(found->bdf, 0x04u, command) != 0) return O0_EIO;
+    if (o0_pci_config_write16(found->bdf, 0x04u, command) != 0) {
+        return vbm_fail("pci_cmd_write", O0_EIO);
+    }
     uint16_t observed = 0;
     if (o0_pci_config_read16(found->bdf, 0x04u, &observed) != 0 ||
         (observed & 0x0006u) != 0x0006u) {
-        return O0_EIO;
+        return vbm_fail("pci_cmd_verify", O0_EIO);
     }
 
     o0_status st = o0_virtio_pci_map_caps(
@@ -577,8 +608,9 @@ o0_status o0_virtio_blk_modern_probe(const char *name, struct o0_block_dev **out
         !o0_virtio_pci_region_regs(&vm->caps.notify, &vm->map, &vm->notify) ||
         !o0_virtio_pci_region_regs(&vm->caps.isr, &vm->map, &vm->isr) ||
         !o0_virtio_pci_region_regs(&vm->caps.device, &vm->map, &vm->device_cfg)) {
+        vbm_print_regions(vm);
         vbm_teardown(vm);
-        return O0_ERANGE;
+        return vbm_fail("regions", O0_ERANGE);
     }
     vm->notify_multiplier = vm->caps.notify_multiplier;
 
