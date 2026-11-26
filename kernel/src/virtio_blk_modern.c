@@ -635,7 +635,7 @@ o0_status o0_virtio_blk_modern_probe(const char *name, struct o0_block_dev **out
         return st;
     }
 
-    o0_serial_puts("virtio-blk modern ready queue=");
+    o0_serial_puts("OZERO: virtio-blk modern ready queue=");
     o0_serial_dec(vm->qinfo.size);
     o0_serial_puts(" qindex="); o0_serial_dec(vm->qinfo.index);
     o0_serial_puts(" notify_off="); o0_serial_dec(vm->qinfo.notify_off);
