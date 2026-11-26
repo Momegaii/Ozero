@@ -16,6 +16,28 @@ Stage 1 — bootable x86-64 kernel: **implemented; see verification state**
 - Current state, evidence types and open items: [docs/handoff.md](handoff.md).
 - Wave 4 (storage and filesystem) directive and gate: [docs/wave4.md](wave4.md).
 
+## Stage 7 — preparation baseline (2026-11-27)
+
+**Planning only; no Windows application execution is claimed.** The repository contains
+`include/ozero/pe.h`, the pure PE32+ parser in `kernel/src/pe.c`, and host test sources
+`tests/pe_test.c` / `tests/pe_fuzz.c` wired into the Makefile. The fuzz harness currently
+performs deterministic random-buffer testing; it is not a coverage-guided fuzzing result.
+
+The inspected tree did not contain `kernel/src/pe_loader.c` or a `user/compat/` implementation
+of `ntdll` / `kernel32`. Therefore no PE image mapping, relocation-at-load, Win32 handles,
+synchronization wrappers, SEH runtime, registry behavior, PE console hello-world or real
+Windows program is accepted as implemented.
+
+- Architecture proposal: [ADR 0021](decisions/0021-pe-loader-windows-user-mode-abi.md).
+  It recommends a user-mode translation layer and remains **Proposed — pending Project
+  Director approval**.
+- Stage handoff and milestones: [stage7.md](stage7.md).
+- Test and evidence gates: [stage7-test-plan.md](stage7-test-plan.md).
+
+Stage 7 implementation must preserve the native Ozero ABI and keep Win32/NT semantics in
+user mode. The Stage 6 acceptance gate and the existing hardening/verification obligations
+are not silently waived by this planning work.
+
 ## Implemented
 
 ### Stage 1 — boot path
