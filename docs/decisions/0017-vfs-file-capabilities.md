@@ -72,15 +72,16 @@ The existing syscall numbers 1–16 are unchanged. New numbers are append-only:
 
 | Number | Call | Contract |
 |---:|---|---|
-| 17 | `file_open` | directory capability, bounded relative path, requested rights and open policy; returns a file capability |
+| 17 | `file_open` | directory capability, bounded relative path, requested rights and open policy; returns a file capability for files or a vnode capability for directories |
 | 18 | `file_read` | file capability, kernel-validated output buffer, length, explicit offset; returns bytes read |
 | 19 | `file_write` | file capability, kernel-copied input buffer, length, explicit offset; returns bytes written; backend must be writable |
 | 20 | `file_stat` | directory capability + relative path + output metadata |
 | 21 | `file_readdir` | directory capability + bounded output buffer + explicit opaque cursor |
 
 The exact C layouts, maximum transfer sizes and error mapping are frozen in
-`include/ozero/uapi.h` and covered by host ABI tests before the syscalls are
-enabled. `handle_close` (syscall 5) closes a file capability.
+`include/ozero/uapi.h` and covered by host ABI tests. `file_open` returns an
+`O0_OBJ_FILE` for a regular file and an `O0_OBJ_VNODE` for a directory; callers
+must use the returned object type and matching rights. `handle_close` (syscall 5) closes a file capability.
 
 ## 4. Object and lifetime rules
 
