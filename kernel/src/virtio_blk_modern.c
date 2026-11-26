@@ -185,10 +185,16 @@ static o0_block_status vbm_map_status(uint8_t status) {
     }
 }
 
+/* Conventional config space is snapshotted as aligned dwords: the byte and word
+ * accessors reject offsets above 0xFC, and a capability chain can reach there. */
 static bool vbm_snapshot(const struct o0_pci_bdf *bdf, uint8_t cfg[256]) {
-    for (uint32_t off = 0; off < 256u; ++off) {
-        if (o0_pci_config_read8(*bdf, (uint8_t)off, &cfg[off]) != 0) {
+    for (uint32_t i = 0; i < 64u; ++i) {
+        uint32_t word = 0;
+        if (o0_pci_config_read32(*bdf, (uint8_t)(i * 4u), &word) != 0) {
             return false;
+        }
+        for (uint32_t b = 0; b < 4u; ++b) {
+            cfg[i * 4u + b] = (uint8_t)((word >> (8u * b)) & 0xFFu);
         }
     }
     return true;
