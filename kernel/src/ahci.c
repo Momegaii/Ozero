@@ -27,6 +27,10 @@
 #include "ozero/mm.h"
 #include "ozero/pci.h"
 #include "ozero/status.h"
+
+extern void o0_serial_puts(const char *text);
+extern void o0_serial_dec(uint64_t value);
+extern void o0_serial_hex(uint64_t value);
 #include "ozero/types.h"
 
 #include "string.h"
@@ -46,6 +50,8 @@
 #define AHCI_GHC_IE (1u << 1)
 #define AHCI_GHC_AE (1u << 31)
 
+#define AHCI_SLOT 0u
+
 #define AHCI_PORT_BASE 0x100u
 #define AHCI_PORT_STRIDE 0x80u
 
@@ -63,6 +69,9 @@
 #define AHCI_PXSERR 0x30u
 #define AHCI_PXSACT 0x34u
 #define AHCI_PXCI 0x38u
+#define AHCI_PXSCTL 0x2Cu
+
+#define AHCI_PXSCTL_DET (1u << 0)
 
 #define AHCI_PXCMD_ST (1u << 0)
 #define AHCI_PXCMD_FRE (1u << 4)
@@ -102,9 +111,15 @@ struct ahci_prdt_entry {
 struct ahci_cmd_table {
     uint8_t cfis[64];
     uint8_t acmd[32];
-    uint8_t reserved[16];
+    /* 0x60-0x7F is reserved, so the PRDT starts at 0x80. A 16-byte reserved
+     * field shifted it to 0x70, and the controller read an empty descriptor:
+     * IDENTIFY reported 512 bytes transferred and the buffer stayed zero. */
+    uint8_t reserved[32];
     struct ahci_prdt_entry prdt[8];
 } __attribute__((packed));
+
+_Static_assert(offsetof(struct ahci_cmd_table, prdt) == 0x80u,
+               "AHCI command table PRDT must start at 0x80");
 
 struct o0_ahci {
     struct o0_block_dev dev;
@@ -165,6 +180,26 @@ static bool ahci_port_wait(struct o0_ahci *ad, uint32_t port, uint32_t off,
 
 static void ahci_ignore(o0_status status) {
     (void)status;
+}
+
+/* A failed probe used to be silent, which shows up in CI only as
+ * "block layer ready devices=0". Name the stage and the numbers it stopped on. */
+static void ahci_report(const char *stage, o0_status status) {
+    o0_serial_puts("OZERO: ahci probe stage=");
+    o0_serial_puts(stage);
+    o0_serial_puts(" status=");
+    o0_serial_dec((uint64_t)status);
+    o0_serial_puts("\n");
+}
+
+static void ahci_report_regs(const char *what, uint32_t a, uint32_t b) {
+    o0_serial_puts("OZERO: ahci ");
+    o0_serial_puts(what);
+    o0_serial_puts("=0x");
+    o0_serial_hex((uint64_t)a);
+    o0_serial_puts(" 0x");
+    o0_serial_hex((uint64_t)b);
+    o0_serial_puts("\n");
 }
 
 static struct o0_ahci *ahci_from_dev(const struct o0_block_dev *dev) {
@@ -276,6 +311,34 @@ static bool ahci_port_stop(struct o0_ahci *ad) {
     return true;
 }
 
+static bool ahci_port_start(struct o0_ahci *ad);
+
+/* Stop the engine and reset the port. A command that timed out is still owned by
+ * the device: it can complete later and DMA into a buffer the driver has already
+ * released, so nothing may be freed until PxCI has drained. */
+static void ahci_port_quiesce(struct o0_ahci *ad) {
+    ahci_port_write(ad, ad->port, AHCI_PXIE, 0u);
+    ahci_write(ad, AHCI_REG_GHC, ahci_read(ad, AHCI_REG_GHC) & ~AHCI_GHC_IE);
+    (void)ahci_port_stop(ad);
+
+    ahci_port_write(ad, ad->port, AHCI_PXSCTL, AHCI_PXSCTL_DET);
+    for (uint32_t spin = 0; spin < AHCI_LINK_SPINS; ++spin) {
+        __asm__ volatile ("pause");
+    }
+    ahci_port_write(ad, ad->port, AHCI_PXSCTL, 0u);
+    for (uint32_t spin = 0; spin < AHCI_LINK_SPINS; ++spin) {
+        if (ahci_port_read(ad, ad->port, AHCI_PXCI) == 0u) {
+            break;
+        }
+        __asm__ volatile ("pause");
+    }
+    ahci_port_write(ad, ad->port, AHCI_PXIS, 0xFFFFFFFFu);
+    ahci_port_write(ad, ad->port, AHCI_PXSERR, 0xFFFFFFFFu);
+    /* The reset dropped the engine; bring the port back so a recovered error
+     * does not disable the device for the rest of the boot. */
+    (void)ahci_port_start(ad);
+}
+
 static bool ahci_port_start(struct o0_ahci *ad) {
     if (!ahci_port_stop(ad)) {
         return false;
@@ -306,7 +369,11 @@ static bool ahci_port_start(struct o0_ahci *ad) {
 static o0_block_status ahci_run(struct o0_ahci *ad, uint8_t command, uint64_t lba,
                                 uint16_t count, uint64_t data_phys,
                                 uint32_t data_len, bool write) {
-    uint32_t bit = 1u << ad->port;
+    /* PxCI bits index command slots within this port, not ports. The driver
+     * uses slot 0, whose header sits at the start of the command list. Using
+     * the port number here set bit 5 and left the engine waiting on an empty
+     * slot, so the command never completed. */
+    uint32_t bit = 1u << AHCI_SLOT;
 
     ahci_port_write(ad, ad->port, AHCI_PXIS, 0xFFFFFFFFu);
     ahci_port_write(ad, ad->port, AHCI_PXSERR, 0xFFFFFFFFu);
@@ -336,6 +403,9 @@ static o0_block_status ahci_run(struct o0_ahci *ad, uint8_t command, uint64_t lb
         }
     }
     if (!done) {
+        ahci_report_regs("timeout pxci pxis", ahci_port_read(ad, ad->port, AHCI_PXCI),
+                         ahci_port_read(ad, ad->port, AHCI_PXIS));
+        ahci_port_quiesce(ad);
         return O0_BLOCK_ERR_TIMEOUT;
     }
 
@@ -364,6 +434,17 @@ static o0_status ahci_identify(struct o0_ahci *ad) {
         if (shift >= 9u && shift <= 12u) {
             ad->sector_size = 1u << shift;
         }
+    }
+    /* Diagnostics: IDENTIFY can complete with a clean task file and still hand
+     * back an empty buffer, which looks identical to a decode bug. */
+    uint32_t nonzero = 0;
+    for (uint32_t i = 0; i < 256u; ++i) {
+        if (id[i] != 0u) {
+            ++nonzero;
+        }
+    }
+    if (ad->sectors == 0u) {
+        ahci_report_regs("identify nz prdbc", nonzero, ad->hdr->prdbc);
     }
     return ad->sectors != 0u ? O0_OK : O0_ENOTSUP;
 }
@@ -569,6 +650,7 @@ o0_status o0_ahci_probe(const char *name, struct o0_block_dev **out) {
 
         if (ahci_map_abar(pci, window, &ad->abar, &abar_size) != O0_OK) {
             ad->abar = NULL;
+            ahci_report("abar", O0_EIO);
             continue;
         }
         uint32_t cap = ahci_read(ad, AHCI_REG_CAP);
@@ -580,6 +662,12 @@ o0_status o0_ahci_probe(const char *name, struct o0_block_dev **out) {
         ahci_write(ad, AHCI_REG_GHC, ahci_read(ad, AHCI_REG_GHC) | AHCI_GHC_AE);
         int32_t candidate = ahci_find_port(ad);
         if (candidate < 0) {
+            for (uint32_t p = 0; p < 4u; ++p) {
+                ahci_report_regs("port ssts sig",
+                                 ahci_port_read(ad, p, AHCI_PXSSTS),
+                                 ahci_port_read(ad, p, AHCI_PXSIG));
+            }
+            ahci_report("port", O0_ENOENT);
             (void)o0_as_unmap(o0_as_kernel(), window, abar_size);
             ad->abar = NULL;
             continue;
@@ -589,6 +677,7 @@ o0_status o0_ahci_probe(const char *name, struct o0_block_dev **out) {
         break;
     }
     if (found == NULL || ad->abar == NULL) {
+        ahci_report("controller", O0_ENOENT);
         return O0_ENOENT;
     }
 
@@ -597,13 +686,19 @@ o0_status o0_ahci_probe(const char *name, struct o0_block_dev **out) {
 
     o0_status st = ahci_dma_setup(ad);
     if (st != O0_OK) {
+        ahci_report("dma", st);
         return st;
     }
     if (!ahci_port_start(ad)) {
+        ahci_report_regs("port start pxcmd", ahci_port_read(ad, ad->port, AHCI_PXCMD), 0u);
+        ahci_report("port start", O0_EIO);
         ahci_dma_teardown(ad);
         return O0_EIO;
     }
     if (ahci_identify(ad) != O0_OK) {
+        ahci_report_regs("identify pxis", ahci_port_read(ad, ad->port, AHCI_PXIS),
+                         ahci_port_read(ad, ad->port, AHCI_PXTFD));
+        ahci_report("identify", O0_ENOTSUP);
         ahci_dma_teardown(ad);
         return O0_ENOTSUP;
     }
@@ -618,8 +713,13 @@ o0_status o0_ahci_probe(const char *name, struct o0_block_dev **out) {
             ad->vector_ok = true;
         }
     }
-    ahci_port_write(ad, ad->port, AHCI_PXIE, AHCI_PXIE_ERRORS);
-    ahci_write(ad, AHCI_REG_GHC, ahci_read(ad, AHCI_REG_GHC) | AHCI_GHC_IE);
+    /* Without a registered MSI vector the driver polls. Arming GHC.IE or PxIE
+     * then raises an INTx nobody handles, and the pending command asserts it
+     * again every time it retries. */
+    if (ad->vector_ok) {
+        ahci_port_write(ad, ad->port, AHCI_PXIE, AHCI_PXIE_ERRORS);
+        ahci_write(ad, AHCI_REG_GHC, ahci_read(ad, AHCI_REG_GHC) | AHCI_GHC_IE);
+    }
 
     ad->in_use = true;
     ahci_set_name(ad->dev.name, name);
@@ -653,6 +753,11 @@ o0_status o0_ahci_probe(const char *name, struct o0_block_dev **out) {
         return st;
     }
 
+    o0_serial_puts("OZERO: ahci ready port=");
+    o0_serial_dec((uint64_t)ad->port);
+    o0_serial_puts(" sectors=");
+    o0_serial_dec(ad->sectors);
+    o0_serial_puts("\n");
     *out = &ad->dev;
     return O0_OK;
 }
