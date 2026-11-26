@@ -136,6 +136,16 @@ int main(void) {
     struct o0_vnode *gone = NULL;
     CHECK(o0_vfs_lookup(root, "docs/mnt/inside", 15u, &gone) == O0_ENOENT);
 
+    CHECK(o0_vfs_open(root, "", 0u, 0, O0_RIGHT_READ, budget, &missing) == O0_EINVAL);
+    char raw_name[2] = { (char)0xff, '\\0' };
+    CHECK(o0_vfs_open(docs, raw_name, 1u, O0_VFS_OPEN_CREATE,
+                      O0_RIGHT_READ | O0_RIGHT_WRITE | O0_RIGHT_INFO,
+                      budget, &file) == O0_OK);
+    o0_object_unref(&file->obj);
+    CHECK(o0_vfs_open(docs, raw_name, 1u, 0, O0_RIGHT_READ,
+                      budget, &file) == O0_OK);
+    o0_object_unref(&file->obj);
+    CHECK(o0_vfs_unlink(docs, raw_name, 1u) == O0_OK);
     CHECK(o0_vfs_mkdir(root, "../escape", 8u) == O0_EPERM);
     CHECK(o0_vfs_open(root, "../escape", 8u, 0, O0_RIGHT_READ,
                       budget, &missing) == O0_EPERM);
