@@ -21,7 +21,9 @@ enum o0_object_type {
     O0_OBJ_PROCESS = 1,
     O0_OBJ_MEMORY = 2,
     O0_OBJ_ENDPOINT = 3,
-    O0_OBJ_BUDGET = 4
+    O0_OBJ_BUDGET = 4,
+    O0_OBJ_VNODE = 5,
+    O0_OBJ_FILE = 6
 };
 
 enum o0_rights {
