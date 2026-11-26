@@ -123,3 +123,16 @@ SMP-safe VFS mutation, symlinks, hard links, permissions/ACLs, file locking,
 asynchronous I/O, memory-mapped files, durable O0FS writes, POSIX emulation
 and Win32 API implementation are outside Wave 4.6. They must not be implied by
 the initial interface.
+
+
+## 10. Mount graph and mutation boundary
+
+The mount table is bounded to eight attachments. Each entry retains its
+mountpoint and mounted root. Vnodes expose an opaque backend identity; mount
+insertion rejects cycles in the directed filesystem-mount graph. Mount and
+unmount operations are kernel-controlled and externally serialized in Wave 4.6;
+concurrent mount mutation is not promised. Unmount invalidates the page cache
+and refuses while external references to the mounted root remain. Open file
+vnodes retain backend lifetime independently; each backend must keep its state
+alive until its final vnode reference is released. The current O0FS instance is
+pinned for the lifetime of the kernel image.
