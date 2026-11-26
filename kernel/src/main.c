@@ -151,6 +151,7 @@ extern void x86_64_idt_init(void);
 extern void x86_64_idt_install_irq_gates(void);
 extern void x86_64_idt_install_ipi_gate(void);
 extern void x86_64_idt_install_apic_timer_gate(void);
+extern void x86_64_idt_install_device_gates(void);
 extern void x86_64_idt_install_double_fault_ist(void);
 extern bool o0_usercopy_fixup(uint64_t fault_rip, uint64_t *fixup_rip);
 
@@ -193,7 +194,24 @@ void x86_exception_dispatch(struct x86_64_exception_frame *frame) {
         o0_serial_puts(frame->error_code & 4u ? "-user" : "-supervisor");
         o0_serial_puts(frame->error_code & 16u ? "-reserved-bit" : "");
     }
+    o0_serial_puts(" cs=");
+    o0_serial_hex(frame->cs);
+    o0_serial_puts(" rflags=");
+    o0_serial_hex(frame->rflags);
+    o0_serial_puts("\nOZERO: fault code=");
+    /* The printed RIP is not always an instruction boundary when delivery itself
+     * failed, so show the bytes around it. Only touched for the kernel image
+     * window: an invalid pointer here would turn a report into a reset. */
+    if (frame->rip >= 0xffffffff80000000ull && frame->rip < 0xffffffff80400000ull) {
+        const uint8_t *code = (const uint8_t *)(uintptr_t)(frame->rip - 8u);
+        for (uint32_t i = 0; i < 24u; ++i) {
+            o0_serial_hex(code[i]);
+            o0_serial_puts(" ");
+        }
+    }
     o0_serial_puts("\n");
+    extern void x86_64_idt_audit(void);
+    x86_64_idt_audit();
     halt_forever();
 }
 
@@ -1678,6 +1696,7 @@ void kmain(void) {
     o0_serial_puts(" Hz\n");
 
     x86_64_idt_install_apic_timer_gate();
+    x86_64_idt_install_device_gates();
     o0_status timer_status = o0_apic_timer_start(o0_sched_hz());
     o0_serial_puts("OZERO: timer=");
     o0_serial_puts(timer_status == O0_OK ? "lapic" : "pit");

@@ -36,6 +36,32 @@ IRQ_STUB 13
 IRQ_STUB 14
 IRQ_STUB 15
 
+/* ---------------------------------------------------------------------------
+ * Device interrupt stubs (vectors 48..239, MSI/MSI-X).
+ *
+ * o0_irq_alloc_vectors hands out vectors from 48 up and o0_pci_msi_enable
+ * programs a device to send one of them, so each vector needs a gate of its own:
+ * the dispatch path reads the vector the stub pushes. An empty gate is not a
+ * dropped interrupt, it is a #GP that stops the machine.
+ * ------------------------------------------------------------------------- */
+
+.altmacro
+.macro DEVICE_IRQ_STUB index
+.global x86_64_dev_irq_\index
+.type x86_64_dev_irq_\index, @function
+x86_64_dev_irq_\index:
+    pushq $0
+    pushq $48 + \index
+    jmp x86_64_irq_common
+.endm
+
+.set dev_vector, 0
+.rept 192
+DEVICE_IRQ_STUB %dev_vector
+.set dev_vector, dev_vector + 1
+.endr
+.noaltmacro
+
 .type x86_64_irq_common, @function
 x86_64_irq_common:
     cld
@@ -89,6 +115,20 @@ x86_64_irq_common:
 
 .section .rodata
 .align 8
+.macro DEVICE_STUB_ENTRY index
+    .quad x86_64_dev_irq_\index
+.endm
+
+.global x86_64_device_stub_table
+x86_64_device_stub_table:
+.altmacro
+.set dev_vector, 0
+.rept 192
+    DEVICE_STUB_ENTRY %dev_vector
+.set dev_vector, dev_vector + 1
+.endr
+.noaltmacro
+
 .global x86_64_irq_stub_table
 x86_64_irq_stub_table:
     .quad x86_64_irq_0

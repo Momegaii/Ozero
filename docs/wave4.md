@@ -171,14 +171,28 @@ timeout, quarantine and cancellation rules apply unchanged.
   path OK`, `OZERO: nvme read/write OK irq=<n> sectors=<n>`, `OZERO: nvme error
   path OK`. The error-path markers are injected tests: a read that runs past the
   end of the medium must be refused by the controller and decoded by the driver.
-- **CI cells:** `storage (ahci, smp=2)` and `storage (nvme, smp=2)` join
-  `storage (virtio, smp=2)` in `.github/workflows/quality.yml`, each with its own
-  `-device` line and both markers required only in its own cell.
-- **Evidence:** build-verified only in this workspace (`make kernel` with `-Werror`,
-  plus the new `tests/storage_encode_test.c` host test for the pure encoders). No
-  QEMU run was performed here and no run on `775e333` has been read, so no cell is
-  claimed green. No physical controller is claimed, and none of this is evidence
-  for real hardware.
+- **CI cells:** `storage (ahci, smp=2)` is enabled with its own `-device` line and
+  gates only on the AHCI markers, so it cannot pass on another driver's output. The
+  NVMe cell is not enabled yet: one controller at a time, each with its own observed
+  run. The cell attaches `-device ide-hd,drive=ad0` to the q35 onboard `ich9-ahci`
+  controller.
+- **Evidence (AHCI, emulator only):** `storage (ahci, smp=2)` is green in run
+  `45854731661` on `0397433`. The serial log shows `ahci ready port=5
+  sectors=16384`, `ahci read/write OK irq=0 sectors=16384`, `ahci error path OK`
+  and the boot milestone `user entry OK` after it, so the drive really took a
+  read and a write rather than merely being discovered. Three driver defects had
+  to be fixed first, all recorded in that commit: the PRDT starts at `0x80` in
+  the command table, `PxCI` is a slot bitmap and not a port bitmap, and a timed
+  out command needs the port quiesced before its buffers are reused.
+- **Evidence (NVMe):** build-verified only, plus the host encoder test. The NVMe
+  cell is still disabled, so no run is claimed for it.
+- **Interrupt plumbing found here:** `o0_irq_alloc_vectors` and
+  `o0_pci_msi_enable` were usable in principle but no IDT gate existed for the
+  device vector range, so the first MSI raised #GP on an empty gate and halted
+  the machine. Device gates now exist on the BSP and on every AP. This is a
+  generic fix, not an AHCI one, and it is what allowed the cell to finish.
+- No physical controller is claimed, and none of this is evidence for real
+  hardware.
 - **Not covered:** physical controllers (never), NCQ, multiple queues, PRP lists,
   asynchronous submission, hotplug and any performance claim.
 

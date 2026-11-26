@@ -36,6 +36,7 @@ extern void x86_64_idt_init(void);
 extern void x86_64_idt_install_irq_gates(void);
 extern void x86_64_idt_install_ipi_gate(void);
 extern void x86_64_idt_install_apic_timer_gate(void);
+extern void x86_64_idt_install_device_gates(void);
 extern void o0_sched_ap_start(uint32_t cpu, uint64_t stack_top);
 extern void o0_sched_resched_ipi(void);
 extern void o0_serial_puts(const char *text);
@@ -116,6 +117,7 @@ void o0_ap_entry_c(struct limine_mp_info *info) {
     x86_64_idt_install_irq_gates();
     x86_64_idt_install_ipi_gate();
     x86_64_idt_install_apic_timer_gate();
+    x86_64_idt_install_device_gates();
     (void)o0_lapic_ap_init();
     (void)o0_apic_timer_start_ap();
 

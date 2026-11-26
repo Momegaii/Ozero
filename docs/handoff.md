@@ -3,6 +3,36 @@
 Single source of truth for "where are we now". Every claim here cites a commit on
 `main`; `main` is the only branch of record.
 
+## Wave 4.3 AHCI — cell green (emulator only)
+
+**Status:** CI VERIFIED — NOT MERGED. Branch `feat/wave4.3-ahci-cell`, PR #10.
+
+- The `storage (ahci, smp=2)` cell attaches
+  `-drive id=ad0,file=build/storage.img,if=none,format=raw -device ide-hd,drive=ad0`
+  to the q35 onboard `ich9-ahci` controller and requires
+  `OZERO: ahci read/write OK` and `OZERO: ahci error path OK`.
+- The matrix moved to an `include:` list so each cell carries its own QEMU arguments;
+  the previous `||` chain in `QEMU_EXTRA_ARGS` could not express a third cell.
+- The NVMe cell stays disabled until the AHCI work is merged.
+- **Commits:** `6ef26b8` (cell), `8d75d06` (driver corrections), `0397433`
+  (device interrupt gates and fault reporting).
+- **Run:** `45854731661` — success. Every cell green, including
+  `storage (ahci, smp=2)`, `storage (virtio, smp=2)`, `lock-order-boot`,
+  `host-sanitizers` and all twelve boot cells.
+- **Serial markers read from that run:** `ahci ready port=5 sectors=16384`,
+  `ahci read/write OK irq=0 sectors=16384`, `ahci error path OK`,
+  `user entry OK`.
+- **Emulator:** `qemu-system-x86_64` on a q35 machine, 512 MiB, `-smp 2`,
+  `-device ide-hd` behind the onboard `ich9-ahci`. Emulator evidence only; no
+  physical controller has been tested.
+- **Local checks:** `make kernel`, `make test`, `make test-sanitize` pass.
+  `make check` cannot run in this workspace (no `xorriso`, no QEMU), so the CI
+  matrix is the only boot evidence.
+- **Root cause of the long red run:** the driver's command table put the PRDT at
+  `0x70` instead of `0x80`, so IDENTIFY moved 512 bytes into an empty descriptor;
+  and the first MSI landed on an IDT gate that did not exist, which raised #GP
+  and halted the machine after the storage test had already passed.
+
 ## Line of record
 
 - Branch: `main`
@@ -19,7 +49,7 @@ Single source of truth for "where are we now". Every claim here cites a commit o
 | Stage 2 memory | implemented | build, host tests, QEMU boot |
 | Stage 3 processes/threads/scheduler | implemented | host tests, QEMU BIOS boot |
 | Stage 4 storage (RAM disk, O0FS draft) | implemented at substrate level | host tests, QEMU smoke |
-| Wave 4.2–4.3 PCI storage (virtio-blk, AHCI, NVMe) | implemented, build-verified only | `make kernel` + host encoder test; **no run observed** |
+| Wave 4.2–4.3 PCI storage (virtio-blk, AHCI, NVMe) | AHCI and virtio-blk cells green in CI; NVMe still build-verified only | QEMU cells in run `45854731661`; emulator only |
 | Stage 5 GPU software foundation | closed as software milestone; physical GPU deferred | host tests, QEMU PCI discovery markers |
 | Stage 6.1–6.8 graphics/desktop | implemented, host-tested, wired into `kmain` | host tests; **no desktop QEMU acceptance claimed** |
 | Hardening Wave 1–3, 5.0, Q | implemented; Wave 3 signed off 2026-11-25 | local QEMU plus CI matrix (run `45697656276` on `e066168`) |
