@@ -173,9 +173,9 @@ timeout, quarantine and cancellation rules apply unchanged.
   end of the medium must be refused by the controller and decoded by the driver.
 - **CI cells:** `storage (ahci, smp=2)` is enabled with its own `-device` line and
   gates only on the AHCI markers, so it cannot pass on another driver's output. The
-  NVMe cell is not enabled yet: one controller at a time, each with its own observed
-  run. The cell attaches `-device ide-hd,drive=ad0` to the q35 onboard `ich9-ahci`
-  controller.
+  NVMe cell is enabled with `-device nvme` and gates on the NVMe markers; it is
+  **not yet observed green** — no run is claimed for it until logs are read from the
+  `ci-evidence` branch. The cell attaches `-drive id=nd0,file=build/storage.img,if=none,format=raw -device nvme,drive=nd0,serial=nvme0`.
 - **Evidence (AHCI, emulator only):** `storage (ahci, smp=2)` is green in run
   `45854731661` on `0397433`. The serial log shows `ahci ready port=5
   sectors=16384`, `ahci read/write OK irq=0 sectors=16384`, `ahci error path OK`
