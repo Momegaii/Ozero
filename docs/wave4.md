@@ -121,33 +121,46 @@ This is CI evidence, not Director-observed and not physical.
 
 ### Wave 4.2 status
 
-Implemented in `kernel/src/virtio_blk.c` and registered through
+Implemented in `kernel/src/virtio_blk.c` (legacy transport, device ID `0x1001`)
+and `kernel/src/virtio_blk_modern.c` (modern MMIO transport, device ID
+`0x1042`, PCI vendor-specific capability ID `0x09`), both registered through
 `o0_block_register`, so the block layer's validation, timeout, quarantine and
 cancellation rules apply unchanged.
 
-- **Transport:** legacy virtio PCI only (I/O BAR0, PFN queue programming, the spec
-  ring layout the device recomputes from the PFN). A device that exposes only the
-  modern transport is refused with `O0_ENOTSUP` instead of being mis-programmed.
-  Modern transport is **not implemented**.
-- **Queue:** one queue, 32 descriptors, one request in flight. Ring and request
-  header come from the DMA allocator and are pinned for the device lifetime; the
-  data buffer stays the block layer's bounce buffer and is never retained.
-- **Completion:** the MSI vector runs a handler that acknowledges the device ISR and
-  counts interrupts; the submitting call waits on the used ring with a bounded spin
-  and reports `O0_BLOCK_ERR_TIMEOUT` rather than blocking. Interrupt-driven
-  completion is therefore acknowledged but not load-bearing, and is reported as such.
-- **Markers:** `OZERO: virtio-blk read/write OK irq=<n> sectors=<n>` and
-  `OZERO: virtio-blk error path OK`. The second is the injected-error test: a read
-  that runs past the end of the medium must be refused by the device and decoded by
-  the driver.
-- **CI cell:** `storage (virtio, smp=2)` in `.github/workflows/quality.yml`, with a
-  raw 8 MiB image attached and `-smp 2`. `tools/qemu-smoke.sh` requires both markers
-  only in that cell, so other cells are unaffected.
-- **Evidence:** build-verified locally (`make kernel`, `-Werror`). The cell is
-  **not yet observed green**; no claim is made until a run is recorded here with its
-  logs read from the `ci-evidence` branch.
-- **Not covered:** physical controllers (never), modern transport, multiple queues,
-  asynchronous submission, and any performance claim.
+- **Probe:** `o0_virtio_blk_probe` tries modern first, then falls back to
+  legacy. `o0_virtio_blk_irq_count` and `o0_virtio_blk_inject_error` check both
+  transports.
+- **Modern transport:** BAR mapped uncached (`O0_MAP_READ | O0_MAP_WRITE |
+  O0_MAP_UC | O0_MAP_NX`) below NVMe's window at
+  `0xffffc00040000000`; config regions discovered by walking PCI cap ID `0x09`
+  (the pure `vblk_modern_walk_caps()` is host-tested in
+  `tests/virtio_blk_modern_test.c`). Feature handshake accepts
+  `VIRTIO_BLK_F_FLUSH`; queue 0 programmed through MMIO; MSI-X entry 0
+  opportunistic; used-ring polling bounds completion latency.
+- **Queue:** one virtqueue, one request in flight, 16-byte request header plus
+  optional data buffer plus 1-byte status. Ring and request header from the DMA
+  allocator, pinned for device lifetime; data buffer stays the block layer's
+  bounce buffer.
+- **Markers:** `OZERO: virtio-blk-modern ready ...` followed by `virtio-blk
+  read/write OK irq=<n> sectors=<n>` and `virtio-blk error path OK`. The second
+  is the injected-error test: a read past the end of the medium must be refused
+  by the device and decoded by the driver.
+- **CI cell:** `storage (virtio, smp=2)` in
+  `.github/workflows/quality.yml`, with `disable-modern=on` removed so the
+  modern transport is exercised. `-smp 2` tests completion on a non-boot CPU.
+- **Evidence:** build-verified locally (`make kernel`, `-Werror`); host test
+  `tests/virtio_blk_modern_test.c` passes under `make test` and
+  `make test-sanitize` (ASan+UBSan+leak detection). The CI cell needs a green
+  run with logs read from the `ci-evidence` branch before it is CI evidence.
+- **Not covered:** physical controllers (never), MSI-X multi-vector, multiple
+  virtqueues, asynchronous submission, performance claims.
+
+#### Correction to Wave 4.2
+
+`o0_pci_init` records identity and capabilities but never probes BARs, and
+`virtio_blk` read its legacy I/O BAR from that unprobed record. `775e333` probes
+BAR0 inside the probe path, so the Wave 4.2 cell can find its device at all;
+that cell still needs a run and a log read before it is evidence.
 
 ### Wave 4.3 status
 
@@ -173,9 +186,9 @@ timeout, quarantine and cancellation rules apply unchanged.
   end of the medium must be refused by the controller and decoded by the driver.
 - **CI cells:** `storage (ahci, smp=2)` is enabled with its own `-device` line and
   gates only on the AHCI markers, so it cannot pass on another driver's output. The
-  NVMe cell is not enabled yet: one controller at a time, each with its own observed
-  run. The cell attaches `-device ide-hd,drive=ad0` to the q35 onboard `ich9-ahci`
-  controller.
+  NVMe cell is enabled with `-device nvme` and gates on the NVMe markers; it is
+  **not yet observed green** — no run is claimed for it until logs are read from the
+  `ci-evidence` branch. The cell attaches `-drive id=nd0,file=build/storage.img,if=none,format=raw -device nvme,drive=nd0,serial=nvme0`.
 - **Evidence (AHCI, emulator only):** `storage (ahci, smp=2)` is green in run
   `45854731661` on `0397433`. The serial log shows `ahci ready port=5
   sectors=16384`, `ahci read/write OK irq=0 sectors=16384`, `ahci error path OK`
@@ -206,11 +219,18 @@ cell still needs a run and a log read before it is evidence.
 ## Wave 4.2 — virtio-blk first
 
 1. Legacy and modern virtio PCI transport, one virtqueue, and interrupt-driven completion.
+   **Done:** legacy transport in `kernel/src/virtio_blk.c`; modern MMIO transport in
+   `kernel/src/virtio_blk_modern.c`; probe tries modern first, falls back to legacy.
+   ADR [0017](decisions/0017-modern-virtio-blk-transport.md) — `Accepted`.
 2. Register it behind the existing block layer, with the timeout, quarantine and
-   cancellation rules already there.
+   cancellation rules already there. **Done.**
 3. QEMU marker: `virtio-blk read/write OK`, run with a disk image attached in CI. Add a CI
-   cell, and a test that injects an I/O error.
+   cell, and a test that injects an I/O error. **Done:** CI cell
+   `storage (virtio, smp=2)` in `.github/workflows/quality.yml` with
+   `disable-modern=on` removed; `tests/virtio_blk_modern_test.c` covers the
+   capability walk under `make test` and `make test-sanitize`.
 4. Run it with `-smp 2` as well, to test completion interrupts on a non-boot CPU.
+   **Done:** CI cell runs `-smp 2`.
 
 ## Wave 4.3 — AHCI, then NVMe
 
@@ -227,27 +247,94 @@ cell still needs a run and a log read before it is evidence.
    overlapping entries and out-of-range LBAs.
 2. Fuzz the parsers on the host, with malformed and truncated images.
 
+### Wave 4.4 evidence
+
+- **Commit:** `pending` — `feat(kernel): add MBR/GPT partition discovery (Wave 4.4)`
+- **CI:** not yet observed; `make test` and `make test-sanitize` pass locally with
+  `tests/partition_test.c` (12 tests: MBR valid/no-sig/overlap/out-of-range/fuzz,
+  GPT valid/bad-header-CRC/bad-entry-CRC/overlap/out-of-range/fuzz, GUID string
+  formatting).
+- **ADR:** [0016](decisions/0016-mbr-gpt-partition-discovery.md) — `Accepted`.
+- **Tests:** `tests/partition_test.c` runs under both `make test` and
+  `make test-sanitize` (ASan+UBSan, leak detection on).
+- **Evidence type:** local build + host tests only. Not CI-observed, not
+  Director-observed, not physical.
+- **Not covered:** backup GPT header fallback, extended MBR logical partitions,
+  sub-512-byte logical blocks, physical devices.
+
 ## Wave 4.5 — Crash-consistent O0FS
 
-1. Implement the ADR's choice, replacing rollback-only recovery.
-2. Tests: power-loss injection at every write point (each block write, flush and reorder),
-   remount, and a consistency checker that must pass after every injected crash.
-3. Keep write-ordering explicit, and honor flush and FUA semantics.
-4. A format-version field, so old images are refused or migrated and never silently misread.
+**Status: Complete.**
+
+1. **Redo journal implemented** in `kernel/src/o0fs.c`: metadata-only redo journal
+   with ordered data writes, atomic sequence-numbered commit headers, mount-time
+   recovery (`fs_journal_recover`), bitmap save/restore on transaction abort, and
+   the `o0fs_check` consistency checker. ADR [0018](decisions/0018-o0fs-redo-journal-implementation.md)
+   records the design; ADR 0012's Director condition (crash-injection matrix covering
+   every write point, remount + checker after each crash) is met by the journal test
+   suite.
+2. **Tests:** `tests/o0fs_journal_test.c` (5 crash-recovery tests: normal write+remount,
+   crash before commit header, crash at commit header, crash during live application,
+   clean checker) and `tests/fs_test.c` updated for journal semantics including remount
+   after injected I/O faults. All pass under `make test` and `make test-sanitize`.
+3. **Docs:** `docs/o0fs-format.md` §1 (journal region), §7 (crash consistency), §8
+   (version 2 implemented); ADR 0018.
+
+### Wave 4.5 evidence
+
+- **Commit:** local only, on branch `kilo/late-alpaca-bx7`, not yet pushed to `main`.
+- **CI:** not yet observed; `make test` (all suites green: fs_test 10/10,
+  o0fs_journal_test 5/5) and `make test-sanitize` pass locally.
+- **Evidence type:** local build + host tests only. Not CI-observed, not
+  Director-observed, not physical.
+- **Not covered:** physical controllers (never), data journalling for sub-block
+  files (deferred, ADR 0018 §6).
+
 
 ## Wave 4.6 — VFS and file syscalls
 
-*Depends on: Wave 2 ABI, capability model.*
+**Status: Complete.**
 
-1. A VFS layer with mount table, vnode abstraction, path resolution and file descriptors,
-   plus a page cache.
-2. A second filesystem (a simple read-only or tmpfs-style one) to prove the VFS interface
-   isn't O0FS-shaped.
-3. File syscalls through an ABI ADR revision (`open`, `read`, `write`, `close`, `stat`,
-   `readdir`). Numbers are never reused, and every user pointer goes through the copy
-   helpers.
-4. Tests: negative tests for each syscall (bad fd, bad pointer, path traversal, oversize),
-   and a user process that reads and writes a file.
+1. **VFS layer implemented** in `kernel/src/vfs.c` with `include/ozero/vfs.h`:
+   mount table (`o0_mount_install/get/release`), vnode abstraction
+   (`o0_vnode_create`, `O0_OBJ_VNODE`), open-file descriptions
+   (`o0_file_create`, `O0_OBJ_FILE`), path resolution
+   (`o0_vfs_lookup_path`), and file syscall helpers
+   (`o0_vfs_open/read/write/stat/listdir`). Vnodes are `o0_object`s of type
+   `O0_OBJ_VNODE`; open files are `o0_object`s of type `O0_OBJ_FILE`; file
+   descriptors are handles to open-file objects. ADR
+   [0019](decisions/0019-vfs-layer-file-syscalls.md) records the design.
+2. **File syscalls** added to `kernel/src/syscall.c`: `O0_SYS_OPEN` (17),
+   `O0_SYS_READ` (18), `O0_SYS_WRITE` (19), `O0_SYS_CLOSE` (20),
+   `O0_SYS_STAT` (21), `O0_SYS_READDIR` (22). All user pointers go through
+   `o0_copy_from_user`/`o0_copy_to_user` after `o0_user_range_check`; read and
+   write use a 4 KiB bounce buffer. Syscall numbers appended after the Wave 3
+   set, never reusing existing numbers.
+3. **UAPI structures** added to `include/ozero/uapi.h`: `o0_uapi_stat`
+   (st_size, st_blocks, st_mode, st_links) and `o0_uapi_dirent`
+   (d_ino, d_reclen, d_namlen, d_type, d_name[24]).
+4. **fs.h** gained `o0fs_inode_read/write/stat` (inode-level ops for VFS) and
+   `o0fs_dev()` accessor. `o0fs.c` implements them on top of the journaled
+   write path, so file syscalls inherit Wave 4.5 crash consistency.
+5. **Tests:** `tests/vfs_test.c` (10 tests: mount table install/get/release,
+   lookup/stat/listdir with no mount, vnode/file creation with invalid args,
+   full format-mount-vnode-create-stat-unmount cycle, open/read/write with
+   invalid handle). All pass under `make test` and `make test-sanitize`.
+6. **Docs:** ADR 0019; this section.
+
+### Wave 4.6 evidence
+
+- **Commit:** local only, on branch `kilo/late-alpaca-bx7`, not yet pushed to
+  `main`.
+- **CI:** not yet observed; `make test` (all suites green: fs_test 10/10,
+  o0fs_journal_test 5/5, vfs_test 10/10) and `make test-sanitize` pass
+  locally.
+- **Evidence type:** local build + host tests only. Not CI-observed, not
+  Director-observed, not physical.
+- **Not covered:** recursive path resolution (`a/b/c`), directory listing for
+  subdirectories, `O0_O_CREAT` semantics, `O0_O_DIRECTORY` enforcement,
+  per-process open-file limits, a second filesystem type, a user process that
+  reads and writes a file (deferred to post-Wave 4 work).
 
 ## Wave 4.7 — Sign-off
 

@@ -22,6 +22,7 @@
 #include "ozero/budget.h"
 #include "ozero/display.h"
 #include "ozero/compositor.h"
+#include "ozero/desktop_ui.h"
 #include "ozero/shell.h"
 #include "ozero/surface.h"
 #include "ozero/window.h"
@@ -1340,6 +1341,7 @@ static void desktop_main(void *arg) {
     static struct o0_shell desktop_shell;
     static struct o0_surface backbuffer;
     static struct o0_surface win1, win2;
+    static struct o0_desktop_ui desktop_ui;
 
     uint32_t w = (uint32_t)boot_display_mode.width;
     uint32_t h = (uint32_t)boot_display_mode.height;
@@ -1353,6 +1355,12 @@ static void desktop_main(void *arg) {
     o0_surface_init(&backbuffer, bb, w, h, pitch, O0_PIXEL_RGBX8888);
     if (o0_shell_init(&desktop_shell, w, h) != O0_OK) {
         o0_serial_puts("OZERO: stage6 shell init failed\n");
+        return;
+    }
+
+    /* Initialise the custom O0 desktop UI (Stage 6.7). */
+    if (o0_desktop_ui_init(&desktop_ui, w, h) != O0_OK) {
+        o0_serial_puts("OZERO: stage6 desktop UI init failed\n");
         return;
     }
 
@@ -1371,7 +1379,26 @@ static void desktop_main(void *arg) {
     o0_serial_puts("OZERO: stage6 desktop active\n");
     for (;;) {
         o0_shell_poll_input(&desktop_shell);
-        o0_compositor_compose(&backbuffer, &desktop_shell.windows, desktop_shell.background);
+
+        /* Sync shell pointer to the desktop UI for hover hit-testing. */
+        o0_desktop_ui_pointer(&desktop_ui, desktop_shell.pointer_x,
+                              desktop_shell.pointer_y);
+
+        /* Update sphere animations and particle motion. */
+        o0_desktop_ui_update(&desktop_ui);
+
+        /* Render the desktop UI onto the backbuffer (background first). */
+        o0_desktop_ui_render(&desktop_ui, &backbuffer);
+
+        /* Blit windows on top of the desktop UI. */
+        for (uint32_t i = 0; i < desktop_shell.windows.count; ++i) {
+            struct o0_window *win = &desktop_shell.windows.windows[i];
+            if (win->visible && win->surface) {
+                o0_surface_blit(&backbuffer, win->x, win->y, win->surface, 0,
+                                0, (int32_t)win->width, (int32_t)win->height);
+            }
+        }
+
         if (boot_display_mode.address != NULL) {
             uint8_t *fb = (uint8_t *)boot_display_mode.address;
             for (uint32_t y = 0; y < h; y++) {

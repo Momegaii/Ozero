@@ -31,10 +31,11 @@ KERNEL_OBJS := $(BUILD)/main.o $(BUILD)/serial.o $(BUILD)/string.o $(BUILD)/stat
                $(BUILD)/irq.o $(BUILD)/ioapic.o $(BUILD)/paging.o $(BUILD)/cpu.o $(BUILD)/pic.o $(BUILD)/smp.o $(BUILD)/ap_entry.o $(BUILD)/apic_timer.o $(BUILD)/kaslr.o \
                $(BUILD)/interrupts_c.o $(BUILD)/interrupts.o $(BUILD)/irq_stubs.o \
                $(BUILD)/context.o $(BUILD)/block.o $(BUILD)/ramdisk.o \
-               $(BUILD)/o0fs.o $(BUILD)/pci.o $(BUILD)/dma.o $(BUILD)/virtio_blk.o $(BUILD)/ahci.o $(BUILD)/nvme.o $(BUILD)/gpu.o $(BUILD)/gpu_hsw.o \
+               $(BUILD)/o0fs.o $(BUILD)/vfs.o $(BUILD)/pci.o $(BUILD)/dma.o $(BUILD)/virtio_blk.o $(BUILD)/virtio_blk_modern.o $(BUILD)/ahci.o $(BUILD)/nvme.o $(BUILD)/partition.o $(BUILD)/gpu.o $(BUILD)/gpu_hsw.o \
                $(BUILD)/gpu_device.o $(BUILD)/gpu_queue.o $(BUILD)/surface.o \
                $(BUILD)/display.o $(BUILD)/input.o $(BUILD)/input_ps2.o $(BUILD)/input_router.o $(BUILD)/window.o \
                $(BUILD)/compositor.o $(BUILD)/gfx_backend.o $(BUILD)/shell.o \
+               $(BUILD)/desktop_ui.o \
                $(BUILD)/abi.o $(BUILD)/elf.o $(BUILD)/usercopy.o $(BUILD)/usercopy_stub.o \
                $(BUILD)/user.o $(BUILD)/syscall_c.o $(BUILD)/syscall_entry.o \
                $(BUILD)/gdt.o \
@@ -204,12 +205,20 @@ test: $(BUILD)
 	$(HOST_RUN_ENV) ./$(BUILD)/cap_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/block_test tests/block_test.c
 	$(HOST_RUN_ENV) ./$(BUILD)/block_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/partition_test tests/partition_test.c kernel/src/partition.c kernel/src/block.c kernel/src/ramdisk.c
+	$(HOST_RUN_ENV) ./$(BUILD)/partition_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/fs_test tests/fs_test.c
 	$(HOST_RUN_ENV) ./$(BUILD)/fs_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/storage_encode_test tests/storage_encode_test.c
 	$(HOST_RUN_ENV) ./$(BUILD)/storage_encode_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/virtio_ring_test tests/virtio_ring_test.c
 	$(HOST_RUN_ENV) ./$(BUILD)/virtio_ring_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/virtio_blk_modern_test tests/virtio_blk_modern_test.c
+	$(HOST_RUN_ENV) ./$(BUILD)/virtio_blk_modern_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/o0fs_journal_test tests/o0fs_journal_test.c
+	$(HOST_RUN_ENV) ./$(BUILD)/o0fs_journal_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/vfs_test tests/vfs_test.c
+	$(HOST_RUN_ENV) ./$(BUILD)/vfs_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/pci_test tests/pci_test.c
 	$(HOST_RUN_ENV) ./$(BUILD)/pci_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/dma_test tests/dma_test.c
@@ -239,7 +248,7 @@ test: $(BUILD)
 test-sanitize: $(BUILD)
 	rm -f $(BUILD)/pmm_test $(BUILD)/slab_test $(BUILD)/sched_test \
 	      $(BUILD)/cpu_test $(BUILD)/abi_test $(BUILD)/elf_test $(BUILD)/acpi_test $(BUILD)/ioapic_test $(BUILD)/lock_order_test $(BUILD)/kaslr_test $(BUILD)/cap_test \
-	      $(BUILD)/block_test $(BUILD)/fs_test $(BUILD)/storage_encode_test \
+	      $(BUILD)/block_test $(BUILD)/partition_test $(BUILD)/fs_test $(BUILD)/o0fs_journal_test $(BUILD)/vfs_test $(BUILD)/storage_encode_test \
 	      $(BUILD)/pci_test $(BUILD)/dma_test $(BUILD)/gpu_test $(BUILD)/display_test \
 	      $(BUILD)/input_test $(BUILD)/surface_test $(BUILD)/input_ps2_test \
 	      $(BUILD)/window_test $(BUILD)/compositor_test $(BUILD)/gfx_backend_test $(BUILD)/shell_test

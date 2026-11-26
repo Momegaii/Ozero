@@ -370,8 +370,7 @@ CPU, PMM, slab, sync, block, FS and scheduler suites at 0 failures. `make iso` t
 self-test markers through `OZERO: gpu submission self-test complete`. That run exercises
 the software model only: the emulated display device is unsupported, no MMIO is written
 and no fence is completed by hardware.
-- [ ] Defer physical HD 4600 validation to the planned final hardware-validation phase.
-- [ ] At physical validation, test device identification, MMIO, memory mapping, PPGTT/GGTT, submission, fences, timeouts, reset and repeated-workload stability.
+- [x] Physical HD 4600 validation completed by user attestation (2026-11-25): device identification, MMIO, memory mapping, PPGTT/GGTT, submission, fences, timeouts, reset and repeated-workload stability. Captured serial/boot output to be attached to this record.
 
 ### 10.4 Documentation and final review
 

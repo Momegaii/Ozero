@@ -2,10 +2,11 @@
 
 Status: **Proposal — implemented for Stage 4 review, not approved as Ozero's permanent
 filesystem.** See `docs/decisions/0003-stage4-storage.md`. Sections 1–7 describe format
-version 1, which is what the kernel implements. The version 2 changes (journal region,
-feature word, algorithm id) are design only: ADRs
+version 2 (implemented in Wave 4.5). The versioning policy and proposed additional
+changes are in §8; ADRs
 [0012](decisions/0012-o0fs-crash-consistency.md) and
-[0013](decisions/0013-o0fs-format-versioning.md), §8 below.
+[0013](decisions/0013-o0fs-format-versioning.md) cover the design decisions behind
+them.
 
 OzeroFS ("o0fs") is the filesystem used by the Stage 4 storage work. It exists so
 block-layer and filesystem operations, including their failure modes, can be built and
@@ -26,18 +27,20 @@ The filesystem occupies the whole block device and uses fixed 4 KiB blocks.
 | 1 … `inode_table_blocks` | Inode table, 32 inodes per block |
 | `block_bitmap_block` | Block allocation bitmap (one block) |
 | `inode_bitmap_block` | Inode allocation bitmap (one block) |
+| `journal_block` … `journal_block + journal_blocks - 1` | Redo journal region (header block + record blocks) |
 | `data_block` … `block_count - 1` | File data and directory blocks |
 
 `o0fs_format` chooses `inode_table_blocks = clamp(block_count / 16, 1, 16)`, so a
 volume has between 64 and 512 inodes. Both bitmaps fit in one block because a volume is
-limited to 4096 blocks.
+limited to 4096 blocks. The journal region is reserved at format time and is not
+reported as free space; its size is fixed at `O0FS_JOURNAL_BLOCKS` (16) blocks.
 
 ## 2. Superblock (block 0)
 
 | Offset | Size | Field |
 |---:|---:|---|
 | 0 | 4 | `magic` = 0x5346304F ("O0FS") |
-| 4 | 2 | `version` = 1 |
+| 4 | 2 | `version` = 2 |
 | 6 | 2 | `block_size` = 4096 |
 | 8 | 4 | `block_count` |
 | 12 | 4 | `inode_count` |
@@ -47,15 +50,17 @@ limited to 4096 blocks.
 | 28 | 4 | `block_bitmap_blocks` = 1 |
 | 32 | 4 | `inode_bitmap_block` |
 | 36 | 4 | `inode_bitmap_blocks` = 1 |
-| 40 | 4 | `data_block` |
-| 44 | 4 | `root_inode` = 1 |
-| 48 | 4 | `flags` (0; reserved) |
-| 52 | 4 | `checksum` |
-| 56 | 4 | `free_blocks` |
-| 60 | 4 | `free_inodes` |
-| 64 | 56 | Reserved, zero |
+| 40 | 4 | `journal_block` |
+| 44 | 4 | `journal_blocks` |
+| 48 | 4 | `data_block` |
+| 52 | 4 | `root_inode` = 1 |
+| 56 | 4 | `flags` (0; reserved) |
+| 60 | 4 | `checksum` |
+| 64 | 4 | `free_blocks` |
+| 68 | 4 | `free_inodes` |
+| 72 | 48 | Reserved, zero |
 
-`checksum` is a 32-bit FNV-1a hash over bytes `[0, 52)`. Mounting rejects a wrong
+`checksum` is a 32-bit FNV-1a hash over bytes `[0, 60)`. Mounting rejects a wrong
 magic, version, block size, checksum, or an out-of-range/ inconsistent layout. The
 superblock is rewritten by `o0fs_sync` and on unmount.
 
@@ -121,46 +126,51 @@ reuse; no compaction is performed. Directory size is always a multiple of 4096.
 Paths start with `/`, have at most 16 components, and each component is at most 23
 bytes. `.` and `..` are rejected.
 
-## 7. Consistency limits
+## 7. Crash consistency (redo journal, version 2)
 
-There is no journal, no copy-on-write transaction protocol and no write-back cache.
-The live write path uses temporary page-backed undo images for existing data blocks;
-these are released after success or rollback and are not persistent recovery records.
-Each mutation writes whole 4 KiB blocks. Consequences:
+A reserved journal region sits between the inode bitmap and the first data
+block (see §1). Metadata modifications are transactions: each metadata block
+image is staged, written as checksummed records to the journal, flushed, then
+committed by a single sequence-numbered header block. Data blocks are written
+in place and flushed *before* the commit that references them (ordered data).
 
-- A power loss between block writes can leave the volume needing repair; runtime undo
-  images do not survive power loss and there is no `fsck` yet.
-- If the device also fails during rollback, the write returns `EIO`; the filesystem
-  cannot promise that the previous bytes or metadata were fully restored.
-- A metadata I/O error during truncate can leave freed blocks recorded as holes; the
-  inode is written to match the bitmap, but the operation is not rolled back.
-- Unlink removes the directory entry before releasing the inode; an I/O error in
-  between leaks the inode and its blocks.
-- Remount always reloads from the device, so an unmount/`o0fs_sync` is required before
-  assuming durability.
+On mount, `fs_journal_recover` scans the journal for valid committed
+transactions and replays them in sequence order; uncommitted or torn
+transactions are discarded. The consistency checker `o0fs_check` validates
+bitmaps against reachable inodes, directory entries against inode types,
+double-referenced blocks and indirect blocks, and runs in host tests after
+every injected crash.
 
-These limits are deliberate for Stage 4 and are listed as follow-up work.
-[ADR 0012](decisions/0012-o0fs-crash-consistency.md) proposes replacing them with a redo
-journal and ordered data writes; this section records the current implementation, not the
-target.
+Consequences:
 
-## 8. Format revision and versioning (proposed version 2 — ADR 0013)
+- A power loss between block writes leaves the volume at the last committed
+  transaction on remount; recovery replays committed transactions and rolls
+  uncommitted ones back.
+- `o0fs_sync` on unmount flushes the superblock and bitmaps; a remount
+  without an intervening sync sees the last synced state plus any committed
+  journal transactions.
+- Each metadata-modifying operation (create, mkdir, write, truncate, unlink,
+  rmdir) is one transaction; data blocks are ordered before metadata commits.
+- Write throughput pays one extra journal write plus commit flush per
+  transaction; acceptable for the emulator-first stage.
 
-Nothing in this section is implemented. It records the versioning policy proposed in
-[ADR 0013](decisions/0013-o0fs-format-versioning.md), which the version 2 layout from
-[ADR 0012](decisions/0012-o0fs-crash-consistency.md) depends on.
 
-| Proposed change | Effect |
+## 8. Format revision and versioning (version 2 — ADR 0013, implemented in Wave 4.5)
+
+Version 2 is implemented in Wave 4.5 per ADR 0018. The changes from the proposal are
+realized as follows:
+
+| Proposed change | Status |
 |---|---|
-| `version` split into major (high byte) and minor (low byte) | A newer major is refused with an explicit "volume format newer than this kernel" status; a newer minor refuses read-write and may allow read-only |
-| `flags` becomes `compat` / `ro_compat` / `incompat` bit ranges | Unknown incompatible features refuse the mount; unknown read-only-compatible features allow read-only mounting |
-| Journal region described by the superblock | Redo-journal recovery per ADR 0012; the region is reserved and not reported as free space |
-| Checksum algorithm id | The superblock names the algorithm (1 = FNV-1a, 2 = CRC32C proposed) rather than hard-coding it |
-| Reserved bytes must be zero | A nonzero reserved byte is an unknown incompatible feature, not something to ignore |
+| `version` split into major (high byte) and minor (low byte) | Implemented: `O0FS_VERSION` encodes major/minor; a newer major is refused |
+| `flags` becomes compat / ro_compat / incompat bit ranges | Deferred: `flags` remains reserved |
+| Journal region described by the superblock | Implemented: `journal_block`, `journal_blocks` in the superblock |
+| Checksum algorithm id | Deferred: FNV-1a is hard-coded |
+| Reserved bytes must be zero | Deferred: reserved bytes are not checked |
 
-Proposed mount policy: refuse a newer major outright; refuse read-write on any volume with
-an unknown incompatible bit; never upgrade a volume during mount — migration is an explicit
-offline operation and the kernel never rewrites a format it does not fully understand.
+Mount policy: refuse a newer major outright; never upgrade a volume during mount —
+migration is an explicit offline operation.
+
 
 ## 9. Open questions for the Project Director
 

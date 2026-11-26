@@ -119,3 +119,81 @@ o0_status o0_surface_blit(struct o0_surface *dst, int32_t dx, int32_t dy,
     }
     return O0_OK;
 }
+
+uint32_t o0_surface_blend_rgb(uint32_t dst, uint32_t src, uint8_t alpha) {
+    uint8_t dr = (uint8_t)(dst >> 16);
+    uint8_t dg = (uint8_t)(dst >> 8);
+    uint8_t db = (uint8_t)dst;
+    uint8_t sr = (uint8_t)(src >> 16);
+    uint8_t sg = (uint8_t)(src >> 8);
+    uint8_t sb = (uint8_t)src;
+    uint32_t r = ((uint32_t)sr * alpha + (uint32_t)dr * (255u - alpha)) / 255u;
+    uint32_t g = ((uint32_t)sg * alpha + (uint32_t)dg * (255u - alpha)) / 255u;
+    uint32_t b = ((uint32_t)sb * alpha + (uint32_t)db * (255u - alpha)) / 255u;
+    return (r << 16) | (g << 8) | b;
+}
+
+o0_status o0_surface_fill_circle(struct o0_surface *s, int32_t cx, int32_t cy,
+                                 int32_t r, uint32_t rgb) {
+    if (!surface_valid(s) || r <= 0) return O0_EINVAL;
+    int32_t r2 = r * r;
+    for (int32_t dy = -r; dy <= r; ++dy) {
+        int32_t dy2 = dy * dy;
+        if (dy2 > r2) continue;
+        int32_t x_half = 0;
+        /* Integer approximation of sqrt(r2 - dy2) via binary search. */
+        int32_t lo = 0, hi = r;
+        while (lo <= hi) {
+            int32_t mid = (lo + hi) / 2;
+            if (mid * mid + dy2 <= r2) {
+                x_half = mid;
+                lo = mid + 1;
+            } else {
+                hi = mid - 1;
+            }
+        }
+        int32_t x0 = cx - x_half;
+        int32_t x1 = cx + x_half;
+        int32_t py = cy + dy;
+        if (py < 0 || py >= (int32_t)s->height) continue;
+        if (x0 < 0) x0 = 0;
+        if (x1 >= (int32_t)s->width) x1 = (int32_t)s->width - 1;
+        if (x0 > x1) continue;
+        uint8_t *p = s->pixels + (size_t)py * s->pitch + (size_t)x0 * 4u;
+        for (int32_t x = x0; x <= x1; ++x, p += 4)
+            pixel_write(p, s->format, rgb);
+    }
+    return O0_OK;
+}
+
+o0_status o0_surface_draw_circle(struct o0_surface *s, int32_t cx, int32_t cy,
+                                 int32_t r, uint32_t rgb) {
+    if (!surface_valid(s) || r <= 0) return O0_EINVAL;
+    /* Midpoint circle algorithm, 8-way symmetric. */
+    int32_t x = 0;
+    int32_t y = r;
+    int32_t d = 3 - 2 * r;
+    while (x <= y) {
+        int32_t pts[8][2] = {
+            {cx + x, cy + y}, {cx - x, cy + y},
+            {cx + x, cy - y}, {cx - x, cy - y},
+            {cx + y, cy + x}, {cx - y, cy + x},
+            {cx + y, cy - x}, {cx - y, cy - x},
+        };
+        for (int i = 0; i < 8; ++i) {
+            int32_t px = pts[i][0], py = pts[i][1];
+            if (px >= 0 && px < (int32_t)s->width && py >= 0 && py < (int32_t)s->height) {
+                uint8_t *p = s->pixels + (size_t)py * s->pitch + (size_t)px * 4u;
+                pixel_write(p, s->format, rgb);
+            }
+        }
+        if (d < 0) {
+            d += 4 * x + 6;
+        } else {
+            d += 4 * (x - y) + 10;
+            --y;
+        }
+        ++x;
+    }
+    return O0_OK;
+}

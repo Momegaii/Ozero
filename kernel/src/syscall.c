@@ -9,10 +9,12 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "ozero/abi.h"
 #include "ozero/budget.h"
 #include "ozero/endpoint.h"
+#include "ozero/fs.h"
 #include "ozero/handle.h"
 #include "ozero/ipc.h"
 #include "ozero/memory.h"
@@ -24,6 +26,7 @@
 #include "ozero/uaccess.h"
 #include "ozero/uapi.h"
 #include "ozero/user.h"
+#include "ozero/vfs.h"
 
 #include "serial.h"
 #include "thread_internal.h"
@@ -376,6 +379,145 @@ rollback:
     return o0_uapi_error_from_status(st);
 }
 
+/* ---- file syscalls (Wave 4.6) ---- */
+
+static int64_t sys_file_open(uint64_t path_ptr, uint64_t flags) {
+    if (path_ptr == 0) {
+        return O0_UE_INVAL;
+    }
+    const char *path = (const char *)(uintptr_t)path_ptr;
+    o0_process_t *proc = o0_process_current();
+    if (proc == NULL) {
+        return O0_UE_INVAL;
+    }
+    uint64_t handle = 0;
+    o0_status st = o0_vfs_open(path, (uint32_t)flags, proc, &handle);
+    if (st != O0_OK) {
+        return o0_uapi_error_from_status(st);
+    }
+    return (int64_t)handle;
+}
+
+static int64_t sys_file_read(uint64_t handle, uint64_t buf_ptr,
+                             uint64_t capacity) {
+    if (buf_ptr == 0 || capacity == 0) {
+        return O0_UE_INVAL;
+    }
+    o0_process_t *proc = o0_process_current();
+    if (proc == NULL) {
+        return O0_UE_INVAL;
+    }
+    o0_status st = o0_user_range_check((const void *)(uintptr_t)buf_ptr,
+                                       (size_t)capacity, false);
+    if (st != O0_OK) {
+        return o0_uapi_error_from_status(st);
+    }
+    static uint8_t bounce[O0FS_BLOCK_SIZE];
+    size_t want = capacity < sizeof(bounce) ? (size_t)capacity : sizeof(bounce);
+    size_t got = 0;
+    st = o0_vfs_read(proc, handle, bounce, want, &got);
+    if (st != O0_OK) {
+        return o0_uapi_error_from_status(st);
+    }
+    st = o0_copy_to_user((void *)(uintptr_t)buf_ptr, bounce, got);
+    return ret_status(st);
+}
+
+static int64_t sys_file_write(uint64_t handle, uint64_t buf_ptr, uint64_t len) {
+    if (buf_ptr == 0 || len == 0) {
+        return O0_UE_INVAL;
+    }
+    o0_process_t *proc = o0_process_current();
+    if (proc == NULL) {
+        return O0_UE_INVAL;
+    }
+    o0_status st = o0_user_range_check((const void *)(uintptr_t)buf_ptr, len,
+                                       true);
+    if (st != O0_OK) {
+        return o0_uapi_error_from_status(st);
+    }
+    static uint8_t bounce[O0FS_BLOCK_SIZE];
+    size_t want = len < sizeof(bounce) ? (size_t)len : sizeof(bounce);
+    st = o0_copy_from_user(bounce, (const void *)(uintptr_t)buf_ptr, want);
+    if (st != O0_OK) {
+        return o0_uapi_error_from_status(st);
+    }
+    size_t written = 0;
+    st = o0_vfs_write(proc, handle, bounce, want, &written);
+    if (st != O0_OK) {
+        return o0_uapi_error_from_status(st);
+    }
+    return (int64_t)written;
+}
+
+static int64_t sys_file_close(uint64_t handle) {
+    o0_process_t *proc = o0_process_current();
+    if (proc == NULL) {
+        return O0_UE_INVAL;
+    }
+    return ret_status(o0_handle_close(proc->handles, handle));
+}
+
+static int64_t sys_file_stat(uint64_t path_ptr, uint64_t out_ptr) {
+    if (path_ptr == 0 || out_ptr == 0) {
+        return O0_UE_INVAL;
+    }
+    const char *path = (const char *)(uintptr_t)path_ptr;
+    struct o0fs_stat info;
+    o0_status st = o0_vfs_stat(path, &info);
+    if (st != O0_OK) {
+        return o0_uapi_error_from_status(st);
+    }
+    struct o0_uapi_stat out = {
+        .st_size = info.size,
+        .st_blocks = info.blocks,
+        .st_mode = info.type,
+        .st_links = info.links,
+        .reserved = {0, 0, 0, 0},
+    };
+    st = o0_copy_to_user((void *)(uintptr_t)out_ptr, &out, sizeof(out));
+    return ret_status(st);
+}
+
+static void readdir_emit(void *ctx, const char *name,
+                         const struct o0fs_stat *stat) {
+    struct readdir_ctx {
+        struct o0_uapi_dirent entries[16];
+        size_t count;
+    } *c = (struct readdir_ctx *)ctx;
+    if (c->count >= 16) {
+        return;
+    }
+    struct o0_uapi_dirent *e = &c->entries[c->count];
+    e->d_ino = stat->inode;
+    e->d_reclen = (uint32_t)sizeof(*e);
+    e->d_namlen = (uint8_t)strlen(name);
+    e->d_type = stat->type;
+    memset(e->d_name, 0, sizeof(e->d_name));
+    memcpy(e->d_name, name, e->d_namlen);
+    ++c->count;
+}
+
+static int64_t sys_file_readdir(uint64_t path_ptr, uint64_t buf_ptr,
+                                uint64_t count) {
+    if (path_ptr == 0 || buf_ptr == 0 || count == 0) {
+        return O0_UE_INVAL;
+    }
+    const char *path = (const char *)(uintptr_t)path_ptr;
+    struct readdir_ctx {
+        struct o0_uapi_dirent entries[16];
+        size_t count;
+    } ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    o0_status st = o0_vfs_listdir(path, readdir_emit, &ctx);
+    if (st != O0_OK) {
+        return o0_uapi_error_from_status(st);
+    }
+    size_t bytes = ctx.count * sizeof(struct o0_uapi_dirent);
+    st = o0_copy_to_user((void *)(uintptr_t)buf_ptr, ctx.entries, bytes);
+    return ret_status(st == O0_OK ? (int64_t)bytes : st);
+}
+
 int64_t o0_syscall_dispatch(struct o0_syscall_frame *frame) {
     if (frame == NULL) {
         return O0_UE_INVAL;
@@ -426,6 +568,18 @@ int64_t o0_syscall_dispatch(struct o0_syscall_frame *frame) {
                 frame->rdi, frame->rsi,
                 (const struct o0_uapi_handle_xfer *)(uintptr_t)frame->rdx,
                 (uint32_t)frame->r10);
+        case O0_SYS_OPEN:
+            return sys_file_open(frame->rdi, frame->rsi);
+        case O0_SYS_READ:
+            return sys_file_read(frame->rdi, frame->rsi, frame->rdx);
+        case O0_SYS_WRITE:
+            return sys_file_write(frame->rdi, frame->rsi, frame->rdx);
+        case O0_SYS_CLOSE:
+            return sys_file_close(frame->rdi);
+        case O0_SYS_STAT:
+            return sys_file_stat(frame->rdi, frame->rsi);
+        case O0_SYS_READDIR:
+            return sys_file_readdir(frame->rdi, frame->rsi, frame->rdx);
         case O0_SYS_INVALID:
             return O0_UE_INVAL;
         default:
