@@ -548,7 +548,7 @@ static volatile uint32_t join_watch_active;
 static uint32_t join_watch_reported;
 static uint64_t join_watch_deadline;
 
-void o0_thread_join_watchdog_check(uint64_t ticks) {
+static void join_watchdog_check(uint64_t ticks) {
     if (join_watch_active == 0u || join_watch_reported != 0u) {
         return;
     }
@@ -665,6 +665,7 @@ void o0_thread_sleep_ns(uint64_t ns) {
 }
 
 void o0_thread_tick(uint64_t now) {
+    join_watchdog_check(now);
     for (size_t i = 0; i < O0_MAX_THREADS; ++i) {
         struct o0_thread *thread = &thread_table[i];
         if (thread->state != O0_THREAD_BLOCKED ||
