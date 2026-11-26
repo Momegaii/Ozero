@@ -380,8 +380,9 @@ rollback:
 
 static o0_status syscall_copy_path(char *path, const char *user_path,
                                     uint64_t path_length) {
-    if (path == NULL || user_path == NULL || path_length == 0 ||
-        path_length > O0_UAPI_PATH_MAX) return O0_ERANGE;
+    if (path == NULL || user_path == NULL) return O0_EINVAL;
+    if (path_length == 0) return O0_EINVAL;
+    if (path_length > O0_UAPI_PATH_MAX) return O0_ERANGE;
     o0_status st = o0_syscall_arg_check(user_path, (size_t)path_length, false);
     if (st != O0_OK) return st;
     st = o0_copy_from_user(path, user_path, (size_t)path_length);
