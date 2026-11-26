@@ -7,6 +7,11 @@
  * table, and submits one command at a time. The submitting call polls the
  * completion phase bit with a bounded spin, so a lost interrupt is a timeout,
  * not a hang; the MSI-X handler counts and acknowledges nothing device-side.
+ * A completion is accepted only when its command id matches as well as its
+ * phase, and a command that times out or completes out of order disables and
+ * re-enables the controller before anything reuses the queue, so a late
+ * completion cannot be mistaken for the next command's or DMA into a released
+ * buffer.
  *
  * Evidence limits: QEMU `-device nvme` only, one namespace, no PRP lists (one
  * page per request, which is what the block layer's synchronous path uses). No
@@ -44,6 +49,25 @@ static inline uint32_t o0_nvme_cqe_status(uint32_t dw3) {
 
 static inline uint16_t o0_nvme_cqe_cid(uint32_t dw3) {
     return (uint16_t)(dw3 & 0xFFFFu);
+}
+
+/* A completion is ours only when both the phase tag and the command id match.
+ * A phase match with a foreign id is a late completion from a command the driver
+ * already gave up on, and consuming it would desynchronise the queue. */
+static inline bool o0_nvme_cqe_matches(uint32_t dw3, uint32_t phase,
+                                       uint16_t cid) {
+    return o0_nvme_cqe_phase(dw3) == (phase & 1u) && o0_nvme_cqe_cid(dw3) == cid;
+}
+
+/* The driver programs PRP1 only, so a transfer must live inside the single page
+ * that PRP1 points at. Anything longer needs a PRP list, which is not
+ * implemented; submitting it anyway would let the controller DMA past the
+ * buffer. */
+static inline bool o0_nvme_prp_fits_one_page(uint64_t phys, uint32_t len) {
+    if (len == 0u) {
+        return false;
+    }
+    return (phys & 0xFFFu) + (uint64_t)len <= 0x1000u;
 }
 
 /* Probes PCI for an NVMe controller (class 01h/08h, prog-if 02h) and registers

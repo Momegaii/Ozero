@@ -92,6 +92,8 @@ struct o0_nvme {
     volatile uint8_t *regs;
     uint32_t doorbell_stride;
     uint16_t queue_depth;
+    uint16_t nsid;
+    bool io_ready;
     uint32_t sector_size;
     uint64_t sectors;
     bool in_use;
@@ -144,6 +146,8 @@ static inline void nvme_write64(struct o0_nvme *nd, uint32_t off,
     nvme_write32(nd, off, (uint32_t)(value & 0xFFFFFFFFu));
     nvme_write32(nd, off + 4u, (uint32_t)(value >> 32));
 }
+
+static o0_status nvme_restart(struct o0_nvme *nd);
 
 static void nvme_ignore(o0_status status) {
     (void)status;
@@ -230,75 +234,125 @@ static void nvme_ring_cq(struct o0_nvme *nd, uint32_t qid, uint16_t head) {
     nvme_write32(nd, 0x1000u + (2u * qid + 1u) * nd->doorbell_stride, head);
 }
 
-static bool nvme_wait_cqe(struct o0_nvme *nd, uint32_t qid,
-                          volatile struct o0_nvme_cqe *cq, uint16_t *head,
-                          uint32_t *phase, uint16_t qsize,
-                          struct o0_nvme_cqe *out) {
+enum nvme_wait {
+    NVME_WAIT_DONE,
+    NVME_WAIT_TIMEOUT,
+    NVME_WAIT_STALE
+};
+
+static enum nvme_wait nvme_wait_cqe(struct o0_nvme *nd, uint32_t qid,
+                                    volatile struct o0_nvme_cqe *cq,
+                                    uint16_t *head, uint32_t *phase,
+                                    uint16_t qsize, uint16_t cid,
+                                    struct o0_nvme_cqe *out) {
     for (uint32_t spin = 0; spin < NVME_TIMEOUT_SPINS; ++spin) {
         struct o0_nvme_cqe entry = cq[*head];
         __asm__ volatile ("" : : : "memory");
-        if (o0_nvme_cqe_phase(entry.cid_status) == *phase) {
-            *out = entry;
-            ++(*head);
-            if (*head == qsize) {
-                *head = 0;
-                *phase ^= 1u;
-            }
-            nvme_ring_cq(nd, qid, *head);
-            return true;
+        if (o0_nvme_cqe_phase(entry.cid_status) != *phase) {
+            continue;
         }
+        /* The phase tag alone cannot tell this command's completion from a late
+         * one belonging to a command that already timed out. */
+        if (o0_nvme_cqe_cid(entry.cid_status) != cid) {
+            return NVME_WAIT_STALE;
+        }
+        *out = entry;
+        ++(*head);
+        if (*head == qsize) {
+            *head = 0;
+            *phase ^= 1u;
+        }
+        nvme_ring_cq(nd, qid, *head);
+        return NVME_WAIT_DONE;
     }
-    return false;
+    return NVME_WAIT_TIMEOUT;
 }
 
 static o0_status nvme_admin(struct o0_nvme *nd, uint8_t opcode, uint32_t nsid,
                             uint64_t prp1, uint32_t cdw10, uint32_t cdw11,
                             uint32_t cdw12) {
     uint16_t index = nd->aq_tail;
+    uint16_t cid = nd->admin_cid;
     struct o0_nvme_sqe *sqe = &nd->asq[index];
     memset(sqe, 0, sizeof(*sqe));
-    sqe->cdw0 = o0_nvme_cdw0(opcode, nd->admin_cid);
+    sqe->cdw0 = o0_nvme_cdw0(opcode, cid);
     sqe->nsid = nsid;
     sqe->prp1 = prp1;
     sqe->cdw10 = cdw10;
     sqe->cdw11 = cdw11;
     sqe->cdw12 = cdw12;
-    nd->admin_cid = (uint16_t)(nd->admin_cid + 1u);
+    nd->admin_cid = (uint16_t)(cid + 1u);
     nd->aq_tail = (uint16_t)((index + 1u) % nd->queue_depth);
     __asm__ volatile ("mfence" : : : "memory");
     nvme_ring_sq(nd, 0u, nd->aq_tail);
 
     struct o0_nvme_cqe cqe;
-    if (!nvme_wait_cqe(nd, 0u, nd->acq, &nd->aq_head, &nd->aq_phase,
-                       nd->queue_depth, &cqe)) {
-        return O0_ETIMEDOUT;
+    enum nvme_wait r = nvme_wait_cqe(nd, 0u, nd->acq, &nd->aq_head,
+                                     &nd->aq_phase, nd->queue_depth, cid, &cqe);
+    if (r != NVME_WAIT_DONE) {
+        /* The command still owns its slot, so nothing may reuse the queue until
+         * the controller has been brought back to a known state. */
+        (void)nvme_restart(nd);
+        return r == NVME_WAIT_TIMEOUT ? O0_ETIMEDOUT : O0_EIO;
     }
     return o0_nvme_cqe_status(cqe.cid_status) == 0u ? O0_OK : O0_EIO;
 }
 
 static o0_block_status nvme_io(struct o0_nvme *nd, bool write, uint64_t slba,
                                uint16_t nlb, uint64_t data_phys) {
-    if (nlb == 0u) {
+    if (nlb == 0u || nd->sector_size == 0u) {
+        return O0_BLOCK_ERR_INVAL;
+    }
+    if (!o0_nvme_prp_fits_one_page(data_phys,
+                                   (uint32_t)nlb * nd->sector_size)) {
         return O0_BLOCK_ERR_INVAL;
     }
     uint16_t index = nd->io_tail;
+    uint16_t cid = nd->io_cid;
     struct o0_nvme_sqe *sqe = &nd->isq[index];
     memset(sqe, 0, sizeof(*sqe));
-    sqe->cdw0 = o0_nvme_cdw0(write ? NVME_IO_WRITE : NVME_IO_READ, nd->io_cid);
-    sqe->nsid = 1u;
+    sqe->cdw0 = o0_nvme_cdw0(write ? NVME_IO_WRITE : NVME_IO_READ, cid);
+    sqe->nsid = nd->nsid;
     sqe->prp1 = data_phys;
     sqe->cdw10 = (uint32_t)(slba & 0xFFFFFFFFu);
     sqe->cdw11 = (uint32_t)(slba >> 32);
     sqe->cdw12 = (uint32_t)(nlb - 1u);
-    nd->io_cid = (uint16_t)(nd->io_cid + 1u);
+    nd->io_cid = (uint16_t)(cid + 1u);
     nd->io_tail = (uint16_t)((index + 1u) % nd->queue_depth);
     __asm__ volatile ("mfence" : : : "memory");
     nvme_ring_sq(nd, 1u, nd->io_tail);
 
     struct o0_nvme_cqe cqe;
-    if (!nvme_wait_cqe(nd, 1u, nd->icq, &nd->io_head, &nd->io_phase,
-                       nd->queue_depth, &cqe)) {
-        return O0_BLOCK_ERR_TIMEOUT;
+    enum nvme_wait r = nvme_wait_cqe(nd, 1u, nd->icq, &nd->io_head,
+                                     &nd->io_phase, nd->queue_depth, cid, &cqe);
+    if (r != NVME_WAIT_DONE) {
+        (void)nvme_restart(nd);
+        return r == NVME_WAIT_TIMEOUT ? O0_BLOCK_ERR_TIMEOUT
+                                      : O0_BLOCK_ERR_IO;
+    }
+    return o0_nvme_cqe_status(cqe.cid_status) == 0u ? O0_BLOCK_OK
+                                                    : O0_BLOCK_ERR_IO;
+}
+
+static o0_block_status nvme_flush_command(struct o0_nvme *nd) {
+    uint16_t index = nd->io_tail;
+    uint16_t cid = nd->io_cid;
+    struct o0_nvme_sqe *sqe = &nd->isq[index];
+    memset(sqe, 0, sizeof(*sqe));
+    sqe->cdw0 = o0_nvme_cdw0(NVME_IO_FLUSH, cid);
+    sqe->nsid = nd->nsid;
+    nd->io_cid = (uint16_t)(cid + 1u);
+    nd->io_tail = (uint16_t)((index + 1u) % nd->queue_depth);
+    __asm__ volatile ("mfence" : : : "memory");
+    nvme_ring_sq(nd, 1u, nd->io_tail);
+
+    struct o0_nvme_cqe cqe;
+    enum nvme_wait r = nvme_wait_cqe(nd, 1u, nd->icq, &nd->io_head,
+                                     &nd->io_phase, nd->queue_depth, cid, &cqe);
+    if (r != NVME_WAIT_DONE) {
+        (void)nvme_restart(nd);
+        return r == NVME_WAIT_TIMEOUT ? O0_BLOCK_ERR_TIMEOUT
+                                      : O0_BLOCK_ERR_IO;
     }
     return o0_nvme_cqe_status(cqe.cid_status) == 0u ? O0_BLOCK_OK
                                                     : O0_BLOCK_ERR_IO;
@@ -370,6 +424,70 @@ static bool nvme_enable_controller(struct o0_nvme *nd) {
     return false;
 }
 
+/* Creates I/O queue pair 1. Re-runnable: a controller reset destroys every I/O
+ * queue the controller had, so the pair has to be created again afterwards. */
+static o0_status nvme_io_queues_create(struct o0_nvme *nd) {
+    uint32_t iv = nd->vector_ok ? 1u : 0u;
+    uint32_t ien = nd->vector_ok ? 1u : 0u;
+    o0_status st = nvme_admin(nd, NVME_ADMIN_CREATE_CQ, 0u, 0u,
+                              (uint32_t)(1u | ((nd->queue_depth - 1u) << 16)),
+                              (1u | (ien << 1) | (iv << 16)), 0u);
+    if (st != O0_OK) {
+        return st;
+    }
+    return nvme_admin(nd, NVME_ADMIN_CREATE_SQ, 0u, 0u,
+                      (uint32_t)(1u | ((nd->queue_depth - 1u) << 16)),
+                      (1u | (1u << 16)), 0u);
+}
+
+/* Disable, drop every queue and its bookkeeping, then enable again. A command
+ * that never completed may still be in flight, and its buffers belong to a
+ * caller that has moved on, so the controller must not keep them. */
+static bool nvme_controller_reset(struct o0_nvme *nd) {
+    if (nd->queue_depth == 0u || nd->regs == NULL ||
+        nd->admin_sq.virt == NULL || nd->admin_cq.virt == NULL ||
+        nd->io_sq.virt == NULL || nd->io_cq.virt == NULL) {
+        return false;
+    }
+    if (!nvme_disable_controller(nd)) {
+        return false;
+    }
+    nvme_write32(nd, NVME_REG_INTMS, 0xFFFFFFFFu);
+    nd->aq_head = 0u;
+    nd->aq_tail = 0u;
+    nd->aq_phase = 1u;
+    nd->admin_cid = 0u;
+    nd->io_head = 0u;
+    nd->io_tail = 0u;
+    nd->io_phase = 1u;
+    nd->io_cid = 0u;
+    memset(nd->admin_sq.virt, 0, nd->admin_sq.size);
+    memset(nd->admin_cq.virt, 0, nd->admin_cq.size);
+    memset(nd->io_sq.virt, 0, nd->io_sq.size);
+    memset(nd->io_cq.virt, 0, nd->io_cq.size);
+    uint32_t entries = (uint32_t)(nd->queue_depth - 1u);
+    nvme_write32(nd, NVME_REG_AQA, entries | (entries << 16));
+    nvme_write64(nd, NVME_REG_ASQ, nd->admin_sq.phys);
+    nvme_write64(nd, NVME_REG_ACQ, nd->admin_cq.phys);
+    return nvme_enable_controller(nd);
+}
+
+static o0_status nvme_restart(struct o0_nvme *nd) {
+    if (!nvme_controller_reset(nd)) {
+        return O0_EIO;
+    }
+    if (nd->io_ready) {
+        o0_status st = nvme_io_queues_create(nd);
+        if (st != O0_OK) {
+            return st;
+        }
+    }
+    if (nd->vector_ok) {
+        nvme_write32(nd, NVME_REG_INTMC, 0xFFFFFFFFu);
+    }
+    return O0_OK;
+}
+
 static o0_status nvme_queue_rq(struct o0_block_queue *queue, struct o0_bio *bio) {
     if (queue == NULL || bio == NULL) {
         return O0_EINVAL;
@@ -380,23 +498,7 @@ static o0_status nvme_queue_rq(struct o0_block_queue *queue, struct o0_bio *bio)
     }
 
     if (bio->op == O0_BLOCK_FLUSH) {
-        uint16_t index = nd->io_tail;
-        struct o0_nvme_sqe *sqe = &nd->isq[index];
-        memset(sqe, 0, sizeof(*sqe));
-        sqe->cdw0 = o0_nvme_cdw0(NVME_IO_FLUSH, nd->io_cid);
-        sqe->nsid = 1u;
-        nd->io_cid = (uint16_t)(nd->io_cid + 1u);
-        nd->io_tail = (uint16_t)((index + 1u) % nd->queue_depth);
-        __asm__ volatile ("mfence" : : : "memory");
-        nvme_ring_sq(nd, 1u, nd->io_tail);
-        struct o0_nvme_cqe cqe;
-        o0_block_status st = O0_BLOCK_ERR_TIMEOUT;
-        if (nvme_wait_cqe(nd, 1u, nd->icq, &nd->io_head, &nd->io_phase,
-                          nd->queue_depth, &cqe)) {
-            st = o0_nvme_cqe_status(cqe.cid_status) == 0u ? O0_BLOCK_OK
-                                                          : O0_BLOCK_ERR_IO;
-        }
-        o0_block_complete_bio(bio, st, 0u);
+        o0_block_complete_bio(bio, nvme_flush_command(nd), 0u);
         return O0_OK;
     }
     if (bio->op != O0_BLOCK_READ && bio->op != O0_BLOCK_WRITE) {
@@ -432,12 +534,15 @@ static o0_status nvme_reset(struct o0_block_dev *dev) {
     if (nd == NULL) {
         return O0_ENOENT;
     }
-    return nvme_disable_controller(nd) && nvme_enable_controller(nd) ? O0_OK
-                                                                     : O0_EIO;
+    return nvme_restart(nd);
 }
 
 static o0_status nvme_flush(struct o0_block_dev *dev) {
-    return dev != NULL ? O0_OK : O0_EINVAL;
+    struct o0_nvme *nd = nvme_from_dev(dev);
+    if (nd == NULL) {
+        return O0_ENOENT;
+    }
+    return nvme_flush_command(nd) == O0_BLOCK_OK ? O0_OK : O0_EIO;
 }
 
 static o0_status nvme_geometry(struct o0_block_dev *dev,
@@ -643,6 +748,7 @@ o0_status o0_nvme_probe(const char *name, struct o0_block_dev **out) {
         return O0_EIO;
     }
 
+    nd->nsid = 1u;
     if (nvme_identify_namespace(nd) != O0_OK) {
         nvme_dma_teardown(nd);
         return O0_ENOTSUP;
@@ -650,25 +756,15 @@ o0_status o0_nvme_probe(const char *name, struct o0_block_dev **out) {
 
     bool msix = nvme_msix_setup(nd, NVME_MSIX_WINDOW_BASE +
                                         (uint64_t)slot * NVME_MSIX_WINDOW_STRIDE);
-    uint32_t iv = msix ? 1u : 0u;
-    uint32_t ien = msix ? 1u : 0u;
 
     /* I/O completion queue (qid 1), then its submission queue. Both physically
      * contiguous and 4 KiB aligned. */
-    st = nvme_admin(nd, NVME_ADMIN_CREATE_CQ, 0u, 0u,
-                    (uint32_t)(1u | ((qdepth - 1u) << 16)),
-                    (1u | (ien << 1) | (iv << 16)), 0u);
+    st = nvme_io_queues_create(nd);
     if (st != O0_OK) {
         nvme_dma_teardown(nd);
         return st;
     }
-    st = nvme_admin(nd, NVME_ADMIN_CREATE_SQ, 0u, 0u,
-                    (uint32_t)(1u | ((qdepth - 1u) << 16)),
-                    (1u | (1u << 16)), 0u);
-    if (st != O0_OK) {
-        nvme_dma_teardown(nd);
-        return st;
-    }
+    nd->io_ready = true;
     if (msix) {
         nvme_write32(nd, NVME_REG_INTMC, 0xFFFFFFFFu);
     }

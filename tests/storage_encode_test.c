@@ -72,12 +72,38 @@ static void test_nvme_cqe(void) {
     assert(o0_nvme_cqe_status(error) == 0x82u);
 }
 
+static void test_nvme_cqe_matches(void) {
+    uint32_t dw3 = (0u << 17) | (1u << 16) | 0x2Au;
+    assert(o0_nvme_cqe_matches(dw3, 1u, 0x2Au));
+    /* A phase match with a foreign command id is a late completion. */
+    assert(!o0_nvme_cqe_matches(dw3, 1u, 0x2Bu));
+    /* A phase mismatch is simply not ready yet. */
+    assert(!o0_nvme_cqe_matches(dw3, 0u, 0x2Au));
+    /* The phase argument is masked, so a caller's raw tag still compares. */
+    assert(o0_nvme_cqe_matches(dw3, 0xFFFFFFFFu, 0x2Au));
+}
+
+static void test_nvme_prp_bounds(void) {
+    /* One aligned page fits PRP1 exactly. */
+    assert(o0_nvme_prp_fits_one_page(0x10000u, 4096u));
+    /* A single sector anywhere inside the page fits. */
+    assert(o0_nvme_prp_fits_one_page(0x10000u + 512u, 512u));
+    assert(o0_nvme_prp_fits_one_page(0x10000u + 3584u, 512u));
+    /* Crossing the page boundary needs a PRP list and must be refused. */
+    assert(!o0_nvme_prp_fits_one_page(0x10000u + 512u, 4096u));
+    assert(!o0_nvme_prp_fits_one_page(0x10000u + 3584u, 1024u));
+    /* An empty transfer is not a transfer. */
+    assert(!o0_nvme_prp_fits_one_page(0x10000u, 0u));
+}
+
 int main(void) {
     test_ahci_fis_lba48();
     test_ahci_fis_identify();
     test_ahci_prdt_dbc();
     test_nvme_cdw0();
     test_nvme_cqe();
+    test_nvme_cqe_matches();
+    test_nvme_prp_bounds();
     printf("storage encode tests: ok\n");
     return 0;
 }
