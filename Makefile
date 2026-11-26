@@ -241,6 +241,8 @@ test: $(BUILD)
 	$(HOST_RUN_ENV) ./$(BUILD)/gfx_backend_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/shell_test tests/shell_test.c kernel/src/shell.c kernel/src/input_router.c kernel/src/window.c kernel/src/surface.c kernel/src/status.c kernel/src/input.c
 	$(HOST_RUN_ENV) ./$(BUILD)/shell_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/desktop_ui_test tests/desktop_ui_test.c kernel/src/desktop_ui.c kernel/src/surface.c kernel/src/status.c
+	$(HOST_RUN_ENV) ./$(BUILD)/desktop_ui_test
 
 # Same suites, compiled and run under AddressSanitizer and
 # UndefinedBehaviorSanitizer. Leak detection is on: a test binary that leaks is a
@@ -251,7 +253,8 @@ test-sanitize: $(BUILD)
 	      $(BUILD)/block_test $(BUILD)/partition_test $(BUILD)/fs_test $(BUILD)/o0fs_journal_test $(BUILD)/vfs_test $(BUILD)/storage_encode_test \
 	      $(BUILD)/pci_test $(BUILD)/dma_test $(BUILD)/gpu_test $(BUILD)/display_test \
 	      $(BUILD)/input_test $(BUILD)/surface_test $(BUILD)/input_ps2_test \
-	      $(BUILD)/window_test $(BUILD)/compositor_test $(BUILD)/gfx_backend_test $(BUILD)/shell_test
+	      $(BUILD)/window_test $(BUILD)/compositor_test $(BUILD)/gfx_backend_test $(BUILD)/shell_test \
+	      $(BUILD)/desktop_ui_test
 	$(MAKE) test HOST_EXTRA_CFLAGS="$(SAN_CFLAGS)" HOST_RUN_ENV="$(SAN_ENV)"
 
 run: $(ISO)
