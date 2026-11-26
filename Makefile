@@ -39,6 +39,7 @@ KERNEL_OBJS := $(BUILD)/main.o $(BUILD)/serial.o $(BUILD)/string.o $(BUILD)/stat
                $(BUILD)/user.o $(BUILD)/syscall_c.o $(BUILD)/syscall_entry.o \
                $(BUILD)/gdt.o \
                $(BUILD)/object.o $(BUILD)/budget.o $(BUILD)/handle.o \
+               $(BUILD)/vfs.o $(BUILD)/tmpfs.o \
                $(BUILD)/memory.o $(BUILD)/endpoint.o $(BUILD)/ipc.o
 
 # Static user images, embedded in the kernel image for the Wave 2 self-tests.
