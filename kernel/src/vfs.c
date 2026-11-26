@@ -14,6 +14,8 @@
 #include "string.h"
 
 static struct o0_vnode *vfs_root;
+static void cache_init(void);
+static void cache_invalidate_all(void);
 
 static void vnode_ref(struct o0_vnode *node) {
     if (node != NULL) o0_object_ref(&node->obj);
@@ -243,6 +245,7 @@ o0_status o0_vfs_open(struct o0_vnode *directory, const char *path,
     struct o0_vfs_file *file = (struct o0_vfs_file *)object;
     file->node = node; /* take the resolver's reference */
     file->rights = rights;
+    file->reserved = 0;
     *out = file;
     return O0_OK;
 }
