@@ -84,6 +84,93 @@ CPUs) are explicitly *not* covered by it.
   not have found its device. `775e333` probes BAR0 in the probe path; the Wave 4.2
   cell is still awaiting its first observed run.
 
+
+## Director-attested local QEMU validation (2026-11-26)
+
+- **Director report:** TCG and HAXM QEMU runs have been performed locally and are working so far.
+- **Evidence type:** Director-attested local QEMU validation. This is recorded as the Director's report, not independently inspected CI evidence.
+- **Scope limit:** This does not constitute physical-hardware validation and does not by itself close any Wave 4 driver, filesystem, or crash-recovery acceptance gate.
+- **Follow-up:** Preserve the local serial logs and exact QEMU command lines in the handoff when available, so later reviews can correlate the attestation with specific commits and test cells.
+
+## Wave 4.2 — modern virtio PCI transport (2026-11-26, branch `feat/wave4-modern-virtio-transport`)
+
+- **Branch:** `feat/wave4-modern-virtio-transport`, PR #8 (draft). Not merged.
+- **Implemented** (design record: [ADR 0016](decisions/0016-modern-virtio-pci-transport.md)):
+  - `include/ozero/virtio_pci_mmio.h` — register interface, common-configuration offsets,
+    status/feature bits, common/notify/ISR/device region accessors, reset, feature read and
+    negotiation, `DRIVER_OK`.
+  - `kernel/src/virtio_pci_mmio.c` — bounded little-endian MMIO accessors, reset with a
+    bounded poll, feature-bank reads, `VERSION_1` + `FEATURES_OK` negotiation that fails
+    closed.
+  - `kernel/src/virtio_pci_map.c` — capability-BAR mapping through `o0_pci_probe_bar` and
+    `o0_as_map` into a per-device uncached window.
+  - `include/ozero/virtio_queue.h`, `kernel/src/virtio_queue.c` — queue size selection,
+    notification offset arithmetic, DMA address validation, ordered queue programming,
+    descriptor free list, available-ring publication, used-ring completion validation,
+    reset/re-init bookkeeping.
+  - `kernel/src/virtio_blk_modern.c` — the modern block backend: capability discovery,
+    queue 0 configuration, header/data/status descriptor chains, doorbell, bounded poll,
+    injected-error path, and a reset-based quiesce path used on timeout or malformed
+    completion.
+  - `kernel/src/virtio_blk.c` — legacy driver kept intact and renamed to
+    `o0_virtio_blk_legacy_probe`; the public entry points now dispatch between transports.
+- **Tests (host, run in this workspace):**
+  - `make test` — all suites pass, including
+    `virtio_ring_test`, `virtio_pci_cap_test`, `virtio_pci_mmio_test`, `virtio_queue_test`.
+  - `make test-sanitize` — the same suites under ASan/UBSan with leak detection, exit 0.
+  - `make kernel` — freestanding ELF64 kernel builds with `-Werror`.
+  - The virtio tests use `tests/virtio_mock.h`, a device model with two feature banks,
+    status latching, `FEATURES_OK` rejection, reset stalling, per-queue state and fixed
+    register widths. A wrong-width or out-of-region access is refused by the model, so the
+    tests cannot pass against a flat byte array.
+- **Rebase:** the branch was rebased onto `main` `be83019` (the PR #7 legacy virtio-blk
+  repair) and force-pushed as `6d35a53`; the PR diff is now exactly the modern virtio
+  work with no unrelated history.
+- **CI (inspected, not inferred):** [run 45807503749](https://github.com/Momegaii/Ozero/actions/runs/45807503749)
+  on `6d35a53` — `completed` / `success`, 15/15 jobs: 12 boot cells
+  (`{bios, uefi} × {qemu64, Haswell-v1, max} × -smp {1, 2}`), `lock-order-boot`,
+  `host-sanitizers` and `storage (virtio, smp=2)`. The storage cell serial log contains
+  `virtio-blk queue size=256`,
+  `virtio-blk ready pfn=0x10 status=0x7 ... capacity=16384 pci_cmd=0x107`,
+  `OZERO: virtio-blk read/write OK irq=0 sectors=16384`,
+  `OZERO: virtio-blk error path OK` and `OZERO: wave3 self-test complete`.
+  The `host-sanitizers` job therefore also ran `virtio_pci_cap_test`,
+  `virtio_pci_mmio_test` and `virtio_queue_test` under ASan/UBSan.
+- **Observed flake:** the first run of the same tree (run `45805993581`, commit `03bb3af`)
+  failed the `storage (virtio, smp=2)` cell: the serial log stopped after
+  `OZERO: smp user churn OK processes=16` and the job timed out 15 s later. QEMU's `-d int`
+  log shows one extra page fault after the three deliberate wave2 fault-injection
+  exceptions. The identical wave3 SMP scheduling test passed in the six `-smp 2` boot cells
+  of that same run and in the rebased re-run, so the failure is timing-sensitive and
+  predates this work, but it is unresolved and must not be assumed fixed.
+- **Modern-only cell (green):** the workflow change that could not be pushed through
+  `git` was committed through the Git Data API as `80ba1c0`, adding
+  `storage (modern-virtio, smp=2)` with
+  `-device virtio-blk-pci,drive=vd1,disable-legacy=on`. Run
+  [45822308326](https://github.com/Momegaii/Ozero/actions/runs/45822308326) on `cba9669`
+  passed the cell with:
+  - `OZERO: virtio-blk modern ready queue=8 qindex=0 notify_off=0 notify_mul=4 desc=0x12000 features=0x30007e54/0x101 capacity=16384 pci_cmd=0x107 msi=off`
+  - `OZERO: virtio-blk read/write OK irq=0 sectors=16384`
+  - `OZERO: virtio-blk error path OK`
+  Legacy `storage (virtio, smp=2)` stayed green in the same run.
+- **Bugs the modern cell found (fixed here):**
+  1. `vbm_snapshot` read config-space byte offsets `0xFD..=0xFF`, which the Ozero byte
+     accessor rejects, so the probe died with EIO before parsing a capability
+     (run 45819811322, `fail stage=snapshot`). Now 64 aligned dword reads.
+  2. The dispatcher returned the legacy status whenever the modern backend failed,
+     hiding every modern reason. It now returns the modern status unless no modern
+     function was present.
+  3. The ready milestone lacked the `OZERO: ` prefix the cell gates on
+     (run 45821010655: all three markers in the log, milestone reported missing).
+- **Unresolved flake (not storage):** the wave3 SMP stress test intermittently stops
+  after `OZERO: smp user churn OK processes=16`; `o0_thread_join` never returns. Seen in
+  run 45805993581 (`storage (virtio, smp=2)`) and run 45822308326
+  (`boot (uefi, max, smp=2)`, a cell with no virtio device attached). Two of the last
+  three full runs were red because of it. It needs its own investigation in the
+  scheduler/thread-discovery path.
+- **Not yet verified:**
+  - No physical controller, no asynchronous submission, no performance claim.
+
 ## Open items
 
 - CI was inspected on the Wave 4.0 HEAD `3b48810`: 14/14 jobs `success` in run
@@ -91,7 +178,7 @@ CPUs) are explicitly *not* covered by it.
 - User threads remain BSP-pinned until per-CPU TSS/IST exists. [ADR 0015](decisions/0015-per-cpu-tss-ist.md)
   is the design note for that work; it is a blocking dependency before Stage 6 uses SMP
   beyond the BSP. Ring 3 and SMAP on non-boot CPUs are untested.
-- No physical-hardware evidence exists for any wave.
+- No physical-hardware evidence is claimed. The Director separately attests successful local QEMU TCG and HAXM runs (see above).
 - Stage 7–10 not started. Wave 4.0 is closed: ADRs 0012–0014 were approved by the
   Director on 2026-11-25 and the O0FS format is still a proposal. Wave 4.1 is
   implemented and CI-green on `24b8d23` (run `45708532478`). Wave 4.2 and 4.3 are

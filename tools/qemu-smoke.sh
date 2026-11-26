@@ -17,8 +17,9 @@ ISO="${1:-build/ozero.iso}"
 LOG="${2:-build/qemu-serial.log}"
 DEBUG_LOG="${QEMU_DEBUG_LOG:-build/qemu-debug.log}"
 TIMEOUT_SECONDS="${QEMU_TIMEOUT_SECONDS:-15}"
-# QEMU_STORAGE selects the storage controller cell: virtio, ahci or nvme. It only
-# changes which markers are required; the device itself is attached through
+# QEMU_STORAGE selects the storage controller cell: virtio (legacy transport),
+# modern-virtio (MMIO capability transport, disable-legacy=on), ahci or nvme. It
+# only changes which markers are required; the device itself is attached through
 # QEMU_EXTRA_ARGS by the CI job.
 STORAGE="${QEMU_STORAGE:-}"
 EXTRA_ARGS=()
@@ -182,6 +183,14 @@ case "$STORAGE" in
         required_markers+=("OZERO: virtio-blk read/write OK")
         required_markers+=("OZERO: virtio-blk error path OK")
         ;;
+    modern-virtio)
+        required_markers+=("OZERO: virtio-blk read/write OK")
+        required_markers+=("OZERO: virtio-blk error path OK")
+        # The modern transport must report its own bring-up: a modern-only cell
+        # that silently fell back to legacy register programming would be a
+        # transport bug, not a pass.
+        required_markers+=("OZERO: virtio-blk modern ready queue=")
+        ;;
     ahci)
         required_markers+=("OZERO: ahci read/write OK")
         required_markers+=("OZERO: ahci error path OK")
@@ -191,7 +200,7 @@ case "$STORAGE" in
         required_markers+=("OZERO: nvme error path OK")
         ;;
     *)
-        echo "error: QEMU_STORAGE must be virtio, ahci or nvme, got '$STORAGE'" >&2
+        echo "error: QEMU_STORAGE must be virtio, modern-virtio, ahci or nvme, got '$STORAGE'" >&2
         exit 2
         ;;
 esac
