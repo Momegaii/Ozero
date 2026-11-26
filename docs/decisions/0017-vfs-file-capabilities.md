@@ -26,13 +26,14 @@ change native handle semantics.
    escape the backend.
 2. **Directory authority.** Path operations are relative to an explicit
    directory capability supplied by the caller. The kernel does not resolve
-   paths from a process-global or implicit root. The initial native process
-   receives a root-directory capability only through an explicit boot-time
-   grant. Child processes receive it only when the parent explicitly grants
+   paths from a process-global or implicit root. The boot supervisor grants the root directory only to an explicitly selected
+   bootstrap process; the root is never installed as an implicit process default. Child processes receive it only when the parent explicitly grants
    it through the existing spawn-transfer mechanism. A grant may reduce rights,
    never increase them.
 3. **File capabilities.** An opened file is represented by an opaque,
-   generation-protected per-process handle to a refcounted file object. The
+   generation-protected per-process handle to a refcounted file object. Opening
+   a directory returns a vnode capability carrying only its explicitly granted
+   directory rights. The
    handle table records READ, WRITE, INFO, DUP and TRANSFER rights. The kernel
    never exposes a pointer, inode number or reusable slot index as authority.
 4. **No POSIX descriptor model.** There is no process-wide descriptor namespace,
@@ -52,10 +53,11 @@ change native handle semantics.
    promoted to approved or durable by mounting it. Writable O0FS access stays
    disabled until ADR 0012's complete crash-injection matrix passes and the
    format decision is approved.
-7. **Cache.** The first VFS implementation uses a bounded page cache keyed by
-   vnode identity and page index. It must not claim durable writeback for the
-   read-only O0FS backend. Dirty-page policy, eviction and invalidation are
-   explicit backend contracts; no cache entry may outlive its vnode identity.
+7. **Cache.** The VFS uses an eight-page bounded write-through cache keyed by
+   vnode identity and page index. Writes reach the backend synchronously; there
+   are no dirty cache pages. LRU eviction drops the vnode reference, and unmount
+   invalidates the cache. No cache entry may outlive its vnode identity. This
+   cache does not imply durable O0FS writes.
 8. **User memory.** Every user pointer is checked and copied only through
    `o0_syscall_arg_check`, `o0_copy_from_user` and `o0_copy_to_user`.
    Backend code receives kernel buffers only.
@@ -99,7 +101,7 @@ enabled. `handle_close` (syscall 5) closes a file capability.
 - VFS path resolution across mount points and mount boundaries.
 - Relative lookup, root confinement, rejected `..`, empty/oversize path,
   opaque invalid-UTF-8 names, excessive depth and component length.
-- tmpfs create/read/write/truncate/readdir/stat, zero-fill gaps, capacity
+- tmpfs create/read/write/readdir/stat, zero-fill gaps, capacity
   exhaustion and cleanup after allocation failure.
 - O0FS read-only stat/read/readdir; every write-like operation is refused.
 - Open-file lifetime across unlink, mount reference lifetime and stale handles.
