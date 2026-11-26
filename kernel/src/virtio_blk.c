@@ -31,11 +31,12 @@
 #include "ozero/status.h"
 #include "ozero/types.h"
 #include "ozero/virtio_blk.h"
+#include "ozero/virtio_ring.h"
 
+#include "serial.h"
 #include "string.h"
 
 #define VBLK_MAX_DEVICES 4u
-#define VBLK_QUEUE_SIZE 32u
 #define VBLK_TIMEOUT_SPINS 20000000u
 
 /* Legacy virtio PCI register offsets (I/O BAR0). */
@@ -78,7 +79,7 @@ struct vring_desc {
 struct vring_avail {
     uint16_t flags;
     uint16_t idx;
-    uint16_t ring[VBLK_QUEUE_SIZE];
+    uint16_t ring[];
 };
 
 struct vring_used_elem {
@@ -89,7 +90,7 @@ struct vring_used_elem {
 struct vring_used {
     uint16_t flags;
     uint16_t idx;
-    struct vring_used_elem ring[VBLK_QUEUE_SIZE];
+    struct vring_used_elem ring[];
 };
 
 /* Header the device reads before the data buffer. */
@@ -116,6 +117,10 @@ struct o0_virtio_blk {
     struct vblk_req_hdr *hdr;
     volatile uint8_t *status_byte;
     uint16_t last_used;
+    uint16_t queue_size;
+    uint16_t pci_command;
+    uint32_t device_features;
+    volatile uint8_t last_isr;
 
     o0_vector_t vector;
     bool vector_ok;
@@ -179,7 +184,7 @@ static bool vblk_irq(o0_gsi_t gsi, void *ctx) {
     }
     /* Reading the ISR acknowledges it; the value itself carries no queue
      * information in legacy virtio. */
-    (void)vblk_inb((uint16_t)(vd->io_base + VBLK_REG_ISR));
+    vd->last_isr = vblk_inb((uint16_t)(vd->io_base + VBLK_REG_ISR));
     vd->irq_count = vd->irq_count + 1u;
     return true;
 }
@@ -215,7 +220,7 @@ static bool vblk_wait_used(struct o0_virtio_blk *vd) {
 }
 
 static void vblk_submit_chain(struct o0_virtio_blk *vd) {
-    uint16_t slot = (uint16_t)(vd->avail->idx % VBLK_QUEUE_SIZE);
+    uint16_t slot = (uint16_t)(vd->avail->idx % vd->queue_size);
     vd->avail->ring[slot] = 0;
     __asm__ volatile ("mfence" : : : "memory");
     vd->avail->idx = (uint16_t)(vd->avail->idx + 1u);
@@ -257,6 +262,21 @@ static o0_block_status vblk_run(struct o0_virtio_blk *vd, uint32_t type,
 
     vblk_submit_chain(vd);
     if (!vblk_wait_used(vd)) {
+        o0_serial_puts("virtio-blk timeout dump: qsize=");
+        o0_serial_dec(vd->queue_size);
+        o0_serial_puts(" pfn="); o0_serial_hex(vd->ring.phys >> 12);
+        o0_serial_puts(" status="); o0_serial_hex(vblk_inb(vd->io_base + VBLK_REG_STATUS));
+        o0_serial_puts(" features="); o0_serial_hex(vd->device_features);
+        o0_serial_puts(" capacity="); o0_serial_dec(vd->capacity);
+        o0_serial_puts(" isr="); o0_serial_hex(vd->last_isr);
+        o0_serial_puts(" avail="); o0_serial_dec(vd->avail->idx);
+        o0_serial_puts(" used="); o0_serial_dec(vd->used->idx);
+        o0_serial_puts(" pci_cmd="); o0_serial_hex(vd->pci_command);
+        o0_serial_puts(" hdr_type="); o0_serial_hex(vd->hdr->type);
+        o0_serial_puts(" hdr_sector="); o0_serial_hex(vd->hdr->sector);
+        o0_serial_puts(" hdr_reserved="); o0_serial_hex(vd->hdr->reserved);
+        o0_serial_puts(" req_status="); o0_serial_hex(*vd->status_byte);
+        o0_serial_puts("\n");
         return O0_BLOCK_ERR_TIMEOUT;
     }
     vd->last_used = (uint16_t)(vd->last_used + 1u);
@@ -426,8 +446,10 @@ o0_status o0_virtio_blk_probe(const char *name, struct o0_block_dev **out) {
     if (o0_pci_config_read16(found->bdf, 0x04u, &cmd) != 0) {
         return O0_EIO;
     }
-    cmd = (uint16_t)(cmd | 0x0003u | 0x0004u);
-    if (o0_pci_config_write16(found->bdf, 0x04u, cmd) != 0) {
+    cmd = (uint16_t)(cmd | 0x0001u | 0x0004u);
+    if (o0_pci_config_write16(found->bdf, 0x04u, cmd) != 0 ||
+        o0_pci_config_read16(found->bdf, 0x04u, &vd->pci_command) != 0 ||
+        (vd->pci_command & 0x0005u) != 0x0005u) {
         return O0_EIO;
     }
 
@@ -438,27 +460,22 @@ o0_status o0_virtio_blk_probe(const char *name, struct o0_block_dev **out) {
               VBLK_STATUS_ACK | VBLK_STATUS_DRIVER);
 
     uint32_t features = vblk_inl((uint16_t)(vd->io_base + VBLK_REG_DEVICE_FEATURES));
+    vd->device_features = features;
     uint32_t driver_features = 0;
     if ((features & VBLK_F_FLUSH) != 0u) {
         driver_features |= VBLK_F_FLUSH;
         vd->has_flush = true;
     }
     vblk_outl((uint16_t)(vd->io_base + VBLK_REG_DRIVER_FEATURES), driver_features);
-    vblk_outb((uint16_t)(vd->io_base + VBLK_REG_STATUS),
-              VBLK_STATUS_ACK | VBLK_STATUS_DRIVER | VBLK_STATUS_FEATURES_OK);
-    if ((vblk_inb((uint16_t)(vd->io_base + VBLK_REG_STATUS)) &
-         VBLK_STATUS_FEATURES_OK) == 0u) {
-        vblk_outb((uint16_t)(vd->io_base + VBLK_REG_STATUS), VBLK_STATUS_FAILED);
-        return O0_ENOTSUP;
-    }
-
     vblk_outw((uint16_t)(vd->io_base + VBLK_REG_QUEUE_SELECT), 0);
-    uint16_t queue_size = vblk_inw((uint16_t)(vd->io_base + VBLK_REG_QUEUE_SIZE));
-    if (queue_size < VBLK_QUEUE_SIZE) {
+    vd->queue_size = vblk_inw((uint16_t)(vd->io_base + VBLK_REG_QUEUE_SIZE));
+    size_t used_offset = 0, ring_bytes = 0;
+    if (!o0_virtio_legacy_ring_layout(vd->queue_size, &used_offset, &ring_bytes)) {
         vblk_outb((uint16_t)(vd->io_base + VBLK_REG_STATUS), VBLK_STATUS_FAILED);
         return O0_ENOTSUP;
     }
-    vblk_outw((uint16_t)(vd->io_base + VBLK_REG_QUEUE_SIZE), VBLK_QUEUE_SIZE);
+    o0_serial_puts("virtio-blk queue size="); o0_serial_dec(vd->queue_size);
+    o0_serial_puts("\n");
 
     struct o0_dma_constraint constraint;
     memset(&constraint, 0, sizeof(constraint));
@@ -467,7 +484,7 @@ o0_status o0_virtio_blk_probe(const char *name, struct o0_block_dev **out) {
     constraint.max_segment = 0;
     constraint.coherent = true;
 
-    if (o0_dma_alloc(&constraint, O0_PAGE_SIZE, &vd->ring) != O0_OK) {
+    if (o0_dma_alloc(&constraint, ring_bytes, &vd->ring) != O0_OK) {
         return O0_ENOMEM;
     }
     if (o0_dma_alloc(&constraint, O0_PAGE_SIZE, &vd->req) != O0_OK) {
@@ -479,15 +496,13 @@ o0_status o0_virtio_blk_probe(const char *name, struct o0_block_dev **out) {
 
     uint8_t *base = (uint8_t *)vd->ring.virt;
     vd->desc = (struct vring_desc *)base;
-    vd->avail = (struct vring_avail *)vblk_align(
-        base + sizeof(struct vring_desc) * VBLK_QUEUE_SIZE, 2u);
-    vd->used = (struct vring_used *)vblk_align(
-        (uint8_t *)vd->avail + 6u + 2u * VBLK_QUEUE_SIZE, 4u);
+    vd->avail = (struct vring_avail *)(base + sizeof(struct vring_desc) * vd->queue_size);
+    vd->used = (struct vring_used *)(base + used_offset);
     vd->hdr = (struct vblk_req_hdr *)vd->req.virt;
     vd->status_byte = (volatile uint8_t *)vd->req.virt + 32u;
     vd->last_used = 0;
 
-    if (vd->ring.size < O0_PAGE_SIZE) {
+    if (vd->ring.size < ring_bytes) {
         vblk_ignore(o0_dma_free(&vd->req));
         vblk_ignore(o0_dma_free(&vd->ring));
         return O0_ENOMEM;
@@ -533,8 +548,16 @@ o0_status o0_virtio_blk_probe(const char *name, struct o0_block_dev **out) {
     }
 
     vblk_outb((uint16_t)(vd->io_base + VBLK_REG_STATUS),
-              VBLK_STATUS_ACK | VBLK_STATUS_DRIVER | VBLK_STATUS_FEATURES_OK |
-                  VBLK_STATUS_DRIVER_OK);
+              VBLK_STATUS_ACK | VBLK_STATUS_DRIVER | VBLK_STATUS_DRIVER_OK);
+    o0_serial_puts("virtio-blk ready pfn="); o0_serial_hex(vd->ring.phys >> 12);
+    o0_serial_puts(" status="); o0_serial_hex(vblk_inb(vd->io_base + VBLK_REG_STATUS));
+    o0_serial_puts(" features="); o0_serial_hex(vd->device_features);
+    o0_serial_puts(" capacity="); o0_serial_dec(vd->capacity);
+    o0_serial_puts(" pci_cmd="); o0_serial_hex(vd->pci_command);
+    o0_serial_puts(" isr="); o0_serial_hex(vd->last_isr);
+    o0_serial_puts(" avail="); o0_serial_dec(vd->avail->idx);
+    o0_serial_puts(" used="); o0_serial_dec(vd->used->idx);
+    o0_serial_puts("\n");
 
     vd->in_use = true;
     vblk_set_name(vd->dev.name, name);
