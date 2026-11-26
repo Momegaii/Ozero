@@ -53,6 +53,7 @@
 #include "ozero/thread.h"
 #include "ozero/uapi.h"
 #include "ozero/user.h"
+#include "ozero/vfs.h"
 
 #include "serial.h"
 
@@ -437,6 +438,8 @@ static void storage_pci_self_test(void) {
  * error paths. The RAM disk is the reference driver until a real storage
  * protocol driver and PCI/DMA support exist, so this verifies the block and
  * filesystem contracts, not hardware. */
+static struct o0_vnode *vfs_boot_root;
+
 static void stage4_self_test(void) {
     o0_serial_puts("OZERO: block layer ready devices=");
     o0_serial_dec(o0_block_device_count());
@@ -532,16 +535,40 @@ static void stage4_self_test(void) {
     }
     o0_serial_puts("OZERO: o0fs fault test OK\n");
 
-    if (o0fs_unlink(fs, "/sys/log") != O0_OK ||
-        o0fs_rmdir(fs, "/sys") != O0_OK) {
-        panic("o0fs cleanup failed");
+    /* Keep the RAM-backed O0FS mounted read-only through the VFS. The
+     * format has no journal, so no VFS write operation is exposed for it. */
+    if (o0_tmpfs_create(o0_budget_root(), 1u << 20, &vfs_boot_root) != O0_OK ||
+        o0_vfs_mount_root(vfs_boot_root) != O0_OK) {
+        panic("VFS tmpfs root mount failed");
     }
-    if (o0fs_unmount(fs) != O0_OK) {
-        panic("o0fs unmount failed");
+    if (o0_vfs_mkdir(vfs_boot_root, "o0fs", 4u) != O0_OK) {
+        panic("VFS O0FS mountpoint creation failed");
     }
-    if (o0_ramdisk_destroy(disk) != O0_OK) {
-        panic("RAM disk destruction failed");
+    struct o0_vnode *mountpoint = NULL;
+    struct o0_vnode *o0fs_root = NULL;
+    if (o0_vfs_lookup(vfs_boot_root, "o0fs", 4u, &mountpoint) != O0_OK ||
+        o0_vfs_o0fs_create(fs, o0_budget_root(), &o0fs_root) != O0_OK ||
+        o0_vfs_mount(mountpoint, o0fs_root) != O0_OK) {
+        panic("read-only O0FS VFS mount failed");
     }
+    o0_object_unref(&mountpoint->obj);
+    o0_object_unref(&o0fs_root->obj);
+
+    struct o0_vfs_file *seed = NULL;
+    if (o0_vfs_open(vfs_boot_root, "seed", 4u, O0_VFS_OPEN_CREATE,
+                    O0_RIGHT_READ | O0_RIGHT_WRITE | O0_RIGHT_INFO,
+                    o0_budget_root(), &seed) != O0_OK) {
+        panic("VFS tmpfs seed creation failed");
+    }
+    static const char seed_text[] = "seed-data";
+    size_t seed_written = 0;
+    if (o0_vfs_write(seed, 0, seed_text, sizeof(seed_text) - 1u,
+                     &seed_written) != O0_OK ||
+        seed_written != sizeof(seed_text) - 1u) {
+        panic("VFS tmpfs seed write failed");
+    }
+    o0_object_unref(&seed->obj);
+    o0_serial_puts("OZERO: VFS mounted tmpfs rw and O0FS ro\n");
     o0_serial_puts("OZERO: storage self-test complete\n");
 }
 
@@ -937,6 +964,8 @@ extern const unsigned char _binary_build_user_budget_elf_start[];
 extern const unsigned char _binary_build_user_budget_elf_end[];
 extern const unsigned char _binary_build_user_ipcneg_elf_start[];
 extern const unsigned char _binary_build_user_ipcneg_elf_end[];
+extern const unsigned char _binary_build_user_vfs_accept_elf_start[];
+extern const unsigned char _binary_build_user_vfs_accept_elf_end[];
 extern const unsigned char _binary_build_user_peer_server_elf_start[];
 extern const unsigned char _binary_build_user_peer_server_elf_end[];
 
@@ -1301,6 +1330,22 @@ static void wave3_self_test(void *arg) {
         panic("wave3 process churn leaked physical pages");
     }
     o0_serial_puts("OZERO: wave3 churn OK pairs=8\n");
+    /* The filesystem root is granted explicitly to this one process. */
+    if (vfs_boot_root == NULL) panic("VFS root was not bootstrapped");
+    struct o0_spawn_grant vfs_grant = {
+        .object = &vfs_boot_root->obj,
+        .rights = O0_RIGHT_DIRECTORY_DEFAULT,
+        .reserved = 0
+    };
+    o0_object_ref(&vfs_boot_root->obj);
+    o0_thread_t *vfs_accept = wave3_spawn(
+        "vfs-accept", _binary_build_user_vfs_accept_elf_start,
+        _binary_build_user_vfs_accept_elf_end, &vfs_grant, 1, 0);
+    if (wave3_join(vfs_accept, "vfs-accept") != 0) {
+        panic("ring-3 VFS acceptance failed");
+    }
+    o0_serial_puts("OZERO: VFS ring3 file syscalls OK\\n");
+
     wave3_smp_stress();
     o0_serial_puts("OZERO: wave3 self-test complete\n");
 }
