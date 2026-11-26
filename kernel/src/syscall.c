@@ -405,6 +405,7 @@ static int64_t sys_file_open(uint64_t directory_handle, const char *user_path,
                               &directory_rights);
     if (st != O0_OK) return o0_uapi_error_from_status(st);
     if (directory->type != O0_OBJ_VNODE ||
+        (directory_rights & O0_RIGHT_READ) == 0 ||
         (((rights & (O0_RIGHT_READ | O0_RIGHT_WRITE | O0_RIGHT_INFO |
                      O0_RIGHT_DUP | O0_RIGHT_TRANSFER)) &
           ~directory_rights) != 0) ||
@@ -486,7 +487,7 @@ static int64_t sys_file_stat(uint64_t directory_handle, const char *user_path,
     if (st != O0_OK) return o0_uapi_error_from_status(st);
     struct o0_object *directory = NULL;
     st = o0_handle_lookup(proc->handles, directory_handle, O0_OBJ_VNODE,
-                          O0_RIGHT_INFO, &directory);
+                          O0_RIGHT_READ | O0_RIGHT_INFO, &directory);
     if (st != O0_OK) return o0_uapi_error_from_status(st);
     struct o0_vfs_stat info;
     st = o0_vfs_stat((struct o0_vnode *)directory, path,
