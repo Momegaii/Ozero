@@ -147,8 +147,8 @@ int main(void) {
                       budget, &file) == O0_OK);
     o0_object_unref(&file->obj);
     CHECK(o0_vfs_unlink(docs, raw_name, 1u) == O0_OK);
-    CHECK(o0_vfs_mkdir(root, "../escape", 8u) == O0_EPERM);
-    CHECK(o0_vfs_open(root, "../escape", 8u, 0, O0_RIGHT_READ,
+    CHECK(o0_vfs_mkdir(root, "../escape", sizeof("../escape") - 1u) == O0_EPERM);
+    CHECK(o0_vfs_open(root, "../escape", sizeof("../escape") - 1u, 0, O0_RIGHT_READ,
                       budget, &missing) == O0_EPERM);
     char long_path[O0_VFS_PATH_MAX + 2u];
     memset(long_path, 'x', sizeof(long_path) - 1u);
