@@ -18,6 +18,33 @@ _start:
     js fail
     movq %rax, %r13
 
+    /* Object type and reduced-right checks reject mismatched operations. */
+    movl $21, %eax
+    movq %r13, %rdi
+    xorl %esi, %esi
+    leaq dirent_out(%rip), %rdx
+    syscall
+    cmpq $-3, %rax
+    jne fail
+
+    movl $19, %eax
+    movq %r13, %rdi
+    leaq payload(%rip), %rsi
+    movl $1, %edx
+    xorl %r10d, %r10d
+    syscall
+    cmpq $-5, %rax
+    jne fail
+
+    movl $18, %eax
+    movq %r12, %rdi
+    leaq io_buffer(%rip), %rsi
+    movl $1, %edx
+    xorl %r10d, %r10d
+    syscall
+    cmpq $-3, %rax
+    jne fail
+
     movl $18, %eax                   /* O0_SYS_FILE_READ */
     movq %r13, %rdi
     leaq io_buffer(%rip), %rsi
