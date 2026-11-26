@@ -291,50 +291,29 @@ cell still needs a run and a log read before it is evidence.
   files (deferred, ADR 0018 §6).
 
 
-## Wave 4.6 — VFS and file syscalls
+## Wave 4.6 — VFS and file capabilities
 
-**Status: Complete.**
+*Depends on: Wave 2 ABI, capability model.*
 
-1. **VFS layer implemented** in `kernel/src/vfs.c` with `include/ozero/vfs.h`:
-   mount table (`o0_mount_install/get/release`), vnode abstraction
-   (`o0_vnode_create`, `O0_OBJ_VNODE`), open-file descriptions
-   (`o0_file_create`, `O0_OBJ_FILE`), path resolution
-   (`o0_vfs_lookup_path`), and file syscall helpers
-   (`o0_vfs_open/read/write/stat/listdir`). Vnodes are `o0_object`s of type
-   `O0_OBJ_VNODE`; open files are `o0_object`s of type `O0_OBJ_FILE`; file
-   descriptors are handles to open-file objects. ADR
-   [0019](decisions/0019-vfs-layer-file-syscalls.md) records the design.
-2. **File syscalls** added to `kernel/src/syscall.c`: `O0_SYS_OPEN` (17),
-   `O0_SYS_READ` (18), `O0_SYS_WRITE` (19), `O0_SYS_CLOSE` (20),
-   `O0_SYS_STAT` (21), `O0_SYS_READDIR` (22). All user pointers go through
-   `o0_copy_from_user`/`o0_copy_to_user` after `o0_user_range_check`; read and
-   write use a 4 KiB bounce buffer. Syscall numbers appended after the Wave 3
-   set, never reusing existing numbers.
-3. **UAPI structures** added to `include/ozero/uapi.h`: `o0_uapi_stat`
-   (st_size, st_blocks, st_mode, st_links) and `o0_uapi_dirent`
-   (d_ino, d_reclen, d_namlen, d_type, d_name[24]).
-4. **fs.h** gained `o0fs_inode_read/write/stat` (inode-level ops for VFS) and
-   `o0fs_dev()` accessor. `o0fs.c` implements them on top of the journaled
-   write path, so file syscalls inherit Wave 4.5 crash consistency.
-5. **Tests:** `tests/vfs_test.c` (10 tests: mount table install/get/release,
-   lookup/stat/listdir with no mount, vnode/file creation with invalid args,
-   full format-mount-vnode-create-stat-unmount cycle, open/read/write with
-   invalid handle). All pass under `make test` and `make test-sanitize`.
-6. **Docs:** ADR 0019; this section.
+1. VFS vnode operations, an eight-entry mount table, backend-identity cycle prevention,
+   capability-relative path resolution, vnode references and an eight-page bounded
+   write-through cache.
+2. Writable bounded tmpfs is the reference backend. O0FS is exposed read-only until
+   ADR 0012's crash-injection/recovery gate is approved; mounting O0FS does not imply
+   durability or authorize writes.
+3. Append-only native syscalls 17–21: `file_open`, `file_read`, `file_write`,
+   `file_stat`, `file_readdir`. Existing `handle_close` (5) closes file
+   capabilities. Read/write carry explicit 64-bit offsets; no POSIX descriptor
+   namespace or implicit file position exists.
+4. Every path is relative to an explicit directory capability. The root is granted
+   only to a selected bootstrap process; child authority is transferred explicitly.
+   `..` is rejected and paths/components are bounded.
+5. Host tests and ring-3 QEMU acceptance cover tmpfs/O0FS, rights, metadata,
+   enumeration, traversal rejection, invalid pointers, stale handles and lifetime.
 
-### Wave 4.6 evidence
-
-- **Commit:** local only, on branch `kilo/late-alpaca-bx7`, not yet pushed to
-  `main`.
-- **CI:** not yet observed; `make test` (all suites green: fs_test 10/10,
-  o0fs_journal_test 5/5, vfs_test 10/10) and `make test-sanitize` pass
-  locally.
-- **Evidence type:** local build + host tests only. Not CI-observed, not
-  Director-observed, not physical.
-- **Not covered:** recursive path resolution (`a/b/c`), directory listing for
-  subdirectories, `O0_O_CREAT` semantics, `O0_O_DIRECTORY` enforcement,
-  per-process open-file limits, a second filesystem type, a user process that
-  reads and writes a file (deferred to post-Wave 4 work).
+**Implementation status:** integration is being rebased onto current `main` under
+ADR 0022. Wave 4.6 is not complete until `make check`, `make test-sanitize`,
+the QEMU ring-3 acceptance marker and all required CI jobs pass on the same commit.
 
 ## Wave 4.7 — Sign-off
 

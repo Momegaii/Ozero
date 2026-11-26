@@ -1,325 +1,543 @@
-/* Ozero kernel - virtual filesystem layer implementation (Wave 4.6).
+/* Ozero VFS core. See ADR 0017.
  *
- * Mount table, vnode abstraction, path resolution and open-file descriptions
- * built on top of concrete filesystems (OzeroFS). File descriptors are handles
- * to open-file objects; vnodes are objects naming inodes in mounted
- * filesystems.
- *
- * Ozero defines its own native execution architecture and does not default to
- * Linux conventions. No ELF, ELF64, Linux syscall, glibc or Linux userspace
- * assumption appears here.
+ * Path traversal is relative to an explicit directory vnode capability.
+ * Backends never receive user pointers and cannot grant authority.
  */
-
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <string.h>
 
-#include "ozero/block.h"
-#include "ozero/fs.h"
-#include "ozero/handle.h"
-#include "ozero/object.h"
-#include "ozero/status.h"
-#include "ozero/thread.h"
-#include "ozero/types.h"
-#include "ozero/uaccess.h"
 #include "ozero/vfs.h"
+#include "ozero/mm.h"
+#include "ozero/sync.h"
 
-#include "thread_internal.h"
+#include "string.h"
 
-/* ---- mount table ----
+static struct o0_vnode *vfs_root;
+static struct {
+    struct o0_vnode *directory;
+    struct o0_vnode *root;
+} vfs_mounts[O0_VFS_MOUNT_MAX];
+static void cache_init(void);
+static void cache_invalidate_all(void);
 
- * Fixed kernel array of mounts. Index 0 is conventionally the root mount.
- */
-static struct o0_mount vfs_mounts[O0_MAX_MOUNTS];
-
-void o0_vfs_init(void) {
-    memset(vfs_mounts, 0, sizeof(vfs_mounts));
+static void vnode_ref(struct o0_vnode *node) {
+    if (node != NULL) o0_object_ref(&node->obj);
 }
 
-o0_status o0_mount_install(struct o0_block_dev *dev, struct o0fs *fs,
-                           struct o0_vnode *root, struct o0_mount **out) {
-    if (dev == NULL || fs == NULL || root == NULL || out == NULL) {
-        return O0_EINVAL;
+static void vnode_unref(struct o0_vnode *node) {
+    if (node != NULL) o0_object_unref(&node->obj);
+}
+
+static void file_destroy(struct o0_object *object) {
+    struct o0_vfs_file *file = (struct o0_vfs_file *)object;
+    vnode_unref(file->node);
+    file->node = NULL;
+}
+
+static o0_status path_component(const char **cursor, const char **name,
+                                size_t *name_len) {
+    const char *p = *cursor;
+    while (*p == '/') ++p;
+    if (*p == '\0') {
+        *cursor = p;
+        *name = NULL;
+        *name_len = 0;
+        return O0_OK;
     }
-    for (size_t i = 0; i < O0_MAX_MOUNTS; ++i) {
-        if (!vfs_mounts[i].used) {
-            vfs_mounts[i].dev = dev;
-            vfs_mounts[i].fs = fs;
-            vfs_mounts[i].root = root;
-            vfs_mounts[i].used = true;
-            *out = &vfs_mounts[i];
+    const char *start = p;
+    while (*p != '\0' && *p != '/') ++p;
+    size_t n = (size_t)(p - start);
+    if (n == 0 || n > O0_VFS_NAME_MAX) return O0_ERANGE;
+    *cursor = p;
+    *name = start;
+    *name_len = n;
+    return O0_OK;
+}
+
+static bool path_has_nul(const char *path, size_t length) {
+    for (size_t i = 0; i < length; ++i) {
+        if (path[i] == '\\0') return true;
+    }
+    return false;
+}
+
+static bool component_is(const char *name, size_t length, const char *literal) {
+    size_t n = strlen(literal);
+    return n == length && memcmp(name, literal, n) == 0;
+}
+
+/* Resolve all components except the final one. Returns a referenced parent. */
+static o0_status resolve_parent(struct o0_vnode *directory, const char *path,
+                                size_t path_length, struct o0_vnode **parent_out,
+                                const char **leaf_out, size_t *leaf_len_out) {
+    if (directory == NULL || path == NULL || parent_out == NULL ||
+        leaf_out == NULL || leaf_len_out == NULL) return O0_EINVAL;
+    *parent_out = NULL;
+    *leaf_out = NULL;
+    *leaf_len_out = 0;
+    if (path_length == 0 || path_length > O0_VFS_PATH_MAX ||
+        path[0] == '/' || path[path_length] != '\0' ||
+        path_has_nul(path, path_length)) return O0_EINVAL;
+
+    struct o0_vnode *current = directory;
+    vnode_ref(current);
+    if (current->mounted_root != NULL) {
+        struct o0_vnode *mounted = current->mounted_root;
+        vnode_ref(mounted);
+        vnode_unref(current);
+        current = mounted;
+    }
+    const char *cursor = path;
+    uint32_t depth = 0;
+    for (;;) {
+        const char *name = NULL;
+        size_t name_len = 0;
+        o0_status st = path_component(&cursor, &name, &name_len);
+        if (st != O0_OK) { vnode_unref(current); return st; }
+        if (name == NULL) { vnode_unref(current); return O0_EINVAL; }
+        if (component_is(name, name_len, "..")) {
+            vnode_unref(current);
+            return O0_EPERM;
+        }
+        if (component_is(name, name_len, ".")) {
+            vnode_unref(current);
+            return O0_EINVAL;
+        }
+        if (++depth > O0_VFS_MAX_DEPTH) {
+            vnode_unref(current);
+            return O0_ERANGE;
+        }
+        const char *lookahead = cursor;
+        while (*lookahead == '/') ++lookahead;
+        if (*lookahead == '\0') {
+            *parent_out = current;
+            *leaf_out = name;
+            *leaf_len_out = name_len;
             return O0_OK;
         }
+        if (current->type != O0_VNODE_DIRECTORY || current->ops == NULL ||
+            current->ops->lookup == NULL) {
+            vnode_unref(current);
+            return O0_ENOTDIR;
+        }
+        struct o0_vnode *next = NULL;
+        st = current->ops->lookup(current, name, name_len, &next);
+        if (st != O0_OK) { vnode_unref(current); return st; }
+        vnode_unref(current);
+        if (next == NULL) return O0_EIO;
+        current = next;
+        if (current->mounted_root != NULL) {
+            struct o0_vnode *mounted = current->mounted_root;
+            vnode_ref(mounted);
+            vnode_unref(current);
+            current = mounted;
+        }
     }
-    return O0_ENOMEM;
 }
 
-o0_status o0_mount_get(size_t index, struct o0_mount **out) {
-    if (out == NULL || index >= O0_MAX_MOUNTS) {
-        return O0_EINVAL;
+static o0_status resolve_node(struct o0_vnode *directory, const char *path,
+                              size_t path_length, struct o0_vnode **out) {
+    struct o0_vnode *parent = NULL;
+    const char *leaf = NULL;
+    size_t leaf_len = 0;
+    o0_status st = resolve_parent(directory, path, path_length, &parent,
+                                  &leaf, &leaf_len);
+    if (st != O0_OK) return st;
+    if (parent->type != O0_VNODE_DIRECTORY || parent->ops == NULL ||
+        parent->ops->lookup == NULL) {
+        vnode_unref(parent);
+        return O0_ENOTDIR;
     }
-    if (!vfs_mounts[index].used) {
-        return O0_ENOENT;
+    st = parent->ops->lookup(parent, leaf, leaf_len, out);
+    vnode_unref(parent);
+    if (st == O0_OK && *out != NULL && (*out)->mounted_root != NULL) {
+        struct o0_vnode *mounted = (*out)->mounted_root;
+        vnode_ref(mounted);
+        vnode_unref(*out);
+        *out = mounted;
     }
-    *out = &vfs_mounts[index];
+    return st;
+}
+
+o0_status o0_vfs_mount_root(struct o0_vnode *root) {
+    if (root == NULL || root->type != O0_VNODE_DIRECTORY) return O0_EINVAL;
+    cache_init();
+    if (vfs_root != NULL) return O0_EBUSY;
+    vnode_ref(root);
+    vfs_root = root;
     return O0_OK;
 }
 
-void o0_mount_release(struct o0_mount *mnt) {
-    if (mnt == NULL) {
-        return;
+static bool mount_would_cycle(void *start_fs, void *target_fs) {
+    if (start_fs == NULL || target_fs == NULL) return true;
+    void *pending[O0_VFS_MOUNT_MAX + 1u];
+    void *visited[O0_VFS_MOUNT_MAX + 1u];
+    size_t pending_count = 0;
+    size_t visited_count = 0;
+    pending[pending_count++] = start_fs;
+    while (pending_count != 0) {
+        void *current = pending[--pending_count];
+        if (current == target_fs) return true;
+        bool seen = false;
+        for (size_t i = 0; i < visited_count; ++i) {
+            if (visited[i] == current) { seen = true; break; }
+        }
+        if (seen) continue;
+        if (visited_count >= O0_VFS_MOUNT_MAX + 1u) return true;
+        visited[visited_count++] = current;
+        for (size_t i = 0; i < O0_VFS_MOUNT_MAX; ++i) {
+            if (vfs_mounts[i].directory != NULL &&
+                vfs_mounts[i].directory->fs_identity == current) {
+                void *next = vfs_mounts[i].root->fs_identity;
+                if (pending_count >= O0_VFS_MOUNT_MAX + 1u) return true;
+                pending[pending_count++] = next;
+            }
+        }
     }
-    mnt->used = false;
-    mnt->dev = NULL;
-    mnt->fs = NULL;
-    mnt->root = NULL;
+    return false;
 }
 
-/* ---- vnode ---- */
-
-static void vnode_destroy(struct o0_object *obj) {
-    (void)obj;
-    /* The vnode does not own its filesystem; nothing to release beyond the
-     * object header itself, which o0_object_unref frees. */
-}
-
-static o0_status o0fs_vnode_read(struct o0_vnode *vn, uint64_t offset,
-                                 void *buffer, size_t capacity,
-                                 size_t *out_len) {
-    return o0fs_inode_read(vn->fs, vn->inode, offset, buffer, capacity,
-                           out_len);
-}
-
-static o0_status o0fs_vnode_write(struct o0_vnode *vn, uint64_t offset,
-                                  const void *buffer, size_t len,
-                                  size_t *out_len) {
-    return o0fs_inode_write(vn->fs, vn->inode, offset, buffer, len, out_len);
-}
-
-static o0_status o0fs_vnode_stat(struct o0_vnode *vn, struct o0fs_stat *out) {
-    return o0fs_inode_stat(vn->fs, vn->inode, out);
-}
-
-static o0_status o0fs_vnode_lookup(struct o0_vnode *dir, const char *name,
-                                   struct o0_vnode **out) {
-    if (dir == NULL || name == NULL || out == NULL) {
+o0_status o0_vfs_mount(struct o0_vnode *directory, struct o0_vnode *root) {
+    if (directory == NULL || root == NULL || directory == root ||
+        directory->type != O0_VNODE_DIRECTORY ||
+        root->type != O0_VNODE_DIRECTORY) return O0_EINVAL;
+    if (directory->mounted_root != NULL || root->mounted_root != NULL) return O0_EBUSY;
+    if (mount_would_cycle(root->fs_identity, directory->fs_identity))
         return O0_EINVAL;
+    size_t slot = O0_VFS_MOUNT_MAX;
+    for (size_t i = 0; i < O0_VFS_MOUNT_MAX; ++i) {
+        if (vfs_mounts[i].directory == directory || vfs_mounts[i].root == root)
+            return O0_EBUSY;
+        if (slot == O0_VFS_MOUNT_MAX && vfs_mounts[i].directory == NULL) slot = i;
     }
-    /* Resolve the name within the parent directory by constructing a path
-     * from the mount root. For V1, walk from the root using the existing
-     * OzeroFS path resolver. */
-    uint32_t parent_inode = dir->inode;
-    uint32_t child_inode = 0;
-    o0_status st = o0fs_lookup(dir->fs, "/", &child_inode);
-    if (st != O0_OK) {
-        return st;
-    }
-    /* For now, re-resolve from root. A proper implementation resolves the
-     * single component within dir's data blocks. */
-    (void)parent_inode;
-    (void)name;
-    return O0_ENOSYS;
-}
-
-static o0_status o0fs_vnode_list(struct o0_vnode *dir, o0fs_iter_fn fn,
-                                 void *ctx) {
-    if (dir == NULL || fn == NULL) {
-        return O0_EINVAL;
-    }
-    /* Build the path for this directory. For V1, only the root directory is
-     * listable from the VFS; subdirectories require path construction. */
-    if (dir->inode != 1) {
-        return O0_ENOSYS;
-    }
-    return o0fs_list(dir->fs, "/", fn, ctx);
-}
-
-static const struct o0_vnode_ops o0fs_vnode_ops = {
-    .read = o0fs_vnode_read,
-    .write = o0fs_vnode_write,
-    .stat = o0fs_vnode_stat,
-    .lookup = o0fs_vnode_lookup,
-    .list = o0fs_vnode_list,
-};
-
-o0_status o0_vnode_create(struct o0fs *fs, uint32_t inode,
-                          const struct o0_vnode_ops *ops,
-                          struct o0_vnode **out) {
-    if (fs == NULL || ops == NULL || out == NULL) {
-        return O0_EINVAL;
-    }
-    struct o0_object *obj = NULL;
-    o0_status st = o0_object_alloc(O0_OBJ_VNODE, sizeof(struct o0_vnode), NULL,
-                                   vnode_destroy, &obj);
-    if (st != O0_OK) {
-        return st;
-    }
-    struct o0_vnode *vn = (struct o0_vnode *)obj;
-    vn->fs = fs;
-    vn->inode = inode;
-    vn->ops = ops;
-    vn->reserved = 0;
-    *out = vn;
+    if (slot == O0_VFS_MOUNT_MAX) return O0_ENOSPC;
+    vnode_ref(directory);
+    vnode_ref(root);
+    directory->mounted_root = root;
+    vfs_mounts[slot].directory = directory;
+    vfs_mounts[slot].root = root;
     return O0_OK;
 }
 
-struct o0_block_dev *o0_vnode_dev(const struct o0_vnode *vn) {
-    if (vn == NULL || vn->fs == NULL) {
-        return NULL;
+o0_status o0_vfs_unmount(struct o0_vnode *directory) {
+    if (directory == NULL) return O0_EINVAL;
+    size_t slot = O0_VFS_MOUNT_MAX;
+    for (size_t i = 0; i < O0_VFS_MOUNT_MAX; ++i) {
+        if (vfs_mounts[i].directory == directory) { slot = i; break; }
     }
-    return o0fs_dev(vn->fs);
+    if (slot == O0_VFS_MOUNT_MAX) return O0_ENOENT;
+    struct o0_vnode *root = vfs_mounts[slot].root;
+    /* The mount's reference must be the only remaining root reference. */
+    cache_invalidate_all();
+    if (root->obj.refcount != 1) return O0_EBUSY;
+    directory->mounted_root = NULL;
+    vfs_mounts[slot].directory = NULL;
+    vfs_mounts[slot].root = NULL;
+    vnode_unref(root);
+    vnode_unref(directory);
+    return O0_OK;
 }
 
-/* ---- open file ---- */
-
-static void file_destroy(struct o0_object *obj) {
-    (void)obj;
-    /* The open file does not own its vnode; the vnode reference is released
-     * separately when the handle is closed. */
+o0_status o0_vfs_root(struct o0_vnode **out) {
+    if (out == NULL) return O0_EINVAL;
+    *out = NULL;
+    if (vfs_root == NULL) return O0_ENOENT;
+    vnode_ref(vfs_root);
+    *out = vfs_root;
+    return O0_OK;
 }
 
-o0_status o0_file_create(struct o0_vnode *vn, uint32_t flags,
-                         struct o0_file **out) {
-    if (vn == NULL || out == NULL) {
+o0_status o0_vfs_lookup(struct o0_vnode *directory, const char *path,
+                         size_t path_length, struct o0_vnode **out) {
+    if (out == NULL) return O0_EINVAL;
+    *out = NULL;
+    return resolve_node(directory, path, path_length, out);
+}
+
+o0_status o0_vfs_open(struct o0_vnode *directory, const char *path,
+                      size_t path_length, uint32_t flags, uint32_t rights,
+                      struct o0_budget *budget, struct o0_vfs_file **out) {
+    if (out == NULL || directory == NULL || budget == NULL ||
+        (rights & ~(O0_RIGHT_READ | O0_RIGHT_WRITE | O0_RIGHT_INFO |
+                    O0_RIGHT_DUP | O0_RIGHT_TRANSFER)) != 0 ||
+        (rights & (O0_RIGHT_READ | O0_RIGHT_WRITE | O0_RIGHT_INFO)) == 0 ||
+        (flags & ~(O0_VFS_OPEN_CREATE | O0_VFS_OPEN_EXCLUSIVE)) != 0 ||
+        ((flags & O0_VFS_OPEN_EXCLUSIVE) != 0 &&
+         (flags & O0_VFS_OPEN_CREATE) == 0)) {
         return O0_EINVAL;
     }
-    struct o0_object *obj = NULL;
-    o0_status st = o0_object_alloc(O0_OBJ_FILE, sizeof(struct o0_file), NULL,
-                                   file_destroy, &obj);
+    *out = NULL;
+    bool created = false;
+    struct o0_vnode *node = NULL;
+    o0_status st = resolve_node(directory, path, path_length, &node);
+    if (st == O0_ENOENT && (flags & O0_VFS_OPEN_CREATE) != 0) {
+        struct o0_vnode *parent = NULL;
+        const char *leaf = NULL;
+        size_t leaf_len = 0;
+        st = resolve_parent(directory, path, path_length, &parent, &leaf, &leaf_len);
+        if (st == O0_OK) {
+            if (parent->ops == NULL || parent->ops->create == NULL) st = O0_ENOTSUP;
+            else {
+                st = parent->ops->create(parent, leaf, leaf_len, O0_VNODE_FILE, &node);
+                created = st == O0_OK;
+            }
+            vnode_unref(parent);
+        }
+    } else if (st == O0_OK && (flags & O0_VFS_OPEN_EXCLUSIVE) != 0 &&
+               (flags & O0_VFS_OPEN_CREATE) != 0) {
+        vnode_unref(node);
+        return O0_EEXIST;
+    }
+    if (st != O0_OK) return st;
+    if (node == NULL) return O0_EIO;
+    if (node->type != O0_VNODE_FILE) {
+        if (created) { o0_status cleanup = o0_vfs_unlink(directory, path, path_length); (void)cleanup; }
+        vnode_unref(node);
+        return O0_EISDIR;
+    }
+    if ((rights & O0_RIGHT_WRITE) != 0 &&
+        (node->ops == NULL || node->ops->write == NULL)) {
+        if (created) { o0_status cleanup = o0_vfs_unlink(directory, path, path_length); (void)cleanup; }
+        vnode_unref(node);
+        return O0_EPERM;
+    }
+    struct o0_object *object = NULL;
+    st = o0_object_alloc(O0_OBJ_FILE, sizeof(struct o0_vfs_file), budget,
+                         file_destroy, &object);
     if (st != O0_OK) {
+        if (created) { o0_status cleanup = o0_vfs_unlink(directory, path, path_length); (void)cleanup; }
+        vnode_unref(node);
         return st;
     }
-    struct o0_file *file = (struct o0_file *)obj;
-    file->vn = vn;
-    file->offset = 0;
-    file->flags = flags;
+    struct o0_vfs_file *file = (struct o0_vfs_file *)object;
+    file->node = node; /* take the resolver's reference */
+    file->rights = rights;
     file->reserved = 0;
     *out = file;
     return O0_OK;
 }
 
-/* ---- path resolution ---- */
+#define O0_VFS_CACHE_PAGES 8u
 
-o0_status o0_vfs_lookup_path(const char *path, struct o0_vnode **out) {
-    if (path == NULL || out == NULL || path[0] != '/') {
-        return O0_EINVAL;
+struct o0_vfs_cache_page {
+    struct o0_vnode *node;
+    uint64_t index;
+    uint64_t age;
+    size_t valid_bytes;
+    bool valid;
+    uint8_t data[O0_PAGE_SIZE];
+};
+
+static struct o0_vfs_cache_page vfs_cache[O0_VFS_CACHE_PAGES];
+static o0_spinlock_t vfs_cache_lock;
+static uint64_t vfs_cache_age;
+static bool vfs_cache_ready;
+
+static void cache_init(void) {
+    if (!vfs_cache_ready) {
+        o0_spin_init_ordered(&vfs_cache_lock, 5u);
+        vfs_cache_ready = true;
     }
-    struct o0_mount *mnt = NULL;
-    o0_status st = o0_mount_get(0, &mnt);
-    if (st != O0_OK) {
-        return st;
+}
+
+static void cache_drop_page(struct o0_vfs_cache_page *page) {
+    if (page->valid && page->node != NULL) vnode_unref(page->node);
+    memset(page, 0, sizeof(*page));
+}
+
+static struct o0_vfs_cache_page *cache_find_locked(struct o0_vnode *node,
+                                                    uint64_t index) {
+    for (size_t i = 0; i < O0_VFS_CACHE_PAGES; ++i) {
+        if (vfs_cache[i].valid && vfs_cache[i].node == node &&
+            vfs_cache[i].index == index) {
+            vfs_cache[i].age = ++vfs_cache_age;
+            return &vfs_cache[i];
+        }
     }
-    uint32_t inode_no = 0;
-    st = o0fs_lookup(mnt->fs, path, &inode_no);
-    if (st != O0_OK) {
-        return st;
+    return NULL;
+}
+
+/* Called with vfs_cache_lock held. The cache is write-through: no dirty page
+ * can be lost on eviction or unmount. */
+static o0_status cache_get_locked(struct o0_vnode *node, uint64_t index,
+                                  bool read_existing,
+                                  struct o0_vfs_cache_page **out) {
+    struct o0_vfs_cache_page *page = cache_find_locked(node, index);
+    if (page != NULL) { *out = page; return O0_OK; }
+    size_t victim = 0;
+    for (size_t i = 0; i < O0_VFS_CACHE_PAGES; ++i) {
+        if (!vfs_cache[i].valid) { victim = i; break; }
+        if (vfs_cache[i].age < vfs_cache[victim].age) victim = i;
     }
-    struct o0_vnode *vn = NULL;
-    st = o0_vnode_create(mnt->fs, inode_no, &o0fs_vnode_ops, &vn);
-    if (st != O0_OK) {
-        return st;
+    page = &vfs_cache[victim];
+    cache_drop_page(page);
+    page->node = node;
+    page->index = index;
+    page->age = ++vfs_cache_age;
+    page->valid = true;
+    vnode_ref(node);
+    memset(page->data, 0, sizeof(page->data));
+    if (read_existing) {
+        if (node->ops == NULL || node->ops->read == NULL) {
+            cache_drop_page(page);
+            return O0_ENOTSUP;
+        }
+        size_t got = 0;
+        o0_status st = node->ops->read(node, index * O0_PAGE_SIZE,
+                                       page->data, O0_PAGE_SIZE, &got);
+        if (st != O0_OK) { cache_drop_page(page); return st; }
+        if (got > O0_PAGE_SIZE) { cache_drop_page(page); return O0_EIO; }
+        page->valid_bytes = got;
+        if (got < O0_PAGE_SIZE)
+            memset(page->data + got, 0, O0_PAGE_SIZE - got);
     }
-    *out = vn;
+    *out = page;
     return O0_OK;
 }
 
-/* ---- syscall helpers ---- */
+static void cache_invalidate_all(void) {
+    if (!vfs_cache_ready) return;
+    o0_spin_lock(&vfs_cache_lock);
+    for (size_t i = 0; i < O0_VFS_CACHE_PAGES; ++i) cache_drop_page(&vfs_cache[i]);
+    o0_spin_unlock(&vfs_cache_lock);
+}
 
-o0_status o0_vfs_open(const char *path, uint32_t flags,
-                      struct o0_process *proc, uint64_t *out_handle) {
-    if (path == NULL || proc == NULL || out_handle == NULL) {
+o0_status o0_vfs_read(struct o0_vfs_file *file, uint64_t offset, void *buffer,
+                      size_t length, size_t *out_length) {
+    if (file == NULL || out_length == NULL || (buffer == NULL && length != 0))
         return O0_EINVAL;
+    *out_length = 0;
+    if ((file->rights & O0_RIGHT_READ) == 0) return O0_EPERM;
+    if (length > O0_VFS_IO_MAX || offset > UINT64_MAX - length) return O0_ERANGE;
+    if (file->node->ops == NULL || file->node->ops->read == NULL) return O0_ENOTSUP;
+    if (!vfs_cache_ready) return O0_EINVAL;
+    o0_spin_lock(&vfs_cache_lock);
+    size_t done = 0;
+    while (done < length) {
+        uint64_t position = offset + done;
+        uint64_t page_index = position / O0_PAGE_SIZE;
+        size_t in_page = (size_t)(position % O0_PAGE_SIZE);
+        size_t take = O0_PAGE_SIZE - in_page;
+        if (take > length - done) take = length - done;
+        struct o0_vfs_cache_page *page = NULL;
+        o0_status st = cache_get_locked(file->node, page_index, true, &page);
+        if (st != O0_OK) {
+            o0_spin_unlock(&vfs_cache_lock);
+            *out_length = done;
+            return done != 0 ? O0_OK : st;
+        }
+        if (in_page >= page->valid_bytes) break;
+        if (take > page->valid_bytes - in_page)
+            take = page->valid_bytes - in_page;
+        memcpy((uint8_t *)buffer + done, page->data + in_page, take);
+        done += take;
     }
-    struct o0_vnode *vn = NULL;
-    o0_status st = o0_vfs_lookup_path(path, &vn);
-    if (st != O0_OK) {
-        return st;
-    }
-    struct o0_file *file = NULL;
-    st = o0_file_create(vn, flags, &file);
-    if (st != O0_OK) {
-        o0_object_unref(&vn->obj);
-        return st;
-    }
-    uint64_t handle = 0;
-    st = o0_handle_install(proc->handles, &file->obj,
-                           O0_RIGHT_READ | O0_RIGHT_WRITE | O0_RIGHT_DUP,
-                           &handle);
-    if (st != O0_OK) {
-        o0_object_unref(&vn->obj);
-        o0_object_unref(&file->obj);
-        return st;
-    }
-    *out_handle = handle;
+    o0_spin_unlock(&vfs_cache_lock);
+    *out_length = done;
     return O0_OK;
 }
 
-o0_status o0_vfs_read(struct o0_process *proc, uint64_t handle, void *buffer,
-                      size_t capacity, size_t *out_len) {
-    if (proc == NULL || out_len == NULL) {
+o0_status o0_vfs_write(struct o0_vfs_file *file, uint64_t offset,
+                       const void *buffer, size_t length, size_t *out_length) {
+    if (file == NULL || out_length == NULL || (buffer == NULL && length != 0))
         return O0_EINVAL;
+    *out_length = 0;
+    if ((file->rights & O0_RIGHT_WRITE) == 0) return O0_EPERM;
+    if (length > O0_VFS_IO_MAX || offset > UINT64_MAX - length) return O0_ERANGE;
+    if (file->node->ops == NULL || file->node->ops->write == NULL) return O0_EPERM;
+    if (!vfs_cache_ready) return O0_EINVAL;
+    o0_spin_lock(&vfs_cache_lock);
+    size_t done = 0;
+    while (done < length) {
+        uint64_t position = offset + done;
+        uint64_t page_index = position / O0_PAGE_SIZE;
+        size_t in_page = (size_t)(position % O0_PAGE_SIZE);
+        size_t take = O0_PAGE_SIZE - in_page;
+        if (take > length - done) take = length - done;
+        bool full_page = in_page == 0 && take == O0_PAGE_SIZE;
+        struct o0_vfs_cache_page *page = NULL;
+        o0_status st = cache_get_locked(file->node, page_index, !full_page, &page);
+        if (st != O0_OK) {
+            o0_spin_unlock(&vfs_cache_lock);
+            *out_length = done;
+            return done != 0 ? O0_OK : st;
+        }
+        st = file->node->ops->write(file->node, position,
+                                    (const uint8_t *)buffer + done, take,
+                                    out_length);
+        if (st != O0_OK || *out_length != take) {
+            cache_drop_page(page);
+            o0_spin_unlock(&vfs_cache_lock);
+            *out_length = done;
+            if (done != 0) return O0_OK;
+            return st != O0_OK ? st : O0_EIO;
+        }
+        memcpy(page->data + in_page, (const uint8_t *)buffer + done, take);
+        if (in_page + take > page->valid_bytes)
+            page->valid_bytes = in_page + take;
+        done += take;
     }
-    struct o0_object *obj = NULL;
-    o0_status st = o0_handle_lookup(proc->handles, handle, O0_OBJ_FILE,
-                                    O0_RIGHT_READ, &obj);
-    if (st != O0_OK) {
-        return st;
+    o0_spin_unlock(&vfs_cache_lock);
+    *out_length = done;
+    return O0_OK;
+}
+
+o0_status o0_vfs_stat(struct o0_vnode *directory, const char *path,
+                      size_t path_length, struct o0_vfs_stat *out) {
+    if (out == NULL) return O0_EINVAL;
+    if (directory != NULL && path != NULL && path_length == 1u && path[0] == '.' && path[1] == '\0') {
+        if (directory->mounted_root != NULL) directory = directory->mounted_root;
+        if (directory->ops == NULL || directory->ops->stat == NULL) return O0_ENOTSUP;
+        return directory->ops->stat(directory, out);
     }
-    struct o0_file *file = (struct o0_file *)obj;
-    st = file->vn->ops->read(file->vn, file->offset, buffer, capacity,
-                             out_len);
-    if (st == O0_OK) {
-        file->offset += *out_len;
-    }
-    o0_object_unref(obj);
+    struct o0_vnode *node = NULL;
+    o0_status st = resolve_node(directory, path, path_length, &node);
+    if (st != O0_OK) return st;
+    if (node->ops == NULL || node->ops->stat == NULL) st = O0_ENOTSUP;
+    else st = node->ops->stat(node, out);
+    vnode_unref(node);
     return st;
 }
 
-o0_status o0_vfs_write(struct o0_process *proc, uint64_t handle,
-                       const void *buffer, size_t len, size_t *out_len) {
-    if (proc == NULL || out_len == NULL) {
-        return O0_EINVAL;
-    }
-    struct o0_object *obj = NULL;
-    o0_status st = o0_handle_lookup(proc->handles, handle, O0_OBJ_FILE,
-                                    O0_RIGHT_WRITE, &obj);
-    if (st != O0_OK) {
-        return st;
-    }
-    struct o0_file *file = (struct o0_file *)obj;
-    st = file->vn->ops->write(file->vn, file->offset, buffer, len, out_len);
-    if (st == O0_OK) {
-        file->offset += *out_len;
-    }
-    o0_object_unref(obj);
+o0_status o0_vfs_readdir(struct o0_vnode *directory, uint64_t *cursor,
+                         struct o0_vfs_dirent *out) {
+    if (directory == NULL || cursor == NULL || out == NULL) return O0_EINVAL;
+    if (directory->type != O0_VNODE_DIRECTORY) return O0_ENOTDIR;
+    if (directory->mounted_root != NULL) directory = directory->mounted_root;
+    if (directory->ops == NULL || directory->ops->readdir == NULL) return O0_ENOTSUP;
+    return directory->ops->readdir(directory, cursor, out);
+}
+
+o0_status o0_vfs_unlink(struct o0_vnode *directory, const char *path,
+                        size_t path_length) {
+    struct o0_vnode *parent = NULL;
+    const char *leaf = NULL;
+    size_t leaf_len = 0;
+    o0_status st = resolve_parent(directory, path, path_length, &parent,
+                                  &leaf, &leaf_len);
+    if (st != O0_OK) return st;
+    if (parent->ops == NULL || parent->ops->unlink == NULL) st = O0_ENOTSUP;
+    else st = parent->ops->unlink(parent, leaf, leaf_len);
+    vnode_unref(parent);
     return st;
 }
 
-o0_status o0_vfs_stat(const char *path, struct o0fs_stat *out) {
-    if (path == NULL || out == NULL) {
-        return O0_EINVAL;
+o0_status o0_vfs_mkdir(struct o0_vnode *directory, const char *path,
+                       size_t path_length) {
+    struct o0_vnode *parent = NULL;
+    const char *leaf = NULL;
+    size_t leaf_len = 0;
+    o0_status st = resolve_parent(directory, path, path_length, &parent,
+                                  &leaf, &leaf_len);
+    if (st != O0_OK) return st;
+    if (parent->ops == NULL || parent->ops->create == NULL) st = O0_ENOTSUP;
+    else {
+        struct o0_vnode *created = NULL;
+        st = parent->ops->create(parent, leaf, leaf_len,
+                                 O0_VNODE_DIRECTORY, &created);
+        if (created != NULL) vnode_unref(created);
     }
-    struct o0_vnode *vn = NULL;
-    o0_status st = o0_vfs_lookup_path(path, &vn);
-    if (st != O0_OK) {
-        return st;
-    }
-    st = vn->ops->stat(vn, out);
-    o0_object_unref(&vn->obj);
-    return st;
-}
-
-o0_status o0_vfs_listdir(const char *path, o0fs_iter_fn fn, void *ctx) {
-    if (path == NULL || fn == NULL) {
-        return O0_EINVAL;
-    }
-    struct o0_vnode *vn = NULL;
-    o0_status st = o0_vfs_lookup_path(path, &vn);
-    if (st != O0_OK) {
-        return st;
-    }
-    st = vn->ops->list(vn, fn, ctx);
-    o0_object_unref(&vn->obj);
+    vnode_unref(parent);
     return st;
 }
