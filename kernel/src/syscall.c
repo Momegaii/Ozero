@@ -9,7 +9,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <string.h>
 
 #include "ozero/abi.h"
 #include "ozero/budget.h"
@@ -29,6 +28,7 @@
 
 #include "serial.h"
 #include "thread_internal.h"
+#include "string.h"
 
 #define O0_DEBUG_WRITE_MAX 4096u
 #define O0_DEBUG_CHUNK 128u
@@ -387,7 +387,9 @@ static o0_status syscall_copy_path(char *path, const char *user_path,
     if (st != O0_OK) return st;
     st = o0_copy_from_user(path, user_path, (size_t)path_length);
     if (st != O0_OK) return st;
-    if (memchr(path, '\\0', (size_t)path_length) != NULL) return O0_EINVAL;
+    for (size_t i = 0; i < (size_t)path_length; ++i) {
+        if (path[i] == '\\0') return O0_EINVAL;
+    }
     path[path_length] = '\\0';
     return O0_OK;
 }
