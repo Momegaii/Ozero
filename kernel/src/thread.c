@@ -11,6 +11,7 @@
 #include <stdint.h>
 
 #include "ozero/budget.h"
+#include "ozero/cpu_local.h"
 #include "ozero/cpu.h"
 #include "ozero/endpoint.h"
 #include "ozero/handle.h"
@@ -501,6 +502,43 @@ O0_NORETURN void o0_thread_exit(int status) {
     }
 }
 
+/* A join that never returns used to be invisible: the log simply stopped and CI
+ * timed out with no idea whether the target had exited, blocked or vanished out
+ * of every run queue. Dump the whole thread table once, then fail. */
+static void join_timeout_dump(const struct o0_thread *target) {
+    o0_serial_puts("OZERO: join timeout target=");
+    o0_serial_puts(o0_thread_name(target));
+    o0_serial_puts(" ready=");
+    for (uint32_t cpu = 0; cpu < O0_MAX_CPUS; ++cpu) {
+        o0_serial_dec(o0_sched_ready_count_cpu(cpu));
+        o0_serial_puts(cpu + 1u < O0_MAX_CPUS ? "," : "");
+    }
+    o0_serial_puts("\n");
+    for (size_t i = 0; i < O0_MAX_THREADS; ++i) {
+        const struct o0_thread *t = &thread_table[i];
+        if (t->state == O0_THREAD_UNUSED) {
+            continue;
+        }
+        o0_serial_puts("OZERO: thread slot=");
+        o0_serial_dec(i);
+        o0_serial_puts(" name=");
+        o0_serial_puts(t->name);
+        o0_serial_puts(" state=");
+        o0_serial_dec(t->state);
+        o0_serial_puts(" cpu=");
+        o0_serial_dec(t->cpu);
+        o0_serial_puts(" exited=");
+        o0_serial_dec(t->exited ? 1u : 0u);
+        o0_serial_puts(" waiter=");
+        o0_serial_puts(t->join_waiter != NULL ? o0_thread_name(t->join_waiter) : "-");
+        o0_serial_puts(" queued=");
+        o0_serial_dec(t->next_ready != NULL ? 1u : 0u);
+        o0_serial_puts("\n");
+    }
+}
+
+#define O0_JOIN_TIMEOUT_TICKS 1000u
+
 o0_status o0_thread_join(o0_thread_t *thread, int *status) {
     if (thread == NULL) {
         return O0_EINVAL;
@@ -510,8 +548,14 @@ o0_status o0_thread_join(o0_thread_t *thread, int *status) {
         return O0_EINVAL;
     }
 
+    uint64_t deadline = o0_sched_ticks() + O0_JOIN_TIMEOUT_TICKS;
     for (;;) {
         o0_irq_state_t irq = o0_irq_save();
+        if (o0_sched_ticks() > deadline) {
+            join_timeout_dump(thread);
+            o0_irq_restore(irq);
+            return O0_ETIMEDOUT;
+        }
         if (thread->exited) {
             o0_irq_restore(irq);
             break;
