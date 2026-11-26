@@ -208,6 +208,7 @@ o0_status o0_vfs_open(struct o0_vnode *directory, const char *path,
         return O0_EINVAL;
     }
     *out = NULL;
+    bool created = false;
     struct o0_vnode *node = NULL;
     o0_status st = resolve_node(directory, path, path_length, &node);
     if (st == O0_ENOENT && (flags & O0_VFS_OPEN_CREATE) != 0) {
@@ -217,7 +218,10 @@ o0_status o0_vfs_open(struct o0_vnode *directory, const char *path,
         st = resolve_parent(directory, path, path_length, &parent, &leaf, &leaf_len);
         if (st == O0_OK) {
             if (parent->ops == NULL || parent->ops->create == NULL) st = O0_ENOTSUP;
-            else st = parent->ops->create(parent, leaf, leaf_len, O0_VNODE_FILE, &node);
+            else {
+                st = parent->ops->create(parent, leaf, leaf_len, O0_VNODE_FILE, &node);
+                created = st == O0_OK;
+            }
             vnode_unref(parent);
         }
     } else if (st == O0_OK && (flags & O0_VFS_OPEN_EXCLUSIVE) != 0 &&
@@ -228,11 +232,13 @@ o0_status o0_vfs_open(struct o0_vnode *directory, const char *path,
     if (st != O0_OK) return st;
     if (node == NULL) return O0_EIO;
     if (node->type != O0_VNODE_FILE) {
+        if (created) { o0_status cleanup = o0_vfs_unlink(directory, path, path_length); (void)cleanup; }
         vnode_unref(node);
         return O0_EISDIR;
     }
     if ((rights & O0_RIGHT_WRITE) != 0 &&
         (node->ops == NULL || node->ops->write == NULL)) {
+        if (created) { o0_status cleanup = o0_vfs_unlink(directory, path, path_length); (void)cleanup; }
         vnode_unref(node);
         return O0_EPERM;
     }
@@ -240,6 +246,7 @@ o0_status o0_vfs_open(struct o0_vnode *directory, const char *path,
     st = o0_object_alloc(O0_OBJ_FILE, sizeof(struct o0_vfs_file), budget,
                          file_destroy, &object);
     if (st != O0_OK) {
+        if (created) { o0_status cleanup = o0_vfs_unlink(directory, path, path_length); (void)cleanup; }
         vnode_unref(node);
         return st;
     }
