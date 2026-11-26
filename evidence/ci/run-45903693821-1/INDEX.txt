@@ -1,0 +1,8 @@
+run 45903693821 attempt 1
+commit f8cb56af9e339dac3b2830b592ce3d19c42b3450
+workflow Ozero kernel build and boot checks
+
+Artifact directories and files published by this run:
+INDEX.txt
+ozero-qemu-lock-order/qemu-debug-lock-order.log.gz
+ozero-qemu-lock-order/qemu-serial-lock-order.log
