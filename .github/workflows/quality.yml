@@ -137,7 +137,17 @@ jobs:
       matrix:
         # Do not enable AHCI or NVMe cells until each driver has independently
         # passed locally or in CI and the Director has accepted that evidence.
-        controller: [virtio]
+        #
+        # Two virtio cells are kept deliberately separate:
+        #   virtio        - legacy I/O-port transport (disable-modern=on)
+        #   modern-virtio - modern MMIO capability transport (disable-legacy=on)
+        # The modern cell attaches a device that cannot be driven through the
+        # legacy register layout, so it cannot pass by accident.
+        include:
+          - controller: virtio
+            qemu_args: -drive id=vd0,file=build/storage.img,if=none,format=raw -device virtio-blk-pci,drive=vd0,disable-modern=on
+          - controller: modern-virtio
+            qemu_args: -drive id=vd1,file=build/storage.img,if=none,format=raw -device virtio-blk-pci,drive=vd1,disable-legacy=on
     name: storage (${{ matrix.controller }}, smp=2)
     steps:
       - name: Check out source
@@ -162,7 +172,7 @@ jobs:
           QEMU_FIRMWARE: bios
           QEMU_SMP: 2
           QEMU_STORAGE: ${{ matrix.controller }}
-          QEMU_EXTRA_ARGS: -drive id=vd0,file=build/storage.img,if=none,format=raw -device virtio-blk-pci,drive=vd0,disable-modern=on -trace virtio_*
+          QEMU_EXTRA_ARGS: ${{ matrix.qemu_args }} -trace virtio_*
           QEMU_DEBUG_LOG: build/qemu-debug-storage-${{ matrix.controller }}.log
         run: bash tools/qemu-smoke.sh build/ozero.iso build/qemu-serial-storage-${{ matrix.controller }}.log
       - name: Upload QEMU diagnostics
