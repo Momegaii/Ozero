@@ -114,6 +114,7 @@ int main(void) {
     CHECK(o0_vfs_mkdir(docs, "mnt", 3u) == O0_OK);
     struct o0_vnode *mountpoint = NULL;
     CHECK(o0_vfs_lookup(docs, "mnt", 3u, &mountpoint) == O0_OK);
+    CHECK(o0_vfs_mount(mountpoint, root) == O0_EINVAL); /* no ancestor cycle */
     struct o0_vnode *mounted_root = NULL;
     CHECK(o0_tmpfs_create(budget, 4096u, &mounted_root) == O0_OK);
     struct o0_vfs_file *mounted_file = NULL;
