@@ -110,6 +110,16 @@ struct o0_uapi_budget_info {
 #define O0_UAPI_FILE_CREATE (1u << 0)
 #define O0_UAPI_FILE_EXCLUSIVE (1u << 1)
 
+/* Native capability rights used by file_open and handle operations. */
+#define O0_UAPI_RIGHT_READ (1u << 0)
+#define O0_UAPI_RIGHT_WRITE (1u << 1)
+#define O0_UAPI_RIGHT_DUP (1u << 5)
+#define O0_UAPI_RIGHT_TRANSFER (1u << 4)
+#define O0_UAPI_RIGHT_INFO (1u << 9)
+#define O0_UAPI_RIGHT_ENUM (1u << 11)
+#define O0_UAPI_RIGHT_CREATE (1u << 12)
+#define O0_UAPI_RIGHT_REMOVE (1u << 13)
+
 struct o0_uapi_vfs_stat {
     uint64_t size;
     uint64_t object_id;
