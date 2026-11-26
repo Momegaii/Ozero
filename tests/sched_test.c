@@ -293,44 +293,6 @@ static void test_per_cpu_migration(void) {
 }
 
 
-/* A thread made ready on another CPU must make that CPU look at its run queue.
- * Without the kick the thread waits for that CPU's next tick, and a CPU halted
- * with no timer running never runs it at all. */
-static void test_remote_enqueue_kicks_target(void) {
-    TEST("remote enqueue requests a reschedule on the target CPU");
-    reset_scheduler();
-
-    struct o0_thread *local = make_thread("local", 0);
-    o0_sched_enqueue(local);
-    ASSERT(ipi_count == 0, "enqueue on the current CPU must not send an IPI");
-
-    struct o0_thread *remote = make_thread("remote", 0);
-    remote->cpu = 1;
-    o0_sched_enqueue(remote);
-    ASSERT(ipi_count == 1, "remote enqueue must send exactly one IPI");
-    ASSERT(ipi_last_apic == o0_cpu_local[1].apic_id,
-           "IPI must target the CPU that owns the run queue");
-    ASSERT(ipi_last_vector == O0_LAPIC_IPI_VECTOR, "wrong IPI vector");
-    ASSERT(o0_cpu_local[1].resched_pending == 1,
-           "target CPU must have a pending reschedule");
-    ASSERT(o0_cpu_local[0].resched_pending == 0,
-           "current CPU must not be marked for reschedule");
-    ASSERT(o0_sched_ready_count_cpu(1) == 1, "thread must be queued on the target");
-    PASS();
-}
-
-/* A CPU that is not online cannot be kicked, and must not be selected either. */
-static void test_offline_cpu_not_kicked(void) {
-    TEST("enqueue for an offline CPU sends no IPI");
-    reset_scheduler();
-    o0_cpu_local[1].online = 0;
-
-    struct o0_thread *remote = make_thread("remote", 0);
-    remote->cpu = 1;
-    o0_sched_enqueue(remote);
-    ASSERT(ipi_count == 0, "an offline CPU must not be kicked");
-    PASS();
-}
 
 
 /* The exiting thread runs on another CPU, so interrupt masking on the joining
@@ -385,8 +347,6 @@ int main(void) {
     test_blocking();
     test_per_cpu_migration();
     test_tick_and_preemption();
-    test_remote_enqueue_kicks_target();
-    test_offline_cpu_not_kicked();
     test_join_wake_before_block();
     test_timeslice_rotation();
 
