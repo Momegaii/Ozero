@@ -466,7 +466,8 @@ o0_status o0_virtio_blk_probe(const char *name, struct o0_block_dev **out) {
     vblk_outw((uint16_t)(vd->io_base + VBLK_REG_QUEUE_SELECT), 0);
     vd->queue_size = vblk_inw((uint16_t)(vd->io_base + VBLK_REG_QUEUE_SIZE));
     size_t used_offset = 0, ring_bytes = 0;
-    if (!o0_virtio_legacy_ring_layout(vd->queue_size, &used_offset, &ring_bytes)) {
+    if (vd->queue_size < 3u ||
+        !o0_virtio_legacy_ring_layout(vd->queue_size, &used_offset, &ring_bytes)) {
         vblk_outb((uint16_t)(vd->io_base + VBLK_REG_STATUS), VBLK_STATUS_FAILED);
         return O0_ENOTSUP;
     }
