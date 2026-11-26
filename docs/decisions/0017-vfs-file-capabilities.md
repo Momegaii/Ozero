@@ -45,7 +45,8 @@ change native handle semantics.
    rejected during traversal (standalone `.` is accepted only by `file_stat` to
    query the granted directory itself); `..` is always rejected. Symlinks are not part
    of this wave. Component and traversal limits are enforced before backend
-   calls.
+   calls. Path components are byte strings (not Unicode); invalid UTF-8 is retained
+   as opaque bytes and no Unicode normalization is performed.
 6. **Backends.** A writable, bounded tmpfs is the reference VFS backend. O0FS
    is exposed read-only in this wave. The O0FS format and journal are not
    promoted to approved or durable by mounting it. Writable O0FS access stays
@@ -97,7 +98,7 @@ enabled. `handle_close` (syscall 5) closes a file capability.
 
 - VFS path resolution across mount points and mount boundaries.
 - Relative lookup, root confinement, rejected `..`, empty/oversize path,
-  invalid UTF-8 policy, excessive depth and component length.
+  opaque invalid-UTF-8 names, excessive depth and component length.
 - tmpfs create/read/write/truncate/readdir/stat, zero-fill gaps, capacity
   exhaustion and cleanup after allocation failure.
 - O0FS read-only stat/read/readdir; every write-like operation is refused.
