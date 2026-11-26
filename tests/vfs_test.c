@@ -1,346 +1,173 @@
-/* Host tests for Wave 4.6 VFS layer and file syscalls.
- *
- * kernel/src/vfs.c, kernel/src/o0fs.c, kernel/src/block.c,
- * kernel/src/ramdisk.c, kernel/src/object.c are included so the VFS,
- * filesystem and object layers are visible. The PMM and slab are mocked
- * with host memory, as in the other host tests.
- *
- * Every test formats its own RAM disk, so failures cannot leak between
- * tests. Run it with `make test`.
- */
-
+/* Host tests for capability-relative VFS and tmpfs. */
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
-#include "ozero/block.h"
-#include "ozero/fs.h"
+#include "ozero/budget.h"
 #include "ozero/mm.h"
 #include "ozero/object.h"
-#include "ozero/ramdisk.h"
 #include "ozero/status.h"
-#include "ozero/thread.h"
-#include "ozero/types.h"
-#include "ozero/uapi.h"
+#include "ozero/sync.h"
 #include "ozero/vfs.h"
-
-#define MOCK_PAGES 512u
-static uint8_t mock_arena[MOCK_PAGES][4096];
-static bool mock_used[MOCK_PAGES];
 
 static uint8_t heap[2u << 20];
 static size_t heap_used;
 
-o0_paddr_t o0_pmm_alloc_pages(uint32_t order) {
-    if (order != 0) {
-        return 0;
-    }
-    for (uint32_t i = 0; i < MOCK_PAGES; ++i) {
-        if (!mock_used[i]) {
-            mock_used[i] = true;
-            return (o0_paddr_t)(uintptr_t)&mock_arena[i][0];
-        }
-    }
-    return 0;
-}
-
-void o0_pmm_free_pages(o0_paddr_t base, uint32_t order) {
-    (void)order;
-    for (uint32_t i = 0; i < MOCK_PAGES; ++i) {
-        if ((o0_paddr_t)(uintptr_t)&mock_arena[i][0] == base) {
-            mock_used[i] = false;
-            return;
-        }
-    }
-}
-
 void *o0_kalloc(size_t size, size_t align) {
-    if (align == 0) {
-        align = 8;
-    }
+    if (align == 0) align = 8;
     size_t at = (heap_used + align - 1u) & ~(align - 1u);
-    if (at + size > sizeof(heap)) {
-        return NULL;
-    }
+    if (at > sizeof(heap) || size > sizeof(heap) - at) return NULL;
     heap_used = at + size;
     return heap + at;
 }
+void o0_kfree(void *ptr, size_t size) { (void)ptr; (void)size; }
 
-void o0_kfree(void *ptr, size_t size) {
-    (void)ptr;
-    (void)size;
+void o0_spin_init(o0_spinlock_t *lock) {
+    lock->locked = 0; lock->reserved = 0; lock->order = 0; lock->debug_owner = 0;
+}
+void o0_spin_init_ordered(o0_spinlock_t *lock, uint32_t order) {
+    o0_spin_init(lock); lock->order = order;
+}
+void o0_spin_lock(o0_spinlock_t *lock) {
+    while (__atomic_exchange_n(&lock->locked, 1u, __ATOMIC_ACQUIRE) != 0) { }
+}
+void o0_spin_unlock(o0_spinlock_t *lock) {
+    __atomic_store_n(&lock->locked, 0u, __ATOMIC_RELEASE);
+}
+bool o0_spin_trylock(o0_spinlock_t *lock) {
+    return __atomic_exchange_n(&lock->locked, 1u, __ATOMIC_ACQUIRE) == 0;
 }
 
-void *o0_phys_to_virt(o0_paddr_t phys) { return (void *)(uintptr_t)phys; }
-o0_paddr_t o0_virt_to_phys(const void *virt) { return (o0_paddr_t)(uintptr_t)virt; }
-
-#include "../kernel/src/block.c"
-#include "../kernel/src/ramdisk.c"
-#include "../kernel/src/o0fs.c"
-#include "../kernel/src/object.c"
-#include "../kernel/src/budget.c"
-#include "../kernel/src/vfs.c"
-
-/* ---- minimal process/handle mocks ---- */
-
-static struct o0_handle_table fake_handles;
-static struct o0_process fake_proc;
-static struct o0_budget fake_budget;
-
-o0_process_t *o0_process_current(void) {
-    return &fake_proc;
-}
-
-#include "../kernel/src/handle.c"
-
-/* ---- test helpers ---- */
-
-#define CHECK(cond)                                                             \
-    do {                                                                       \
-        if (!(cond)) {                                                         \
-            fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);    \
-            return 1;                                                          \
-        }                                                                      \
-    } while (0)
-
-static int test_mount_table(void) {
-    o0_vfs_init();
-
-    /* No mounts installed yet. */
-    struct o0_mount *mnt = NULL;
-    CHECK(o0_mount_get(0, &mnt) == O0_ENOENT);
-
-    /* Install a mount with a fake device and filesystem. */
-    struct o0_block_dev *dev = NULL;
-    struct o0fs *fs = NULL;
-    struct o0_vnode *root = NULL;
-    /* We can't easily create a real fs+root vnode without full init, so just
-     * verify the install/get/release cycle with NULL internals is rejected
-     * where appropriate and the slot bookkeeping works. */
-    CHECK(o0_mount_install(NULL, NULL, NULL, &mnt) == O0_EINVAL);
-
-    /* Fill all slots. */
-    for (size_t i = 0; i < O0_MAX_MOUNTS; ++i) {
-        /* install with NULL args is EINVAL, so we can't fill slots this way.
-         * Just verify the table starts empty and get returns ENOENT. */
-    }
-    (void)dev;
-    (void)fs;
-    (void)root;
-    return 0;
-}
-
-static int test_vfs_lookup_no_mount(void) {
-    o0_vfs_init();
-
-    /* No root mount: lookup should fail. */
-    struct o0_vnode *vn = NULL;
-    o0_status st = o0_vfs_lookup_path("/", &vn);
-    CHECK(st == O0_ENOENT);
-    CHECK(vn == NULL);
-    return 0;
-}
-
-static int test_vfs_stat_no_mount(void) {
-    o0_vfs_init();
-
-    struct o0fs_stat info;
-    CHECK(o0_vfs_stat("/", &info) == O0_ENOENT);
-    return 0;
-}
-
-static int test_vfs_listdir_no_mount(void) {
-    o0_vfs_init();
-
-    CHECK(o0_vfs_listdir("/", NULL, NULL) == O0_EINVAL);
-    CHECK(o0_vfs_listdir("/", (o0fs_iter_fn)0x1, NULL) == O0_ENOENT);
-    return 0;
-}
-
-static int test_vnode_create_invalid_args(void) {
-    CHECK(o0_vnode_create(NULL, 1, NULL, NULL) == O0_EINVAL);
-    CHECK(o0_vnode_create(NULL, 1, &(const struct o0_vnode_ops){0}, NULL) == O0_EINVAL);
-    return 0;
-}
-
-static int test_file_create_invalid_args(void) {
-    CHECK(o0_file_create(NULL, 0, NULL) == O0_EINVAL);
-    return 0;
-}
-
-static int test_full_filesystem_cycle(void) {
-    o0_vfs_init();
-
-    struct o0_block_dev *dev = NULL;
-    CHECK(o0_ramdisk_create("ram0", 512u * 1024u, &dev) == O0_OK);
-    CHECK(o0fs_format(dev) == O0_OK);
-
-    struct o0fs *fs = NULL;
-    CHECK(o0fs_mount(dev, &fs) == O0_OK);
-
-    /* Create a root vnode (inode 1). */
-    struct o0_vnode *root = NULL;
-    CHECK(o0_vnode_create(fs, 1, &(const struct o0_vnode_ops){
-        .read = NULL,
-        .write = NULL,
-        .stat = NULL,
-        .lookup = NULL,
-        .list = NULL,
-    }, &root) == O0_OK);
-    CHECK(root != NULL);
-    CHECK(root->inode == 1);
-    CHECK(root->fs == fs);
-
-    /* Install the mount. */
-    struct o0_mount *mnt = NULL;
-    CHECK(o0_mount_install(dev, fs, root, &mnt) == O0_OK);
-    CHECK(mnt != NULL);
-    CHECK(mnt->dev == dev);
-    CHECK(mnt->fs == fs);
-    CHECK(mnt->root == root);
-
-    /* Get the mount back. */
-    struct o0_mount *mnt2 = NULL;
-    CHECK(o0_mount_get(0, &mnt2) == O0_OK);
-    CHECK(mnt2 == mnt);
-
-    /* Stat the root vnode through the vnode op (stat op is NULL so this
-     * would be ENOSYS, but o0fs_inode_stat works directly). */
-    struct o0fs_stat info;
-    CHECK(o0fs_inode_stat(fs, 1, &info) == O0_OK);
-    CHECK(info.type == O0FS_TYPE_DIR);
-
-    /* Release the mount. */
-    o0_mount_release(mnt);
-    CHECK(o0_mount_get(0, &mnt2) == O0_ENOENT);
-
-    /* Unmount the filesystem. */
-    CHECK(o0fs_unmount(fs) == O0_OK);
-    o0_ramdisk_destroy(dev);
-    return 0;
-}
-
-static int test_vfs_open_no_mount(void) {
-    o0_vfs_init();
-
-    struct o0_process *proc = o0_process_current();
-    CHECK(proc != NULL);
-    proc->handles = &fake_handles;
-    memset(&fake_handles, 0, sizeof(fake_handles));
-    fake_handles.budget = &fake_budget;
-
-    uint64_t handle = 0;
-    CHECK(o0_vfs_open("/nonexistent", O0_O_RDONLY, proc, &handle) == O0_ENOENT);
-    return 0;
-}
-
-static int test_vfs_read_invalid_handle(void) {
-    o0_vfs_init();
-
-    struct o0_process *proc = o0_process_current();
-    proc->handles = &fake_handles;
-    memset(&fake_handles, 0, sizeof(fake_handles));
-    fake_handles.budget = &fake_budget;
-
-    uint8_t buf[64];
-    size_t got = 0;
-    /* Invalid handle: no handle table entry. */
-    CHECK(o0_vfs_read(proc, 42, buf, sizeof(buf), &got) != O0_OK);
-    return 0;
-}
-
-static int test_vfs_write_invalid_handle(void) {
-    o0_vfs_init();
-
-    struct o0_process *proc = o0_process_current();
-    proc->handles = &fake_handles;
-    memset(&fake_handles, 0, sizeof(fake_handles));
-    fake_handles.budget = &fake_budget;
-
-    const char *data = "hello";
-    size_t written = 0;
-    CHECK(o0_vfs_write(proc, 42, data, 5, &written) != O0_OK);
-    return 0;
-}
+#define CHECK(x) do { if (!(x)) { \
+    fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #x); return 1; \
+} } while (0)
 
 int main(void) {
-    int failed = 0;
+    CHECK(o0_budget_init_system() == O0_OK);
+    struct o0_budget *budget = o0_budget_root();
+    CHECK(budget != NULL);
 
-    if (test_mount_table() != 0) {
-        fprintf(stderr, "FAIL: test_mount_table\n");
-        ++failed;
-    } else {
-        printf("PASS: mount table\n");
-    }
+    struct o0_vnode *root = NULL;
+    CHECK(o0_tmpfs_create(budget, 8192u, &root) == O0_OK);
+    CHECK(root != NULL && root->type == O0_VNODE_DIRECTORY);
+    CHECK(o0_vfs_mount_root(root) == O0_OK);
 
-    if (test_vfs_lookup_no_mount() != 0) {
-        fprintf(stderr, "FAIL: test_vfs_lookup_no_mount\n");
-        ++failed;
-    } else {
-        printf("PASS: vfs lookup no mount\n");
-    }
+    CHECK(o0_vfs_mkdir(root, "docs", 4u) == O0_OK);
+    struct o0_vnode *docs = NULL;
+    CHECK(o0_vfs_lookup(root, "docs", 4u, &docs) == O0_OK);
+    CHECK(docs != NULL && docs->type == O0_VNODE_DIRECTORY);
 
-    if (test_vfs_stat_no_mount() != 0) {
-        fprintf(stderr, "FAIL: test_vfs_stat_no_mount\n");
-        ++failed;
-    } else {
-        printf("PASS: vfs stat no mount\n");
-    }
+    struct o0_vfs_file *file = NULL;
+    CHECK(o0_vfs_open(docs, "note", 4u, O0_VFS_OPEN_CREATE,
+                      O0_RIGHT_READ | O0_RIGHT_WRITE | O0_RIGHT_INFO,
+                      budget, &file) == O0_OK);
+    static const char payload[] = "ok";
+    size_t count = 0;
+    CHECK(o0_vfs_write(file, 5u, payload, 2u, &count) == O0_OK);
+    CHECK(count == 2u);
 
-    if (test_vfs_listdir_no_mount() != 0) {
-        fprintf(stderr, "FAIL: test_vfs_listdir_no_mount\n");
-        ++failed;
-    } else {
-        printf("PASS: vfs listdir no mount\n");
-    }
+    uint8_t data[16];
+    memset(data, 0xCC, sizeof(data));
+    CHECK(o0_vfs_read(file, 0, data, 7u, &count) == O0_OK);
+    CHECK(count == 7u);
+    for (size_t i = 0; i < 5u; ++i) CHECK(data[i] == 0);
+    CHECK(data[5] == 'o' && data[6] == 'k');
+    memset(data, 0xCC, sizeof(data));
+    CHECK(o0_vfs_read(file, 0, data, sizeof(data), &count) == O0_OK);
+    CHECK(count == 7u); /* EOF is not a zero-filled successful read. */
 
-    if (test_vnode_create_invalid_args() != 0) {
-        fprintf(stderr, "FAIL: test_vnode_create_invalid_args\n");
-        ++failed;
-    } else {
-        printf("PASS: vnode create invalid args\n");
-    }
+    /* Write-through page-cache coherence. */
+    static const char changed[] = "NO";
+    CHECK(o0_vfs_write(file, 5u, changed, 2u, &count) == O0_OK);
+    memset(data, 0, sizeof(data));
+    CHECK(o0_vfs_read(file, 0, data, 7u, &count) == O0_OK);
+    CHECK(data[5] == 'N' && data[6] == 'O');
 
-    if (test_file_create_invalid_args() != 0) {
-        fprintf(stderr, "FAIL: test_file_create_invalid_args\n");
-        ++failed;
-    } else {
-        printf("PASS: file create invalid args\n");
-    }
+    struct o0_vfs_stat info;
+    struct o0_vfs_file *missing = NULL;
+    struct o0_vfs_file *read_only = NULL;
+    CHECK(o0_vfs_open(docs, "note", 4u, 0, O0_RIGHT_READ, budget,
+                      &read_only) == O0_OK);
+    CHECK(o0_vfs_write(read_only, 0, changed, 2u, &count) == O0_EPERM);
+    CHECK(o0_vfs_stat(docs, "note", 4u, &info) == O0_OK);
+    CHECK(info.type == O0_VNODE_FILE && info.size == 7u);
 
-    if (test_full_filesystem_cycle() != 0) {
-        fprintf(stderr, "FAIL: test_full_filesystem_cycle\n");
-        ++failed;
-    } else {
-        printf("PASS: full filesystem cycle\n");
-    }
+    uint64_t cursor = 0;
+    struct o0_vfs_dirent entry;
+    CHECK(o0_vfs_readdir(docs, &cursor, &entry) == O0_OK);
+    CHECK(entry.name_len == 4u && strcmp(entry.name, "note") == 0);
+    CHECK(o0_vfs_readdir(docs, &cursor, &entry) == O0_ENOENT);
+    CHECK(o0_vfs_open(docs, "note", 4u, O0_VFS_OPEN_CREATE | O0_VFS_OPEN_EXCLUSIVE,
+                      O0_RIGHT_READ, budget, &missing) == O0_EEXIST);
 
-    if (test_vfs_open_no_mount() != 0) {
-        fprintf(stderr, "FAIL: test_vfs_open no mount\n");
-        ++failed;
-    } else {
-        printf("PASS: vfs open no mount\n");
-    }
+    /* Open vnode survives unlink until its final file reference is released. */
+    CHECK(o0_vfs_unlink(docs, "note", 4u) == O0_OK);
+    CHECK(o0_vfs_read(file, 0, data, 7u, &count) == O0_OK && count == 7u);
+    o0_object_unref(&read_only->obj);
+    CHECK(o0_vfs_open(docs, "note", 4u, 0, O0_RIGHT_READ, budget, &missing) ==
+          O0_ENOENT);
+    o0_object_unref(&file->obj);
 
-    if (test_vfs_read_invalid_handle() != 0) {
-        fprintf(stderr, "FAIL: test_vfs_read invalid handle\n");
-        ++failed;
-    } else {
-        printf("PASS: vfs read invalid handle\n");
-    }
+    /* Mount traversal, mountpoint lifetime and busy-unmount semantics. */
+    CHECK(o0_vfs_mkdir(docs, "mnt", 3u) == O0_OK);
+    struct o0_vnode *mountpoint = NULL;
+    CHECK(o0_vfs_lookup(docs, "mnt", 3u, &mountpoint) == O0_OK);
+    CHECK(o0_vfs_mount(mountpoint, root) == O0_EINVAL); /* no ancestor cycle */
+    struct o0_vnode *mounted_root = NULL;
+    CHECK(o0_tmpfs_create(budget, 4096u, &mounted_root) == O0_OK);
+    struct o0_vfs_file *mounted_file = NULL;
+    CHECK(o0_vfs_open(mounted_root, "inside", 6u, O0_VFS_OPEN_CREATE,
+                      O0_RIGHT_READ | O0_RIGHT_WRITE | O0_RIGHT_INFO,
+                      budget, &mounted_file) == O0_OK);
+    CHECK(o0_vfs_write(mounted_file, 0, "mount", 5u, &count) == O0_OK);
+    o0_object_unref(&mounted_file->obj);
+    CHECK(o0_vfs_mount(mountpoint, mounted_root) == O0_OK);
+    o0_object_unref(&mounted_root->obj);
+    CHECK(o0_vfs_unlink(docs, "mnt", 3u) == O0_EBUSY);
+    CHECK(o0_vfs_open(root, "docs/mnt/inside", 15u, 0, O0_RIGHT_READ,
+                      budget, &mounted_file) == O0_OK);
+    memset(data, 0, sizeof(data));
+    CHECK(o0_vfs_read(mounted_file, 0, data, 5u, &count) == O0_OK);
+    CHECK(count == 5u && memcmp(data, "mount", 5u) == 0);
+    o0_object_unref(&mounted_file->obj);
+    CHECK(o0_vfs_unmount(mountpoint) == O0_OK);
+    o0_object_unref(&mountpoint->obj);
+    struct o0_vnode *gone = NULL;
+    CHECK(o0_vfs_lookup(root, "docs/mnt/inside", 15u, &gone) == O0_ENOENT);
 
-    if (test_vfs_write_invalid_handle() != 0) {
-        fprintf(stderr, "FAIL: test_vfs_write invalid handle\n");
-        ++failed;
-    } else {
-        printf("PASS: vfs write invalid handle\n");
-    }
+    CHECK(o0_vfs_open(root, "", 0u, 0, O0_RIGHT_READ, budget, &missing) == O0_EINVAL);
+    char raw_name[2] = { (char)0xff, '\0' };
+    CHECK(o0_vfs_open(docs, raw_name, 1u, O0_VFS_OPEN_CREATE,
+                      O0_RIGHT_READ | O0_RIGHT_WRITE | O0_RIGHT_INFO,
+                      budget, &file) == O0_OK);
+    o0_object_unref(&file->obj);
+    CHECK(o0_vfs_open(docs, raw_name, 1u, 0, O0_RIGHT_READ,
+                      budget, &file) == O0_OK);
+    o0_object_unref(&file->obj);
+    CHECK(o0_vfs_unlink(docs, raw_name, 1u) == O0_OK);
+    CHECK(o0_vfs_mkdir(root, "../escape", sizeof("../escape") - 1u) == O0_EPERM);
+    CHECK(o0_vfs_open(root, "../escape", sizeof("../escape") - 1u, 0, O0_RIGHT_READ,
+                      budget, &missing) == O0_EPERM);
+    char long_path[O0_VFS_PATH_MAX + 2u];
+    memset(long_path, 'x', sizeof(long_path) - 1u);
+    long_path[sizeof(long_path) - 1u] = '\0';
+    CHECK(o0_vfs_open(root, long_path, O0_VFS_PATH_MAX + 1u, 0,
+                      O0_RIGHT_READ, budget, &missing) == O0_EINVAL);
 
-    if (failed != 0) {
-        fprintf(stderr, "%d test(s) failed\n", failed);
-        return 1;
-    }
-    printf("all checks passed\n");
+    /* Backend capacity is a hard limit and failure leaves no partial write. */
+    CHECK(o0_vfs_open(docs, "full", 4u, O0_VFS_OPEN_CREATE,
+                      O0_RIGHT_READ | O0_RIGHT_WRITE | O0_RIGHT_INFO,
+                      budget, &file) == O0_OK);
+    uint8_t too_much[9000];
+    memset(too_much, 0xA5, sizeof(too_much));
+    CHECK(o0_vfs_write(file, 0, too_much, sizeof(too_much), &count) == O0_ERANGE);
+    CHECK(o0_vfs_write(file, 8191u, too_much, 2u, &count) == O0_ENOSPC);
+    o0_object_unref(&file->obj);
+
+    o0_object_unref(&docs->obj);
+    o0_object_unref(&root->obj);
+    puts("PASS VFS capability-relative paths, tmpfs, cache and lifetime");
     return 0;
 }

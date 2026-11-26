@@ -18,7 +18,7 @@
 extern "C" {
 #endif
 
-/* ---- Syscall numbers (wave 3 + wave 4.6 set) ---- */
+/* ---- Syscall numbers (append-only native ABI; Wave 4.6 additions) ---- */
 
 #define O0_SYS_INVALID 0u /* reserved: returns -O0_UE_INVAL */
 #define O0_SYS_EXIT 1u
@@ -37,13 +37,12 @@ extern "C" {
 #define O0_SYS_MEMORY_CREATE 14u
 #define O0_SYS_MEMORY_MAP 15u
 #define O0_SYS_PROCESS_SPAWN 16u
-#define O0_SYS_OPEN 17u
-#define O0_SYS_READ 18u
-#define O0_SYS_WRITE 19u
-#define O0_SYS_CLOSE 20u
-#define O0_SYS_STAT 21u
-#define O0_SYS_READDIR 22u
-#define O0_SYS_MAX 22u
+#define O0_SYS_FILE_OPEN 17u
+#define O0_SYS_FILE_READ 18u
+#define O0_SYS_FILE_WRITE 19u
+#define O0_SYS_FILE_STAT 20u
+#define O0_SYS_FILE_READDIR 21u
+#define O0_SYS_MAX 21u
 
 /* ---- User-visible error codes ----
  *
@@ -96,31 +95,46 @@ struct o0_uapi_budget_info {
     uint64_t reserved;
 };
 
-/* ---- Wave 4.6 file argument structures ---- */
-
-/* File stat: returned by stat. All sizes in bytes. */
-struct o0_uapi_stat {
-    uint64_t st_size;        /* file size in bytes */
-    uint64_t st_blocks;      /* allocated blocks (4 KiB units) */
-    uint32_t st_mode;        /* O0FS_TYPE_FILE (1) or O0FS_TYPE_DIR (2) */
-    uint32_t st_links;       /* link count */
-    uint64_t reserved[4];
-};
-
-/* Directory entry: returned by readdir. Fixed 32-byte slots. */
-struct o0_uapi_dirent {
-    uint64_t d_ino;          /* inode number */
-    uint32_t d_reclen;       /* always 32 */
-    uint8_t  d_namlen;       /* name length, 1..23 */
-    uint8_t  d_type;         /* entry type (mirrors inode mode) */
-    char     d_name[24];     /* NUL-padded name */
-};
-
 /* Protection bits accepted by memory_map. They match O0_MAP_READ/WRITE/EXEC
  * numerically and are re-validated against the memory handle's rights. */
 #define O0_PROT_READ 1u
 #define O0_PROT_WRITE 2u
 #define O0_PROT_EXEC 4u
+
+/* ---- Wave 4.6 file metadata ---- */
+
+#define O0_UAPI_PATH_MAX 256u
+#define O0_UAPI_FILE_IO_MAX 4096u
+#define O0_UAPI_VNODE_FILE 1u
+#define O0_UAPI_VNODE_DIRECTORY 2u
+#define O0_UAPI_FILE_CREATE (1u << 0)
+#define O0_UAPI_FILE_EXCLUSIVE (1u << 1)
+
+/* Native capability rights used by file_open and handle operations. */
+#define O0_UAPI_RIGHT_READ (1u << 0)
+#define O0_UAPI_RIGHT_WRITE (1u << 1)
+#define O0_UAPI_RIGHT_DUP (1u << 5)
+#define O0_UAPI_RIGHT_TRANSFER (1u << 4)
+#define O0_UAPI_RIGHT_INFO (1u << 9)
+#define O0_UAPI_RIGHT_ENUM (1u << 11)
+#define O0_UAPI_RIGHT_CREATE (1u << 12)
+#define O0_UAPI_RIGHT_REMOVE (1u << 13)
+
+struct o0_uapi_vfs_stat {
+    uint64_t size;
+    uint64_t object_id;
+    uint32_t type;
+    uint32_t flags;
+};
+
+struct o0_uapi_vfs_dirent {
+    uint64_t next_cursor;
+    uint64_t object_id;
+    uint64_t size;
+    uint32_t type;
+    uint32_t name_len;
+    char name[64];
+};
 
 /* ---- Segment selectors (GDT layout) ---- */
 

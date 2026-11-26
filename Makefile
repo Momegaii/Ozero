@@ -31,7 +31,7 @@ KERNEL_OBJS := $(BUILD)/main.o $(BUILD)/serial.o $(BUILD)/string.o $(BUILD)/stat
                $(BUILD)/irq.o $(BUILD)/ioapic.o $(BUILD)/paging.o $(BUILD)/cpu.o $(BUILD)/pic.o $(BUILD)/smp.o $(BUILD)/ap_entry.o $(BUILD)/apic_timer.o $(BUILD)/kaslr.o \
                $(BUILD)/interrupts_c.o $(BUILD)/interrupts.o $(BUILD)/irq_stubs.o \
                $(BUILD)/context.o $(BUILD)/block.o $(BUILD)/ramdisk.o \
-               $(BUILD)/o0fs.o $(BUILD)/vfs.o $(BUILD)/pci.o $(BUILD)/dma.o $(BUILD)/virtio_blk.o $(BUILD)/virtio_blk_modern.o $(BUILD)/ahci.o $(BUILD)/nvme.o $(BUILD)/partition.o $(BUILD)/gpu.o $(BUILD)/gpu_hsw.o \
+               $(BUILD)/o0fs.o $(BUILD)/vfs.o $(BUILD)/tmpfs.o $(BUILD)/o0fs_vfs.o $(BUILD)/pci.o $(BUILD)/dma.o $(BUILD)/virtio_blk.o $(BUILD)/virtio_blk_modern.o $(BUILD)/ahci.o $(BUILD)/nvme.o $(BUILD)/partition.o $(BUILD)/gpu.o $(BUILD)/gpu_hsw.o \
                $(BUILD)/gpu_device.o $(BUILD)/gpu_queue.o $(BUILD)/surface.o \
                $(BUILD)/display.o $(BUILD)/input.o $(BUILD)/input_ps2.o $(BUILD)/input_router.o $(BUILD)/window.o \
                $(BUILD)/compositor.o $(BUILD)/gfx_backend.o $(BUILD)/shell.o \
@@ -44,7 +44,7 @@ KERNEL_OBJS := $(BUILD)/main.o $(BUILD)/serial.o $(BUILD)/string.o $(BUILD)/stat
 
 # Static user images, embedded in the kernel image for the Wave 2 self-tests.
 USER_PROGS := init quiet fault_null fault_priv fault_kjump badptr \
-              spawner spawn_child ipc_server ipc_client handles budget ipcneg peer_server
+              spawner spawn_child ipc_server ipc_client handles budget ipcneg peer_server vfs_accept
 USER_ELFS := $(addprefix $(BUILD)/user_,$(addsuffix .elf,$(USER_PROGS)))
 USER_BLOBS := $(addprefix $(BUILD)/blob_,$(addsuffix .o,$(USER_PROGS)))
 KERNEL_OBJS += $(USER_BLOBS)
@@ -197,6 +197,8 @@ test: $(BUILD)
 	$(HOST_RUN_ENV) ./$(BUILD)/cpu_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/abi_test tests/abi_test.c kernel/src/abi.c
 	$(HOST_RUN_ENV) ./$(BUILD)/abi_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/vfs_test tests/vfs_test.c kernel/src/vfs.c kernel/src/tmpfs.c kernel/src/object.c kernel/src/budget.c
+	$(HOST_RUN_ENV) ./$(BUILD)/vfs_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/elf_test tests/elf_test.c kernel/src/elf.c
 	$(HOST_RUN_ENV) ./$(BUILD)/elf_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/pe_test tests/pe_test.c kernel/src/pe.c
@@ -221,8 +223,6 @@ test: $(BUILD)
 	$(HOST_RUN_ENV) ./$(BUILD)/virtio_blk_modern_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/o0fs_journal_test tests/o0fs_journal_test.c
 	$(HOST_RUN_ENV) ./$(BUILD)/o0fs_journal_test
-	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/vfs_test tests/vfs_test.c
-	$(HOST_RUN_ENV) ./$(BUILD)/vfs_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/pci_test tests/pci_test.c
 	$(HOST_RUN_ENV) ./$(BUILD)/pci_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/dma_test tests/dma_test.c

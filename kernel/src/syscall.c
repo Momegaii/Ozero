@@ -9,12 +9,10 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <string.h>
 
 #include "ozero/abi.h"
 #include "ozero/budget.h"
 #include "ozero/endpoint.h"
-#include "ozero/fs.h"
 #include "ozero/handle.h"
 #include "ozero/ipc.h"
 #include "ozero/memory.h"
@@ -30,6 +28,7 @@
 
 #include "serial.h"
 #include "thread_internal.h"
+#include "string.h"
 
 #define O0_DEBUG_WRITE_MAX 4096u
 #define O0_DEBUG_CHUNK 128u
@@ -379,143 +378,183 @@ rollback:
     return o0_uapi_error_from_status(st);
 }
 
-/* ---- file syscalls (Wave 4.6) ---- */
+static o0_status syscall_copy_path(char *path, const char *user_path,
+                                    uint64_t path_length) {
+    if (path == NULL || user_path == NULL) return O0_EINVAL;
+    if (path_length == 0) return O0_EINVAL;
+    if (path_length > O0_UAPI_PATH_MAX) return O0_ERANGE;
+    o0_status st = o0_syscall_arg_check(user_path, (size_t)path_length, false);
+    if (st != O0_OK) return st;
+    st = o0_copy_from_user(path, user_path, (size_t)path_length);
+    if (st != O0_OK) return st;
+    for (size_t i = 0; i < (size_t)path_length; ++i) {
+        if (path[i] == '\0') return O0_EINVAL;
+    }
+    path[path_length] = '\0';
+    return O0_OK;
+}
 
-static int64_t sys_file_open(uint64_t path_ptr, uint64_t flags) {
-    if (path_ptr == 0) {
-        return O0_UE_INVAL;
-    }
-    const char *path = (const char *)(uintptr_t)path_ptr;
+static int64_t sys_file_open(uint64_t directory_handle, const char *user_path,
+                             uint64_t path_length, uint32_t flags,
+                             uint32_t rights) {
     o0_process_t *proc = o0_process_current();
-    if (proc == NULL) {
+    if (proc == NULL) return O0_UE_INVAL;
+    char path[O0_UAPI_PATH_MAX + 1u];
+    o0_status st = syscall_copy_path(path, user_path, path_length);
+    if (st != O0_OK) return o0_uapi_error_from_status(st);
+    uint32_t directory_rights = 0;
+    struct o0_object *directory = NULL;
+    st = o0_handle_lookup_any(proc->handles, directory_handle, &directory,
+                              &directory_rights);
+    if (st != O0_OK) return o0_uapi_error_from_status(st);
+    if (directory->type != O0_OBJ_VNODE) return O0_UE_INVAL;
+    if ((flags & ~(O0_VFS_OPEN_CREATE | O0_VFS_OPEN_EXCLUSIVE)) != 0 ||
+        ((flags & O0_VFS_OPEN_EXCLUSIVE) != 0 &&
+         (flags & O0_VFS_OPEN_CREATE) == 0) ||
+        (rights & (O0_RIGHT_READ | O0_RIGHT_WRITE | O0_RIGHT_INFO |
+                   O0_RIGHT_ENUM | O0_RIGHT_CREATE | O0_RIGHT_REMOVE)) == 0) {
         return O0_UE_INVAL;
     }
+    if ((directory_rights & O0_RIGHT_READ) == 0 ||
+        (rights & ~directory_rights) != 0 ||
+        ((flags & O0_VFS_OPEN_CREATE) != 0 &&
+         (directory_rights & O0_RIGHT_CREATE) == 0)) {
+        return O0_UE_PERM;
+    }
+
+    /* Opening a directory returns another vnode capability; opening a file
+     * returns an O0_OBJ_FILE capability. The object type is never ambiguous. */
+    struct o0_vnode *node = NULL;
+    st = o0_vfs_lookup((struct o0_vnode *)directory, path,
+                       (size_t)path_length, &node);
+    if (st == O0_OK && node != NULL && node->type == O0_VNODE_DIRECTORY) {
+        if ((flags & (O0_VFS_OPEN_CREATE | O0_VFS_OPEN_EXCLUSIVE)) ==
+            (O0_VFS_OPEN_CREATE | O0_VFS_OPEN_EXCLUSIVE)) {
+            o0_object_unref(&node->obj);
+            return O0_UE_EXIST;
+        }
+        uint64_t handle = 0;
+        o0_status install = o0_handle_install(proc->handles, &node->obj,
+                                              rights, &handle);
+        o0_object_unref(&node->obj);
+        return install == O0_OK ? (int64_t)handle
+                                : o0_uapi_error_from_status(install);
+    }
+    if (node != NULL) o0_object_unref(&node->obj);
+    if (st != O0_OK && st != O0_ENOENT)
+        return o0_uapi_error_from_status(st);
+    bool created = st == O0_ENOENT && (flags & O0_VFS_OPEN_CREATE) != 0;
+
+    struct o0_vfs_file *file = NULL;
+    st = o0_vfs_open((struct o0_vnode *)directory, path, (size_t)path_length,
+                     flags, rights, proc->budget, &file);
+    if (st != O0_OK) return o0_uapi_error_from_status(st);
     uint64_t handle = 0;
-    o0_status st = o0_vfs_open(path, (uint32_t)flags, proc, &handle);
+    st = o0_handle_install(proc->handles, &file->obj, rights, &handle);
     if (st != O0_OK) {
+        o0_object_unref(&file->obj);
+        if (created) { o0_status cleanup = o0_vfs_unlink((struct o0_vnode *)directory, path, (size_t)path_length); (void)cleanup; }
         return o0_uapi_error_from_status(st);
     }
+    o0_object_unref(&file->obj);
     return (int64_t)handle;
 }
 
-static int64_t sys_file_read(uint64_t handle, uint64_t buf_ptr,
-                             uint64_t capacity) {
-    if (buf_ptr == 0 || capacity == 0) {
-        return O0_UE_INVAL;
-    }
+static int64_t sys_file_read(uint64_t file_handle, void *user_buffer,
+                             uint64_t length, uint64_t offset) {
     o0_process_t *proc = o0_process_current();
-    if (proc == NULL) {
-        return O0_UE_INVAL;
+    if (proc == NULL) return O0_UE_INVAL;
+    if (length > O0_UAPI_FILE_IO_MAX) return O0_UE_RANGE;
+    if (length != 0) {
+        o0_status check = o0_syscall_arg_check(user_buffer, (size_t)length, true);
+        if (check != O0_OK) return o0_uapi_error_from_status(check);
     }
-    o0_status st = o0_user_range_check((const void *)(uintptr_t)buf_ptr,
-                                       (size_t)capacity, false);
-    if (st != O0_OK) {
-        return o0_uapi_error_from_status(st);
-    }
-    static uint8_t bounce[O0FS_BLOCK_SIZE];
-    size_t want = capacity < sizeof(bounce) ? (size_t)capacity : sizeof(bounce);
+    struct o0_object *object = NULL;
+    o0_status st = o0_handle_lookup(proc->handles, file_handle, O0_OBJ_FILE,
+                                    O0_RIGHT_READ, &object);
+    if (st != O0_OK) return o0_uapi_error_from_status(st);
+    uint8_t buffer[O0_UAPI_FILE_IO_MAX];
     size_t got = 0;
-    st = o0_vfs_read(proc, handle, bounce, want, &got);
-    if (st != O0_OK) {
-        return o0_uapi_error_from_status(st);
+    st = o0_vfs_read((struct o0_vfs_file *)object, offset, buffer,
+                     (size_t)length, &got);
+    if (st != O0_OK) return o0_uapi_error_from_status(st);
+    if (got != 0) {
+        st = o0_copy_to_user(user_buffer, buffer, got);
+        if (st != O0_OK) return o0_uapi_error_from_status(st);
     }
-    st = o0_copy_to_user((void *)(uintptr_t)buf_ptr, bounce, got);
-    return ret_status(st);
+    return (int64_t)got;
 }
 
-static int64_t sys_file_write(uint64_t handle, uint64_t buf_ptr, uint64_t len) {
-    if (buf_ptr == 0 || len == 0) {
-        return O0_UE_INVAL;
-    }
+static int64_t sys_file_write(uint64_t file_handle, const void *user_buffer,
+                              uint64_t length, uint64_t offset) {
     o0_process_t *proc = o0_process_current();
-    if (proc == NULL) {
-        return O0_UE_INVAL;
+    if (proc == NULL) return O0_UE_INVAL;
+    if (length > O0_UAPI_FILE_IO_MAX) return O0_UE_RANGE;
+    uint8_t buffer[O0_UAPI_FILE_IO_MAX];
+    if (length != 0) {
+        o0_status st = o0_syscall_arg_check(user_buffer, (size_t)length, false);
+        if (st != O0_OK) return o0_uapi_error_from_status(st);
+        st = o0_copy_from_user(buffer, user_buffer, (size_t)length);
+        if (st != O0_OK) return o0_uapi_error_from_status(st);
     }
-    o0_status st = o0_user_range_check((const void *)(uintptr_t)buf_ptr, len,
-                                       true);
-    if (st != O0_OK) {
-        return o0_uapi_error_from_status(st);
-    }
-    static uint8_t bounce[O0FS_BLOCK_SIZE];
-    size_t want = len < sizeof(bounce) ? (size_t)len : sizeof(bounce);
-    st = o0_copy_from_user(bounce, (const void *)(uintptr_t)buf_ptr, want);
-    if (st != O0_OK) {
-        return o0_uapi_error_from_status(st);
-    }
+    struct o0_object *object = NULL;
+    o0_status st = o0_handle_lookup(proc->handles, file_handle, O0_OBJ_FILE,
+                                    O0_RIGHT_WRITE, &object);
+    if (st != O0_OK) return o0_uapi_error_from_status(st);
     size_t written = 0;
-    st = o0_vfs_write(proc, handle, bounce, want, &written);
-    if (st != O0_OK) {
-        return o0_uapi_error_from_status(st);
-    }
+    st = o0_vfs_write((struct o0_vfs_file *)object, offset, buffer,
+                      (size_t)length, &written);
+    if (st != O0_OK) return o0_uapi_error_from_status(st);
     return (int64_t)written;
 }
 
-static int64_t sys_file_close(uint64_t handle) {
+static int64_t sys_file_stat(uint64_t directory_handle, const char *user_path,
+                             uint64_t path_length,
+                             struct o0_uapi_vfs_stat *user_out) {
     o0_process_t *proc = o0_process_current();
-    if (proc == NULL) {
-        return O0_UE_INVAL;
-    }
-    return ret_status(o0_handle_close(proc->handles, handle));
-}
-
-static int64_t sys_file_stat(uint64_t path_ptr, uint64_t out_ptr) {
-    if (path_ptr == 0 || out_ptr == 0) {
-        return O0_UE_INVAL;
-    }
-    const char *path = (const char *)(uintptr_t)path_ptr;
-    struct o0fs_stat info;
-    o0_status st = o0_vfs_stat(path, &info);
-    if (st != O0_OK) {
-        return o0_uapi_error_from_status(st);
-    }
-    struct o0_uapi_stat out = {
-        .st_size = info.size,
-        .st_blocks = info.blocks,
-        .st_mode = info.type,
-        .st_links = info.links,
-        .reserved = {0, 0, 0, 0},
+    if (proc == NULL) return O0_UE_INVAL;
+    char path[O0_UAPI_PATH_MAX + 1u];
+    o0_status st = syscall_copy_path(path, user_path, path_length);
+    if (st != O0_OK) return o0_uapi_error_from_status(st);
+    st = o0_syscall_arg_check(user_out, sizeof(*user_out), true);
+    if (st != O0_OK) return o0_uapi_error_from_status(st);
+    struct o0_object *directory = NULL;
+    st = o0_handle_lookup(proc->handles, directory_handle, O0_OBJ_VNODE,
+                          O0_RIGHT_READ | O0_RIGHT_INFO, &directory);
+    if (st != O0_OK) return o0_uapi_error_from_status(st);
+    struct o0_vfs_stat info;
+    st = o0_vfs_stat((struct o0_vnode *)directory, path,
+                     (size_t)path_length, &info);
+    if (st != O0_OK) return o0_uapi_error_from_status(st);
+    struct o0_uapi_vfs_stat out = {
+        .size = info.size, .object_id = info.object_id,
+        .type = info.type, .flags = info.flags
     };
-    st = o0_copy_to_user((void *)(uintptr_t)out_ptr, &out, sizeof(out));
+    st = o0_copy_to_user(user_out, &out, sizeof(out));
     return ret_status(st);
 }
 
-static void readdir_emit(void *ctx, const char *name,
-                         const struct o0fs_stat *stat) {
-    struct readdir_ctx {
-        struct o0_uapi_dirent entries[16];
-        size_t count;
-    } *c = (struct readdir_ctx *)ctx;
-    if (c->count >= 16) {
-        return;
-    }
-    struct o0_uapi_dirent *e = &c->entries[c->count];
-    e->d_ino = stat->inode;
-    e->d_reclen = (uint32_t)sizeof(*e);
-    e->d_namlen = (uint8_t)strlen(name);
-    e->d_type = stat->type;
-    memset(e->d_name, 0, sizeof(e->d_name));
-    memcpy(e->d_name, name, e->d_namlen);
-    ++c->count;
-}
-
-static int64_t sys_file_readdir(uint64_t path_ptr, uint64_t buf_ptr,
-                                uint64_t count) {
-    if (path_ptr == 0 || buf_ptr == 0 || count == 0) {
-        return O0_UE_INVAL;
-    }
-    const char *path = (const char *)(uintptr_t)path_ptr;
-    struct readdir_ctx {
-        struct o0_uapi_dirent entries[16];
-        size_t count;
-    } ctx;
-    memset(&ctx, 0, sizeof(ctx));
-    o0_status st = o0_vfs_listdir(path, readdir_emit, &ctx);
-    if (st != O0_OK) {
-        return o0_uapi_error_from_status(st);
-    }
-    size_t bytes = ctx.count * sizeof(struct o0_uapi_dirent);
-    st = o0_copy_to_user((void *)(uintptr_t)buf_ptr, ctx.entries, bytes);
-    return ret_status(st == O0_OK ? (int64_t)bytes : st);
+static int64_t sys_file_readdir(uint64_t directory_handle, uint64_t cursor,
+                                struct o0_uapi_vfs_dirent *user_out) {
+    o0_process_t *proc = o0_process_current();
+    if (proc == NULL) return O0_UE_INVAL;
+    o0_status st = o0_syscall_arg_check(user_out, sizeof(*user_out), true);
+    if (st != O0_OK) return o0_uapi_error_from_status(st);
+    struct o0_object *directory = NULL;
+    st = o0_handle_lookup(proc->handles, directory_handle, O0_OBJ_VNODE,
+                          O0_RIGHT_ENUM, &directory);
+    if (st != O0_OK) return o0_uapi_error_from_status(st);
+    struct o0_vfs_dirent entry;
+    uint64_t next = cursor;
+    st = o0_vfs_readdir((struct o0_vnode *)directory, &next, &entry);
+    if (st != O0_OK) return o0_uapi_error_from_status(st);
+    struct o0_uapi_vfs_dirent out = {
+        .next_cursor = next, .object_id = entry.object_id, .size = entry.size,
+        .type = entry.type, .name_len = entry.name_len
+    };
+    memcpy(out.name, entry.name, sizeof(out.name));
+    st = o0_copy_to_user(user_out, &out, sizeof(out));
+    return ret_status(st);
 }
 
 int64_t o0_syscall_dispatch(struct o0_syscall_frame *frame) {
@@ -568,18 +607,26 @@ int64_t o0_syscall_dispatch(struct o0_syscall_frame *frame) {
                 frame->rdi, frame->rsi,
                 (const struct o0_uapi_handle_xfer *)(uintptr_t)frame->rdx,
                 (uint32_t)frame->r10);
-        case O0_SYS_OPEN:
-            return sys_file_open(frame->rdi, frame->rsi);
-        case O0_SYS_READ:
-            return sys_file_read(frame->rdi, frame->rsi, frame->rdx);
-        case O0_SYS_WRITE:
-            return sys_file_write(frame->rdi, frame->rsi, frame->rdx);
-        case O0_SYS_CLOSE:
-            return sys_file_close(frame->rdi);
-        case O0_SYS_STAT:
-            return sys_file_stat(frame->rdi, frame->rsi);
-        case O0_SYS_READDIR:
-            return sys_file_readdir(frame->rdi, frame->rsi, frame->rdx);
+        case O0_SYS_FILE_OPEN:
+            return sys_file_open(frame->rdi,
+                                 (const char *)(uintptr_t)frame->rsi,
+                                 frame->rdx, (uint32_t)frame->r10,
+                                 (uint32_t)frame->r8);
+        case O0_SYS_FILE_READ:
+            return sys_file_read(frame->rdi, (void *)(uintptr_t)frame->rsi,
+                                 frame->rdx, frame->r10);
+        case O0_SYS_FILE_WRITE:
+            return sys_file_write(frame->rdi,
+                                  (const void *)(uintptr_t)frame->rsi,
+                                  frame->rdx, frame->r10);
+        case O0_SYS_FILE_STAT:
+            return sys_file_stat(frame->rdi,
+                                 (const char *)(uintptr_t)frame->rsi,
+                                 frame->rdx,
+                                 (struct o0_uapi_vfs_stat *)(uintptr_t)frame->r10);
+        case O0_SYS_FILE_READDIR:
+            return sys_file_readdir(frame->rdi, frame->rsi,
+                                    (struct o0_uapi_vfs_dirent *)(uintptr_t)frame->rdx);
         case O0_SYS_INVALID:
             return O0_UE_INVAL;
         default:

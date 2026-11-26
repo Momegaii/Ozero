@@ -89,6 +89,27 @@ static void test_error_table(void) {
     assert(o0_uapi_error_from_status(O0_ENOSYS) == O0_UE_NOSYS);
 }
 
+static void test_wave46_file_abi(void) {
+    assert(O0_SYS_PROCESS_SPAWN == 16u);
+    assert(O0_SYS_FILE_OPEN == 17u);
+    assert(O0_SYS_FILE_READ == 18u);
+    assert(O0_SYS_FILE_WRITE == 19u);
+    assert(O0_SYS_FILE_STAT == 20u);
+    assert(O0_SYS_FILE_READDIR == 21u);
+    assert(O0_SYS_MAX == 21u);
+    assert(O0_UAPI_PATH_MAX == 256u);
+    assert(O0_UAPI_FILE_IO_MAX == 4096u);
+    assert(O0_UAPI_RIGHT_READ == (1u << 0));
+    assert(O0_UAPI_RIGHT_WRITE == (1u << 1));
+    assert(O0_UAPI_RIGHT_INFO == (1u << 9));
+    assert(O0_UAPI_RIGHT_ENUM == (1u << 11));
+    assert(O0_UAPI_RIGHT_CREATE == (1u << 12));
+    assert(sizeof(struct o0_uapi_vfs_stat) == 24u);
+    assert(offsetof(struct o0_uapi_vfs_stat, type) == 16u);
+    assert(sizeof(struct o0_uapi_vfs_dirent) == 96u);
+    assert(offsetof(struct o0_uapi_vfs_dirent, name) == 32u);
+}
+
 static void test_user_layout(void) {
     /* Null guard is never a valid user range. */
     assert(o0_uapi_user_window_ok(0, 1) == 0);
@@ -113,6 +134,7 @@ int main(void) {
     test_gdt_bytes();
     test_tss_offsets();
     test_error_table();
+    test_wave46_file_abi();
     test_user_layout();
     return 0;
 }

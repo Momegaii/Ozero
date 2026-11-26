@@ -181,7 +181,7 @@ static void test_bad_alignment(void) {
 static void test_section_range(void) {
     make_valid();
     /* .data raw data extends past end of file. */
-    put32(file + SECT_OFF + 64, 0x4000u); /* .data PointerToRawData beyond file */
+    put32(file + SECT_OFF + 60, 0x4000u); /* .data PointerToRawData beyond file */
     expect(O0_EPE_SECTION_RANGE);
 }
 
@@ -202,7 +202,7 @@ static void test_bad_entry(void) {
 static void test_wx(void) {
     make_valid();
     /* Make .text writable as well as executable. */
-    put32(file + SECT_OFF + 40, 0xE0000020u); /* R|W|X|CNT_CODE */
+    put32(file + SECT_OFF + 36, 0xE0000020u); /* R|W|X|CNT_CODE */
     expect(O0_EPE_WX);
 }
 
@@ -210,6 +210,7 @@ static void test_bad_directory(void) {
     make_valid();
     /* Data directory 0 (export) points beyond the image. */
     put32(file + OPT_OFF + 108, 0x4000u); /* Export Directory VirtualAddress */
+    put32(file + OPT_OFF + 112, 0x100u);  /* Export Directory Size: non-empty */
     expect(O0_EPE_BAD_DIRECTORY);
 }
 
