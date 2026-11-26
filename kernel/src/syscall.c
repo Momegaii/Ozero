@@ -404,14 +404,16 @@ static int64_t sys_file_open(uint64_t directory_handle, const char *user_path,
     st = o0_handle_lookup_any(proc->handles, directory_handle, &directory,
                               &directory_rights);
     if (st != O0_OK) return o0_uapi_error_from_status(st);
-    if (directory->type != O0_OBJ_VNODE ||
-        (directory_rights & O0_RIGHT_READ) == 0 ||
-        (rights & ~directory_rights) != 0 ||
-        (rights & (O0_RIGHT_READ | O0_RIGHT_WRITE | O0_RIGHT_INFO |
-                   O0_RIGHT_ENUM | O0_RIGHT_CREATE | O0_RIGHT_REMOVE)) == 0 ||
-        (flags & ~(O0_VFS_OPEN_CREATE | O0_VFS_OPEN_EXCLUSIVE)) != 0 ||
+    if (directory->type != O0_OBJ_VNODE) return O0_UE_INVAL;
+    if ((flags & ~(O0_VFS_OPEN_CREATE | O0_VFS_OPEN_EXCLUSIVE)) != 0 ||
         ((flags & O0_VFS_OPEN_EXCLUSIVE) != 0 &&
          (flags & O0_VFS_OPEN_CREATE) == 0) ||
+        (rights & (O0_RIGHT_READ | O0_RIGHT_WRITE | O0_RIGHT_INFO |
+                   O0_RIGHT_ENUM | O0_RIGHT_CREATE | O0_RIGHT_REMOVE)) == 0) {
+        return O0_UE_INVAL;
+    }
+    if ((directory_rights & O0_RIGHT_READ) == 0 ||
+        (rights & ~directory_rights) != 0 ||
         ((flags & O0_VFS_OPEN_CREATE) != 0 &&
          (directory_rights & O0_RIGHT_CREATE) == 0)) {
         return O0_UE_PERM;
