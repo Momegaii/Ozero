@@ -32,6 +32,68 @@ _start:
     repe cmpsb
     jne fail
 
+    /* Directory opens return vnode capabilities with independent ENUM rights. */
+    movl $17, %eax
+    movq %r12, %rdi
+    leaq o0fs_dir_path(%rip), %rsi
+    movl $4, %edx
+    xorl %r10d, %r10d
+    movl $0xA01, %r8d               /* READ | INFO | ENUM */
+    syscall
+    testq %rax, %rax
+    js fail
+    movq %rax, %r14
+
+    movl $17, %eax
+    movq %r14, %rdi
+    leaq sys_dir_path(%rip), %rsi
+    movl $3, %edx
+    xorl %r10d, %r10d
+    movl $0xA01, %r8d
+    syscall
+    testq %rax, %rax
+    js fail
+    movq %rax, %rbx
+
+    movl $21, %eax
+    movq %rbx, %rdi
+    xorl %esi, %esi
+    leaq dirent_out(%rip), %rdx
+    syscall
+    testq %rax, %rax
+    jne fail
+    cmpl $3, dirent_out+28(%rip)
+    jne fail
+    leaq dirent_out+32(%rip), %rdi
+    leaq log_name(%rip), %rsi
+    movl $3, %ecx
+    repe cmpsb
+    jne fail
+
+    movl $20, %eax
+    movq %r14, %rdi
+    leaq log_relative_path(%rip), %rsi
+    movl $7, %edx
+    leaq stat_out(%rip), %r10
+    syscall
+    testq %rax, %rax
+    jne fail
+    cmpq $11, stat_out(%rip)
+    jne fail
+    cmpl $1, stat_out+16(%rip)
+    jne fail
+
+    movl $5, %eax
+    movq %rbx, %rdi
+    syscall
+    testq %rax, %rax
+    jne fail
+    movl $5, %eax
+    movq %r14, %rdi
+    syscall
+    testq %rax, %rax
+    jne fail
+
     /* O0FS is visible but read-only: write-open must fail with -EPERM. */
     movl $17, %eax
     movq %r12, %rdi
@@ -213,6 +275,10 @@ fail:
 seed_path:       .ascii "seed"
 seed_expected:   .ascii "seed-data"
 o0fs_path:       .ascii "o0fs/sys/log"
+o0fs_dir_path:   .ascii "o0fs"
+sys_dir_path:    .ascii "sys"
+log_relative_path: .ascii "sys/log"
+log_name:        .ascii "log"
 o0fs_expected:   .ascii "o0fs online"
 new_path:        .ascii "created"
 mount_name:      .ascii "o0fs"
