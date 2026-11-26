@@ -201,12 +201,6 @@ o0_status o0_vfs_open(struct o0_vnode *directory, const char *path,
         return O0_EINVAL;
     }
     *out = NULL;
-    if (directory != NULL && path != NULL && path_length == 1u &&
-        path[0] == '.' && path[1] == '\\0') {
-        if (directory->mounted_root != NULL) directory = directory->mounted_root;
-        if (directory->ops == NULL || directory->ops->stat == NULL) return O0_ENOTSUP;
-        return directory->ops->stat(directory, out);
-    }
     struct o0_vnode *node = NULL;
     o0_status st = resolve_node(directory, path, path_length, &node);
     if (st == O0_ENOENT && (flags & O0_VFS_OPEN_CREATE) != 0) {
@@ -340,6 +334,7 @@ o0_status o0_vfs_read(struct o0_vfs_file *file, uint64_t offset, void *buffer,
     if ((file->rights & O0_RIGHT_READ) == 0) return O0_EPERM;
     if (length > O0_VFS_IO_MAX || offset > UINT64_MAX - length) return O0_ERANGE;
     if (file->node->ops == NULL || file->node->ops->read == NULL) return O0_ENOTSUP;
+    if (!vfs_cache_ready) return O0_EINVAL;
     o0_spin_lock(&vfs_cache_lock);
     size_t done = 0;
     while (done < length) {
@@ -407,6 +402,7 @@ o0_status o0_vfs_stat(struct o0_vnode *directory, const char *path,
                       size_t path_length, struct o0_vfs_stat *out) {
     if (out == NULL) return O0_EINVAL;
     if (directory != NULL && path != NULL && path_length == 1u && path[0] == '.' && path[1] == '\\0') {
+        if (directory->mounted_root != NULL) directory = directory->mounted_root;
         if (directory->ops == NULL || directory->ops->stat == NULL) return O0_ENOTSUP;
         return directory->ops->stat(directory, out);
     }
