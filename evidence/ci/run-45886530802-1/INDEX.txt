@@ -1,0 +1,6 @@
+run 45886530802 attempt 1
+commit 7e99a5a8f8d035c7b81fc77bac329edf8eda1643
+workflow Ozero kernel build and boot checks
+
+Artifact directories and files published by this run:
+INDEX.txt
