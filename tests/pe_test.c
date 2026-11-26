@@ -181,7 +181,7 @@ static void test_bad_alignment(void) {
 static void test_section_range(void) {
     make_valid();
     /* .data raw data extends past end of file. */
-    put32(file + SECT_OFF + 64, 0x4000u); /* .data PointerToRawData beyond file */
+    put32(file + SECT_OFF + 60, 0x4000u); /* .data PointerToRawData beyond file */
     expect(O0_EPE_SECTION_RANGE);
 }
 
