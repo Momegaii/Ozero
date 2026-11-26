@@ -82,21 +82,23 @@ static void make_valid(void) {
     /* 16 data directories (128 bytes), all zero */
     put16(file + COFF_OFF + 16, 236u);                    /* SizeOfOptionalHeader */
 
-    /* Section table: .text (RX) then .data (RW). */
+    /* Section table: .text (RX) then .data (RW). Each header is 40 bytes:
+     *  Name(0) VirtualSize(8) VirtualAddress(12) SizeOfRawData(16)
+     *  PointerToRawData(20) .. Characteristics(36)
+     */
     memcpy(file + SECT_OFF + 0, ".text", 5);
     put32(file + SECT_OFF + 8, 0x1000u);   /* VirtualSize */
-    put64(file + SECT_OFF + 12, 0x1000u);  /* VirtualAddress */
-    put32(file + SECT_OFF + 20, 0x1000u);  /* SizeOfRawData */
-    put32(file + SECT_OFF + 24, 0x1000u);  /* PointerToRawData */
-    /* relocs/linenos skipped */
-    put32(file + SECT_OFF + 40, 0x60000020u); /* Characteristics: R|X|CNT_CODE */
+    put32(file + SECT_OFF + 12, 0x1000u);  /* VirtualAddress */
+    put32(file + SECT_OFF + 16, 0x1000u);  /* SizeOfRawData */
+    put32(file + SECT_OFF + 20, 0x1000u);  /* PointerToRawData */
+    put32(file + SECT_OFF + 36, 0x60000020u); /* Characteristics: R|X|CNT_CODE */
 
     memcpy(file + SECT_OFF + 40, ".data", 5);
     put32(file + SECT_OFF + 48, 0x1000u);   /* VirtualSize */
-    put64(file + SECT_OFF + 52, 0x2000u);   /* VirtualAddress */
-    put32(file + SECT_OFF + 60, 0x1000u);   /* SizeOfRawData */
-    put32(file + SECT_OFF + 64, 0x2000u);   /* PointerToRawData */
-    put32(file + SECT_OFF + 80, 0xC0000040u); /* Characteristics: R|W|CNT_INITIALIZED_DATA */
+    put32(file + SECT_OFF + 52, 0x2000u);   /* VirtualAddress */
+    put32(file + SECT_OFF + 56, 0x1000u);   /* SizeOfRawData */
+    put32(file + SECT_OFF + 60, 0x2000u);   /* PointerToRawData */
+    put32(file + SECT_OFF + 76, 0xC0000040u); /* Characteristics: R|W|CNT_INITIALIZED_DATA */
 
     /* Section raw data. */
     memset(file + 0x1000, 0xcc, 0x1000); /* .text: int3 padding */
