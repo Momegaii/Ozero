@@ -25,6 +25,7 @@ static o0_status o0fs_vnode_new(struct o0fs *fs, struct o0_budget *budget,
     struct o0fs_stat info;
     o0_status st = o0fs_stat(fs, path, &info);
     if (st != O0_OK) return st;
+    if (info.type != O0FS_TYPE_FILE && info.type != O0FS_TYPE_DIR) return O0_EIO;
     struct o0_object *object = NULL;
     st = o0_object_alloc(O0_OBJ_VNODE, sizeof(struct o0_o0fs_vnode), budget,
                          o0fs_vnode_destroy, &object);
@@ -50,6 +51,8 @@ static o0_status o0fs_vnode_lookup(struct o0_vnode *vnode, const char *name,
                                   size_t name_len, struct o0_vnode **out) {
     if (vnode == NULL || name == NULL || out == NULL ||
         vnode->type != O0_VNODE_DIRECTORY) return O0_ENOTDIR;
+    *out = NULL;
+    if (name_len == 0 || name_len > O0FS_NAME_MAX) return O0_ERANGE;
     struct o0_o0fs_vnode *parent = (struct o0_o0fs_vnode *)vnode;
     char path[O0FS_PATH_MAX + 1u];
     size_t prefix = strlen(parent->path);
