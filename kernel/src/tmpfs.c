@@ -281,6 +281,7 @@ static o0_status tmpfs_unlink(struct o0_vnode *vnode, const char *name,
             }
             *link = child->next;
             child->next = NULL;
+            child->vnode.parent = NULL;
             o0_spin_unlock(&fs->lock);
             o0_object_unref(&child->vnode.obj); /* drop directory's ownership */
             return O0_OK;
