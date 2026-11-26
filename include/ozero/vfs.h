@@ -89,6 +89,9 @@ O0_NODISCARD o0_status o0_vfs_mount(struct o0_vnode *directory,
                                     struct o0_vnode *root);
 O0_NODISCARD o0_status o0_vfs_unmount(struct o0_vnode *directory);
 O0_NODISCARD o0_status o0_vfs_root(struct o0_vnode **out);
+O0_NODISCARD o0_status o0_vfs_lookup(struct o0_vnode *directory,
+                                     const char *path, size_t path_length,
+                                     struct o0_vnode **out);
 
 O0_NODISCARD o0_status o0_vfs_open(struct o0_vnode *directory,
                                    const char *path, size_t path_length,
