@@ -24,9 +24,11 @@
 #include "ozero/uaccess.h"
 #include "ozero/uapi.h"
 #include "ozero/user.h"
+#include "ozero/vfs.h"
 
 #include "serial.h"
 #include "thread_internal.h"
+#include "string.h"
 
 #define O0_DEBUG_WRITE_MAX 4096u
 #define O0_DEBUG_CHUNK 128u
@@ -376,6 +378,185 @@ rollback:
     return o0_uapi_error_from_status(st);
 }
 
+static o0_status syscall_copy_path(char *path, const char *user_path,
+                                    uint64_t path_length) {
+    if (path == NULL || user_path == NULL) return O0_EINVAL;
+    if (path_length == 0) return O0_EINVAL;
+    if (path_length > O0_UAPI_PATH_MAX) return O0_ERANGE;
+    o0_status st = o0_syscall_arg_check(user_path, (size_t)path_length, false);
+    if (st != O0_OK) return st;
+    st = o0_copy_from_user(path, user_path, (size_t)path_length);
+    if (st != O0_OK) return st;
+    for (size_t i = 0; i < (size_t)path_length; ++i) {
+        if (path[i] == '\\0') return O0_EINVAL;
+    }
+    path[path_length] = '\\0';
+    return O0_OK;
+}
+
+static int64_t sys_file_open(uint64_t directory_handle, const char *user_path,
+                             uint64_t path_length, uint32_t flags,
+                             uint32_t rights) {
+    o0_process_t *proc = o0_process_current();
+    if (proc == NULL) return O0_UE_INVAL;
+    char path[O0_UAPI_PATH_MAX + 1u];
+    o0_status st = syscall_copy_path(path, user_path, path_length);
+    if (st != O0_OK) return o0_uapi_error_from_status(st);
+    uint32_t directory_rights = 0;
+    struct o0_object *directory = NULL;
+    st = o0_handle_lookup_any(proc->handles, directory_handle, &directory,
+                              &directory_rights);
+    if (st != O0_OK) return o0_uapi_error_from_status(st);
+    if (directory->type != O0_OBJ_VNODE) return O0_UE_INVAL;
+    if ((flags & ~(O0_VFS_OPEN_CREATE | O0_VFS_OPEN_EXCLUSIVE)) != 0 ||
+        ((flags & O0_VFS_OPEN_EXCLUSIVE) != 0 &&
+         (flags & O0_VFS_OPEN_CREATE) == 0) ||
+        (rights & (O0_RIGHT_READ | O0_RIGHT_WRITE | O0_RIGHT_INFO |
+                   O0_RIGHT_ENUM | O0_RIGHT_CREATE | O0_RIGHT_REMOVE)) == 0) {
+        return O0_UE_INVAL;
+    }
+    if ((directory_rights & O0_RIGHT_READ) == 0 ||
+        (rights & ~directory_rights) != 0 ||
+        ((flags & O0_VFS_OPEN_CREATE) != 0 &&
+         (directory_rights & O0_RIGHT_CREATE) == 0)) {
+        return O0_UE_PERM;
+    }
+
+    /* Opening a directory returns another vnode capability; opening a file
+     * returns an O0_OBJ_FILE capability. The object type is never ambiguous. */
+    struct o0_vnode *node = NULL;
+    st = o0_vfs_lookup((struct o0_vnode *)directory, path,
+                       (size_t)path_length, &node);
+    if (st == O0_OK && node != NULL && node->type == O0_VNODE_DIRECTORY) {
+        if ((flags & (O0_VFS_OPEN_CREATE | O0_VFS_OPEN_EXCLUSIVE)) ==
+            (O0_VFS_OPEN_CREATE | O0_VFS_OPEN_EXCLUSIVE)) {
+            o0_object_unref(&node->obj);
+            return O0_UE_EXIST;
+        }
+        uint64_t handle = 0;
+        o0_status install = o0_handle_install(proc->handles, &node->obj,
+                                              rights, &handle);
+        o0_object_unref(&node->obj);
+        return install == O0_OK ? (int64_t)handle
+                                : o0_uapi_error_from_status(install);
+    }
+    if (node != NULL) o0_object_unref(&node->obj);
+    if (st != O0_OK && st != O0_ENOENT)
+        return o0_uapi_error_from_status(st);
+    bool created = st == O0_ENOENT && (flags & O0_VFS_OPEN_CREATE) != 0;
+
+    struct o0_vfs_file *file = NULL;
+    st = o0_vfs_open((struct o0_vnode *)directory, path, (size_t)path_length,
+                     flags, rights, proc->budget, &file);
+    if (st != O0_OK) return o0_uapi_error_from_status(st);
+    uint64_t handle = 0;
+    st = o0_handle_install(proc->handles, &file->obj, rights, &handle);
+    if (st != O0_OK) {
+        o0_object_unref(&file->obj);
+        if (created) { o0_status cleanup = o0_vfs_unlink((struct o0_vnode *)directory, path, (size_t)path_length); (void)cleanup; }
+        return o0_uapi_error_from_status(st);
+    }
+    o0_object_unref(&file->obj);
+    return (int64_t)handle;
+}
+
+static int64_t sys_file_read(uint64_t file_handle, void *user_buffer,
+                             uint64_t length, uint64_t offset) {
+    o0_process_t *proc = o0_process_current();
+    if (proc == NULL) return O0_UE_INVAL;
+    if (length > O0_UAPI_FILE_IO_MAX) return O0_UE_RANGE;
+    if (length != 0) {
+        o0_status check = o0_syscall_arg_check(user_buffer, (size_t)length, true);
+        if (check != O0_OK) return o0_uapi_error_from_status(check);
+    }
+    struct o0_object *object = NULL;
+    o0_status st = o0_handle_lookup(proc->handles, file_handle, O0_OBJ_FILE,
+                                    O0_RIGHT_READ, &object);
+    if (st != O0_OK) return o0_uapi_error_from_status(st);
+    uint8_t buffer[O0_UAPI_FILE_IO_MAX];
+    size_t got = 0;
+    st = o0_vfs_read((struct o0_vfs_file *)object, offset, buffer,
+                     (size_t)length, &got);
+    if (st != O0_OK) return o0_uapi_error_from_status(st);
+    if (got != 0) {
+        st = o0_copy_to_user(user_buffer, buffer, got);
+        if (st != O0_OK) return o0_uapi_error_from_status(st);
+    }
+    return (int64_t)got;
+}
+
+static int64_t sys_file_write(uint64_t file_handle, const void *user_buffer,
+                              uint64_t length, uint64_t offset) {
+    o0_process_t *proc = o0_process_current();
+    if (proc == NULL) return O0_UE_INVAL;
+    if (length > O0_UAPI_FILE_IO_MAX) return O0_UE_RANGE;
+    uint8_t buffer[O0_UAPI_FILE_IO_MAX];
+    if (length != 0) {
+        o0_status st = o0_syscall_arg_check(user_buffer, (size_t)length, false);
+        if (st != O0_OK) return o0_uapi_error_from_status(st);
+        st = o0_copy_from_user(buffer, user_buffer, (size_t)length);
+        if (st != O0_OK) return o0_uapi_error_from_status(st);
+    }
+    struct o0_object *object = NULL;
+    o0_status st = o0_handle_lookup(proc->handles, file_handle, O0_OBJ_FILE,
+                                    O0_RIGHT_WRITE, &object);
+    if (st != O0_OK) return o0_uapi_error_from_status(st);
+    size_t written = 0;
+    st = o0_vfs_write((struct o0_vfs_file *)object, offset, buffer,
+                      (size_t)length, &written);
+    if (st != O0_OK) return o0_uapi_error_from_status(st);
+    return (int64_t)written;
+}
+
+static int64_t sys_file_stat(uint64_t directory_handle, const char *user_path,
+                             uint64_t path_length,
+                             struct o0_uapi_vfs_stat *user_out) {
+    o0_process_t *proc = o0_process_current();
+    if (proc == NULL) return O0_UE_INVAL;
+    char path[O0_UAPI_PATH_MAX + 1u];
+    o0_status st = syscall_copy_path(path, user_path, path_length);
+    if (st != O0_OK) return o0_uapi_error_from_status(st);
+    st = o0_syscall_arg_check(user_out, sizeof(*user_out), true);
+    if (st != O0_OK) return o0_uapi_error_from_status(st);
+    struct o0_object *directory = NULL;
+    st = o0_handle_lookup(proc->handles, directory_handle, O0_OBJ_VNODE,
+                          O0_RIGHT_READ | O0_RIGHT_INFO, &directory);
+    if (st != O0_OK) return o0_uapi_error_from_status(st);
+    struct o0_vfs_stat info;
+    st = o0_vfs_stat((struct o0_vnode *)directory, path,
+                     (size_t)path_length, &info);
+    if (st != O0_OK) return o0_uapi_error_from_status(st);
+    struct o0_uapi_vfs_stat out = {
+        .size = info.size, .object_id = info.object_id,
+        .type = info.type, .flags = info.flags
+    };
+    st = o0_copy_to_user(user_out, &out, sizeof(out));
+    return ret_status(st);
+}
+
+static int64_t sys_file_readdir(uint64_t directory_handle, uint64_t cursor,
+                                struct o0_uapi_vfs_dirent *user_out) {
+    o0_process_t *proc = o0_process_current();
+    if (proc == NULL) return O0_UE_INVAL;
+    o0_status st = o0_syscall_arg_check(user_out, sizeof(*user_out), true);
+    if (st != O0_OK) return o0_uapi_error_from_status(st);
+    struct o0_object *directory = NULL;
+    st = o0_handle_lookup(proc->handles, directory_handle, O0_OBJ_VNODE,
+                          O0_RIGHT_ENUM, &directory);
+    if (st != O0_OK) return o0_uapi_error_from_status(st);
+    struct o0_vfs_dirent entry;
+    uint64_t next = cursor;
+    st = o0_vfs_readdir((struct o0_vnode *)directory, &next, &entry);
+    if (st != O0_OK) return o0_uapi_error_from_status(st);
+    struct o0_uapi_vfs_dirent out = {
+        .next_cursor = next, .object_id = entry.object_id, .size = entry.size,
+        .type = entry.type, .name_len = entry.name_len
+    };
+    memcpy(out.name, entry.name, sizeof(out.name));
+    st = o0_copy_to_user(user_out, &out, sizeof(out));
+    return ret_status(st);
+}
+
 int64_t o0_syscall_dispatch(struct o0_syscall_frame *frame) {
     if (frame == NULL) {
         return O0_UE_INVAL;
@@ -426,6 +607,26 @@ int64_t o0_syscall_dispatch(struct o0_syscall_frame *frame) {
                 frame->rdi, frame->rsi,
                 (const struct o0_uapi_handle_xfer *)(uintptr_t)frame->rdx,
                 (uint32_t)frame->r10);
+        case O0_SYS_FILE_OPEN:
+            return sys_file_open(frame->rdi,
+                                 (const char *)(uintptr_t)frame->rsi,
+                                 frame->rdx, (uint32_t)frame->r10,
+                                 (uint32_t)frame->r8);
+        case O0_SYS_FILE_READ:
+            return sys_file_read(frame->rdi, (void *)(uintptr_t)frame->rsi,
+                                 frame->rdx, frame->r10);
+        case O0_SYS_FILE_WRITE:
+            return sys_file_write(frame->rdi,
+                                  (const void *)(uintptr_t)frame->rsi,
+                                  frame->rdx, frame->r10);
+        case O0_SYS_FILE_STAT:
+            return sys_file_stat(frame->rdi,
+                                 (const char *)(uintptr_t)frame->rsi,
+                                 frame->rdx,
+                                 (struct o0_uapi_vfs_stat *)(uintptr_t)frame->r10);
+        case O0_SYS_FILE_READDIR:
+            return sys_file_readdir(frame->rdi, frame->rsi,
+                                    (struct o0_uapi_vfs_dirent *)(uintptr_t)frame->rdx);
         case O0_SYS_INVALID:
             return O0_UE_INVAL;
         default:

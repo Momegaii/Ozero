@@ -21,7 +21,9 @@ enum o0_object_type {
     O0_OBJ_PROCESS = 1,
     O0_OBJ_MEMORY = 2,
     O0_OBJ_ENDPOINT = 3,
-    O0_OBJ_BUDGET = 4
+    O0_OBJ_BUDGET = 4,
+    O0_OBJ_VNODE = 5,
+    O0_OBJ_FILE = 6
 };
 
 enum o0_rights {
@@ -35,7 +37,10 @@ enum o0_rights {
     O0_RIGHT_RECV = 1u << 7,
     O0_RIGHT_WAIT = 1u << 8,
     O0_RIGHT_INFO = 1u << 9,
-    O0_RIGHT_SPLIT = 1u << 10
+    O0_RIGHT_SPLIT = 1u << 10,
+    O0_RIGHT_ENUM = 1u << 11,
+    O0_RIGHT_CREATE = 1u << 12,
+    O0_RIGHT_REMOVE = 1u << 13
 };
 
 #define O0_RIGHT_MEMORY_DEFAULT                                            \
@@ -46,6 +51,12 @@ enum o0_rights {
 #define O0_RIGHT_ENDPOINT_DEFAULT                                          \
     (O0_RIGHT_SEND | O0_RIGHT_RECV | O0_RIGHT_TRANSFER | O0_RIGHT_DUP |    \
      O0_RIGHT_WAIT | O0_RIGHT_INFO)
+#define O0_RIGHT_DIRECTORY_DEFAULT                                         \
+    (O0_RIGHT_READ | O0_RIGHT_WRITE | O0_RIGHT_INFO | O0_RIGHT_ENUM |     \
+     O0_RIGHT_CREATE | O0_RIGHT_REMOVE | O0_RIGHT_TRANSFER | O0_RIGHT_DUP)
+#define O0_RIGHT_FILE_DEFAULT                                               \
+    (O0_RIGHT_READ | O0_RIGHT_WRITE | O0_RIGHT_INFO | O0_RIGHT_TRANSFER |  \
+     O0_RIGHT_DUP)
 #define O0_RIGHT_BUDGET_DEFAULT                                            \
     (O0_RIGHT_SPLIT | O0_RIGHT_INFO | O0_RIGHT_TRANSFER | O0_RIGHT_DUP)
 

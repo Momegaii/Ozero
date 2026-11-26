@@ -250,19 +250,28 @@ cell still needs a run and a log read before it is evidence.
 3. Keep write-ordering explicit, and honor flush and FUA semantics.
 4. A format-version field, so old images are refused or migrated and never silently misread.
 
-## Wave 4.6 — VFS and file syscalls
+## Wave 4.6 — VFS and file capabilities
 
 *Depends on: Wave 2 ABI, capability model.*
 
-1. A VFS layer with mount table, vnode abstraction, path resolution and file descriptors,
-   plus a page cache.
-2. A second filesystem (a simple read-only or tmpfs-style one) to prove the VFS interface
-   isn't O0FS-shaped.
-3. File syscalls through an ABI ADR revision (`open`, `read`, `write`, `close`, `stat`,
-   `readdir`). Numbers are never reused, and every user pointer goes through the copy
-   helpers.
-4. Tests: negative tests for each syscall (bad fd, bad pointer, path traversal, oversize),
-   and a user process that reads and writes a file.
+1. A VFS with vnode operations, mount attachments, capability-relative path resolution,
+   vnode references and an eight-page bounded write-through page cache.
+2. Writable bounded tmpfs is the reference backend. O0FS is mounted read-only: its current
+   format has no journal, so VFS must not expose writes or imply durability.
+3. Native syscalls append at 17–21: `file_open`, `file_read`, `file_write`,
+   `file_stat`, `file_readdir`. Existing `handle_close` (5) closes file capabilities.
+   File I/O carries explicit offsets; there is no POSIX descriptor namespace or implicit
+   file position. Every user pointer uses the established copy helpers.
+4. The initial VFS root is explicitly granted to a process. Children receive directory
+   authority only through explicit spawn grants. `..` is rejected; paths are bounded.
+5. Tests cover capability-relative resolution, tmpfs write/read/stat/readdir, cache
+   coherence, unlink lifetime, O0FS read-only behavior, stale handles, bad pointers,
+   traversal and oversize paths, plus a ring-3 QEMU acceptance program.
+
+**Implementation status:** code and host/QEMU tests are being assembled on
+`kilo/wave-4.6-vfs-file-capabilities`. This wave is not closed until `make check`,
+`make test-sanitize`, the QEMU acceptance marker and CI evidence are observed on the
+same candidate commit. O0FS crash consistency remains a separate Wave 4.5 gate.
 
 ## Wave 4.7 — Sign-off
 

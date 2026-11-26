@@ -423,3 +423,19 @@ Defects fixed during the implementation record:
 
 Open items are unchanged from §13: SMP, SMEP/SMAP, preemption, asynchronous
 IPC, physical silicon and the remaining deferred surfaces.
+
+
+## 15. Wave 4.6 file capabilities
+
+ADR 0017 extends this object model with `O0_OBJ_VNODE` and `O0_OBJ_FILE`.
+These remain ordinary opaque objects in the same generation-protected per-process
+handle table. Directory handles carry explicit enumeration/create authority; file
+handles carry READ/WRITE/INFO and may be duplicated or transferred only when those
+rights are present. Rights are reduced, never escalated.
+
+This does **not** reverse §1's rejection of POSIX file descriptors. A file capability
+is an object handle, not a descriptor number: there is no implicit current offset,
+process-wide descriptor namespace, or POSIX close operation. Existing
+`handle_close` closes it. Path authority is rooted in an explicitly granted directory
+capability, never an implicit process-global root. See ADR 0017 for the VFS, backend,
+path, cache, syscall and verification contracts.
