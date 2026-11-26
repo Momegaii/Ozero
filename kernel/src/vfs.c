@@ -90,9 +90,8 @@ static o0_status resolve_parent(struct o0_vnode *directory, const char *path,
             return O0_EPERM;
         }
         if (component_is(name, name_len, ".")) {
-            while (*cursor == '/') ++cursor;
-            if (*cursor == '\0') { vnode_unref(current); return O0_EINVAL; }
-            continue;
+            vnode_unref(current);
+            return O0_EINVAL;
         }
         if (++depth > O0_VFS_MAX_DEPTH) {
             vnode_unref(current);
