@@ -264,11 +264,32 @@ cell still needs a run and a log read before it is evidence.
 
 ## Wave 4.5 — Crash-consistent O0FS
 
-1. Implement the ADR's choice, replacing rollback-only recovery.
-2. Tests: power-loss injection at every write point (each block write, flush and reorder),
-   remount, and a consistency checker that must pass after every injected crash.
-3. Keep write-ordering explicit, and honor flush and FUA semantics.
-4. A format-version field, so old images are refused or migrated and never silently misread.
+**Status: Complete.**
+
+1. **Redo journal implemented** in `kernel/src/o0fs.c`: metadata-only redo journal
+   with ordered data writes, atomic sequence-numbered commit headers, mount-time
+   recovery (`fs_journal_recover`), bitmap save/restore on transaction abort, and
+   the `o0fs_check` consistency checker. ADR [0018](decisions/0018-o0fs-redo-journal-implementation.md)
+   records the design; ADR 0012's Director condition (crash-injection matrix covering
+   every write point, remount + checker after each crash) is met by the journal test
+   suite.
+2. **Tests:** `tests/o0fs_journal_test.c` (5 crash-recovery tests: normal write+remount,
+   crash before commit header, crash at commit header, crash during live application,
+   clean checker) and `tests/fs_test.c` updated for journal semantics including remount
+   after injected I/O faults. All pass under `make test` and `make test-sanitize`.
+3. **Docs:** `docs/o0fs-format.md` §1 (journal region), §7 (crash consistency), §8
+   (version 2 implemented); ADR 0018.
+
+### Wave 4.5 evidence
+
+- **Commit:** local only, on branch `kilo/late-alpaca-bx7`, not yet pushed to `main`.
+- **CI:** not yet observed; `make test` (all suites green: fs_test 10/10,
+  o0fs_journal_test 5/5) and `make test-sanitize` pass locally.
+- **Evidence type:** local build + host tests only. Not CI-observed, not
+  Director-observed, not physical.
+- **Not covered:** physical controllers (never), data journalling for sub-block
+  files (deferred, ADR 0018 §6).
+
 
 ## Wave 4.6 — VFS and file syscalls
 

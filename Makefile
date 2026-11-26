@@ -214,6 +214,8 @@ test: $(BUILD)
 	$(HOST_RUN_ENV) ./$(BUILD)/virtio_ring_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/virtio_blk_modern_test tests/virtio_blk_modern_test.c
 	$(HOST_RUN_ENV) ./$(BUILD)/virtio_blk_modern_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/o0fs_journal_test tests/o0fs_journal_test.c
+	$(HOST_RUN_ENV) ./$(BUILD)/o0fs_journal_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/pci_test tests/pci_test.c
 	$(HOST_RUN_ENV) ./$(BUILD)/pci_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/dma_test tests/dma_test.c
@@ -243,7 +245,7 @@ test: $(BUILD)
 test-sanitize: $(BUILD)
 	rm -f $(BUILD)/pmm_test $(BUILD)/slab_test $(BUILD)/sched_test \
 	      $(BUILD)/cpu_test $(BUILD)/abi_test $(BUILD)/elf_test $(BUILD)/acpi_test $(BUILD)/ioapic_test $(BUILD)/lock_order_test $(BUILD)/kaslr_test $(BUILD)/cap_test \
-	      $(BUILD)/block_test $(BUILD)/partition_test $(BUILD)/fs_test $(BUILD)/storage_encode_test \
+	      $(BUILD)/block_test $(BUILD)/partition_test $(BUILD)/fs_test $(BUILD)/o0fs_journal_test $(BUILD)/storage_encode_test \
 	      $(BUILD)/pci_test $(BUILD)/dma_test $(BUILD)/gpu_test $(BUILD)/display_test \
 	      $(BUILD)/input_test $(BUILD)/surface_test $(BUILD)/input_ps2_test \
 	      $(BUILD)/window_test $(BUILD)/compositor_test $(BUILD)/gfx_backend_test $(BUILD)/shell_test

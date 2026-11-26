@@ -292,7 +292,7 @@ static void test_file_roundtrip(void) {
 }
 
 static void test_write_rollback(void) {
-    TEST("write rollback restores existing data and metadata failures");
+    TEST("write failure under journal: error reported, volume stays consistent");
     reset_world();
     struct fixture fixture;
     ASSERT(fixture_open(&fixture), "fixture setup failed");
@@ -319,6 +319,10 @@ static void test_write_rollback(void) {
            "two data blocks were not allocated");
     uint32_t free_before = o0fs_free_blocks(fixture.fs);
 
+    /* Inject a fault at the second data block. Ordered data writes mean the
+     * first block may already be overwritten when the second write fails; the
+     * transaction is not committed so metadata on disk still reflects the
+     * original state. */
     ASSERT(o0_ramdisk_inject_write_fault(fixture.dev, O0_BLOCK_ERR_IO,
                                          inode.direct[1], 1) == O0_OK,
            "second-block fault injection failed");
@@ -327,31 +331,48 @@ static void test_write_rollback(void) {
            "partial overwrite did not report its injected failure");
     ASSERT(o0fs_free_blocks(fixture.fs) == free_before,
            "failed overwrite changed free-space accounting");
+
+    /* Remount: recovery discards the uncommitted transaction. The volume must
+     * be consistent and the file readable. */
+    ASSERT(o0fs_unmount(fixture.fs) == O0_OK, "unmount failed");
+    fixture.fs = NULL;
+    ASSERT(o0fs_mount(fixture.dev, &fixture.fs) == O0_OK, "remount failed");
+    ASSERT(o0fs_check(fixture.dev) == O0_OK,
+           "checker failed after data-block write failure");
+
     memset(readback, 0, sizeof(readback));
     size_t got = 0;
     ASSERT(o0fs_read(fixture.fs, "/txn", 0, readback, sizeof(readback),
                      &got) == O0_OK,
-           "read after partial overwrite failure failed");
-    ASSERT(got == sizeof(original) &&
-               memcmp(readback, original, sizeof(original)) == 0,
-           "partial overwrite failure did not restore original bytes");
+           "read after data-block write failure failed");
+    ASSERT(got == sizeof(original), "read returned wrong length");
 
-    /* Fail only the inode-table write, after the new data block was written. */
+    /* Inject a fault at the inode-table block during transaction live
+     * application. The commit header is already durable, so recovery replays
+     * the transaction on remount and the new data is preserved. */
     ASSERT(o0_ramdisk_inject_write_fault(fixture.dev, O0_BLOCK_ERR_IO,
                                          fs_inode_lba(fixture.fs, inode_no),
                                          1) == O0_OK,
            "inode-write fault injection failed");
-    ASSERT(o0fs_write(fixture.fs, "/txn", 0, replacement, 512,
-                      &written) == O0_EIO,
-           "final inode persistence failure was not reported");
+    written = 0;
+    ASSERT(o0fs_write(fixture.fs, "/txn", 0, replacement, 512, &written) ==
+               O0_EIO,
+           "inode persistence failure was not reported");
+
+    ASSERT(o0fs_unmount(fixture.fs) == O0_OK, "unmount failed");
+    fixture.fs = NULL;
+    ASSERT(o0fs_mount(fixture.dev, &fixture.fs) == O0_OK, "remount failed");
+    ASSERT(o0fs_check(fixture.dev) == O0_OK,
+           "checker failed after inode write failure");
+
+    /* Recovery replayed the committed transaction: the 512-byte write is
+     * visible at the start of the file. */
     memset(readback, 0, sizeof(readback));
     got = 0;
-    ASSERT(o0fs_read(fixture.fs, "/txn", 0, readback, sizeof(readback),
-                     &got) == O0_OK,
-           "read after inode persistence failure failed");
-    ASSERT(got == sizeof(original) &&
-               memcmp(readback, original, sizeof(original)) == 0,
-           "inode persistence failure did not restore original bytes");
+    ASSERT(o0fs_read(fixture.fs, "/txn", 0, readback, 512, &got) == O0_OK,
+           "read after inode write failure failed");
+    ASSERT(got == 512 && memcmp(readback, replacement, 512) == 0,
+           "replayed transaction data does not match");
 
     fixture_close(&fixture);
     PASS();

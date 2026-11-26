@@ -78,6 +78,12 @@ o0_status o0fs_unmount(struct o0fs *fs);
 /* Flushes dirty block/inode bitmaps, the superblock and the block device. */
 O0_NODISCARD o0_status o0fs_sync(struct o0fs *fs);
 
+/* Runs the on-disk consistency checker against the mounted volume: verifies
+ * the block bitmap matches referenced blocks, no block is referenced twice,
+ * directory entries reference allocated inodes of the matching type, and
+ * per-inode block counts are consistent. Returns O0_OK on a clean volume. */
+O0_NODISCARD o0_status o0fs_check(struct o0_block_dev *dev);
+
 O0_NODISCARD o0_status o0fs_stat(struct o0fs *fs, const char *path,
                                  struct o0fs_stat *out);
 
