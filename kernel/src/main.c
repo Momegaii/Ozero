@@ -16,6 +16,7 @@
 #include <limine.h>
 
 #include "ozero/acpi.h"
+#include "ozero/ahci.h"
 #include "ozero/apic_timer.h"
 #include "ozero/block.h"
 #include "ozero/budget.h"
@@ -39,6 +40,7 @@
 #include "ozero/ioapic.h"
 #include "ozero/kaslr.h"
 #include "ozero/memory.h"
+#include "ozero/nvme.h"
 #include "ozero/object.h"
 #include "ozero/irq.h"
 #include "ozero/pci.h"
@@ -376,6 +378,40 @@ static void storage_pci_self_test(void) {
             panic("virtio-blk injected error was not reported");
         }
         o0_serial_puts("OZERO: virtio-blk error path OK\n");
+    }
+
+    disk = NULL;
+    st = o0_ahci_probe("ahci0", &disk);
+    if (st == O0_OK && disk != NULL) {
+        if (!storage_roundtrip(disk, 8, written, read_back, O0_PAGE_SIZE)) {
+            panic("ahci read/write failed");
+        }
+        o0_serial_puts("OZERO: ahci read/write OK irq=");
+        o0_serial_dec(o0_ahci_irq_count(disk));
+        o0_serial_puts(" sectors=");
+        o0_serial_dec(disk->geo.nr_sectors);
+        o0_serial_puts("\n");
+        if (o0_ahci_inject_error(disk) != O0_OK) {
+            panic("ahci injected error was not reported");
+        }
+        o0_serial_puts("OZERO: ahci error path OK\n");
+    }
+
+    disk = NULL;
+    st = o0_nvme_probe("nvme0", &disk);
+    if (st == O0_OK && disk != NULL) {
+        if (!storage_roundtrip(disk, 8, written, read_back, O0_PAGE_SIZE)) {
+            panic("nvme read/write failed");
+        }
+        o0_serial_puts("OZERO: nvme read/write OK irq=");
+        o0_serial_dec(o0_nvme_irq_count(disk));
+        o0_serial_puts(" sectors=");
+        o0_serial_dec(disk->geo.nr_sectors);
+        o0_serial_puts("\n");
+        if (o0_nvme_inject_error(disk) != O0_OK) {
+            panic("nvme injected error was not reported");
+        }
+        o0_serial_puts("OZERO: nvme error path OK\n");
     }
 }
 

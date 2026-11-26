@@ -364,8 +364,13 @@ static bool vblk_is_legacy(const struct o0_pci_device *pci) {
     if (pci->device_id != 0x1001u) {
         return false;
     }
-    const struct o0_pci_bar *bar0 = &pci->resources.bars[0];
-    return bar0->valid && !bar0->is_memory && bar0->assigned;
+    /* o0_pci_init records identity and capabilities but does not touch BARs, so
+     * the legacy I/O BAR has to be probed before it can be used. */
+    struct o0_pci_bar bar0;
+    if (o0_pci_probe_bar(pci->bdf, 0u, pci->resources.header_type, &bar0) != 0) {
+        return false;
+    }
+    return bar0.valid && !bar0.is_memory && bar0.assigned;
 }
 
 static uint8_t *vblk_align(uint8_t *p, uintptr_t alignment) {
@@ -409,8 +414,12 @@ o0_status o0_virtio_blk_probe(const char *name, struct o0_block_dev **out) {
     }
     memset(vd, 0, sizeof(*vd));
 
+    struct o0_pci_bar bar0;
+    if (o0_pci_probe_bar(found->bdf, 0u, found->resources.header_type, &bar0) != 0) {
+        return O0_EIO;
+    }
     vd->pci = *found;
-    vd->io_base = (uint16_t)found->resources.bars[0].base;
+    vd->io_base = (uint16_t)bar0.base;
 
     /* Enable I/O decoding and bus mastering before any device access. */
     uint16_t cmd = 0;

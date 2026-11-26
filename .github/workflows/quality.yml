@@ -136,9 +136,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # ahci and nvme are added together with their drivers; a cell that requires
-        # a marker no driver emits would only make main permanently red.
-        controller: [virtio]
+        # Each cell requires the marker its own driver emits; a controller is listed
+        # only once its driver exists, so no cell can be permanently red.
+        controller: [virtio, ahci, nvme]
     name: storage (${{ matrix.controller }}, smp=2)
     steps:
       - name: Check out source
