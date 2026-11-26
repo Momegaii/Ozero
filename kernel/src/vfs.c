@@ -438,6 +438,7 @@ o0_status o0_vfs_write(struct o0_vfs_file *file, uint64_t offset,
             cache_drop_page(page);
             o0_spin_unlock(&vfs_cache_lock);
             *out_length = done;
+            if (done != 0) return O0_OK;
             return st != O0_OK ? st : O0_EIO;
         }
         memcpy(page->data + in_page, (const uint8_t *)buffer + done, take);
