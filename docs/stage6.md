@@ -21,7 +21,7 @@ This document records the Stage 6 scope accepted by the Project Director in the 
 | 6.4 | Window manager | Window lifecycle, stacking, focus, movement and resizing tests |
 | 6.5 | Software compositor | Correct composition, damage tracking and redraw tests |
 | 6.6 | Graphics acceleration boundary | Capability-driven interface; software fallback remains functional; no unsupported vendor backend claims |
-| 6.7 | Desktop shell | Background, pointer, decorations, launcher and at least two interactive windows |
+| 6.7 | Custom O0 desktop UI | Dark minimal desktop with neon-green sphere launchers, purple assistant spheres, green particles, node network, bottom taskbar, right panel, system tray, O0 assistant interface; sphere state machine (idle/hover/active/feedback/exit); host-tested; wired into desktop_main |
 | 6.8 | Integration and acceptance | Repeatable QEMU boot, documented test output and screenshot; all Stage 6 acceptance criteria pass |
 
 ## Phase 6.1 — Display and framebuffer
@@ -160,9 +160,11 @@ The Project Director requested that implementation/documentation proceed without
 - Keep unsupported operations explicit; no silent success stubs.
 
 **Phase 6.7 desktop shell**
-- Add a desktop background, pointer cursor, window decorations, focus indication and a minimal launcher.
-- Provide at least two simple interactive demo applications/windows.
-- Wire input to window focus and application actions.
+- Custom O0 desktop UI implemented per [ADR 0020](decisions/0020-custom-desktop-ui.md).
+- Neon-green sphere launchers (solid color, no pictograms), purple assistant spheres,
+  green particles, node network, bottom taskbar, right panel, system tray, O0 assistant.
+- Sphere state machine: idle → hover → active → feedback → idle.
+- See Phase 6.7 section below for full specification and acceptance checklist.
 
 **Phase 6.8 integration**
 - Integrate Agent A and B APIs without bypassing their ownership boundaries.

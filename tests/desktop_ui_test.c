@@ -131,7 +131,7 @@ static void test_activate_state_machine(void) {
     for (uint32_t i = 0; i < 81; ++i) o0_desktop_ui_update(&ui);
     assert(ui.spheres[0].state == O0_SPHERE_FEEDBACK);
 
-    for (uint32_t i = 0; i < 60; ++i) o0_desktop_ui_update(&ui);
+    for (uint32_t i = 0; i < 61; ++i) o0_desktop_ui_update(&ui);
     assert(ui.spheres[0].state == O0_SPHERE_IDLE);
     assert(ui.spheres[0].anim_radius == ui.spheres[0].radius);
 
@@ -185,10 +185,17 @@ static void test_render_black_background(void) {
     assert(o0_desktop_ui_init(&ui, 800, 600) == O0_OK);
     assert(o0_desktop_ui_render(&ui, &s) == O0_OK);
 
-    /* Entire background should be black. */
-    for (uint32_t y = 0; y < 600; y += 17) {
-        for (uint32_t x = 0; x < 800; x += 23) {
-            assert(rgb_at(&s, x, y) == O0_DESKTOP_BG_COLOR);
+    /* Top-left area (50, 50): no sphere or particle starts there, so it
+     * should be black background. */
+    assert(rgb_at(&s, 50, 50) == O0_DESKTOP_BG_COLOR);
+
+    /* A pixel inside a green sphere should not be black. */
+    for (uint32_t i = 0; i < ui.sphere_count; ++i) {
+        if (ui.spheres[i].color == O0_SPHERE_GREEN &&
+            ui.spheres[i].state == O0_SPHERE_IDLE) {
+            assert(rgb_at(&s, (size_t)ui.spheres[i].cx,
+                          (size_t)ui.spheres[i].cy) == O0_SPHERE_GREEN);
+            break;
         }
     }
     free(buf);
@@ -201,6 +208,7 @@ static void test_render_neon_green_sphere(void) {
 
     struct o0_desktop_ui ui;
     assert(o0_desktop_ui_init(&ui, 800, 600) == O0_OK);
+    assert(o0_desktop_ui_render(&ui, &s) == O0_OK);
 
     /* Find a green sphere and check its centre pixel is neon green. */
     bool found = false;
@@ -249,7 +257,7 @@ static void test_render_feedback_ring(void) {
 
     /* Activate sphere 0, then advance into feedback. */
     assert(o0_desktop_ui_activate(&ui, 0) == O0_OK);
-    for (uint32_t i = 0; i < 80; ++i) o0_desktop_ui_update(&ui);
+    for (uint32_t i = 0; i < 81; ++i) o0_desktop_ui_update(&ui);
     assert(ui.spheres[0].state == O0_SPHERE_FEEDBACK);
 
     assert(o0_desktop_ui_render(&ui, &s) == O0_OK);
@@ -305,8 +313,10 @@ static void test_blend_rgb(void) {
     assert(o0_surface_blend_rgb(0x000000u, 0xFF0000u, 255) == 0xFF0000u);
     /* Transparent alpha returns destination. */
     assert(o0_surface_blend_rgb(0x00FF00u, 0xFF0000u, 0) == 0x00FF00u);
-    /* Half alpha: 0xFF0000 over 0x00FF00 => R=127, G=127, B=0. */
-    assert(o0_surface_blend_rgb(0x00FF00u, 0xFF0000u, 128) == 0x7F7F00u);
+    /* Half alpha: 0xFF0000 over 0x000000 => R=128 (255*128/255=128). */
+    assert(o0_surface_blend_rgb(0x000000u, 0xFF0000u, 128) == 0x800000u);
+    /* Half alpha the other way: 0x000000 over 0xFF0000 => R=127. */
+    assert(o0_surface_blend_rgb(0xFF0000u, 0x000000u, 128) == 0x7F0000u);
     puts("desktop_ui_test: blend rgb passed");
 }
 

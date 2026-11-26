@@ -47,6 +47,7 @@ int64_t o0_uapi_error_from_status(o0_status status) {
         case O0_ENOTEMPTY: return O0_UE_NOTEMPTY;
         case O0_ENOSPC: return O0_UE_NOSPC;
         case O0_EPEER: return O0_UE_PEER;
+        default: return O0_UE_INVAL;
     }
     return O0_UE_INVAL;
 }

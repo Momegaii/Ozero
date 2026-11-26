@@ -199,6 +199,10 @@ test: $(BUILD)
 	$(HOST_RUN_ENV) ./$(BUILD)/abi_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/elf_test tests/elf_test.c kernel/src/elf.c
 	$(HOST_RUN_ENV) ./$(BUILD)/elf_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/pe_test tests/pe_test.c kernel/src/pe.c
+	$(HOST_RUN_ENV) ./$(BUILD)/pe_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -o $(BUILD)/pe_fuzz tests/pe_fuzz.c kernel/src/pe.c
+	$(HOST_RUN_ENV) ./$(BUILD)/pe_fuzz
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/usercopy_test tests/usercopy_test.c kernel/src/usercopy.c
 	$(HOST_RUN_ENV) ./$(BUILD)/usercopy_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel/src -o $(BUILD)/cap_test tests/cap_test.c kernel/src/object.c kernel/src/budget.c kernel/src/handle.c kernel/src/memory.c kernel/src/endpoint.c
@@ -249,7 +253,7 @@ test: $(BUILD)
 # failure, not a warning.
 test-sanitize: $(BUILD)
 	rm -f $(BUILD)/pmm_test $(BUILD)/slab_test $(BUILD)/sched_test \
-	      $(BUILD)/cpu_test $(BUILD)/abi_test $(BUILD)/elf_test $(BUILD)/acpi_test $(BUILD)/ioapic_test $(BUILD)/lock_order_test $(BUILD)/kaslr_test $(BUILD)/cap_test \
+	      $(BUILD)/cpu_test $(BUILD)/abi_test $(BUILD)/elf_test $(BUILD)/pe_test $(BUILD)/pe_fuzz $(BUILD)/acpi_test $(BUILD)/ioapic_test $(BUILD)/lock_order_test $(BUILD)/kaslr_test $(BUILD)/cap_test \
 	      $(BUILD)/block_test $(BUILD)/partition_test $(BUILD)/fs_test $(BUILD)/o0fs_journal_test $(BUILD)/vfs_test $(BUILD)/storage_encode_test \
 	      $(BUILD)/pci_test $(BUILD)/dma_test $(BUILD)/gpu_test $(BUILD)/display_test \
 	      $(BUILD)/input_test $(BUILD)/surface_test $(BUILD)/input_ps2_test \

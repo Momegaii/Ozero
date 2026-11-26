@@ -14,22 +14,14 @@
 #define O0_PE_DOS_HEADER_SIZE 64u
 #define O0_PE_NT_SIGNATURE_SIZE 4u
 #define O0_PE_COFF_HEADER_SIZE 20u
-#define O0_PE_OPTIONAL_HEADER_STD_SIZE 28u   /* PE32+ standard fields through BaseOfCode */
-#define O0_PE_OPTIONAL_HEADER_WIN_SIZE 68u   /* Windows-specific fields through NumberOfRvaAndSizes */
+#define O0_PE_OPTIONAL_HEADER_STD_SIZE 20u   /* PE32+ standard fields through AddressOfEntryPoint */
+#define O0_PE_OPTIONAL_HEADER_WIN_SIZE 88u   /* Windows-specific fields ImageBase .. NumberOfRvaAndSizes */
 #define O0_PE_DATA_DIRECTORY_SIZE 8u
 #define O0_PE_SECTION_HEADER_SIZE 40u
 #define O0_PE_BASE_RELOC_BLOCK_HEADER_SIZE 8u
 #define O0_PE_BASE_RELOC_ENTRY_SIZE 2u
 
 /* ---- bounds-checked little-endian readers (memcpy, safe on unaligned input) ---- */
-
-static int pe_read_u8(const uint8_t *data, size_t size, size_t off, uint8_t *out) {
-    if (off > size || size - off < 1u) {
-        return -1;
-    }
-    *out = data[off];
-    return 0;
-}
 
 static int pe_read_u16(const uint8_t *data, size_t size, size_t off, uint16_t *out) {
     uint16_t v = 0;
@@ -107,12 +99,12 @@ static int pe_coff_header(const uint8_t *data, size_t size, uint32_t off,
         return -1;
     }
     cursor += 2;
-    /* skip TimeDateStamp(4), PointerToSymbolTable(4), NumberOfSymbols(4) */
-    cursor += 12;
     if (pe_read_u16(data, size, cursor, &number_of_sections) != 0) {
         return -1;
     }
     cursor += 2;
+    /* skip TimeDateStamp(4), PointerToSymbolTable(4), NumberOfSymbols(4) */
+    cursor += 12;
     if (pe_read_u16(data, size, cursor, &size_of_optional_header) != 0) {
         return -1;
     }
@@ -148,7 +140,11 @@ static int pe_optional_header(const uint8_t *data, size_t size, uint32_t off,
     uint16_t subsystem = 0;
     uint32_t number_of_rva_and_sizes = 0;
 
-    if (size_of_optional_header < O0_PE_OPTIONAL_HEADER_STD_SIZE) {
+    /* PE32+ standard fields end at AddressOfEntryPoint (offset 16); there is
+     * no BaseOfCode field in PE32+. Windows-specific fields begin at ImageBase
+     * (offset 20). Whole optional header with 16 data directories is 236 bytes.
+     */
+    if (size_of_optional_header < 24u) {
         return -1;
     }
     if (pe_read_u16(data, size, cursor, &magic) != 0) {
@@ -158,15 +154,14 @@ static int pe_optional_header(const uint8_t *data, size_t size, uint32_t off,
         return -2; /* distinct: not PE32+ */
     }
     cursor += 2;
-    /* skip Major/MinorLinkerVersion, SizeOfCode, SizeOfInitializedData,
-     * SizeOfUninitializedData (4 + 4 + 4 + 4 = 16 bytes) -> AddressOfEntryPoint */
-    cursor += 16;
+    /* Major/MinorLinkerVersion(2), SizeOfCode(4), SizeOfInitializedData(4),
+     * SizeOfUninitializedData(4) -> AddressOfEntryPoint at offset 16. */
+    cursor += 14;
     if (pe_read_u32(data, size, cursor, &address_of_entry_point) != 0) {
         return -1;
     }
     cursor += 4;
-    /* skip BaseOfCode (4 bytes); no BaseOfData in PE32+ */
-    cursor += 4;
+    /* ImageBase at offset 20 (PE32+ only). */
     if (pe_read_u64(data, size, cursor, &image_base) != 0) {
         return -1;
     }
@@ -179,7 +174,7 @@ static int pe_optional_header(const uint8_t *data, size_t size, uint32_t off,
         return -1;
     }
     cursor += 4;
-    /* skip OS/image/subsystem versions, Win32VersionValue */
+    /* OS/image/subsystem versions + Win32VersionValue (offsets 36-51). */
     cursor += 16;
     if (pe_read_u32(data, size, cursor, &size_of_image) != 0) {
         return -1;
@@ -195,8 +190,8 @@ static int pe_optional_header(const uint8_t *data, size_t size, uint32_t off,
         return -1;
     }
     cursor += 2;
-    /* skip DllCharacteristics(2), stack/heap reserves/commits(32), LoaderFlags(4) */
-    cursor += 40;
+    /* DllCharacteristics(2), stack/heap reserves/commits(32), LoaderFlags(4). */
+    cursor += 38;
     if (pe_read_u32(data, size, cursor, &number_of_rva_and_sizes) != 0) {
         return -1;
     }
