@@ -6,9 +6,11 @@
  * docs/decisions/0021-pe-loader-windows-user-mode-abi.md.
  */
 
+#include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "ozero/pe.h"
 #include "ozero/status.h"
