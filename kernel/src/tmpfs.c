@@ -308,7 +308,7 @@ o0_status o0_tmpfs_create(struct o0_budget *budget, size_t capacity,
     fs->capacity = capacity;
     fs->references = 0;
     fs->next_id = 0;
-    o0_spin_init(&fs->lock);
+    o0_spin_init_ordered(&fs->lock, 10u);
     o0_object_ref(&budget->obj);
 
     struct o0_tmpfs_node *root = NULL;
