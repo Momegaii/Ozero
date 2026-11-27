@@ -215,6 +215,56 @@ static void test_null_shell(void) {
     puts("shell_test: null_shell passed");
 }
 
+
+static uint32_t routed_key_events;
+static bool routed_window_event(struct o0_window *win,const struct o0_input_event *ev,void *ctx) {
+    (void)win; (void)ctx;
+    if(ev->type==O0_INPUT_KEY)++routed_key_events;
+    return true;
+}
+static void push_pointer(struct o0_input_queue *q,int16_t dx,int16_t dy,uint8_t buttons) {
+    struct o0_input_event ev={.type=O0_INPUT_POINTER,.dx=dx,.dy=dy,.buttons=buttons};
+    assert(o0_input_push(q,&ev)==O0_OK);
+}
+static void test_pointer_drag_resize_and_keyboard_routing(void) {
+    struct o0_shell shell;
+    struct o0_input_queue queue;
+    o0_input_init(&queue);
+    assert(o0_shell_init(&shell,800,600)==O0_OK);
+    uint32_t *pixels=alloc_surface_buf(200,200);
+    struct o0_surface surface=make_surface(pixels,200,200);
+    o0_window_id id;
+    assert(o0_wm_create(&shell.windows,&surface,100,100,&id)==O0_OK);
+    struct o0_window *win=&shell.windows.windows[0];
+    o0_window_set_event_handler(win,routed_window_event,NULL);
+    o0_shell_set_input_queue(&shell,&queue);
+
+    /* Move to title bar, press, drag, and release. */
+    push_pointer(&queue,-250,-180,0);
+    push_pointer(&queue,0,0,1);
+    push_pointer(&queue,30,40,1);
+    push_pointer(&queue,0,0,0);
+    assert(o0_shell_poll_input(&shell)==4);
+    assert(shell.windows.windows[0].x==130);
+    assert(shell.windows.windows[0].y==140);
+
+    /* Grab the bottom-right resize grip and shrink the window. */
+    push_pointer(&queue,149,179,0);
+    push_pointer(&queue,0,0,1);
+    push_pointer(&queue,-50,-60,1);
+    push_pointer(&queue,0,0,0);
+    assert(o0_shell_poll_input(&shell)==4);
+    assert(shell.windows.windows[0].width==150);
+    assert(shell.windows.windows[0].height==140);
+
+    struct o0_input_event key={.type=O0_INPUT_KEY,.pressed=1,.code=0x1c};
+    assert(o0_input_push(&queue,&key)==O0_OK);
+    assert(o0_shell_poll_input(&shell)==1);
+    assert(routed_key_events==1);
+    free(pixels);
+    puts("shell_test: pointer drag/resize and keyboard routing passed");
+}
+
 int main(void) {
     test_shell_init();
     test_pointer_clamping();
@@ -222,6 +272,7 @@ int main(void) {
     test_window_management_through_shell();
     test_shell_colors();
     test_null_shell();
+    test_pointer_drag_resize_and_keyboard_routing();
     puts("shell_test: all checks passed");
     return 0;
 }
