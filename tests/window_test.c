@@ -221,6 +221,32 @@ static void test_null_args(void) {
     puts("window_test: null_args passed");
 }
 
+
+static void test_resize_visibility_and_focus_fallback(void) {
+    struct o0_window_manager wm;
+    o0_wm_init(&wm);
+    uint32_t *a=alloc_surface_buf(160,120), *b=alloc_surface_buf(100,90);
+    struct o0_surface sa=make_surface(a,160,120), sb=make_surface(b,100,90);
+    o0_window_id ida,idb;
+    assert(o0_wm_create(&wm,&sa,0,0,&ida)==O0_OK);
+    assert(o0_wm_create(&wm,&sb,20,20,&idb)==O0_OK);
+    assert(o0_wm_resize(&wm,idb,80,70)==O0_OK);
+    assert(wm.windows[1].width==80 && wm.windows[1].height==70);
+    assert(o0_wm_resize(&wm,idb,101,70)==O0_ERANGE);
+    assert(o0_wm_resize(&wm,idb,20,70)==O0_EINVAL);
+    assert(o0_wm_set_visible(&wm,idb,false)==O0_OK);
+    assert(wm.focused==ida);
+    assert(o0_wm_hit_test(&wm,25,25)->id==ida);
+    assert(o0_wm_focus(&wm,idb)==O0_EINVAL);
+    assert(o0_wm_set_visible(&wm,idb,true)==O0_OK);
+    assert(wm.focused==ida);
+    assert(o0_wm_focus(&wm,idb)==O0_OK);
+    assert(o0_wm_destroy(&wm,idb)==O0_OK);
+    assert(wm.focused==ida);
+    free(a); free(b);
+    puts("window_test: resize/visibility/focus fallback passed");
+}
+
 int main(void) {
     test_create_destroy();
     test_move();
@@ -228,6 +254,7 @@ int main(void) {
     test_hit_test();
     test_max_windows();
     test_null_args();
+    test_resize_visibility_and_focus_fallback();
     puts("window_test: all checks passed");
     return 0;
 }
