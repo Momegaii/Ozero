@@ -179,7 +179,7 @@ Phase 6.7 is complete.
 
 ## Remaining phases and agent handoff
 
-The Project Director requested that implementation/documentation proceed without running the Stage 6 test campaign. The following work is not claimed complete. Three agents should implement/review in parallel where dependencies permit, then run the consolidated test plan below.
+The desktop implementation is integrated. CI now runs host tests, sanitizer tests, the BIOS/UEFI boot matrix and an independent QEMU screendump check. The desktop activation marker and visible launcher/assistant/panel/taskbar pixels pass. Full Stage 6 acceptance is still open: keyboard/pointer input must be exercised end to end, routed into windows, and demonstrated with interactive windows. The agent roles below are retained to close those remaining gaps.
 
 ### Agent A — Display and input (Phases 6.1 and 6.2)
 
@@ -243,7 +243,7 @@ The Project Director requested that implementation/documentation proceed without
 
 **Deliverables:** a coherent QEMU desktop path and an evidence bundle. This agent owns integration only after the display/input and window/compositor contracts stabilize.
 
-## Consolidated test campaign (agents run this; not run in this change set)
+## Remaining Stage 6 acceptance campaign
 
 1. Clean freestanding kernel and ISO build with warnings as errors.
 2. All existing host suites plus `surface_test`; run with AddressSanitizer and UndefinedBehaviorSanitizer where supported.
