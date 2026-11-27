@@ -8,31 +8,41 @@
 
 static void draw_focus_border(struct o0_surface *dst, const struct o0_window *win) {
     if (!dst || !win || !win->surface) return;
-    int32_t x = win->x, y = win->y;
-    uint32_t w = win->width, h = win->height;
-    if (x < 0) { w = (uint32_t)((int64_t)w + x); x = 0; }
-    if (y < 0) { h = (uint32_t)((int64_t)h + y); y = 0; }
-    if (x + (int32_t)w > (int32_t)dst->width) w = (uint32_t)((int64_t)dst->width - x);
-    if (y + (int32_t)h > (int32_t)dst->height) h = (uint32_t)((int64_t)dst->height - y);
-    if (w == 0 || h == 0) return;
 
-    uint32_t bw = O0_FOCUS_BORDER_WIDTH;
-    /* Top edge. */
-    for (uint32_t i = 0; i < w; i += bw) {
-        o0_surface_put_pixel(dst, x + (int32_t)i, y, O0_FOCUS_BORDER_COLOR);
-    }
-    /* Bottom edge. */
-    for (uint32_t i = 0; i < w; i += bw) {
-        o0_surface_put_pixel(dst, x + (int32_t)i, y + (int32_t)h - 1, O0_FOCUS_BORDER_COLOR);
-    }
-    /* Left edge. */
-    for (uint32_t i = 0; i < h; i += bw) {
-        o0_surface_put_pixel(dst, x, y + (int32_t)i, O0_FOCUS_BORDER_COLOR);
-    }
-    /* Right edge. */
-    for (uint32_t i = 0; i < h; i += bw) {
-        o0_surface_put_pixel(dst, x + (int32_t)w - 1, y + (int32_t)i, O0_FOCUS_BORDER_COLOR);
-    }
+    /* Clip in 64-bit space before narrowing to the surface API's int32_t
+     * coordinates. This also handles windows positioned near INT32 limits. */
+    int64_t left = win->x;
+    int64_t top = win->y;
+    int64_t right = left + (int64_t)win->width;
+    int64_t bottom = top + (int64_t)win->height;
+    int64_t max_x = dst->width < (size_t)INT32_MAX
+        ? (int64_t)dst->width : (int64_t)INT32_MAX;
+    int64_t max_y = dst->height < (size_t)INT32_MAX
+        ? (int64_t)dst->height : (int64_t)INT32_MAX;
+
+    if (left < 0) left = 0;
+    if (top < 0) top = 0;
+    if (right > max_x) right = max_x;
+    if (bottom > max_y) bottom = max_y;
+    if (left >= right || top >= bottom) return;
+
+    int32_t x = (int32_t)left;
+    int32_t y = (int32_t)top;
+    int32_t width = (int32_t)(right - left);
+    int32_t height = (int32_t)(bottom - top);
+    int32_t border = O0_FOCUS_BORDER_WIDTH;
+    if (border > width) border = width;
+    if (border > height) border = height;
+
+    /* Draw a continuous two-pixel border, clipped to the destination. */
+    (void)o0_surface_fill_rect(dst, x, y, width, border,
+                               O0_FOCUS_BORDER_COLOR);
+    (void)o0_surface_fill_rect(dst, x, y + height - border, width, border,
+                               O0_FOCUS_BORDER_COLOR);
+    (void)o0_surface_fill_rect(dst, x, y, border, height,
+                               O0_FOCUS_BORDER_COLOR);
+    (void)o0_surface_fill_rect(dst, x + width - border, y, border, height,
+                               O0_FOCUS_BORDER_COLOR);
 }
 
 o0_status o0_compositor_compose_windows(struct o0_surface *dst,const struct o0_window_manager *wm) {
