@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Boot Ozero, take a QEMU screendump, and verify the eight-bar boot pattern.
+"""Boot Ozero and verify the rendered Stage 6 desktop in a QEMU screendump.
 
-The kernel draws eight equal vertical bands and logs the centre pixel and a
-checksum for each band. This tool takes an independent screendump through QMP
-and compares the raw pixels with the same deterministic pattern. It is CI
-evidence for the framebuffer path; it is not physical-hardware evidence.
+The kernel first validates and paints the boot framebuffer, then the scheduled
+Stage 6 desktop replaces that fallback pattern. This test waits for the desktop
+activation marker and independently checks launcher, assistant, panel and
+taskbar pixels in a QMP screendump. It is emulator evidence, not physical proof.
 """
 
 from __future__ import annotations
@@ -158,10 +158,10 @@ def main() -> int:
         process = subprocess.Popen(command, stdout=subprocess.DEVNULL,
                                    stderr=subprocess.PIPE, text=True)
         try:
-            log = wait_for(serial, "OZERO: framebuffer checksum=", process,
+            log = wait_for(serial, "OZERO: stage6 desktop active", process,
                            args.timeout)
-            # The marker is emitted after the pattern write; allow the VGA
-            # refresh to observe the final pixels before asking for a dump.
+            # The activation marker precedes the first frame; allow several
+            # 16 ms render/present cycles before sampling the desktop.
             time.sleep(0.5)
             if not qmp_path.exists():
                 raise RuntimeError("QMP socket did not appear")
@@ -192,47 +192,32 @@ def main() -> int:
                     process.kill()
 
     width, height, pixels = read_ppm(screendump)
-    if width % 8 != 0:
+    if width < 640 or height < 480:
         raise SystemExit(
-            f"framebuffer-check: FAIL width={width} is not divisible by 8")
-    bar_width = width // 8
-    samples: list[tuple[int, int, int]] = []
-    for band in range(8):
-        x = width * (2 * band + 1) // 16
-        for y in (height // 4, height // 2, 3 * height // 4):
-            actual = sample(pixels, width, x, y)
-            want = expected_pixel(x, y, width)
-            if max(abs(a - b) for a, b in zip(actual, want)) > TOLERANCE:
-                raise SystemExit(
-                    f"framebuffer-check: FAIL band={band} x={x} y={y} "
-                    f"actual={actual} expected={want}")
-        samples.append(sample(pixels, width, x, height // 2))
+            f"framebuffer-check: FAIL unexpected desktop size {width}x{height}")
 
-    if len(set(samples)) != 8:
-        raise SystemExit(
-            f"framebuffer-check: FAIL bands are not distinct: {samples}")
-    for x in (0, width - 1):
-        actual = sample(pixels, width, x, height // 2)
-        want = expected_pixel(x, height // 2, width)
-        if max(abs(a - b) for a, b in zip(actual, want)) > TOLERANCE:
+    # Desktop launcher centres: (w/6,h/4), then 72-pixel steps on
+    # alternating rows. The selected centres are outside demo-window bounds.
+    checks = (
+        ("green launcher", width // 6, height // 4, (0, 255, 0)),
+        ("purple O0 assistant", width // 6 + 216, height // 4 + 72,
+         (128, 0, 128)),
+        ("right information panel", width - 20, height // 2, (10, 10, 10)),
+        ("bottom taskbar", 20, height - 5, (5, 5, 5)),
+    )
+    for name, x, y, expected in checks:
+        actual = sample(pixels, width, x, y)
+        if max(abs(a - e) for a, e in zip(actual, expected)) > TOLERANCE:
             raise SystemExit(
-                f"framebuffer-check: FAIL margin at x={x} actual={actual} "
-                f"expected={want}")
+                f"framebuffer-check: FAIL {name} at x={x} y={y} "
+                f"actual={actual} expected={expected}")
 
-    marker = re.findall(r"OZERO: framebuffer checksum=(0x[0-9a-fA-F]+)", log)
-    if not marker:
-        raise SystemExit("framebuffer-check: FAIL no kernel checksum marker")
-    kernel_checksum = int(marker[-1], 16) & 0xFFFFFFFF
-    screenshot_checksum = fnv(samples)
-    if kernel_checksum != screenshot_checksum:
+    if "OZERO: framebuffer checksum=" not in log:
         raise SystemExit(
-            "framebuffer-check: FAIL checksum mismatch "
-            f"kernel={kernel_checksum:#010x} "
-            f"screenshot={screenshot_checksum:#010x}")
+            "framebuffer-check: FAIL desktop started without boot framebuffer evidence")
 
-    print(f"framebuffer-check: PASS width={width} height={height} "
-          f"bar_width={bar_width} bars=8 "
-          f"checksum={screenshot_checksum:#010x}")
+    print(f"framebuffer-check: PASS desktop={width}x{height} "
+          "green-launcher purple-assistant panel taskbar")
     return 0
 
 
