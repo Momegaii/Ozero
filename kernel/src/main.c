@@ -1417,12 +1417,12 @@ static void desktop_main(void *arg) {
     uint32_t w = (uint32_t)boot_display_mode.width;
     uint32_t h = (uint32_t)boot_display_mode.height;
     if (w == 0 || h == 0 || (size_t)w > SIZE_MAX / 4u) {
-        o0_serial_puts("OZERO: stage6 invalid desktop dimensions\\n");
+        o0_serial_puts("OZERO: stage6 invalid desktop dimensions\n");
         return;
     }
     size_t pitch = (size_t)w * 4u;
     if ((size_t)h > SIZE_MAX / pitch) {
-        o0_serial_puts("OZERO: stage6 desktop size overflow\\n");
+        o0_serial_puts("OZERO: stage6 desktop size overflow\n");
         return;
     }
     size_t backbuffer_bytes = (size_t)h * pitch;
@@ -1430,20 +1430,20 @@ static void desktop_main(void *arg) {
     uint32_t bb_order = 0;
     void *bb = desktop_buffer_alloc(backbuffer_bytes, &bb_phys, &bb_order);
     if (bb == NULL) {
-        o0_serial_puts("OZERO: stage6 desktop backbuffer unavailable\\n");
+        o0_serial_puts("OZERO: stage6 desktop backbuffer unavailable\n");
         return;
     }
     o0_surface_init(&backbuffer, bb, w, h, pitch, O0_PIXEL_RGBX8888);
     if (o0_shell_init(&desktop_shell, w, h) != O0_OK) {
         o0_pmm_free_pages(bb_phys, bb_order);
-        o0_serial_puts("OZERO: stage6 shell init failed\\n");
+        o0_serial_puts("OZERO: stage6 shell init failed\n");
         return;
     }
 
     /* Initialise the custom O0 desktop UI (Stage 6.7). */
     if (o0_desktop_ui_init(&desktop_ui, w, h) != O0_OK) {
         o0_pmm_free_pages(bb_phys, bb_order);
-        o0_serial_puts("OZERO: stage6 desktop UI init failed\\n");
+        o0_serial_puts("OZERO: stage6 desktop UI init failed\n");
         return;
     }
 
@@ -1465,7 +1465,7 @@ static void desktop_main(void *arg) {
     } else {
         if (p1_phys != 0) o0_pmm_free_pages(p1_phys, p1_order);
         if (p2_phys != 0) o0_pmm_free_pages(p2_phys, p2_order);
-        o0_serial_puts("OZERO: stage6 demo windows unavailable\\n");
+        o0_serial_puts("OZERO: stage6 demo windows unavailable\n");
     }
 
     o0_serial_puts("OZERO: stage6 desktop active\n");
