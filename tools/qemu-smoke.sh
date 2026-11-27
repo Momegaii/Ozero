@@ -247,5 +247,124 @@ if [[ "$fault_count" -lt 3 ]]; then
     exit 1
 fi
 
+# ---- P0 baseline: extract machine-readable performance metrics ----
+METRICS_OUT="$(dirname "$LOG")/metrics.json"
+python3 - "$MATCH_LOG" "$METRICS_OUT" <<'PY'
+import json
+import re
+import sys
+
+match_log_path, out_path = sys.argv[1], sys.argv[2]
+with open(match_log_path, "r", encoding="utf-8", errors="replace") as f:
+    match_log = f.read()
+
+def first_int(pattern):
+    m = re.search(pattern, match_log)
+    return int(m.group(1)) if m else None
+
+metrics = {
+    "firmware": None,
+    "cpu_model": None,
+    "smp": None,
+    "boot_tsc_start": first_int(r"OZERO: boot tsc start=(\d+)"),
+    "boot_to_desktop_ticks": first_int(r"OZERO: boot-to-desktop-ticks=(\d+)"),
+    "boot_to_desktop_ms": first_int(r"OZERO: boot-to-desktop-ms=(\d+)"),
+    "total_memory_bytes": first_int(r"OZERO: total memory=(\d+)"),
+    "free_memory_bytes": first_int(r"OZERO: free memory=(\d+)"),
+    "free_memory_after_desktop_init_bytes": first_int(r"OZERO: free memory after desktop init=(\d+)"),
+    "kernel_entry_reached": bool(re.search(r"OZERO: kernel entry reached", match_log)),
+    "stage6_desktop_active": bool(re.search(r"OZERO: stage6 desktop active", match_log)),
+    "boot_success": bool(re.search(r"OZERO: boot success", match_log)),
+}
+
+with open(match_log_path, "r", encoding="utf-8", errors="replace") as f:
+    data = f.read()
+    fm = re.search(r"firmware=(BIOS|UEFI)", data)
+    if fm:
+        metrics["firmware"] = fm.group(1)
+    cm = re.search(r"cpu vendor=(\S+)", data)
+    if cm:
+        metrics["cpu_model"] = cm.group(1)
+
+try:
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(metrics, f, indent=2)
+        f.write("\n")
+except OSError:
+    pass  # metrics file is best-effort; never fail the smoke test on it
+PY
+
+# External file sizes (kernel image + ISO).
+KERNEL_ELF="build/kernel.elf"
+ISO_FILE="${1:-build/ozero.iso}"
+KERNEL_SIZE=0
+ISO_SIZE=0
+if [[ -f "$KERNEL_ELF" ]]; then
+    KERNEL_SIZE=$(stat -c %s "$KERNEL_ELF" 2>/dev/null || echo 0)
+fi
+if [[ -f "$ISO_FILE" ]]; then
+    ISO_SIZE=$(stat -c %s "$ISO_FILE" 2>/dev/null || echo 0)
+fi
+
+# Merge file sizes into metrics.json if it was written.
+if [[ -f "$METRICS_OUT" ]]; then
+    python3 - "$METRICS_OUT" "$KERNEL_SIZE" "$ISO_SIZE" <<'PY'
+import json
+import sys
+
+path, kernel_size, iso_size = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+with open(path, "r", encoding="utf-8") as f:
+    m = json.load(f)
+m["kernel_image_size_bytes"] = kernel_size
+m["iso_size_bytes"] = iso_size
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(m, f, indent=2)
+    f.write("\n")
+PY
+fi
+
+# ---- Regression thresholds vs. baseline ----
+BASELINE="tools/baseline-metrics.json"
+if [[ -f "$BASELINE" && -f "$METRICS_OUT" ]]; then
+    python3 - "$BASELINE" "$METRICS_OUT" <<'PY'
+import json
+import sys
+
+baseline_path, current_path = sys.argv[1], sys.argv[2]
+with open(baseline_path) as f:
+    baseline = json.load(f)
+with open(current_path) as f:
+    current = json.load(f)
+
+regressions = []
+def check(key, max_ratio=1.5, min_ratio=0.5):
+    b = baseline.get(key)
+    c = current.get(key)
+    if b is None or c is None or b == 0:
+        return
+    ratio = c / b
+    if key in ("boot_to_desktop_ms", "boot_to_desktop_ticks",
+               "kernel_image_size_bytes", "iso_size_bytes"):
+        if ratio > max_ratio:
+            regressions.append(f"{key}: {c} > {max_ratio}x baseline {b}")
+    else:
+        if ratio < min_ratio:
+            regressions.append(f"{key}: {c} < {min_ratio}x baseline {b}")
+
+for k in ("boot_to_desktop_ms", "boot_to_desktop_ticks",
+          "total_memory_bytes", "free_memory_bytes",
+          "free_memory_after_desktop_init_bytes",
+          "kernel_image_size_bytes", "iso_size_bytes"):
+    check(k)
+
+if regressions:
+    print("warning: performance regressions detected:", file=sys.stderr)
+    for r in regressions:
+        print(f"  - {r}", file=sys.stderr)
+else:
+    print("P0 baseline: no regressions vs. tools/baseline-metrics.json")
+PY
+fi
+
 cat "$LOG"
 echo "QEMU smoke test: PASS (firmware=$FIRMWARE cpu=$CPU_MODEL smp=$SMP qemu=$("$QEMU" --version | head -n 1))"

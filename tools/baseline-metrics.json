@@ -1,0 +1,16 @@
+{
+  "firmware": "BIOS",
+  "cpu_model": "AuthenticAMD",
+  "smp": null,
+  "boot_tsc_start": 1120155738,
+  "boot_to_desktop_ticks": 1027721757,
+  "boot_to_desktop_ms": null,
+  "total_memory_bytes": 535445504,
+  "free_memory_bytes": 534224896,
+  "free_memory_after_desktop_init_bytes": 528592896,
+  "kernel_entry_reached": true,
+  "stage6_desktop_active": true,
+  "boot_success": true,
+  "kernel_image_size_bytes": 321944,
+  "iso_size_bytes": 4292608
+}

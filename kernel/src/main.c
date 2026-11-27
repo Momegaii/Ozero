@@ -1375,6 +1375,7 @@ static void wave2_demo(void) {
 static struct o0_display_mode boot_display_mode;
 static o0_paddr_t boot_framebuffer_phys;
 static bool boot_framebuffer_valid;
+static uint64_t boot_tsc_start = 0;
 
 /* Large desktop surfaces are not slab objects. Allocate a power-of-two
  * PMM run and access it through the HHDM instead. */
@@ -1479,6 +1480,28 @@ static void desktop_main(void *arg) {
 
     o0_serial_puts("OZERO: stage6 input router connected\n");
     o0_serial_puts("OZERO: stage6 desktop active\n");
+
+    /* P0 baseline: boot-to-desktop latency from kmain entry to desktop active. */
+    {
+        const struct o0_boot_info *bi = o0_boot_info();
+        uint64_t elapsed_ticks = o0_rdtsc() - boot_tsc_start;
+        o0_serial_puts("OZERO: boot-to-desktop-ticks=");
+        o0_serial_dec(elapsed_ticks);
+        o0_serial_puts("\n");
+        if (bi != NULL && bi->tsc_frequency > 0) {
+            uint64_t elapsed_ms = (elapsed_ticks * 1000u) / bi->tsc_frequency;
+            o0_serial_puts("OZERO: boot-to-desktop-ms=");
+            o0_serial_dec(elapsed_ms);
+            o0_serial_puts("\n");
+        }
+    }
+
+    /* Free-page snapshot once the desktop is fully initialised. */
+    {
+        o0_serial_puts("OZERO: free memory after desktop init=");
+        o0_serial_dec(o0_pmm_free_bytes());
+        o0_serial_puts("\n");
+    }
     uint8_t previous_buttons = 0;
     for (;;) {
         (void)o0_shell_poll_input(&desktop_shell);
@@ -1551,6 +1574,7 @@ static const char *platform_label(const struct o0_cpu_info *cpu) {
 
 __attribute__((noreturn))
 void kmain(void) {
+    boot_tsc_start = o0_rdtsc();
     o0_serial_init();
     if (o0_cpu_detect() != O0_OK) {
         panic("CPU feature detection failed");
@@ -1584,6 +1608,9 @@ void kmain(void) {
     o0_serial_puts(efi_system_table_request.response != NULL ? "UEFI" : "BIOS");
     o0_serial_puts("\n");
     o0_serial_puts("OZERO: kernel entry reached\n");
+    o0_serial_puts("OZERO: boot tsc start=");
+    o0_serial_dec(boot_tsc_start);
+    o0_serial_puts("\n");
 #ifdef O0_LOCK_ORDER_CHECK
     o0_serial_puts("OZERO: lock order check=on\n");
 #else
