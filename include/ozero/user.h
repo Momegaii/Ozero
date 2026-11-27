@@ -37,6 +37,12 @@ struct o0_spawn_grant {
 O0_NODISCARD o0_status o0_user_spawn(const char *name, const void *elf, size_t size,
                                      o0_thread_t **out);
 
+/* Spawns a PE32+ image (Stage 7 Windows-compatible container). The PE loader
+ * maps sections, applies base relocations and picks an in-window load base.
+ */
+O0_NODISCARD o0_status o0_user_spawn_pe(const char *name, const void *pe, size_t size,
+                                        o0_thread_t **out);
+
 /* Loads a static image from a memory object into a fresh child budget split
  * from `parent`, installs `grants` and starts the first thread. The first
  * grant handle is passed in RDI, the second in RSI and the third in RDX; with

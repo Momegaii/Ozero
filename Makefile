@@ -36,7 +36,8 @@ KERNEL_OBJS := $(BUILD)/main.o $(BUILD)/serial.o $(BUILD)/string.o $(BUILD)/stat
                $(BUILD)/display.o $(BUILD)/input.o $(BUILD)/input_ps2.o $(BUILD)/input_router.o $(BUILD)/window.o \
                $(BUILD)/compositor.o $(BUILD)/gfx_backend.o $(BUILD)/shell.o \
                $(BUILD)/desktop_ui.o \
-               $(BUILD)/abi.o $(BUILD)/elf.o $(BUILD)/usercopy.o $(BUILD)/usercopy_stub.o \
+               $(BUILD)/abi.o $(BUILD)/elf.o $(BUILD)/pe.o $(BUILD)/pe_loader.o \
+               $(BUILD)/usercopy.o $(BUILD)/usercopy_stub.o \
                $(BUILD)/user.o $(BUILD)/syscall_c.o $(BUILD)/syscall_entry.o \
                $(BUILD)/gdt.o \
                $(BUILD)/object.o $(BUILD)/budget.o $(BUILD)/handle.o \
@@ -47,7 +48,7 @@ USER_PROGS := init quiet fault_null fault_priv fault_kjump badptr \
               spawner spawn_child ipc_server ipc_client handles budget ipcneg peer_server
 USER_ELFS := $(addprefix $(BUILD)/user_,$(addsuffix .elf,$(USER_PROGS)))
 USER_BLOBS := $(addprefix $(BUILD)/blob_,$(addsuffix .o,$(USER_PROGS)))
-KERNEL_OBJS += $(USER_BLOBS)
+KERNEL_OBJS += $(USER_BLOBS) $(BUILD)/blob_pe_hello.o
 
 HOST_CFLAGS := -std=gnu11 -O1 -Wall -Wextra -Iinclude -DO0_LOCK_ORDER_CHECK
 # Extra flags and per-test environment let the same recipes run under sanitizers
@@ -129,6 +130,37 @@ $(BUILD)/user_%.elf: $(BUILD)/user_%.o user/user.ld
 	$(LD) -nostdlib -static -z max-page-size=0x1000 -T user/user.ld -o $@ $<
 
 $(BUILD)/blob_%.o: $(BUILD)/user_%.elf
+	$(OBJCOPY) -I binary -O elf64-x86-64 -B i386:x86-64 $< $@
+
+# Stage 7: PE32+ Windows-compatible user images. Compiled as freestanding
+# x86-64 at a fixed in-window address, linked with user/pe/pe.ld, wrapped in a
+# PE32+ container by tools/mkpe.py, then embedded like the ELF user images.
+PE_CFLAGS := -std=gnu11 -O1 -Wall -Wextra -Werror \
+          -ffreestanding -fno-stack-protector -fno-pic -fno-pie \
+          -fno-asynchronous-unwind-tables -fno-unwind-tables \
+          -m64 -march=x86-64 -mtune=generic -mcmodel=small -mno-red-zone \
+          -DO0_BUILD_COMMIT=\"$(BUILD_COMMIT)\" \
+          -Iinclude -Iuser/compat
+
+$(BUILD)/compat_ntdll.o: user/compat/ntdll.c | $(BUILD)
+	$(CC) $(PE_CFLAGS) -c $< -o $@
+
+$(BUILD)/compat_kernel32.o: user/compat/kernel32.c | $(BUILD)
+	$(CC) $(PE_CFLAGS) -c $< -o $@
+
+$(BUILD)/user_pe_hello.o: user/pe/hello.c | $(BUILD)
+	$(CC) $(PE_CFLAGS) -c $< -o $@
+
+$(BUILD)/pe_hello.elf: $(BUILD)/compat_ntdll.o $(BUILD)/compat_kernel32.o \
+                       $(BUILD)/user_pe_hello.o user/pe/pe.ld | $(BUILD)
+	$(LD) -nostdlib -static -z max-page-size=0x1000 -T user/pe/pe.ld -o $@ \
+	    $(BUILD)/compat_ntdll.o $(BUILD)/compat_kernel32.o \
+	    $(BUILD)/user_pe_hello.o
+
+$(BUILD)/pe_hello.pe: $(BUILD)/pe_hello.elf tools/mkpe.py | $(BUILD)
+	$(PYTHON) tools/mkpe.py $< $@ 0x40000000
+
+$(BUILD)/blob_pe_hello.o: $(BUILD)/pe_hello.pe | $(BUILD)
 	$(OBJCOPY) -I binary -O elf64-x86-64 -B i386:x86-64 $< $@
 
 

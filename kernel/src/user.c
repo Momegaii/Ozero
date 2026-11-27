@@ -16,6 +16,8 @@
 #include "ozero/memory.h"
 #include "ozero/mm.h"
 #include "ozero/object.h"
+#include "ozero/pe.h"
+#include "ozero/pe_loader.h"
 #include "ozero/status.h"
 #include "ozero/thread.h"
 #include "ozero/types.h"
@@ -101,6 +103,86 @@ static uint32_t size_order(size_t pages) {
     return order;
 }
 
+/* Common tail of spawning a user image: load the stack, create the process and
+ * first thread, install spawn grants, and hand the thread to the caller. Owns
+ * `as` and `child_budget` and tears them down on any failure. */
+static o0_status spawn_finish(o0_as_t *as, struct o0_budget *child_budget,
+                              uint64_t user_entry, const char *name,
+                              const struct o0_spawn_grant *grants,
+                              size_t grant_count, uint32_t flags,
+                              o0_thread_t **out) {
+    o0_status st = load_stack(as);
+    if (st != O0_OK) {
+        o0_as_destroy(as);
+        o0_object_unref(&child_budget->obj);
+        return st;
+    }
+
+    o0_process_t *proc = NULL;
+    st = o0_process_create(name, as, child_budget, &proc);
+    if (st != O0_OK) {
+        o0_as_destroy(as);
+        o0_object_unref(&child_budget->obj);
+        return st;
+    }
+    proc->user = true;
+
+    if (o0_handle_free_slots(proc->handles) < grant_count) {
+        o0_process_destroy(proc);
+        o0_as_destroy(as);
+        o0_object_unref(&child_budget->obj);
+        return O0_ENOMEM;
+    }
+
+    struct o0_thread_attr attr = {
+        .name = name,
+        .entry = NULL,
+        .arg = NULL,
+        .stack_size = 0,
+        .priority = 0,
+        .flags = O0_THREAD_FLAG_USER |
+                 ((flags & O0_SPAWN_DETACHED) != 0 ? O0_THREAD_FLAG_DETACHED : 0u),
+        .user_entry = user_entry,
+        .user_rsp = O0_USER_STACK_TOP - 16u,
+        .user_arg0 = proc->bootstrap_handle,
+        .user_arg1 = 0,
+        .user_arg2 = 0,
+    };
+    /* The new thread is runnable as soon as o0_thread_create enqueues it, so
+     * grants and bootstrap arguments must be in place with preemption off. */
+    o0_irq_state_t irq = o0_irq_save();
+    o0_thread_t *thread = NULL;
+    st = o0_thread_create(proc, &attr, &thread);
+    if (st != O0_OK) {
+        o0_irq_restore(irq);
+        o0_process_destroy(proc);
+        o0_as_destroy(as);
+        o0_object_unref(&child_budget->obj);
+        return st;
+    }
+
+    uint64_t installed[O0_HANDLE_MAX];
+    for (size_t i = 0; i < grant_count; ++i) {
+        st = o0_handle_install_owned(proc->handles, grants[i].object,
+                                     grants[i].rights, &installed[i]);
+        if (st != O0_OK) {
+            o0_irq_restore(irq);
+            o0_process_destroy(proc);
+            o0_as_destroy(as);
+            o0_object_unref(&child_budget->obj);
+            return st;
+        }
+    }
+    thread->user_arg0 = grant_count > 0 ? installed[0] : proc->bootstrap_handle;
+    thread->user_arg1 = grant_count > 1 ? installed[1] : 0;
+    thread->user_arg2 = grant_count > 2 ? installed[2] : 0;
+    o0_irq_restore(irq);
+
+    o0_object_unref(&child_budget->obj);
+    *out = thread;
+    return O0_OK;
+}
+
 static o0_status spawn_from_buffer(const char *name, const void *elf, size_t size,
                                    struct o0_budget *parent,
                                    const struct o0_spawn_grant *grants,
@@ -135,78 +217,57 @@ static o0_status spawn_from_buffer(const char *name, const void *elf, size_t siz
     for (uint32_t i = 0; i < image.segment_count; ++i) {
         st = load_segment(as, (const uint8_t *)elf, &image.segments[i]);
         if (st != O0_OK) {
-            goto fail_as;
-        }
-    }
-    st = load_stack(as);
-    if (st != O0_OK) {
-        goto fail_as;
-    }
-
-    o0_process_t *proc = NULL;
-    st = o0_process_create(name, as, child_budget, &proc);
-    if (st != O0_OK) {
-        goto fail_as;
-    }
-    proc->user = true;
-
-    if (o0_handle_free_slots(proc->handles) < grant_count) {
-        o0_process_destroy(proc);
-        o0_object_unref(&child_budget->obj);
-        return O0_ENOMEM;
-    }
-
-    struct o0_thread_attr attr = {
-        .name = name,
-        .entry = NULL,
-        .arg = NULL,
-        .stack_size = 0,
-        .priority = 0,
-        .flags = O0_THREAD_FLAG_USER |
-                 ((flags & O0_SPAWN_DETACHED) != 0 ? O0_THREAD_FLAG_DETACHED : 0u),
-        .user_entry = image.entry,
-        .user_rsp = O0_USER_STACK_TOP - 16u,
-        .user_arg0 = proc->bootstrap_handle,
-        .user_arg1 = 0,
-        .user_arg2 = 0,
-    };
-    /* The new thread is runnable as soon as o0_thread_create enqueues it, so
-     * grants and bootstrap arguments must be in place with preemption off. */
-    o0_irq_state_t irq = o0_irq_save();
-    o0_thread_t *thread = NULL;
-    st = o0_thread_create(proc, &attr, &thread);
-    if (st != O0_OK) {
-        o0_irq_restore(irq);
-        o0_process_destroy(proc);
-        o0_object_unref(&child_budget->obj);
-        return st;
-    }
-
-    uint64_t installed[O0_HANDLE_MAX];
-    for (size_t i = 0; i < grant_count; ++i) {
-        st = o0_handle_install_owned(proc->handles, grants[i].object,
-                                     grants[i].rights, &installed[i]);
-        if (st != O0_OK) {
-            /* Prechecked above; a failure here would break transfer atomicity. */
-            o0_irq_restore(irq);
-            o0_process_destroy(proc);
+            o0_as_destroy(as);
             o0_object_unref(&child_budget->obj);
             return st;
         }
     }
-    thread->user_arg0 = grant_count > 0 ? installed[0] : proc->bootstrap_handle;
-    thread->user_arg1 = grant_count > 1 ? installed[1] : 0;
-    thread->user_arg2 = grant_count > 2 ? installed[2] : 0;
-    o0_irq_restore(irq);
+    return spawn_finish(as, child_budget, image.entry, name, grants, grant_count,
+                        flags, out);
+}
 
-    o0_object_unref(&child_budget->obj);
-    *out = thread;
-    return O0_OK;
+/* Spawns a PE32+ image. The PE loader maps sections, applies base relocations
+ * and picks an in-window load base (rebasing the default PE32+ base 0x140000000
+ * which lies outside the Ozero user image window). */
+static o0_status spawn_pe_from_buffer(const char *name, const void *pe, size_t size,
+                                      struct o0_budget *parent,
+                                      const struct o0_spawn_grant *grants,
+                                      size_t grant_count, uint32_t flags,
+                                      o0_thread_t **out) {
+    if (pe == NULL || out == NULL || parent == NULL) {
+        return O0_EINVAL;
+    }
+    if (grant_count > O0_HANDLE_MAX - 1u) {
+        return O0_EINVAL;
+    }
 
-fail_as:
-    o0_as_destroy(as);
-    o0_object_unref(&child_budget->obj);
-    return st;
+    struct o0_budget *child_budget = NULL;
+    o0_status st = o0_budget_split(parent, O0_BUDGET_SPAWN_BYTES, &child_budget);
+    if (st != O0_OK) {
+        return st;
+    }
+
+    o0_as_t *as = NULL;
+    st = o0_as_create(child_budget, &as);
+    if (st != O0_OK) {
+        o0_object_unref(&child_budget->obj);
+        return st;
+    }
+
+    uint64_t entry = 0;
+    st = o0_pe_load(as, (const uint8_t *)pe, size, &entry);
+    if (st != O0_OK) {
+        o0_as_destroy(as);
+        o0_object_unref(&child_budget->obj);
+        return st;
+    }
+    return spawn_finish(as, child_budget, entry, name, grants, grant_count, flags,
+                        out);
+}
+
+O0_NODISCARD o0_status o0_user_spawn_pe(const char *name, const void *pe, size_t size,
+                                        o0_thread_t **out) {
+    return spawn_pe_from_buffer(name, pe, size, o0_budget_root(), NULL, 0, 0, out);
 }
 
 o0_status o0_user_spawn(const char *name, const void *elf, size_t size,

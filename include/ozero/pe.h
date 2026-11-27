@@ -28,6 +28,10 @@ extern "C" {
 #define O0_PE_MAX_SECTIONS 16u
 #define O0_PE_MAX_IMAGE_BYTES (16ull << 20)
 #define O0_PE_MAX_ALIGN (2ull << 20)
+#define O0_PE_SECTION_HEADER_SIZE 40u
+#define O0_PE_DATA_DIRECTORY_SIZE 8u
+#define O0_PE_BASE_RELOC_BLOCK_HEADER_SIZE 8u
+#define O0_PE_BASE_RELOC_ENTRY_SIZE 2u
 
 /* ---- PE/COFF constants (Microsoft PE/COFF specification) ---- */
 
