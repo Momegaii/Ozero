@@ -1376,6 +1376,32 @@ static struct o0_display_mode boot_display_mode;
 static o0_paddr_t boot_framebuffer_phys;
 static bool boot_framebuffer_valid;
 
+/* Large desktop surfaces are not slab objects. Allocate a power-of-two
+ * PMM run and access it through the HHDM instead. */
+static void *desktop_buffer_alloc(size_t bytes, o0_paddr_t *out_phys,
+                                  uint32_t *out_order) {
+    if (bytes == 0 || out_phys == NULL || out_order == NULL ||
+        bytes > SIZE_MAX - (O0_PAGE_SIZE - 1u)) return NULL;
+    size_t pages = (bytes + O0_PAGE_SIZE - 1u) >> O0_PAGE_SHIFT;
+    size_t capacity = 1;
+    uint32_t order = 0;
+    while (capacity < pages) {
+        if (order >= 62u) return NULL;
+        capacity <<= 1;
+        ++order;
+    }
+    o0_paddr_t phys = o0_pmm_alloc_pages(order);
+    if (phys == 0) return NULL;
+    void *virt = o0_phys_to_virt(phys);
+    if (virt == NULL) {
+        o0_pmm_free_pages(phys, order);
+        return NULL;
+    }
+    *out_phys = phys;
+    *out_order = order;
+    return virt;
+}
+
 /* Stage 6.4-6.8 desktop integration, run as a scheduled kernel thread.
  *
  * It must not run inline in kmain: the compositor loop never returns, so an
@@ -1390,27 +1416,44 @@ static void desktop_main(void *arg) {
 
     uint32_t w = (uint32_t)boot_display_mode.width;
     uint32_t h = (uint32_t)boot_display_mode.height;
+    if (w == 0 || h == 0) {
+        o0_serial_puts("OZERO: stage6 invalid desktop dimensions\n");
+        return;
+    }
     size_t pitch = (size_t)w * 4u;
-
-    void *bb = o0_kalloc((size_t)h * pitch, 64);
+    if ((size_t)h > SIZE_MAX / pitch) {
+        o0_serial_puts("OZERO: stage6 desktop size overflow\n");
+        return;
+    }
+    size_t backbuffer_bytes = (size_t)h * pitch;
+    o0_paddr_t bb_phys = 0;
+    uint32_t bb_order = 0;
+    void *bb = desktop_buffer_alloc(backbuffer_bytes, &bb_phys, &bb_order);
     if (bb == NULL) {
         o0_serial_puts("OZERO: stage6 desktop backbuffer unavailable\n");
         return;
     }
     o0_surface_init(&backbuffer, bb, w, h, pitch, O0_PIXEL_RGBX8888);
     if (o0_shell_init(&desktop_shell, w, h) != O0_OK) {
+        o0_pmm_free_pages(bb_phys, bb_order);
         o0_serial_puts("OZERO: stage6 shell init failed\n");
         return;
     }
 
     /* Initialise the custom O0 desktop UI (Stage 6.7). */
     if (o0_desktop_ui_init(&desktop_ui, w, h) != O0_OK) {
+        o0_pmm_free_pages(bb_phys, bb_order);
         o0_serial_puts("OZERO: stage6 desktop UI init failed\n");
         return;
     }
 
-    void *p1 = o0_kalloc(200u * 4u * 150u, 64);
-    void *p2 = p1 != NULL ? o0_kalloc(200u * 4u * 150u, 64) : NULL;
+    /* Two 200x150 RGBX windows need 120,000 bytes each. */
+    o0_paddr_t p1_phys = 0, p2_phys = 0;
+    uint32_t p1_order = 0, p2_order = 0;
+    void *p1 = desktop_buffer_alloc(200u * 4u * 150u, &p1_phys, &p1_order);
+    void *p2 = p1 != NULL
+        ? desktop_buffer_alloc(200u * 4u * 150u, &p2_phys, &p2_order)
+        : NULL;
     if (p1 != NULL && p2 != NULL) {
         o0_surface_init(&win1, p1, 200, 150, 200 * 4, O0_PIXEL_RGBX8888);
         o0_surface_init(&win2, p2, 200, 150, 200 * 4, O0_PIXEL_RGBX8888);
@@ -1419,6 +1462,10 @@ static void desktop_main(void *arg) {
         o0_window_id id1, id2;
         o0_wm_create(&desktop_shell.windows, &win1, 10, 10, &id1);
         o0_wm_create(&desktop_shell.windows, &win2, 220, 10, &id2);
+    } else {
+        if (p1_phys != 0) o0_pmm_free_pages(p1_phys, p1_order);
+        if (p2_phys != 0) o0_pmm_free_pages(p2_phys, p2_order);
+        o0_serial_puts("OZERO: stage6 demo windows unavailable\n");
     }
 
     o0_serial_puts("OZERO: stage6 desktop active\n");
