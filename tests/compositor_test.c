@@ -133,7 +133,8 @@ static void test_clipping(void) {
 
     /* Only the overlapping portion should be visible */
     assert(rgb_at(&target, 0, 0) == 0x00FF00); /* clipped focus border */
-    assert(rgb_at(&target, 99, 99) == 0xFF00FF);
+    assert(rgb_at(&target, 99, 99) == 0x00FF00); /* clipped bottom-right focus border */
+    assert(rgb_at(&target, 97, 97) == 0xFF00FF); /* interior remains magenta */
 
     /* Move window completely off-screen */
     st = o0_wm_move(&wm, id, 200, 200);
