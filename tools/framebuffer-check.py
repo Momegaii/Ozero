@@ -196,11 +196,17 @@ def main() -> int:
         raise SystemExit(
             f"framebuffer-check: FAIL unexpected desktop size {width}x{height}")
 
-    # Desktop launcher centres: (w/6,h/4), then 72-pixel steps on
-    # alternating rows. The selected centres are outside demo-window bounds.
+    # Match the production layout in o0_desktop_ui_init(): four cardinal
+    # spheres orbit the usable desktop centre. Sample the body centres, where
+    # the solid sphere color is stable and independent of antialiasing/glow.
+    taskbar_h = max(height // 10, 40)
+    usable_h = height - taskbar_h
+    orbit_r = max(usable_h // 4, 60)
+    center_x = width // 2
+    center_y = usable_h // 2
     checks = (
-        ("green launcher", width // 6, height // 4, (0, 255, 0)),
-        ("purple O0 assistant", width // 6 + 216, height // 4 + 72,
+        ("green launcher", center_x + orbit_r, center_y, (0, 255, 0)),
+        ("purple O0 assistant", center_x, center_y + orbit_r,
          (128, 0, 128)),
         ("right information panel", width - 20, height // 2, (10, 10, 10)),
         ("bottom taskbar", 20, height - 5, (5, 5, 5)),
