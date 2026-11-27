@@ -313,3 +313,8 @@ bool o0_input_poll(struct o0_input_event *event) {
 uint64_t o0_input_dropped(void) {
     return input_queue.dropped;
 }
+
+/* Desktop/router bridge: the IRQ producer owns this queue for the kernel lifetime. */
+struct o0_input_queue *o0_input_queue_get(void) {
+    return &input_queue;
+}
