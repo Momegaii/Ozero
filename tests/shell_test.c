@@ -183,7 +183,7 @@ static void test_window_management_through_shell(void) {
     st = o0_wm_destroy(&shell.windows, id1);
     assert(st == O0_OK);
     assert(shell.windows.count == 1);
-    assert(shell.windows.focused == 0); /* focused cleared on destroy */
+    assert(shell.windows.focused == id2); /* focus falls back to remaining visible window */
 
     free(buf1);
     free(buf2);
