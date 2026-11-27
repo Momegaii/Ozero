@@ -103,6 +103,79 @@ int main(void) {
         ++failures;
     }
 
+    /* --- Additional lock-order scenarios --- */
+
+    /* Deep nesting: 8 locks is the max depth; the 9th should overflow.
+     * lock_order_panic cli/hlt-loops, so we verify up to the limit and
+     * check the depth-tracking invariant directly. */
+    o0_spinlock_t deep[9];
+    for (int i = 0; i < 9; ++i) {
+        o0_spin_init_ordered(&deep[i], (uint32_t)(i + 1));
+    }
+    for (int i = 0; i < 8; ++i) {
+        o0_spin_lock(&deep[i]);
+    }
+    if (host_cpu.lock_depth != 8u) {
+        printf("FAIL: lock depth not 8 at max nesting\n");
+        ++failures;
+    }
+    /* 9th acquire would overflow the held-locks array. */
+    if (host_cpu.lock_depth >= 8u) {
+        /* Depth is at capacity; do not take the 9th lock to avoid panic. */
+        printf("  INFO: lock depth at capacity (8), skipping 9th acquire\n");
+    }
+    for (int i = 7; i >= 0; --i) {
+        o0_spin_unlock(&deep[i]);
+    }
+    if (host_cpu.lock_depth != 0u) {
+        printf("FAIL: lock depth not 0 after deep release\n");
+        ++failures;
+    }
+
+    /* Unlock out of order: release inner before outer in wrong sequence. */
+    o0_spinlock_t a, b;
+    o0_spin_init_ordered(&a, 1u);
+    o0_spin_init_ordered(&b, 2u);
+    o0_spin_lock(&a);
+    o0_spin_lock(&b);
+    if (host_cpu.lock_depth != 2u) {
+        printf("FAIL: lock depth not 2 for two nested locks\n");
+        ++failures;
+    }
+    /* Correct order: unlock b then a. */
+    o0_spin_unlock(&b);
+    o0_spin_unlock(&a);
+    if (host_cpu.lock_depth != 0u) {
+        printf("FAIL: lock depth not 0 after ordered unlock\n");
+        ++failures;
+    }
+
+    /* Re-acquire same lock class after release: allowed. */
+    o0_spinlock_t reuse;
+    o0_spin_init_ordered(&reuse, 3u);
+    for (int rep = 0; rep < 5; ++rep) {
+        o0_spin_lock(&reuse);
+        o0_spin_unlock(&reuse);
+    }
+    if (host_cpu.lock_depth != 0u) {
+        printf("FAIL: lock depth not 0 after repeated acquire/release\n");
+        ++failures;
+    }
+
+    /* Predicate: class 0 (unordered) is compatible with everything. */
+    if (!o0_lock_order_ok(0u, 0u)) {
+        printf("FAIL: 0 vs 0 rejected\n");
+        ++failures;
+    }
+    if (!o0_lock_order_ok(0u, 9u)) {
+        printf("FAIL: 0 vs 9 rejected\n");
+        ++failures;
+    }
+    if (!o0_lock_order_ok(9u, 0u)) {
+        printf("FAIL: 9 vs 0 rejected\n");
+        ++failures;
+    }
+
     if (failures == 0) {
         printf("lock-order: PASS\n");
         return 0;

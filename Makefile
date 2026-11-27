@@ -279,6 +279,20 @@ test: $(BUILD)
 	$(HOST_RUN_ENV) ./$(BUILD)/shell_test
 	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/desktop_ui_test tests/desktop_ui_test.c kernel/src/desktop_ui.c kernel/src/surface.c kernel/src/status.c
 	$(HOST_RUN_ENV) ./$(BUILD)/desktop_ui_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Ikernel -Ikernel/src -o $(BUILD)/conc_test tests/conc_test.c kernel/src/sync.c
+	$(HOST_RUN_ENV) ./$(BUILD)/conc_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/mem_life_pmm_test tests/mem_life_pmm_test.c
+	$(HOST_RUN_ENV) ./$(BUILD)/mem_life_pmm_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -o $(BUILD)/mem_life_slab_test tests/mem_life_slab_test.c
+	$(HOST_RUN_ENV) ./$(BUILD)/mem_life_slab_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -Ikernel/src -o $(BUILD)/fault_inject_test tests/fault_inject_test.c kernel/src/block.c
+	$(HOST_RUN_ENV) ./$(BUILD)/fault_inject_test
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -Ikernel/src -o $(BUILD)/fuzz_elf tests/fuzz_elf.c tests/fuzz.c kernel/src/elf.c
+	$(HOST_RUN_ENV) ./$(BUILD)/fuzz_elf
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -Ikernel/src -o $(BUILD)/fuzz_acpi tests/fuzz_acpi.c tests/fuzz.c kernel/src/acpi.c
+	$(HOST_RUN_ENV) ./$(BUILD)/fuzz_acpi
+	$(CC) $(HOST_CFLAGS) $(HOST_EXTRA_CFLAGS) -Iinclude -Ikernel/src -o $(BUILD)/fuzz_partition tests/fuzz_partition.c tests/fuzz.c kernel/src/partition.c kernel/src/block.c
+	$(HOST_RUN_ENV) ./$(BUILD)/fuzz_partition
 
 # Same suites, compiled and run under AddressSanitizer and
 # UndefinedBehaviorSanitizer. Leak detection is on: a test binary that leaks is a
@@ -290,7 +304,7 @@ test-sanitize: $(BUILD)
 	      $(BUILD)/pci_test $(BUILD)/dma_test $(BUILD)/gpu_test $(BUILD)/display_test \
 	      $(BUILD)/input_test $(BUILD)/surface_test $(BUILD)/input_ps2_test \
 	      $(BUILD)/window_test $(BUILD)/compositor_test $(BUILD)/gfx_backend_test $(BUILD)/shell_test \
-	      $(BUILD)/desktop_ui_test
+	      $(BUILD)/desktop_ui_test $(BUILD)/conc_test $(BUILD)/mem_life_pmm_test $(BUILD)/mem_life_slab_test $(BUILD)/fault_inject_test $(BUILD)/fuzz_elf $(BUILD)/fuzz_acpi $(BUILD)/fuzz_partition
 	$(MAKE) test HOST_EXTRA_CFLAGS="$(SAN_CFLAGS)" HOST_RUN_ENV="$(SAN_ENV)"
 
 run: $(ISO)
