@@ -54,9 +54,11 @@ static void test_basic_compose(void) {
     assert(rgb_at(&target, 0, 0) == 0x0000FF);
     assert(rgb_at(&target, 199, 199) == 0x0000FF);
 
-    /* Check window area (interior positions, avoiding focus border). */
-    assert(rgb_at(&target, 15, 15) == 0xFF0000);
-    assert(rgb_at(&target, 45, 45) == 0xFF0000);
+    /* Check window area */
+    assert(rgb_at(&target, 10, 10) == 0x00FF00); /* focused border */
+    assert(rgb_at(&target, 12, 12) == 0xFF0000);
+    assert(rgb_at(&target, 59, 59) == 0x00FF00); /* focused border */
+    assert(rgb_at(&target, 57, 57) == 0xFF0000);
 
     free(target_buf);
     free(win_buf);
@@ -94,9 +96,11 @@ static void test_overlapping_windows(void) {
     assert(rgb_at(&target, 10, 10) == 0x00FF00);
     assert(rgb_at(&target, 49, 49) == 0x00FF00);
 
-    /* Top window area (interior, avoiding focus border corners). */
-    assert(rgb_at(&target, 55, 55) == 0xFF0000);
-    assert(rgb_at(&target, 145, 145) == 0xFF0000);
+    /* Top window area */
+    assert(rgb_at(&target, 50, 50) == 0x00FF00); /* focused top-left border */
+    assert(rgb_at(&target, 52, 52) == 0xFF0000);
+    assert(rgb_at(&target, 149, 149) == 0x00FF00); /* focused bottom-right border */
+    assert(rgb_at(&target, 147, 147) == 0xFF0000);
 
     /* Background area */
     assert(rgb_at(&target, 0, 0) == 0x0000FF);
@@ -127,10 +131,10 @@ static void test_clipping(void) {
     st = o0_compositor_compose(&target, &wm, 0x000000);
     assert(st == O0_OK);
 
-    /* Only the overlapping portion should be visible (interior positions,
-     * avoiding focus border edges at the clipped screen boundary). */
-    assert(rgb_at(&target, 5, 5) == 0xFF00FF);
-    assert(rgb_at(&target, 94, 94) == 0xFF00FF);
+    /* Only the overlapping portion should be visible */
+    assert(rgb_at(&target, 0, 0) == 0x00FF00); /* clipped focus border */
+    assert(rgb_at(&target, 99, 99) == 0x00FF00); /* clipped bottom-right focus border */
+    assert(rgb_at(&target, 97, 97) == 0xFF00FF); /* interior remains magenta */
 
     /* Move window completely off-screen */
     st = o0_wm_move(&wm, id, 200, 200);
@@ -150,9 +154,9 @@ static void test_clipping(void) {
     st = o0_compositor_compose(&target, &wm, 0x000000);
     assert(st == O0_OK);
 
-    /* Bottom-right quadrant should have window (interior, avoiding focus
-     * border right/bottom edges). */
-    assert(rgb_at(&target, 94, 94) == 0xFF00FF);
+    /* Focus border is visible; interior remains magenta. */
+    assert(rgb_at(&target, 50, 50) == 0x00FF00);
+    assert(rgb_at(&target, 52, 52) == 0xFF00FF);
     /* Top-left should be background */
     assert(rgb_at(&target, 0, 0) == 0x000000);
 
@@ -245,9 +249,11 @@ static void test_invisible_windows(void) {
     st = o0_compositor_compose(&target, &wm, 0x0000FF);
     assert(st == O0_OK);
 
-    /* Should see window again (interior positions, avoiding focus border). */
-    assert(rgb_at(&target, 15, 15) == 0xFF0000);
-    assert(rgb_at(&target, 45, 45) == 0xFF0000);
+    /* Window returns with its focus border. */
+    assert(rgb_at(&target, 10, 10) == 0x00FF00);
+    assert(rgb_at(&target, 12, 12) == 0xFF0000);
+    assert(rgb_at(&target, 59, 59) == 0x00FF00);
+    assert(rgb_at(&target, 57, 57) == 0xFF0000);
 
     free(target_buf);
     free(buf);
