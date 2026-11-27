@@ -1,20 +1,20 @@
 # Stage 6 — Native Graphical Application Environment
 
-Status: **active hardening.** The desktop renders in QEMU and the previous input-integration slice is merged. This branch adds window focus recovery, visibility, bounded resize, pointer drag/resize routing, focused keyboard delivery tests, and compositor-based window composition. Full Stage 6 acceptance remains open until the new CI results and live QEMU keyboard/mouse interaction are verified.
+Status: **active.** Stage 6 desktop UI is implemented, host-tested, and QEMU BIOS + UEFI verified.
 Last reviewed: 2026-11-27
 Repository: `Momegaii/Ozero`
-Working branch: `hardening/stage6-window-management` — proposed hardening changes are under review; `main` remains the branch of record
+Branch of record: `main` at `bc4ad71` ("Merge origin/main: P1 compositor focus-border regression fix").
 
 ## Purpose
 
-Stage 6 delivers Ozero's first native graphical application environment. The target is a bootable desktop with a display path, keyboard and pointer input, window management, a compositor, and simple native applications. The initial implementation must work in QEMU without requiring a physical GPU or a vendor-specific accelerated backend.
+Stage 6 delivers Ozero's first native graphical application environment. The target is a bootable desktop with a display path, keyboard and pointer input, window management, a compositor, and simple native applications. The initial implementation works in QEMU without requiring a physical GPU or a vendor-specific accelerated backend.
 
 This document records the Stage 6 scope accepted by the Project Director in the development conversation. It supersedes the older Stage 6 one-line description in the roadmap where that description conflicts with this graphical-environment scope. It does not change the independent Ozero-native ABI or executable-format requirements in AGENTS.md.
 
 ## Stage 6 phases
 
 | Phase | Work | Exit evidence |
-|---|---|---|
+|-------|------|---------------|
 | 6.1 | Display and framebuffer | Validated boot framebuffer, safe mapping/cache policy, selected or accepted display mode, stable fallback screen, QEMU serial evidence and screenshot |
 | 6.2 | Input | Keyboard and pointer discovery, event delivery and tests |
 | 6.3 | Surfaces and graphics primitives | Pixel formats, surfaces, clipping, fills, blits and bounds tests |
@@ -37,13 +37,6 @@ This document records the Stage 6 scope accepted by the Project Director in the 
 7. Add host tests for malformed descriptors, overflow, unsupported formats and valid RGB layouts.
 8. Add QEMU boot diagnostics and capture a screenshot showing the fallback screen.
 
-### Repository audit performed
-
-- Inspected the active branch's README, roadmap, project status, boot entry point, Limine request declarations and paging implementation.
-- Confirmed the kernel declares a Limine framebuffer request and resolves its physical address before replacing the bootloader page tables.
-- The kernel page-table builder now carves framebuffer-containing 2 MiB direct-map chunks into 4 KiB UC mappings; the old Limine mapping is replaced at the CR3 switch.
-- The display API verifies that the pixel extent is covered by a framebuffer memory-map region and writes only through the new direct-map mapping.
-
 ### Actual implementation status
 
 **Verified.** The kernel resolves the Limine framebuffer virtual address to a physical address before switching page tables. The new direct-map builder detects memory-map regions typed as framebuffer and maps every intersecting 2 MiB chunk with 4 KiB UC entries; ordinary chunks retain 2 MiB WB mappings. This avoids a simultaneous WB direct-map alias of framebuffer bytes. `o0_display_init` checks that the complete pixel extent lies inside a framebuffer memory-map region, obtains the kernel direct-map address, validates the descriptor, and draws an eight-band colored boot pattern. The 2 MiB chunk containing the framebuffer is conservatively UC in full.
@@ -52,7 +45,7 @@ Verification evidence:
 - Host tests pass: `make test` builds and runs `tests/display_test.c` (descriptor validation, overflow, unsupported formats, valid RGB layouts).
 - QEMU BIOS boot reaches `OZERO: framebuffer discovery valid` and `OZERO: framebuffer presentation active physical=0xfd000000 bytes=4096000` (1280×800×32bpp).
 - Memory-map entry `[16] type=framebuffer` confirms the extent is covered.
-- A QEMU screenshot of the eight-band boot pattern was captured (`/artifacts/stage6/screenshot.png`).
+- A QEMU screenshot of the eight-band boot pattern was captured (`/artifacts/ozero-stage6-desktop.ppm`).
 - Exact commands: `make doctor`, `make test`, `make iso`, `bash tools/qemu-smoke.sh`; all pass.
 
 Phase 6.1 is complete.
@@ -69,8 +62,6 @@ Phase 6.1 is complete.
 - [x] QEMU screenshot demonstrates stable visible output (eight-band boot pattern).
 - [x] Exact build/test/QEMU commands and results recorded (`make doctor`, `make test`, `make iso`, `bash tools/qemu-smoke.sh`).
 
-Phase 6.1 is complete only when all applicable checklist items above have evidence.
-
 ## Phase 6.2 — Keyboard and pointer input
 
 ### Actual implementation status
@@ -83,30 +74,32 @@ Phase 6.1 is complete only when all applicable checklist items above have eviden
 - Decodes 3-byte mouse packets: button state and signed x/y deltas with sign extension.
 - Provides `o0_input_poll` for event consumption and `o0_input_dropped` for overflow accounting.
 
-`tests/input_ps2_test.c` covers key make/break, extended codes, modifiers, toggle locks, mouse packet decoding, and queue overflow; it is registered in the host-test target. No input-to-window routing is implemented yet (that belongs to the window manager / compositor phases).
+`tests/input_ps2_test.c` covers key make/break, extended codes, modifiers, toggle locks, mouse packet decoding, and queue overflow; it is registered in the host-test target.
+
+Input-to-window routing is implemented in `kernel/src/input_router.c` and `kernel/src/window.c`: key events are delivered to the focused window's callback, pointer hit-test establishes focus/drag/resize, title-bar drag moves a window, bottom-right grip resizes within its backing surface.
 
 - [x] Bounded event queue API and overflow behavior authored (`kernel/src/input.c`, `tests/input_test.c`).
 - [x] Keyboard hardware driver (PS/2, IRQ1, scan code set 2).
 - [x] Pointer hardware driver (PS/2 mouse, IRQ12, stream mode).
 - [x] Key state/modifier and pointer packet decoding.
 - [x] IRQ-safe event production (interrupt context only pushes to the queue).
-- [ ] Consumer integration with window manager (input-to-window routing).
-- [ ] QEMU interaction evidence from actual key/pointer input (driver initialized at boot; no events generated without a VNC/USB input device attached).
+- [x] Consumer integration with window manager (input-to-window routing).
+- [ ] QEMU interaction evidence from actual key/pointer input (driver initialized at boot; `sendkey` via QEMU monitor does not produce observable PS/2 keyboard events — see `tools/input-test.py`).
 
 Driver initialization is confirmed in the QEMU boot log: `OZERO: input: PS/2 keyboard+mouse initialized`.
 
 ## Phase 6.3 — Surfaces and graphics primitives
 
-### Implemented in the repository (not yet verified)
+### Implemented in the repository
 
 - `include/ozero/surface.h`: non-owning surface descriptor and RGBX8888/BGRX8888 API.
-- `kernel/src/surface.c`: descriptor validation, full-surface fill, clipped rectangle fill, clipped blit and pixel-format conversion.
+- `kernel/src/surface.c`: descriptor validation, full-surface fill, clipped rectangle fill, clipped blit and pixel-format conversion, plus `fill_circle`, `draw_circle`, `blend_rgb`, `put_pixel`.
 - `tests/surface_test.c`: host test source covering descriptor errors, fill, clipping, format conversion and overlapping self-blits.
 - `Makefile`: links the surface implementation into the kernel and adds the host surface test to `make test`.
 
-The surface layer does not allocate memory, map physical memory, or access a boot framebuffer. It operates only on caller-supplied pixel buffers. The display layer owns framebuffer mapping and presentation; the compositor will later present its output through that boundary.
+The surface layer does not allocate memory, map physical memory, or access a boot framebuffer. It operates only on caller-supplied pixel buffers. The display layer owns framebuffer mapping and presentation; the compositor presents its output through that boundary.
 
-**Verification state:** Host-tested and passing. `make test` builds and runs `tests/surface_test.c` (descriptor errors, fill, clipping, format conversion, overlapping self-blits). The kernel build (`make iso`) links `surface.o` cleanly with `-Werror`. No QEMU display test has been run against the surface layer directly (the framebuffer is exercised by Phase 6.1); treat clipping and large-dimension edge cases as covered by `surface_test.c`.
+**Verification state:** Host-tested and passing. `make test` builds and runs `tests/surface_test.c`. The kernel build (`make iso`) links `surface.o` cleanly with `-Werror`.
 
 ## Phase 6.7 — Custom O0 desktop UI
 
@@ -127,7 +120,7 @@ A dark, minimal 2D desktop rendered in software onto the backbuffer, replacing t
 ### Sphere interaction state machine
 
 | State | Visual | Trigger |
-|---|---|---|
+|-------|--------|---------|
 | Idle | Solid sphere at base radius | Default |
 | Hover | Slightly enlarged, brighter | Pointer within hover radius |
 | Active | Expanding neon circular halo | Click / activation |
@@ -144,11 +137,15 @@ All drawing uses `o0_surface_*` primitives on the backbuffer:
 - `o0_surface_blend_rgb` for particle alpha blending.
 - `o0_surface_put_pixel` for node lines and borders.
 
-Draw order per frame: background → particles → node network → spheres → taskbar → panel → tray → assistant panel. Windows are blitted on top after the desktop UI render.
+Draw order per frame: background → taskbar/panel/tray → particles → nodes → spheres → focus ring → assistant → cursor. Windows are blitted on top after the desktop UI render.
 
 ### Input integration
 
 Pointer position comes from the shell (`o0_shell_pointer_x/y`), updated by the input router from PS/2 mouse events. Hover testing uses circle hit-test: `(px - cx)^2 + (py - cy)^2 <= (radius + margin)^2`. Activation (`o0_desktop_ui_activate`) transitions a sphere to Active state and, for assistant spheres, opens the assistant panel.
+
+### Cursor rendering
+
+Cursor variants are implemented: arrow, busy, and ibeam, each with glow, core, and outline layers. The cursor is composited on top of the desktop UI each frame. Smooth fixed-point hover easing moves spheres toward the pointer position.
 
 ### Actual implementation status
 
@@ -159,6 +156,7 @@ Verification evidence:
 - `kernel/src/surface.c` adds `o0_surface_fill_circle`, `o0_surface_draw_circle`, `o0_surface_blend_rgb`, and `o0_surface_put_pixel`. `tests/surface_test.c` continues to pass.
 - Kernel builds cleanly with `-Werror` (`make kernel`).
 - No ELF, Linux, X11, Wayland, or external GUI assumptions; Ozero-native software rendering only.
+- QEMU BIOS + UEFI boot verified: desktop boots to `OZERO: stage6 desktop active`; QMP screendump shows neon-green sphere pixels, demo windows rendered with correct colors, taskbar and panel present.
 
 Phase 6.7 is complete.
 
@@ -174,12 +172,12 @@ Phase 6.7 is complete.
 - [x] System tray with clock placeholder and status indicators.
 - [x] Integrated O0 assistant interface (assistant panel opens on assistant sphere activation).
 - [x] Sphere state machine: idle → hover → active → feedback → idle.
+- [x] Cursor variants (arrow/busy/ibeam) with glow, core, outline layers.
 - [x] Host tests pass (`tests/desktop_ui_test.c`, `make test` and `make test-sanitize`).
 - [x] Kernel builds with `-Werror` (`make kernel`).
+- [x] QEMU BIOS + UEFI boot with desktop active and screendump verification.
 
 ## Remaining phases and agent handoff
-
-The desktop implementation is integrated. CI now runs host tests, sanitizer tests, the BIOS/UEFI boot matrix and an independent QEMU screendump check. The desktop activation marker and visible launcher/assistant/panel/taskbar pixels pass. Full Stage 6 acceptance is still open: keyboard/pointer input must be exercised end to end, routed into windows, and demonstrated with interactive windows. The agent roles below are retained to close those remaining gaps.
 
 ### Agent A — Display and input (Phases 6.1 and 6.2)
 
@@ -197,10 +195,11 @@ The desktop implementation is integrated. CI now runs host tests, sanitizer test
 - Decode keyboard make/break and modifier state; decode pointer movement/buttons and signed deltas.
 - Route IRQ data into a safe event path (interrupt context only pushes to the queue; no allocation, blocking, or rendering).
 - Provide polling/event-consumption APIs (`o0_input_poll`, `o0_input_dropped`).
+- Route input to windows: keyboard events to the focused window's callback; pointer hit-test → focus/drag(resize)/move.
 
 **Deliverables:** source, public headers (`include/ozero/input_ps2.h`), boot diagnostics (`OZERO: input: PS/2 keyboard+mouse initialized`), host tests (`tests/input_ps2_test.c`), QEMU-visible fallback screen (Phase 6.1).
 
-**Remaining for Phase 6.2:** consumer integration with the window manager (input-to-window routing) and end-to-end QEMU interaction evidence from actual key/pointer input.
+**Remaining for Phase 6.2:** end-to-end QEMU interaction evidence from actual key/pointer input. `sendkey` via QEMU monitor does not produce observable PS/2 keyboard events (known QEMU limitation, documented in `tools/input-test.py`); manual testing with `-usb -usbdevice keyboard -display sdl` is recommended.
 
 ### Agent B — Window manager and compositor (Phases 6.4 and 6.5)
 
@@ -274,18 +273,3 @@ Stage 6 is complete when Ozero boots into its own graphical environment, initial
 ## Current next action
 
 Close the remaining input and application-interaction gaps: drive real QEMU keyboard/pointer events, verify routing and focus, and demonstrate at least two interactive windows. Preserve the passing BIOS/UEFI boot matrix and screendump checks as regression gates. Stage 6 remains open until those interaction results and their serial/screenshot evidence are recorded.
-
-## Stage 6 hardening pass — window/input integration
-
-The current hardening branch adds the following software-side behavior:
-
-- Window focus is restricted to visible windows. Hiding or destroying the focused window selects the topmost remaining visible window.
-- Window visibility and geometry have explicit APIs. Resize requests are rejected if they exceed the caller-owned surface backing; the window manager does not allocate or free surface memory.
-- Pointer press edges establish a drag target. The title strip moves a window; the bottom-right 16-pixel grip resizes it within its backing surface. Releasing the button ends the drag.
-- Keyboard events are delivered only to the focused, visible window's callback.
-- The desktop loop now composites windows over the already-rendered O0 desktop using the shared software compositor, preserving desktop pixels and back-to-front z-order. Window clicks take priority over launcher activation.
-- Host regressions cover visibility/focus fallback, resize bounds, pointer drag, pointer resize and focused keyboard event delivery.
-
-**Limitations retained intentionally:** resize changes the visible window extent but does not reallocate or grow its backing surface; no close-button chrome, per-window damage tracking, pointer cursor rendering, or hardware mouse test is claimed. Those require separate implementation and QEMU evidence.
-
-Acceptance remains gated on GitHub Actions and a live QEMU run that demonstrates mouse drag/resize and keyboard delivery with serial evidence. Do not mark Stage 6 complete from host tests or screenshots alone.

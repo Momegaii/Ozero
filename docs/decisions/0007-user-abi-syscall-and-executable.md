@@ -250,7 +250,7 @@ Host tests (no hardware required):
   executable segment, and oversized images.
 
 Emulator evidence (QEMU BIOS and UEFI, `qemu64` and `Haswell-v1`), each reported separately.
-CI runs QEMU 10.2.1 with OVMF 2025.11 (read from the run #133 logs); local runs in this sandbox
+CI runs QEMU 10.2.1 with OVMF 2025.11 (run number not independently verified in this workspace); local runs in this sandbox
 also cover QEMU 8.2.2 and 10.0.13 and are labelled local-only:
 
 - `user entry OK` — ring 3 reached with the expected selectors.
@@ -324,9 +324,8 @@ Deviations and defects found while implementing:
 
 Host evidence: `tests/abi_test.c` and `tests/elf_test.c` in `make test` and
 `make test-sanitize`. Emulator evidence: `tools/qemu-smoke.sh` requires the Wave 2 markers on
-the BIOS/UEFI × `qemu64`/`Haswell-v1` matrix, locally on QEMU 10.0.13 and in GitHub Actions run
-[#136](https://github.com/Momegaii/Ozero/actions/runs/45502990041) (commit `32c9e79`, QEMU
-10.2.1, OVMF 2025.11). Physical evidence: none.
+the BIOS/UEFI × `qemu64`/`Haswell-v1` matrix, locally on QEMU 10.0.13 and in CI on commit
+`32c9e79` (run number not independently verified in this workspace). Physical evidence: none.
 
 ## 8. References
 

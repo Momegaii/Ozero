@@ -68,5 +68,5 @@ on rather than assuming "QEMU" is uniform.
   verified.
 - GitHub Actions results for a branch still have to be observed in the repository UI/API; the
   REST API returned 403 from the Wave 1 sandbox, so run data was read from the server-rendered
-  Actions page. With that method, run #132 on `kilo/floral-eagle-2hb` (commit `d6626b4`)
-  completed SUCCESS with all four boot cells and `host-sanitizers` present.
+  Actions page. CI on commit `d6626b4` completed SUCCESS with all four boot cells and
+  `host-sanitizers` present (run number not independently verified in this workspace).

@@ -24,8 +24,8 @@ results stay with the Director and are never a gate.
 3. Update the O0FS format doc. The format stays a proposal until the Director approves it.
 
 Status 2026-11-25: **Wave 4.0 is closed.** Item 1 is recorded in
-`docs/PROJECT_STATUS.md` and `docs/handoff.md` (run `45697656276` on `e066168`); the
-Director confirmed the Wave 3 sign-off. Item 2 is ADRs
+`docs/PROJECT_STATUS.md` and `docs/handoff.md` (CI on commit `e066168`; run number not
+independently verified in this workspace). The Director confirmed the Wave 3 sign-off. Item 2 is ADRs
 [0012](decisions/0012-o0fs-crash-consistency.md),
 [0013](decisions/0013-o0fs-format-versioning.md) and
 [0014](decisions/0014-block-async-completion-dma-ownership.md), approved by the Director
@@ -72,17 +72,14 @@ behaviour.
 
 - **Commit:** `24b8d23` (`feat(kernel): add PCI MSI/MSI-X routing and the DMA allocator`)
   on `main`.
-- **CI:** [run 45708532478](https://github.com/Momegaii/Ozero/actions/runs/45708532478) —
-  `completed` / `success`, 14/14 jobs: 12 boot cells
-  (`{bios, uefi} × {qemu64, Haswell-v1, max} × -smp {1, 2}`), `lock-order-boot` and
-  `host-sanitizers`.
-- **Docs commit:** `bbfbc25` is green in
-  [run 45708413626](https://github.com/Momegaii/Ozero/actions/runs/45708413626), also
-  14/14 jobs.
+- **CI:** CI on commit `24b8d23` (`feat(kernel): add PCI MSI/MSI-X routing and the DMA
+  allocator`) — 14/14 jobs (12 boot cells, `lock-order-boot`, `host-sanitizers`). Run
+  number not independently verified in this workspace.
+- **Docs commit:** `bbfbc25` — CI green (run number not independently verified in this
+  workspace).
 - **Evidence type:** CI. Not Director-observed, not physical.
-- **Log-level evidence:** the marker lines were read, not inferred from job status. See
-  the CI evidence channel below; the logs for the current `main` tree were inspected in
-  run 45715078528.
+- **Log-level evidence:** CI run logs read from the repository CI system; run number not
+  independently verified in this workspace.
 - **Check limit (historical):** for runs before the evidence channel existed, the Actions
   job-log endpoint answered `403` ("Must have admin rights to Repository.") and artifact
   archives answered `401`, so those runs could only be read at job and step granularity.
@@ -110,14 +107,15 @@ git fetch origin ci-evidence:refs/remotes/origin/ci-evidence
 git show origin/ci-evidence:evidence/ci/run-<run-id>-1/INDEX.txt
 ```
 
-First use: run 45715078528 on `c8d3af6`. All 12 boot cells and the lock-order cell were
+First use: CI on commit `c8d3af6`. All 12 boot cells and the lock-order cell were
 read line by line and contain `OZERO: build commit=c8d3af67`, `OZERO: pci devices=6` and
 `OZERO: pci caps msi=2 msix=1`; the `-smp 2` cells add `OZERO: smp cpus=2 online=2`,
 `OZERO: tlb shootdown OK status=0 ipi_seen=1` and
 `OZERO: smp scheduling OK cpus=2 threads=2 iterations=11 migrations=11`; the `max` cells
 add `OZERO: smep=on smap=on`; the lock-order cell adds `OZERO: lock order check=on`. The
 kernel in `c8d3af6` is the `004c80a` tree, so these are the Wave 4.1 markers at log level.
-This is CI evidence, not Director-observed and not physical.
+This is CI evidence, not Director-observed and not physical. CI run number not
+independently verified in this workspace.
 
 ### Wave 4.2 status
 
@@ -189,14 +187,15 @@ timeout, quarantine and cancellation rules apply unchanged.
   NVMe cell is enabled with `-device nvme` and gates on the NVMe markers; it is
   **not yet observed green** — no run is claimed for it until logs are read from the
   `ci-evidence` branch. The cell attaches `-drive id=nd0,file=build/storage.img,if=none,format=raw -device nvme,drive=nd0,serial=nvme0`.
-- **Evidence (AHCI, emulator only):** `storage (ahci, smp=2)` is green in run
-  `45854731661` on `0397433`. The serial log shows `ahci ready port=5
-  sectors=16384`, `ahci read/write OK irq=0 sectors=16384`, `ahci error path OK`
-  and the boot milestone `user entry OK` after it, so the drive really took a
-  read and a write rather than merely being discovered. Three driver defects had
-  to be fixed first, all recorded in that commit: the PRDT starts at `0x80` in
-  the command table, `PxCI` is a slot bitmap and not a port bitmap, and a timed
-  out command needs the port quiesced before its buffers are reused.
+- **Evidence (AHCI, emulator only):** `storage (ahci, smp=2)` is build-verified locally;
+  `make kernel` passes with `-Werror` and `tests/storage_encode_test.c` passes. The CI
+  cell `storage (ahci, smp=2)` is defined in `.github/workflows/quality.yml` and gates on
+  AHCI markers only (`ahci ready port=5`, `ahci read/write OK`, `ahci error path OK`).
+  No QEMU storage cell has been observed green in this workspace, so AHCI is not claimed
+  as CI evidence until a run is recorded here. Three driver defects were fixed during
+  development: the PRDT starts at `0x80` in the command table, `PxCI` is a slot bitmap
+  and not a port bitmap, and a timed-out command needs the port quiesced before its
+  buffers are reused.
 - **Evidence (NVMe):** build-verified only, plus the host encoder test. The NVMe
   cell is still disabled, so no run is claimed for it.
 - **Interrupt plumbing found here:** `o0_irq_alloc_vectors` and
