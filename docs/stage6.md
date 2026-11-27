@@ -1,9 +1,9 @@
 # Stage 6 — Native Graphical Application Environment
 
-Status: **resumed by the Project Director on 2026-11-27.** Phases 6.1–6.7 are implemented; the desktop now activates in QEMU using PMM-backed large surfaces. CI passed the BIOS/UEFI × qemu64/Haswell-v1/max × SMP 1/2 boot matrix. The independent screendump check verifies the green launcher, purple O0 assistant, right panel and taskbar. Full Stage 6 acceptance remains open until keyboard/pointer interaction and interactive-window behavior are evidenced end to end.
+Status: **active hardening.** The desktop renders in QEMU and the previous input-integration slice is merged. This branch adds window focus recovery, visibility, bounded resize, pointer drag/resize routing, focused keyboard delivery tests, and compositor-based window composition. Full Stage 6 acceptance remains open until the new CI results and live QEMU keyboard/mouse interaction are verified.
 Last reviewed: 2026-11-27
 Repository: `Momegaii/Ozero`
-Working branch: `main` — the only branch of record; Phases 6.4–6.8 merged at `7e26d26`
+Working branch: `hardening/stage6-window-management` — proposed hardening changes are under review; `main` remains the branch of record
 
 ## Purpose
 
@@ -18,8 +18,8 @@ This document records the Stage 6 scope accepted by the Project Director in the 
 | 6.1 | Display and framebuffer | Validated boot framebuffer, safe mapping/cache policy, selected or accepted display mode, stable fallback screen, QEMU serial evidence and screenshot |
 | 6.2 | Input | Keyboard and pointer discovery, event delivery and tests |
 | 6.3 | Surfaces and graphics primitives | Pixel formats, surfaces, clipping, fills, blits and bounds tests |
-| 6.4 | Window manager | Window lifecycle, stacking, focus, movement and resizing tests |
-| 6.5 | Software compositor | Correct composition, damage tracking and redraw tests |
+| 6.4 | Window manager | Window lifecycle, stacking, focus recovery, visibility, bounded resize, pointer drag/resize tests |
+| 6.5 | Software compositor | Correct clipped composition, z-order, damage tracking and redraw tests |
 | 6.6 | Graphics acceleration boundary | Capability-driven interface; software fallback remains functional; no unsupported vendor backend claims |
 | 6.7 | Custom O0 desktop UI | Dark minimal desktop with neon-green sphere launchers, purple assistant spheres, green particles, node network, bottom taskbar, right panel, system tray, O0 assistant interface; sphere state machine (idle/hover/active/feedback/exit); host-tested; wired into desktop_main |
 | 6.8 | Integration and acceptance | Repeatable QEMU boot, documented test output and screenshot; all Stage 6 acceptance criteria pass |
@@ -274,3 +274,18 @@ Stage 6 is complete when Ozero boots into its own graphical environment, initial
 ## Current next action
 
 Close the remaining input and application-interaction gaps: drive real QEMU keyboard/pointer events, verify routing and focus, and demonstrate at least two interactive windows. Preserve the passing BIOS/UEFI boot matrix and screendump checks as regression gates. Stage 6 remains open until those interaction results and their serial/screenshot evidence are recorded.
+
+## Stage 6 hardening pass — window/input integration
+
+The current hardening branch adds the following software-side behavior:
+
+- Window focus is restricted to visible windows. Hiding or destroying the focused window selects the topmost remaining visible window.
+- Window visibility and geometry have explicit APIs. Resize requests are rejected if they exceed the caller-owned surface backing; the window manager does not allocate or free surface memory.
+- Pointer press edges establish a drag target. The title strip moves a window; the bottom-right 16-pixel grip resizes it within its backing surface. Releasing the button ends the drag.
+- Keyboard events are delivered only to the focused, visible window's callback.
+- The desktop loop now composites windows over the already-rendered O0 desktop using the shared software compositor, preserving desktop pixels and back-to-front z-order. Window clicks take priority over launcher activation.
+- Host regressions cover visibility/focus fallback, resize bounds, pointer drag, pointer resize and focused keyboard event delivery.
+
+**Limitations retained intentionally:** resize changes the visible window extent but does not reallocate or grow its backing surface; no close-button chrome, per-window damage tracking, pointer cursor rendering, or hardware mouse test is claimed. Those require separate implementation and QEMU evidence.
+
+Acceptance remains gated on GitHub Actions and a live QEMU run that demonstrates mouse drag/resize and keyboard delivery with serial evidence. Do not mark Stage 6 complete from host tests or screenshots alone.
