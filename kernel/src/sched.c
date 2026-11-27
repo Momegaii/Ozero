@@ -450,6 +450,10 @@ void o0_sched_ap_start(uint32_t cpu, uint64_t stack_top) {
     __asm__ volatile ("sti" : : : "memory");
 
     for (;;) {
+        /* switch_to() returns here only after this CPU is running on a
+         * different stack. Reclaim this CPU's exited detached threads now;
+         * the BSP must never free an AP's still-active exit stack. */
+        o0_thread_reap_detached();
         struct o0_thread *next = take_next(cpu);
         if (next == NULL) {
             __asm__ volatile ("sti; hlt" : : : "memory");

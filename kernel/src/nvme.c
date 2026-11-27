@@ -655,14 +655,14 @@ o0_status o0_nvme_probe(const char *name, struct o0_block_dev **out) {
 
     /* I/O completion queue (qid 1), then its submission queue. Both physically
      * contiguous and 4 KiB aligned. */
-    st = nvme_admin(nd, NVME_ADMIN_CREATE_CQ, 0u, 0u,
+    st = nvme_admin(nd, NVME_ADMIN_CREATE_CQ, 0u, nd->io_cq.phys,
                     (uint32_t)(1u | ((qdepth - 1u) << 16)),
                     (1u | (ien << 1) | (iv << 16)), 0u);
     if (st != O0_OK) {
         nvme_dma_teardown(nd);
         return st;
     }
-    st = nvme_admin(nd, NVME_ADMIN_CREATE_SQ, 0u, 0u,
+    st = nvme_admin(nd, NVME_ADMIN_CREATE_SQ, 0u, nd->io_sq.phys,
                     (uint32_t)(1u | ((qdepth - 1u) << 16)),
                     (1u | (1u << 16)), 0u);
     if (st != O0_OK) {

@@ -1,7 +1,7 @@
 # Stage 6 — Native Graphical Application Environment
 
-Status: **paused by Rule 0 of the hardening directive (`docs/hardening-roadmap.md`). Phase 6.1 verified (display/framebuffer boot tested in QEMU); Phase 6.2 implemented (PS/2 keyboard + pointer driver, host-tested, not end-to-end evidenced); Phase 6.3 implemented and host-tested (surface primitives); Phases 6.4–6.8 are implemented, host-tested and wired into the boot path (window manager, compositor, input router, desktop shell loop); no desktop/QEMU acceptance is claimed. No new Stage 6 scope is started until Wave 7.**
-Last reviewed: 2026-11-24
+Status: **resumed by the Project Director on 2026-11-27.** Phases 6.1–6.7 are implemented; the desktop now activates in QEMU using PMM-backed large surfaces. CI passed the BIOS/UEFI × qemu64/Haswell-v1/max × SMP 1/2 boot matrix. The independent screendump check verifies the green launcher, purple O0 assistant, right panel and taskbar. Full Stage 6 acceptance remains open until keyboard/pointer interaction and interactive-window behavior are evidenced end to end.
+Last reviewed: 2026-11-27
 Repository: `Momegaii/Ozero`
 Working branch: `main` — the only branch of record; Phases 6.4–6.8 merged at `7e26d26`
 
@@ -179,7 +179,7 @@ Phase 6.7 is complete.
 
 ## Remaining phases and agent handoff
 
-The Project Director requested that implementation/documentation proceed without running the Stage 6 test campaign. The following work is not claimed complete. Three agents should implement/review in parallel where dependencies permit, then run the consolidated test plan below.
+The desktop implementation is integrated. CI now runs host tests, sanitizer tests, the BIOS/UEFI boot matrix and an independent QEMU screendump check. The desktop activation marker and visible launcher/assistant/panel/taskbar pixels pass. Full Stage 6 acceptance is still open: keyboard/pointer input must be exercised end to end, routed into windows, and demonstrated with interactive windows. The agent roles below are retained to close those remaining gaps.
 
 ### Agent A — Display and input (Phases 6.1 and 6.2)
 
@@ -243,7 +243,7 @@ The Project Director requested that implementation/documentation proceed without
 
 **Deliverables:** a coherent QEMU desktop path and an evidence bundle. This agent owns integration only after the display/input and window/compositor contracts stabilize.
 
-## Consolidated test campaign (agents run this; not run in this change set)
+## Remaining Stage 6 acceptance campaign
 
 1. Clean freestanding kernel and ISO build with warnings as errors.
 2. All existing host suites plus `surface_test`; run with AddressSanitizer and UndefinedBehaviorSanitizer where supported.
@@ -273,4 +273,4 @@ Stage 6 is complete when Ozero boots into its own graphical environment, initial
 
 ## Current next action
 
-Assign Agents A–C using the handoff above. Agent A must establish the safe display and input contracts; Agent B can develop against the Phase 6.3 surface API; Agent C should stabilize the desktop and integration only after the lower-level contracts are agreed. The Project Director's independent test agents then run the consolidated campaign. Stage 6 remains open until the acceptance evidence exists.
+Close the remaining input and application-interaction gaps: drive real QEMU keyboard/pointer events, verify routing and focus, and demonstrate at least two interactive windows. Preserve the passing BIOS/UEFI boot matrix and screendump checks as regression gates. Stage 6 remains open until those interaction results and their serial/screenshot evidence are recorded.

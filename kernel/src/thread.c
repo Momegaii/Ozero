@@ -439,11 +439,15 @@ void o0_thread_free_resources(struct o0_thread *thread) {
 }
 
 void o0_thread_reap_detached(void) {
+    /* A CPU may reclaim only its own zombies. In particular, the BSP must not
+     * free an AP thread's stack while that AP is still running its exit loop.
+     * The AP calls this again from its scheduler loop after switching away. */
+    uint32_t cpu = o0_cpu_index();
     for (size_t i = 0; i < O0_MAX_THREADS; ++i) {
         struct o0_thread *thread = &thread_table[i];
         if (thread->state != O0_THREAD_EXITED || !thread->detached ||
             thread->joined || thread->join_waiter != NULL ||
-            thread == o0_sched_current()) {
+            thread->cpu != cpu || thread == o0_sched_current()) {
             continue;
         }
         o0_thread_free_resources(thread);

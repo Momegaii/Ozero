@@ -143,6 +143,8 @@ required_markers=(
     "OZERO: gdt+tss installed"
     "OZERO: framebuffer bars=8"
     "OZERO: framebuffer checksum="
+    # Stage 6: the desktop thread must acquire its page-backed surfaces and render.
+    "OZERO: stage6 desktop active"
     "OZERO: user entry OK"
     "OZERO: syscall exit status=0"
     "OZERO: user fault contained"
@@ -157,6 +159,7 @@ required_markers=(
     "OZERO: budget exhaustion OK"
     "OZERO: ipc negative tests OK"
     "OZERO: wave3 churn OK pairs=8"
+    "OZERO: VFS ring3 file syscalls OK"
     "OZERO: wave3 self-test complete"
 )
 

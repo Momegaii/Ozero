@@ -119,6 +119,8 @@ const char *o0_object_type_name(uint32_t type) {
         case O0_OBJ_MEMORY: return "memory";
         case O0_OBJ_ENDPOINT: return "endpoint";
         case O0_OBJ_BUDGET: return "budget";
+        case O0_OBJ_VNODE: return "vnode";
+        case O0_OBJ_FILE: return "file";
         default: return "none";
     }
 }
