@@ -1,0 +1,301 @@
+name: Ozero kernel build and boot checks
+
+on:
+  push:
+    branches: [main, 'kilo/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Host-side suites under AddressSanitizer and UndefinedBehaviorSanitizer.
+  # Separate from the boot matrix so a sanitizer finding is attributable and
+  # does not depend on emulator availability.
+  host-sanitizers:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes build-essential binutils curl xorriso
+      - name: Compile developer tooling
+        run: python -m compileall -q tools
+      - name: Check host readiness
+        run: make doctor
+      - name: Run host tests under ASan/UBSan
+        run: make test-sanitize
+
+  # Boot matrix: both firmware paths, three CPU models, and two SMP levels.
+  # Each cell asserts the full serial marker set, including the timer/scheduler
+  # markers that only pass when interrupts are actually delivered.
+  kernel-and-boot:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        cpu: [qemu64, Haswell-v1, max]
+        firmware: [bios, uefi]
+        smp: [1, 2]
+    name: boot (${{ matrix.firmware }}, ${{ matrix.cpu }}, smp=${{ matrix.smp }})
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Install build and emulator dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes build-essential binutils curl xorriso qemu-system-x86 ovmf
+      - name: Compile developer tooling
+        run: python -m compileall -q tools
+      - name: Check host readiness
+        run: make doctor
+      - name: Build ELF64 kernel, ISO and host tests
+        run: make check
+      - name: Verify ELF header and save disassembly
+        run: |
+          readelf -h build/kernel.elf
+          objdump -d -Mintel build/kernel.elf > build/kernel.disasm.txt
+      - name: Boot kernel (${{ matrix.firmware }}, ${{ matrix.cpu }}, smp=${{ matrix.smp }})
+        env:
+          QEMU_CPU: ${{ matrix.cpu }}
+          QEMU_FIRMWARE: ${{ matrix.firmware }}
+          QEMU_SMP: ${{ matrix.smp }}
+          QEMU_DEBUG_LOG: build/qemu-debug-${{ matrix.firmware }}-${{ matrix.cpu }}-smp${{ matrix.smp }}.log
+        run: bash tools/qemu-smoke.sh build/ozero.iso build/qemu-serial-${{ matrix.firmware }}-${{ matrix.cpu }}-smp${{ matrix.smp }}.log
+      - name: Upload QEMU diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ozero-qemu-${{ matrix.firmware }}-${{ matrix.cpu }}-smp${{ matrix.smp }}
+          path: |
+            build/qemu-serial-*.log
+            build/qemu-debug-*.log
+            build/kernel.disasm.txt
+          if-no-files-found: warn
+          retention-days: 7
+
+  # Lock-order checker boot: BIOS, qemu64, -smp 2, kernel built with checker on.
+  # This cell is separate so a checker panic is attributable and does not
+  # affect the default matrix.
+  lock-order-boot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Install build and emulator dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes build-essential binutils curl xorriso qemu-system-x86 ovmf
+      - name: Compile developer tooling
+        run: python -m compileall -q tools
+      - name: Check host readiness
+        run: make doctor
+      - name: Build kernel/ISO with lock-order checker enabled
+        run: make LOCK_ORDER=1 iso
+      - name: Boot with lock-order checker
+        env:
+          QEMU_CPU: qemu64
+          QEMU_FIRMWARE: bios
+          QEMU_SMP: 2
+          # Makes tools/qemu-smoke.sh require the checker's boot marker.
+          QEMU_LOCK_ORDER: "1"
+          QEMU_DEBUG_LOG: build/qemu-debug-lock-order.log
+        run: bash tools/qemu-smoke.sh build/ozero.iso build/qemu-serial-lock-order.log
+      - name: Upload QEMU diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ozero-qemu-lock-order
+          path: |
+            build/qemu-serial-lock-order.log
+            build/qemu-debug-lock-order.log
+          if-no-files-found: warn
+          retention-days: 7
+
+  # Storage cells: one controller per job, each with a raw disk image attached and
+  # -smp 2 so completion interrupts are exercised on a non-boot CPU. The kernel
+  # self-test writes and reads back a full page and then runs the driver's
+  # injected-error path; tools/qemu-smoke.sh requires both markers per cell.
+  storage-boot:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Each cell attaches its own controller and gates on the markers that
+        # controller's driver emits. A controller is listed only after its cell
+        # has produced those markers, so no cell can be permanently red.
+        include:
+          - controller: virtio
+            qemu_args: -drive id=vd0,file=build/storage.img,if=none,format=raw -device virtio-blk-pci,drive=vd0 -trace virtio_*
+          - controller: ahci
+            qemu_args: -drive id=ad0,file=build/storage.img,if=none,format=raw -device ide-hd,drive=ad0
+          - controller: nvme
+            qemu_args: -drive id=nd0,file=build/storage.img,if=none,format=raw -device nvme,drive=nd0,serial=nvme0
+    name: storage (${{ matrix.controller }}, smp=2)
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Install build and emulator dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes build-essential binutils curl xorriso qemu-system-x86 ovmf
+      - name: Compile developer tooling
+        run: python -m compileall -q tools
+      - name: Build ELF64 kernel, ISO and host tests
+        run: make check
+      - name: Create the raw disk image
+        run: python3 -c "open('build/storage.img','wb').write(bytes(8 << 20))"
+      - name: Boot with the attached controller
+        env:
+          QEMU_CPU: qemu64
+          QEMU_FIRMWARE: bios
+          QEMU_SMP: 2
+          QEMU_STORAGE: ${{ matrix.controller }}
+          QEMU_EXTRA_ARGS: ${{ matrix.qemu_args }}
+          QEMU_DEBUG_LOG: build/qemu-debug-storage-${{ matrix.controller }}.log
+        run: bash tools/qemu-smoke.sh build/ozero.iso build/qemu-serial-storage-${{ matrix.controller }}.log
+      # Resolve a fatal RIP against the exact binary that ran: the runner's
+      # toolchain need not match a developer's, so local objdump can disagree.
+      - name: Resolve the reported fault address
+        if: always()
+        run: |
+          log=build/qemu-serial-storage-${{ matrix.controller }}.log
+          rip=$(grep -oE "rip=0x[0-9a-f]+" "$log" | tail -1 | sed 's/rip=0x//')
+          if [ -z "$rip" ]; then echo "no fault reported"; exit 0; fi
+          echo "fault rip=0x$rip"
+          nm -n --defined-only build/kernel.elf | awk -v t="$rip" '
+            { a=strtonum("0x" $1); if (a <= strtonum("0x" t)) { sym=$3 } }
+            END { print "nearest symbol before fault: " sym }'
+          objdump -d build/kernel.elf | grep -A 6 -B 6 "^ffffffff${rip}:" || true
+
+      - name: Upload QEMU diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ozero-qemu-storage-${{ matrix.controller }}
+          path: |
+            build/qemu-serial-storage-${{ matrix.controller }}.log
+            build/qemu-debug-storage-${{ matrix.controller }}.log
+          if-no-files-found: warn
+          retention-days: 7
+
+  # The Actions log and artifact endpoints require repository admin rights, so a
+  # reader without them cannot inspect what the boot cells actually printed. This
+  # job republishes every cell's diagnostics as plain files on the ci-evidence
+  # branch, which any clone can fetch. It runs unconditionally: a failing cell's
+  # log is exactly the evidence needed to diagnose it.
+  publish-evidence:
+    needs: [kernel-and-boot, lock-order-boot, host-sanitizers, storage-boot]
+    if: always() && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download QEMU diagnostics
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: ozero-qemu-*
+      - name: Publish diagnostics to the ci-evidence branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          HEAD_SHA: ${{ github.sha }}
+          WORKFLOW: ${{ github.workflow }}
+        run: |
+          set -euo pipefail
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+          workspace="$PWD"
+          publish_root="$RUNNER_TEMP/publish"
+          dest_rel="evidence/ci/run-${RUN_ID}-${RUN_ATTEMPT}"
+
+          publish_once() {
+              rm -rf "$publish_root"
+              if git clone --quiet --depth 1 --branch ci-evidence "$remote" "$publish_root" 2>/dev/null; then
+                  :
+              else
+                  mkdir -p "$publish_root"
+                  git -C "$publish_root" init --quiet --initial-branch=ci-evidence
+                  git -C "$publish_root" remote add origin "$remote"
+              fi
+              git -C "$publish_root" config user.name "ozero-ci"
+              git -C "$publish_root" config user.email "ozero-ci@users.noreply.github.com"
+
+              mkdir -p "$publish_root/$dest_rel"
+              if [ -d "$workspace/artifacts" ]; then
+                  cp -a "$workspace/artifacts/." "$publish_root/$dest_rel/"
+                  # Keep the branch small: the per-cell disassembly is several MB and
+                  # only interesting to the run that produced it, and the QEMU debug
+                  # logs are large text that compresses by roughly an order of
+                  # magnitude. The serial logs stay plain so they read directly.
+                  find "$publish_root/$dest_rel" -name 'kernel.disasm.txt' -delete
+                  find "$publish_root/$dest_rel" -name 'qemu-debug-*.log' -print0 \
+                      | xargs -0 -r gzip -9
+              fi
+              {
+                  echo "run $RUN_ID attempt $RUN_ATTEMPT"
+                  echo "commit $HEAD_SHA"
+                  echo "workflow $WORKFLOW"
+                  echo
+                  echo "Artifact directories and files published by this run:"
+                  find "$publish_root/$dest_rel" -type f -printf '%P\n' | sort
+              } > "$publish_root/$dest_rel/INDEX.txt"
+
+              if [ ! -f "$publish_root/README.md" ]; then
+                  printf '%s\n' \
+                      "# ci-evidence" \
+                      "" \
+                      "Boot-cell serial logs and QEMU diagnostics republished from" \
+                      "GitHub Actions by the publish-evidence job in" \
+                      ".github/workflows/quality.yml." \
+                      "" \
+                      "This branch exists because the Actions job-log and artifact" \
+                      "endpoints require repository admin rights: a reader who can clone" \
+                      "the repository can read these files, but cannot read the same" \
+                      "content from the API. Each directory is evidence/ci/run-<run>/." \
+                      "Nothing here is a build input." \
+                      > "$publish_root/README.md"
+              fi
+
+              git -C "$publish_root" add -A
+              if git -C "$publish_root" diff --cached --quiet; then
+                  echo "no diagnostics to publish"
+                  return 0
+              fi
+              git -C "$publish_root" commit --quiet \
+                  -m "ci: diagnostics for run $RUN_ID on ${HEAD_SHA:0:12}"
+              git -C "$publish_root" push --quiet origin HEAD:ci-evidence
+          }
+
+          # A concurrent run may create the branch or move its tip between the
+          # clone and the push; retry from a fresh clone rather than forcing.
+          for attempt in 1 2 3; do
+              if publish_once; then
+                  exit 0
+              fi
+              echo "publish attempt $attempt failed; retrying" >&2
+              sleep 5
+          done
+          echo "error: could not publish diagnostics to ci-evidence" >&2
+          exit 1
