@@ -41,6 +41,12 @@
 #define O0_TRAY_COLOR         0x080808u   /* system tray */
 #define O0_ASSISTANT_COLOR    0x800080u   /* assistant panel accent */
 
+/* ---- cursor colors ---- */
+
+#define O0_CURSOR_GLOW        0x00FF00u   /* neon green cursor glow */
+#define O0_CURSOR_CORE        0xFFFFFFu   /* white cursor core */
+#define O0_CURSOR_OUTLINE     0x000000u   /* black cursor outline */
+
 /* ---- sphere states ---- */
 
 #define O0_SPHERE_IDLE      0u
@@ -52,6 +58,12 @@
 
 #define O0_SPHERE_LAUNCHER  0u   /* application launcher */
 #define O0_SPHERE_ASSISTANT 1u   /* O0 assistant (purple) */
+
+/* ---- cursor types ---- */
+
+#define O0_CURSOR_ARROW     0u   /* default selection cursor */
+#define O0_CURSOR_BUSY      1u   /* spinning busy cursor */
+#define O0_CURSOR_IBEAM     2u   /* text insertion cursor */
 
 /* ---- limits ---- */
 
@@ -108,6 +120,10 @@ struct o0_desktop_ui {
     /* Keyboard focus: index of the currently focused sphere (UINT32_MAX = none).
      * Drawn as a focus ring around the sphere; changed by the input layer. */
     uint32_t focus_index;
+    /* Cursor type: O0_CURSOR_ARROW, O0_CURSOR_BUSY, or O0_CURSOR_IBEAM.
+     * Changed by the input layer based on what's under the pointer. */
+    uint8_t cursor_type;
+    uint8_t reserved_cursor[3];
 };
 
 /* Initialise the desktop UI for a given screen size. Places spheres,
@@ -128,5 +144,8 @@ void o0_desktop_ui_pointer(struct o0_desktop_ui *ui, int32_t x, int32_t y);
 /* Activate a sphere by index (click), or at desktop pointer coordinates. */
 o0_status o0_desktop_ui_activate(struct o0_desktop_ui *ui, uint32_t index);
 o0_status o0_desktop_ui_activate_at(struct o0_desktop_ui *ui, int32_t x, int32_t y);
+
+/* Set the cursor type (arrow/busy/ibeam). */
+void o0_desktop_ui_cursor_type(struct o0_desktop_ui *ui, uint8_t type);
 
 #endif /* O0_DESKTOP_UI_H */

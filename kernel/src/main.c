@@ -1408,6 +1408,35 @@ static void *desktop_buffer_alloc(size_t bytes, o0_paddr_t *out_phys,
  * It must not run inline in kmain: the compositor loop never returns, so an
  * inline loop would keep o0_sched_start() from executing and suppress the
  * `boot success` milestone that tools/qemu-smoke.sh requires. */
+
+/* Keyboard event handlers for demo windows: log key presses to serial so
+ * keyboard input reaching focused windows can be verified externally. */
+static bool win1_key_handler(struct o0_window *win,
+                             const struct o0_input_event *ev, void *ctx) {
+    (void)win; (void)ctx;
+    if (ev->type == O0_INPUT_KEY && ev->pressed) {
+        o0_serial_puts("OZERO: stage6 window key win1 code=");
+        o0_serial_dec(ev->code);
+        o0_serial_puts(" modifiers=");
+        o0_serial_dec(ev->buttons);
+        o0_serial_puts("\n");
+    }
+    return true;
+}
+
+static bool win2_key_handler(struct o0_window *win,
+                             const struct o0_input_event *ev, void *ctx) {
+    (void)win; (void)ctx;
+    if (ev->type == O0_INPUT_KEY && ev->pressed) {
+        o0_serial_puts("OZERO: stage6 window key win2 code=");
+        o0_serial_dec(ev->code);
+        o0_serial_puts(" modifiers=");
+        o0_serial_dec(ev->buttons);
+        o0_serial_puts("\n");
+    }
+    return true;
+}
+
 static void desktop_main(void *arg) {
     (void)arg;
     static struct o0_shell desktop_shell;
@@ -1472,6 +1501,16 @@ static void desktop_main(void *arg) {
         o0_window_id id1, id2;
         o0_wm_create(&desktop_shell.windows, &win1, 10, 10, &id1);
         o0_wm_create(&desktop_shell.windows, &win2, 220, 10, &id2);
+        /* Wire keyboard event handlers so key input to focused windows is
+         * observable in the serial log. */
+        for (uint32_t i = 0; i < desktop_shell.windows.count; ++i) {
+            struct o0_window *win = &desktop_shell.windows.windows[i];
+            if (win->id == id1) {
+                o0_window_set_event_handler(win, win1_key_handler, NULL);
+            } else if (win->id == id2) {
+                o0_window_set_event_handler(win, win2_key_handler, NULL);
+            }
+        }
     } else {
         if (p1_phys != 0) o0_pmm_free_pages(p1_phys, p1_order);
         if (p2_phys != 0) o0_pmm_free_pages(p2_phys, p2_order);
@@ -1507,10 +1546,19 @@ static void desktop_main(void *arg) {
         (void)o0_shell_poll_input(&desktop_shell);
         uint8_t buttons = desktop_shell.pointer_buttons;
         if ((buttons & 1u) != 0 && (previous_buttons & 1u) == 0) {
-            o0_status activated = o0_desktop_ui_activate_at(
-                &desktop_ui, desktop_shell.pointer_x, desktop_shell.pointer_y);
-            if (activated == O0_OK)
-                o0_serial_puts("OZERO: stage6 desktop control activated\n");
+            /* If a window is under the cursor, let the window manager handle
+             * the click (focus/drag/resize) instead of activating spheres. */
+            struct o0_window *target = o0_shell_pointer_target(&desktop_shell);
+            if (target == NULL) {
+                o0_status activated = o0_desktop_ui_activate_at(
+                    &desktop_ui, desktop_shell.pointer_x, desktop_shell.pointer_y);
+                if (activated == O0_OK)
+                    o0_serial_puts("OZERO: stage6 desktop control activated\n");
+            } else {
+                o0_serial_puts("OZERO: stage6 window clicked id=");
+                o0_serial_dec(target->id);
+                o0_serial_puts("\n");
+            }
         }
         previous_buttons = buttons;
 

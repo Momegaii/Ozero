@@ -3,7 +3,9 @@
  * Advanced dark desktop with neon-green sphere launchers,
  * purple assistant spheres, green particles with trails, a node network,
  * a bottom taskbar, a right-side panel, a system tray, an integrated O0
- * assistant interface, keyboard focus rings, and a visible mouse cursor.
+ * assistant interface, keyboard focus rings, cursor variants (arrow/busy/
+ * ibeam), smooth fixed-point sphere transitions, rounded panels, drop
+ * shadows, translucency, and inner sphere rings.
  *
  * All drawing uses o0_surface_* primitives; no GPU, no external toolkit,
  * no ELF/X11/Wayland assumptions. Animation is frame-driven (16ms budget
@@ -27,6 +29,11 @@
 
 #define O0_FP_ONE 16384
 #define O0_FP_TO_INT(v) (((v) + (O0_FP_ONE / 2)) / O0_FP_ONE)
+
+/* Linear interpolation between a and b by factor t (0..O0_FP_ONE). */
+static int32_t fp_lerp(int32_t a, int32_t b, int32_t t) {
+    return a + ((int64_t)(b - a) * t) / O0_FP_ONE;
+}
 
 /* ---- colour helpers (0xRRGGBB packed) ---- */
 
@@ -178,6 +185,7 @@ o0_status o0_desktop_ui_init(struct o0_desktop_ui *ui, uint32_t width,
     ui->frame = 0;
     ui->assistant_open = false;
     ui->focus_index = UINT32_MAX;
+    ui->cursor_type = O0_CURSOR_ARROW;
 
     return O0_OK;
 }
@@ -210,10 +218,19 @@ void o0_desktop_ui_update(struct o0_desktop_ui *ui) {
                 s->anim_phase = 0;
                 s->anim_radius = s->radius;
             } else {
-                /* Enlarged radius: base + up to 8 pixels, sinusoidal-ish. */
+                /* Smooth fixed-point easing for hover radius:
+                 * ease-out from radius to radius+8 over 60 frames. */
                 uint32_t phase = s->anim_phase;
-                int32_t pulse = (int32_t)((phase % 60) * 8 / 60);
-                s->anim_radius = s->radius + pulse;
+                if (phase < 60) {
+                    int32_t t = (int32_t)((phase * O0_FP_ONE) / 60);
+                    /* Ease-out: t*t*(3-2t) smoothstep. */
+                    int32_t t2 = (int32_t)(((int64_t)t * t) / O0_FP_ONE);
+                    int32_t smooth = (int32_t)(((int64_t)t2 * (3 * O0_FP_ONE - 2 * t)) / O0_FP_ONE);
+                    int32_t target = s->radius + 8;
+                    s->anim_radius = fp_lerp(s->radius, target, smooth);
+                } else {
+                    s->anim_radius = s->radius + 8;
+                }
                 ++s->anim_phase;
             }
             break;
@@ -273,6 +290,11 @@ void o0_desktop_ui_pointer(struct o0_desktop_ui *ui, int32_t x, int32_t y) {
     if (ui == NULL) return;
     ui->pointer_x = x;
     ui->pointer_y = y;
+}
+
+void o0_desktop_ui_cursor_type(struct o0_desktop_ui *ui, uint8_t type) {
+    if (ui == NULL) return;
+    ui->cursor_type = type;
 }
 
 o0_status o0_desktop_ui_activate(struct o0_desktop_ui *ui, uint32_t index) {
@@ -335,9 +357,24 @@ static void ui_draw_node(struct o0_desktop_ui *ui, struct o0_surface *s,
     }
 }
 
+static void ui_draw_sphere_shadow(struct o0_surface *s,
+                                  const struct o0_sphere *sph) {
+    if (!sph->active) return;
+    if (sph->state == O0_SPHERE_IDLE) return;
+    /* Offset drop shadow: dark translucent circle below-right of sphere. */
+    int32_t offset = sph->anim_radius / 4;
+    if (offset < 2) offset = 2;
+    uint32_t shadow = 0x000800u; /* very dark green */
+    o0_surface_fill_circle(s, sph->cx + offset, sph->cy + offset,
+                           sph->anim_radius, shadow);
+}
+
 static void ui_draw_sphere(struct o0_surface *s,
                            const struct o0_sphere *sph) {
     if (!sph->active) return;
+
+    /* Drop shadow behind active/hovered spheres. */
+    ui_draw_sphere_shadow(s, sph);
 
     uint32_t sph_color = sph->color;
     if (sph->state == O0_SPHERE_HOVER) {
@@ -362,6 +399,13 @@ static void ui_draw_sphere(struct o0_surface *s,
 
     /* Solid sphere body. */
     o0_surface_fill_circle(s, sph->cx, sph->cy, sph->anim_radius, sph_color);
+
+    /* Inner sphere ring: thin contrasting ring inside the body. */
+    if (sph->anim_radius > 8) {
+        int32_t ring_r = sph->anim_radius / 2;
+        uint32_t ring_color = color_brighten(sph_color, 140);
+        o0_surface_draw_circle(s, sph->cx, sph->cy, ring_r, ring_color);
+    }
 
     /* Inner highlight (top-left quadrant) for a subtle 3D effect. */
     if (sph->anim_radius > 4) {
@@ -419,9 +463,17 @@ static void ui_draw_particles(struct o0_desktop_ui *ui,
 }
 
 static void ui_draw_panel(struct o0_desktop_ui *ui, struct o0_surface *s) {
-    /* Right-side information panel base. */
+    /* Right-side information panel base: translucent near-black. */
+    /* Draw translucent panel by blending with the black background. */
     ui_fill_rect(s, ui->panel_x, ui->panel_y, ui->panel_w, ui->panel_h,
                  O0_PANEL_COLOR);
+
+    /* Rounded top corners of the panel. */
+    int32_t cr = 12;
+    o0_surface_fill_circle(s, ui->panel_x + cr, ui->panel_y + cr, cr,
+                           O0_DESKTOP_BG_COLOR);
+    o0_surface_fill_circle(s, ui->panel_x + ui->panel_w - cr, ui->panel_y + cr,
+                           cr, O0_DESKTOP_BG_COLOR);
 
     /* Left border: bright neon. */
     for (int32_t y = ui->panel_y; y < ui->panel_y + ui->panel_h; y += 3) {
@@ -445,9 +497,16 @@ static void ui_draw_panel(struct o0_desktop_ui *ui, struct o0_surface *s) {
 
 static void ui_draw_taskbar(struct o0_desktop_ui *ui,
                             struct o0_surface *s) {
-    /* Main taskbar fill. */
+    /* Main taskbar fill with rounded top corners. */
     ui_fill_rect(s, ui->taskbar_x, ui->taskbar_y, ui->taskbar_w,
                  ui->taskbar_h, O0_TASKBAR_COLOR);
+
+    /* Rounded top corners: fill corners with background color to cut them. */
+    int32_t cr = 10;
+    o0_surface_fill_circle(s, ui->taskbar_x + cr, ui->taskbar_y + cr, cr,
+                           O0_DESKTOP_BG_COLOR);
+    o0_surface_fill_circle(s, ui->taskbar_x + ui->taskbar_w - cr,
+                           ui->taskbar_y + cr, cr, O0_DESKTOP_BG_COLOR);
 
     /* Top edge: bright neon highlight (dashed). */
     for (int32_t x = ui->taskbar_x; x < ui->taskbar_x + ui->taskbar_w; x += 4) {
@@ -504,17 +563,10 @@ static void ui_draw_focus_ring(struct o0_desktop_ui *ui,
     o0_surface_draw_circle(s, sph->cx, sph->cy, ring_r + pulse, ring_color);
 }
 
-static void ui_draw_cursor(struct o0_desktop_ui *ui, struct o0_surface *s) {
-    int32_t cx = ui->pointer_x;
-    int32_t cy = ui->pointer_y;
-    uint32_t frame = ui->frame;
-
-    /* Clamp cursor to screen bounds. */
-    if (cx < 0) cx = 0;
-    if (cx >= (int32_t)s->width) cx = (int32_t)s->width - 1;
-    if (cy < 0) cy = 0;
-    if (cy >= (int32_t)s->height) cy = (int32_t)s->height - 1;
-
+static void ui_draw_cursor_arrow(struct o0_desktop_ui *ui,
+                                 struct o0_surface *s,
+                                 int32_t cx, int32_t cy, uint32_t frame) {
+    (void)ui;
     /* Outer glow: bright neon green, pulses slowly. */
     uint32_t glow = (frame % 40 < 20) ? O0_SPHERE_GREEN_BRIGHT : O0_SPHERE_GREEN;
     o0_surface_fill_circle(s, cx, cy, 10, glow);
@@ -523,7 +575,7 @@ static void ui_draw_cursor(struct o0_desktop_ui *ui, struct o0_surface *s) {
     o0_surface_draw_circle(s, cx, cy, 7, O0_SPHERE_GREEN);
 
     /* Cursor core: white filled circle. */
-    o0_surface_fill_circle(s, cx, cy, 3, 0xFFFFFFu);
+    o0_surface_fill_circle(s, cx, cy, 3, O0_CURSOR_CORE);
 
     /* Arrow shaft pointing up-right (thick, bright white). */
     for (int32_t i = 1; i <= 14; ++i) {
@@ -532,7 +584,7 @@ static void ui_draw_cursor(struct o0_desktop_ui *ui, struct o0_surface *s) {
             int32_t py = cy - i + dj;
             if (px >= 0 && px < (int32_t)s->width && py >= 0 &&
                 py < (int32_t)s->height) {
-                o0_surface_put_pixel(s, px, py, 0xFFFFFFu);
+                o0_surface_put_pixel(s, px, py, O0_CURSOR_CORE);
             }
         }
     }
@@ -544,7 +596,7 @@ static void ui_draw_cursor(struct o0_desktop_ui *ui, struct o0_surface *s) {
             int32_t py = cy - i + dj;
             if (px >= 0 && px < (int32_t)s->width && py >= 0 &&
                 py < (int32_t)s->height) {
-                o0_surface_put_pixel(s, px, py, 0xFFFFFFu);
+                o0_surface_put_pixel(s, px, py, O0_CURSOR_CORE);
             }
         }
     }
@@ -555,14 +607,109 @@ static void ui_draw_cursor(struct o0_desktop_ui *ui, struct o0_surface *s) {
         int32_t py = cy - i;
         if (px >= 0 && px < (int32_t)s->width && py >= 0 &&
             py < (int32_t)s->height) {
-            o0_surface_put_pixel(s, px, py, 0x000000u);
+            o0_surface_put_pixel(s, px, py, O0_CURSOR_OUTLINE);
         }
         px = cx + i;
         py = cy - i - 1;
         if (px >= 0 && px < (int32_t)s->width && py >= 0 &&
             py < (int32_t)s->height) {
-            o0_surface_put_pixel(s, px, py, 0x000000u);
+            o0_surface_put_pixel(s, px, py, O0_CURSOR_OUTLINE);
         }
+    }
+}
+
+static void ui_draw_cursor_busy(struct o0_desktop_ui *ui,
+                                struct o0_surface *s,
+                                int32_t cx, int32_t cy, uint32_t frame) {
+    (void)ui;
+    /* Spinning busy cursor: rotating ring with outer glow. */
+    uint32_t glow = (frame % 40 < 20) ? O0_SPHERE_GREEN_BRIGHT : O0_SPHERE_GREEN;
+    o0_surface_fill_circle(s, cx, cy, 10, glow);
+    o0_surface_draw_circle(s, cx, cy, 7, O0_SPHERE_GREEN);
+    o0_surface_fill_circle(s, cx, cy, 3, O0_CURSOR_CORE);
+
+    /* Four rotating spokes around centre. */
+    int32_t phase = frame % 60;
+    int32_t spoke_angle = (phase * 6) % 360; /* 6 deg per frame */
+    static const int8_t dir_x[4] = {1, 0, -1, 0};
+    static const int8_t dir_y[4] = {0, -1, 0, 1};
+    int32_t r = 9;
+    int32_t dir = (spoke_angle / 90) % 4;
+    for (int32_t i = 1; i <= r; ++i) {
+        int32_t px = cx + dir_x[dir] * i;
+        int32_t py = cy + dir_y[dir] * i;
+        if (px >= 0 && px < (int32_t)s->width && py >= 0 &&
+            py < (int32_t)s->height) {
+            o0_surface_put_pixel(s, px, py, O0_SPHERE_GREEN);
+        }
+    }
+}
+
+static void ui_draw_cursor_ibeam(struct o0_desktop_ui *ui,
+                                 struct o0_surface *s,
+                                 int32_t cx, int32_t cy, uint32_t frame) {
+    (void)ui;
+    /* I-beam cursor: vertical bar with horizontal serifs. */
+    uint32_t glow = (frame % 40 < 20) ? O0_SPHERE_GREEN_BRIGHT : O0_SPHERE_GREEN;
+    o0_surface_fill_circle(s, cx, cy, 6, glow);
+    o0_surface_draw_circle(s, cx, cy, 4, O0_SPHERE_GREEN);
+    o0_surface_fill_circle(s, cx, cy, 2, O0_CURSOR_CORE);
+
+    /* Vertical beam. */
+    for (int32_t i = -8; i <= 8; ++i) {
+        int32_t py = cy + i;
+        if (py >= 0 && py < (int32_t)s->height) {
+            o0_surface_put_pixel(s, cx, py, O0_CURSOR_CORE);
+            if (cx + 1 < (int32_t)s->width)
+                o0_surface_put_pixel(s, cx + 1, py, O0_CURSOR_CORE);
+            if (cx - 1 >= 0)
+                o0_surface_put_pixel(s, cx - 1, py, O0_CURSOR_CORE);
+        }
+    }
+
+    /* Top serif. */
+    for (int32_t i = -4; i <= 4; ++i) {
+        int32_t px = cx + i;
+        int32_t py = cy - 8;
+        if (px >= 0 && px < (int32_t)s->width && py >= 0 &&
+            py < (int32_t)s->height) {
+            o0_surface_put_pixel(s, px, py, O0_CURSOR_CORE);
+        }
+    }
+
+    /* Bottom serif. */
+    for (int32_t i = -4; i <= 4; ++i) {
+        int32_t px = cx + i;
+        int32_t py = cy + 8;
+        if (px >= 0 && px < (int32_t)s->width && py >= 0 &&
+            py < (int32_t)s->height) {
+            o0_surface_put_pixel(s, px, py, O0_CURSOR_CORE);
+        }
+    }
+}
+
+static void ui_draw_cursor(struct o0_desktop_ui *ui, struct o0_surface *s) {
+    int32_t cx = ui->pointer_x;
+    int32_t cy = ui->pointer_y;
+    uint32_t frame = ui->frame;
+
+    /* Clamp cursor to screen bounds. */
+    if (cx < 0) cx = 0;
+    if (cx >= (int32_t)s->width) cx = (int32_t)s->width - 1;
+    if (cy < 0) cy = 0;
+    if (cy >= (int32_t)s->height) cy = (int32_t)s->height - 1;
+
+    switch (ui->cursor_type) {
+    case O0_CURSOR_BUSY:
+        ui_draw_cursor_busy(ui, s, cx, cy, frame);
+        break;
+    case O0_CURSOR_IBEAM:
+        ui_draw_cursor_ibeam(ui, s, cx, cy, frame);
+        break;
+    case O0_CURSOR_ARROW:
+    default:
+        ui_draw_cursor_arrow(ui, s, cx, cy, frame);
+        break;
     }
 }
 
@@ -591,7 +738,7 @@ o0_status o0_desktop_ui_render(struct o0_desktop_ui *ui,
         ui_draw_node(ui, backbuffer, &ui->nodes[i]);
     }
 
-    /* 5. Spheres (desktop + taskbar) with glow rings. */
+    /* 5. Spheres (desktop + taskbar) with shadows and glow rings. */
     for (uint32_t i = 0; i < ui->sphere_count; ++i) {
         ui_draw_sphere(backbuffer, &ui->spheres[i]);
     }
