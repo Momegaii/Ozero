@@ -122,7 +122,8 @@ o0_status o0_desktop_ui_render(struct o0_desktop_ui *ui,
 /* Set the pointer position (from the shell/input router). */
 void o0_desktop_ui_pointer(struct o0_desktop_ui *ui, int32_t x, int32_t y);
 
-/* Activate a sphere by index (click). */
+/* Activate a sphere by index (click), or at desktop pointer coordinates. */
 o0_status o0_desktop_ui_activate(struct o0_desktop_ui *ui, uint32_t index);
+o0_status o0_desktop_ui_activate_at(struct o0_desktop_ui *ui, int32_t x, int32_t y);
 
 #endif /* O0_DESKTOP_UI_H */

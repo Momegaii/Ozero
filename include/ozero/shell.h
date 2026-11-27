@@ -11,6 +11,7 @@ struct o0_shell {
     struct o0_window_manager windows;
     uint32_t width,height,background,accent;
     int32_t pointer_x,pointer_y;
+    uint8_t pointer_buttons;
     bool initialized;
     struct o0_input_router input_router;
 };

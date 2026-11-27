@@ -30,8 +30,9 @@ static void deliver_key_event(struct o0_input_router *router, const struct o0_in
 static void deliver_pointer_event(struct o0_input_router *router, const struct o0_input_event *ev) {
     if (!router->shell || !router->wm) return;
 
-    /* Update pointer position */
+    /* Update pointer position and current button state. */
     o0_shell_pointer(router->shell, ev->dx, ev->dy);
+    router->shell->pointer_buttons = ev->buttons;
 
     /* Check for left button press to change focus */
     bool left_down = (ev->buttons & 1u) != 0;

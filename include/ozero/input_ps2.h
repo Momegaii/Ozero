@@ -58,6 +58,9 @@
  * handlers and unmask both lines. Safe to call once during boot. */
 void o0_input_ps2_init(void);
 
+/* Borrow the driver-owned queue for a single consumer (the desktop input router). */
+struct o0_input_queue *o0_input_queue_get(void);
+
 /* Pop the next input event, if any. Returns false when the queue is empty. */
 bool o0_input_poll(struct o0_input_event *event);
 
