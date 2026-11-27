@@ -105,6 +105,9 @@ struct o0_desktop_ui {
     int32_t panel_x, panel_y, panel_w, panel_h;
     int32_t tray_x, tray_y, tray_w, tray_h;
     bool assistant_open;
+    /* Keyboard focus: index of the currently focused sphere (UINT32_MAX = none).
+     * Drawn as a focus ring around the sphere; changed by the input layer. */
+    uint32_t focus_index;
 };
 
 /* Initialise the desktop UI for a given screen size. Places spheres,

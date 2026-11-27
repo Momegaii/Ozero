@@ -1,10 +1,13 @@
 /* Stage 6.7: custom O0 desktop UI implementation.
  *
- * Software-rendered dark desktop with neon-green sphere launchers,
- * purple assistant spheres, green particles, a node network, a bottom
- * taskbar, a right-side panel, a system tray, and an integrated O0
- * assistant interface. All drawing uses o0_surface_* primitives; no GPU,
- * no external toolkit, no ELF/X11/Wayland assumptions.
+ * Advanced dark desktop with neon-green sphere launchers,
+ * purple assistant spheres, green particles with trails, a node network,
+ * a bottom taskbar, a right-side panel, a system tray, an integrated O0
+ * assistant interface, keyboard focus rings, and a visible mouse cursor.
+ *
+ * All drawing uses o0_surface_* primitives; no GPU, no external toolkit,
+ * no ELF/X11/Wayland assumptions. Animation is frame-driven (16ms budget
+ * from desktop_main), using integer math only.
  *
  * Ozero defines its own native execution architecture and does not default
  * to Linux conventions.
@@ -89,21 +92,24 @@ o0_status o0_desktop_ui_init(struct o0_desktop_ui *ui, uint32_t width,
     ui->tray_x = (int32_t)width - ui->tray_w;
     ui->tray_y = (int32_t)height - ui->tray_h;
 
-    /* ---- desktop spheres (launchers above the taskbar) ---- */
-    int32_t sx = (int32_t)(width / 6);
-    int32_t sy = (int32_t)(height / 4);
-    int32_t sr = 24;
+    /* ---- desktop spheres: arranged in a circle around screen centre ---- */
+    int32_t cx = (int32_t)(width / 2);
+    int32_t cy = (int32_t)((height - ui->taskbar_h) / 2);
+    int32_t orbit_r = (int32_t)((height - ui->taskbar_h) / 4);
+    if (orbit_r < 60) orbit_r = 60;
+    int32_t sr = 26;
     static const uint8_t sphere_types[] = {
         O0_SPHERE_LAUNCHER, O0_SPHERE_LAUNCHER,
         O0_SPHERE_LAUNCHER, O0_SPHERE_ASSISTANT,
     };
-    static const int32_t sphere_dx[] = {0, 1, 2, 3};
-    static const int32_t sphere_dy[] = {0, 1, 0, 1};
+    /* Four cardinal positions: right, up, left, down */
+    static const int32_t sphere_dx[] = {1, 0, -1, 0};
+    static const int32_t sphere_dy[] = {0, -1, 0, 1};
     uint32_t n = 0;
     for (uint32_t i = 0; i < 4 && n < O0_DESKTOP_MAX_SPHERES; ++i) {
         struct o0_sphere *s = &ui->spheres[n++];
-        s->cx = sx + sphere_dx[i] * (sr * 3);
-        s->cy = sy + sphere_dy[i] * (sr * 3);
+        s->cx = cx + sphere_dx[i] * orbit_r;
+        s->cy = cy + sphere_dy[i] * orbit_r;
         s->radius = sr;
         s->anim_radius = sr;
         s->color = (sphere_types[i] == O0_SPHERE_ASSISTANT)
@@ -116,17 +122,18 @@ o0_status o0_desktop_ui_init(struct o0_desktop_ui *ui, uint32_t width,
     }
     ui->sphere_count = n;
 
-    /* ---- taskbar spheres (along the bottom) ---- */
-    int32_t tb_x = (int32_t)(width / 4);
+    /* ---- taskbar spheres: evenly spaced along the bottom ---- */
     int32_t tb_y = ui->taskbar_y + ui->taskbar_h / 2;
-    int32_t tb_r = 16;
+    int32_t tb_r = 18;
     static const uint8_t tb_types[] = {
         O0_SPHERE_LAUNCHER, O0_SPHERE_LAUNCHER,
         O0_SPHERE_LAUNCHER, O0_SPHERE_ASSISTANT,
     };
+    int32_t tb_start = (int32_t)(width / 6);
+    int32_t tb_step = (int32_t)((width * 2 / 3) / 4);
     for (uint32_t i = 0; i < 4 && n < O0_DESKTOP_MAX_SPHERES; ++i) {
         struct o0_sphere *s = &ui->spheres[n++];
-        s->cx = tb_x + (int32_t)i * (tb_r * 4);
+        s->cx = tb_start + (int32_t)i * tb_step;
         s->cy = tb_y;
         s->radius = tb_r;
         s->anim_radius = tb_r;
@@ -140,7 +147,7 @@ o0_status o0_desktop_ui_init(struct o0_desktop_ui *ui, uint32_t width,
     }
     ui->sphere_count = n;
 
-    /* ---- nodes: connect desktop spheres to neighbours ---- */
+    /* ---- nodes: connect desktop spheres (indices 0-3) ---- */
     uint32_t node_n = 0;
     for (uint32_t i = 0; i < 4 && node_n < O0_DESKTOP_MAX_NODES; ++i) {
         for (uint32_t j = i + 1; j < 4 && node_n < O0_DESKTOP_MAX_NODES; ++j) {
@@ -153,9 +160,9 @@ o0_status o0_desktop_ui_init(struct o0_desktop_ui *ui, uint32_t width,
     }
     ui->node_count = node_n;
 
-    /* ---- particles: scattered across the screen ---- */
+    /* ---- particles: scattered across the upper screen area ---- */
     uint32_t pn = 0;
-    for (uint32_t i = 0; i < 24 && pn < O0_DESKTOP_MAX_PARTICLES; ++i) {
+    for (uint32_t i = 0; i < 32 && pn < O0_DESKTOP_MAX_PARTICLES; ++i) {
         struct o0_particle *p = &ui->particles[pn++];
         p->x = (int32_t)((i * 777) % (int32_t)width);
         p->y = (int32_t)((i * 131) % (ui->taskbar_y));
@@ -170,6 +177,7 @@ o0_status o0_desktop_ui_init(struct o0_desktop_ui *ui, uint32_t width,
     ui->pointer_y = (int32_t)(height / 2);
     ui->frame = 0;
     ui->assistant_open = false;
+    ui->focus_index = UINT32_MAX;
 
     return O0_OK;
 }
@@ -273,6 +281,7 @@ o0_status o0_desktop_ui_activate(struct o0_desktop_ui *ui, uint32_t index) {
     if (!s->active) return O0_EINVAL;
     s->state = O0_SPHERE_ACTIVE;
     s->anim_phase = 0;
+    ui->focus_index = index;
     if (s->type == O0_SPHERE_ASSISTANT) {
         ui->assistant_open = true;
     }
@@ -335,8 +344,35 @@ static void ui_draw_sphere(struct o0_surface *s,
         sph_color = color_brighten(sph->color, 400); /* ~1.5x brighter */
     }
 
+    /* Outer glow rings (drawn first, behind the sphere body).
+     * Three concentric rings create a soft neon glow. */
+    if (sph->state == O0_SPHERE_HOVER ||
+        sph->state == O0_SPHERE_ACTIVE ||
+        sph->state == O0_SPHERE_FEEDBACK) {
+        uint32_t glow_outer = color_brighten(sph->color, 120);
+        uint32_t glow_mid   = color_brighten(sph->color, 220);
+        uint32_t glow_inner = color_brighten(sph->color, 350);
+        o0_surface_draw_circle(s, sph->cx, sph->cy,
+                               sph->anim_radius + 12, glow_outer);
+        o0_surface_draw_circle(s, sph->cx, sph->cy,
+                               sph->anim_radius + 8, glow_mid);
+        o0_surface_draw_circle(s, sph->cx, sph->cy,
+                               sph->anim_radius + 4, glow_inner);
+    }
+
     /* Solid sphere body. */
     o0_surface_fill_circle(s, sph->cx, sph->cy, sph->anim_radius, sph_color);
+
+    /* Inner highlight (top-left quadrant) for a subtle 3D effect. */
+    if (sph->anim_radius > 4) {
+        int32_t hl_r = sph->anim_radius / 3;
+        if (hl_r > 0) {
+            o0_surface_fill_circle(s,
+                sph->cx - sph->anim_radius / 3,
+                sph->cy - sph->anim_radius / 3,
+                hl_r, color_brighten(sph_color, 160));
+        }
+    }
 
     /* Halo for active spheres. */
     if (sph->state == O0_SPHERE_ACTIVE) {
@@ -364,7 +400,16 @@ static void ui_draw_particles(struct o0_desktop_ui *ui,
         if (!p->active || p->life == 0) continue;
         if (p->x < 0 || p->x >= (int32_t)s->width ||
             p->y < 0 || p->y >= (int32_t)s->height) continue;
-        /* Alpha by life. Dim for low life, bright for high. */
+
+        /* Trail: a dim dot behind the particle's direction of motion. */
+        int32_t tx = p->x - O0_FP_TO_INT(p->vx);
+        int32_t ty = p->y - O0_FP_TO_INT(p->vy);
+        if (tx >= 0 && tx < (int32_t)s->width && ty >= 0 &&
+            ty < (int32_t)s->height) {
+            o0_surface_put_pixel(s, tx, ty, O0_PARTICLE_DIM);
+        }
+
+        /* Particle body: brighter for high life, dim for low. */
         uint8_t alpha = (uint8_t)((uint32_t)p->life * 255u / 200u);
         uint32_t base = (p->life > 100) ? O0_PARTICLE_BRIGHT : O0_PARTICLE_DIM;
         uint32_t blended = o0_surface_blend_rgb(
@@ -374,26 +419,53 @@ static void ui_draw_particles(struct o0_desktop_ui *ui,
 }
 
 static void ui_draw_panel(struct o0_desktop_ui *ui, struct o0_surface *s) {
-    /* Right-side information panel. */
+    /* Right-side information panel base. */
     ui_fill_rect(s, ui->panel_x, ui->panel_y, ui->panel_w, ui->panel_h,
                  O0_PANEL_COLOR);
-    /* Thin border. */
-    for (int32_t y = ui->panel_y; y < ui->panel_y + ui->panel_h; ++y) {
+
+    /* Left border: bright neon. */
+    for (int32_t y = ui->panel_y; y < ui->panel_y + ui->panel_h; y += 3) {
         o0_surface_put_pixel(s, ui->panel_x, y, O0_NODE_BRIGHT);
+    }
+    /* Inner left border: subtle. */
+    for (int32_t y = ui->panel_y; y < ui->panel_y + ui->panel_h; y += 6) {
+        o0_surface_put_pixel(s, ui->panel_x + 1, y, 0x002000u);
+    }
+
+    /* Top border: bright neon. */
+    for (int32_t x = ui->panel_x; x < ui->panel_x + ui->panel_w; x += 3) {
+        o0_surface_put_pixel(s, x, ui->panel_y, O0_NODE_BRIGHT);
+    }
+    /* Bottom border: subtle. */
+    for (int32_t x = ui->panel_x; x < ui->panel_x + ui->panel_w; x += 6) {
+        o0_surface_put_pixel(s, x, ui->panel_y + ui->panel_h - 1,
+                             0x001000u);
     }
 }
 
 static void ui_draw_taskbar(struct o0_desktop_ui *ui,
                             struct o0_surface *s) {
+    /* Main taskbar fill. */
     ui_fill_rect(s, ui->taskbar_x, ui->taskbar_y, ui->taskbar_w,
                  ui->taskbar_h, O0_TASKBAR_COLOR);
-    /* Top edge highlight. */
-    for (int32_t x = ui->taskbar_x; x < ui->taskbar_x + ui->taskbar_w; ++x) {
+
+    /* Top edge: bright neon highlight (dashed). */
+    for (int32_t x = ui->taskbar_x; x < ui->taskbar_x + ui->taskbar_w; x += 4) {
         o0_surface_put_pixel(s, x, ui->taskbar_y, O0_NODE_BRIGHT);
+    }
+    /* Inner top highlight: subtle. */
+    for (int32_t x = ui->taskbar_x; x < ui->taskbar_x + ui->taskbar_w; x += 8) {
+        o0_surface_put_pixel(s, x, ui->taskbar_y + 2, 0x002000u);
+    }
+    /* Bottom edge: subtle. */
+    for (int32_t x = ui->taskbar_x; x < ui->taskbar_x + ui->taskbar_w; x += 4) {
+        o0_surface_put_pixel(s, x, ui->taskbar_y + ui->taskbar_h - 1,
+                             0x001000u);
     }
 }
 
 static void ui_draw_tray(struct o0_desktop_ui *ui, struct o0_surface *s) {
+    /* System tray base. */
     ui_fill_rect(s, ui->tray_x, ui->tray_y, ui->tray_w, ui->tray_h,
                  O0_TRAY_COLOR);
     /* Clock placeholder: a small green dot pulsing. */
@@ -419,6 +491,81 @@ static void ui_draw_assistant(struct o0_desktop_ui *ui,
     o0_surface_fill_circle(s, ax + aw / 2, ay + ah / 2, 20, O0_SPHERE_PURPLE);
 }
 
+static void ui_draw_focus_ring(struct o0_desktop_ui *ui,
+                               struct o0_surface *s) {
+    if (ui->focus_index >= ui->sphere_count) return;
+    const struct o0_sphere *sph = &ui->spheres[ui->focus_index];
+    if (!sph->active) return;
+
+    uint32_t ring_color = color_brighten(sph->color, 500);
+    int32_t ring_r = sph->anim_radius + 10;
+    /* Pulsing focus ring: radius varies slightly. */
+    int32_t pulse = (int32_t)((ui->frame % 30) * 2 / 30);
+    o0_surface_draw_circle(s, sph->cx, sph->cy, ring_r + pulse, ring_color);
+}
+
+static void ui_draw_cursor(struct o0_desktop_ui *ui, struct o0_surface *s) {
+    int32_t cx = ui->pointer_x;
+    int32_t cy = ui->pointer_y;
+    uint32_t frame = ui->frame;
+
+    /* Clamp cursor to screen bounds. */
+    if (cx < 0) cx = 0;
+    if (cx >= (int32_t)s->width) cx = (int32_t)s->width - 1;
+    if (cy < 0) cy = 0;
+    if (cy >= (int32_t)s->height) cy = (int32_t)s->height - 1;
+
+    /* Outer glow: bright neon green, pulses slowly. */
+    uint32_t glow = (frame % 40 < 20) ? O0_SPHERE_GREEN_BRIGHT : O0_SPHERE_GREEN;
+    o0_surface_fill_circle(s, cx, cy, 10, glow);
+
+    /* Mid ring: solid bright green. */
+    o0_surface_draw_circle(s, cx, cy, 7, O0_SPHERE_GREEN);
+
+    /* Cursor core: white filled circle. */
+    o0_surface_fill_circle(s, cx, cy, 3, 0xFFFFFFu);
+
+    /* Arrow shaft pointing up-right (thick, bright white). */
+    for (int32_t i = 1; i <= 14; ++i) {
+        for (int32_t dj = -1; dj <= 1; ++dj) {
+            int32_t px = cx + i;
+            int32_t py = cy - i + dj;
+            if (px >= 0 && px < (int32_t)s->width && py >= 0 &&
+                py < (int32_t)s->height) {
+                o0_surface_put_pixel(s, px, py, 0xFFFFFFu);
+            }
+        }
+    }
+
+    /* Arrow head (filled triangle tip). */
+    for (int32_t i = 12; i <= 16; ++i) {
+        for (int32_t dj = -2; dj <= 2; ++dj) {
+            int32_t px = cx + i;
+            int32_t py = cy - i + dj;
+            if (px >= 0 && px < (int32_t)s->width && py >= 0 &&
+                py < (int32_t)s->height) {
+                o0_surface_put_pixel(s, px, py, 0xFFFFFFu);
+            }
+        }
+    }
+
+    /* Black outline on right/bottom edge of arrow for contrast. */
+    for (int32_t i = 1; i <= 16; ++i) {
+        int32_t px = cx + i + 1;
+        int32_t py = cy - i;
+        if (px >= 0 && px < (int32_t)s->width && py >= 0 &&
+            py < (int32_t)s->height) {
+            o0_surface_put_pixel(s, px, py, 0x000000u);
+        }
+        px = cx + i;
+        py = cy - i - 1;
+        if (px >= 0 && px < (int32_t)s->width && py >= 0 &&
+            py < (int32_t)s->height) {
+            o0_surface_put_pixel(s, px, py, 0x000000u);
+        }
+    }
+}
+
 /* ---- main render ---- */
 
 o0_status o0_desktop_ui_render(struct o0_desktop_ui *ui,
@@ -430,30 +577,33 @@ o0_status o0_desktop_ui_render(struct o0_desktop_ui *ui,
     /* 1. Background: black. */
     o0_surface_fill(backbuffer, O0_DESKTOP_BG_COLOR);
 
-    /* 2. Particles (drawn first so spheres overlay them). */
+    /* 2. UI area bases (taskbar, panel, tray) drawn first so spheres and
+     * particles sit on top. */
+    ui_draw_taskbar(ui, backbuffer);
+    ui_draw_panel(ui, backbuffer);
+    ui_draw_tray(ui, backbuffer);
+
+    /* 3. Particles (drawn before spheres so spheres overlay them). */
     ui_draw_particles(ui, backbuffer);
 
-    /* 3. Node network between desktop spheres. */
+    /* 4. Node network between desktop spheres. */
     for (uint32_t i = 0; i < ui->node_count; ++i) {
         ui_draw_node(ui, backbuffer, &ui->nodes[i]);
     }
 
-    /* 4. Spheres (desktop + taskbar). */
+    /* 5. Spheres (desktop + taskbar) with glow rings. */
     for (uint32_t i = 0; i < ui->sphere_count; ++i) {
         ui_draw_sphere(backbuffer, &ui->spheres[i]);
     }
 
-    /* 5. Taskbar strip. */
-    ui_draw_taskbar(ui, backbuffer);
+    /* 6. Focus ring around the keyboard-focused sphere. */
+    ui_draw_focus_ring(ui, backbuffer);
 
-    /* 6. Right-side panel. */
-    ui_draw_panel(ui, backbuffer);
-
-    /* 7. System tray. */
-    ui_draw_tray(ui, backbuffer);
-
-    /* 8. Assistant panel (if open). */
+    /* 7. Assistant panel (if open). */
     ui_draw_assistant(ui, backbuffer);
+
+    /* 8. Mouse cursor on top of everything. */
+    ui_draw_cursor(ui, backbuffer);
 
     return O0_OK;
 }
