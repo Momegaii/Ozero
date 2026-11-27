@@ -56,14 +56,19 @@ static void deliver_pointer_event(struct o0_input_router *router,const struct o0
             if(router->drag_mode==1) {
                 int64_t x=(int64_t)router->drag_window_x+px-router->drag_pointer_x;
                 int64_t y=(int64_t)router->drag_window_y+py-router->drag_pointer_y;
-                if(x<INT32_MIN)x=INT32_MIN;if(x>INT32_MAX)x=INT32_MAX;
-                if(y<INT32_MIN)y=INT32_MIN;if(y>INT32_MAX)y=INT32_MAX;
+                if (x < INT32_MIN) x = INT32_MIN;
+                if (x > INT32_MAX) x = INT32_MAX;
+                if (y < INT32_MIN) y = INT32_MIN;
+                if (y > INT32_MAX) y = INT32_MAX;
                 (void)o0_wm_move(router->wm,win->id,(int32_t)x,(int32_t)y);
             } else if(router->drag_mode==2) {
                 int64_t w=(int64_t)px-win->x+1,h=(int64_t)py-win->y+1;
-                if(w<32)w=32;if(h<32)h=32;
-                if(w>win->surface->width)w=win->surface->width;
-                if(h>win->surface->height)h=win->surface->height;
+                if (w < 32) w = 32;
+                if (h < 32) h = 32;
+                int64_t max_width = (int64_t)win->surface->width;
+                int64_t max_height = (int64_t)win->surface->height;
+                if (w > max_width) w = max_width;
+                if (h > max_height) h = max_height;
                 (void)o0_wm_resize(router->wm,win->id,(uint32_t)w,(uint32_t)h);
             }
         } else router->drag_mode=0;
