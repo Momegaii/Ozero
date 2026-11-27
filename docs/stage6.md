@@ -273,4 +273,4 @@ Stage 6 is complete when Ozero boots into its own graphical environment, initial
 
 ## Current next action
 
-Assign Agents A–C using the handoff above. Agent A must establish the safe display and input contracts; Agent B can develop against the Phase 6.3 surface API; Agent C should stabilize the desktop and integration only after the lower-level contracts are agreed. The Project Director's independent test agents then run the consolidated campaign. Stage 6 remains open until the acceptance evidence exists.
+Close the remaining input and application-interaction gaps: drive real QEMU keyboard/pointer events, verify routing and focus, and demonstrate at least two interactive windows. Preserve the passing BIOS/UEFI boot matrix and screendump checks as regression gates. Stage 6 remains open until those interaction results and their serial/screenshot evidence are recorded.
