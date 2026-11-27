@@ -1347,11 +1347,16 @@ static void desktop_main(void *arg) {
     uint32_t h = (uint32_t)boot_display_mode.height;
     size_t pitch = (size_t)w * 4u;
 
-    void *bb = o0_kalloc((size_t)h * pitch, 64);
-    if (bb == NULL) {
+    size_t bb_bytes = (size_t)h * pitch;
+    uint32_t bb_pages = (uint32_t)((bb_bytes + O0_PAGE_SIZE - 1u) >> O0_PAGE_SHIFT);
+    uint32_t order = 0;
+    while ((1u << order) < bb_pages) ++order;
+    o0_paddr_t bb_phys = o0_pmm_alloc_pages(order);
+    if (bb_phys == 0) {
         o0_serial_puts("OZERO: stage6 desktop backbuffer unavailable\n");
         return;
     }
+    void *bb = o0_phys_to_virt(bb_phys);
     o0_surface_init(&backbuffer, bb, w, h, pitch, O0_PIXEL_RGBX8888);
     if (o0_shell_init(&desktop_shell, w, h) != O0_OK) {
         o0_serial_puts("OZERO: stage6 shell init failed\n");
