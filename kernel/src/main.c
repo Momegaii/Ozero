@@ -1416,7 +1416,7 @@ static void desktop_main(void *arg) {
 
     uint32_t w = (uint32_t)boot_display_mode.width;
     uint32_t h = (uint32_t)boot_display_mode.height;
-    if (w == 0 || h == 0 || (size_t)w > SIZE_MAX / 4u) {
+    if (w == 0 || h == 0) {
         o0_serial_puts("OZERO: stage6 invalid desktop dimensions\n");
         return;
     }
