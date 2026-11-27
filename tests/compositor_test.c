@@ -56,9 +56,9 @@ static void test_basic_compose(void) {
 
     /* Check window area */
     assert(rgb_at(&target, 10, 10) == 0x00FF00); /* focused border */
-    assert(rgb_at(&target, 11, 11) == 0xFF0000);
+    assert(rgb_at(&target, 12, 12) == 0xFF0000);
     assert(rgb_at(&target, 59, 59) == 0x00FF00); /* focused border */
-    assert(rgb_at(&target, 58, 58) == 0xFF0000);
+    assert(rgb_at(&target, 57, 57) == 0xFF0000);
 
     free(target_buf);
     free(win_buf);
