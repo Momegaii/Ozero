@@ -10,10 +10,28 @@ static void draw_focus_border(struct o0_surface *dst, const struct o0_window *wi
     if (!dst || !win || !win->surface) return;
     int32_t x = win->x, y = win->y;
     uint32_t w = win->width, h = win->height;
-    if (x < 0) { w = (uint32_t)((int64_t)w + x); x = 0; }
-    if (y < 0) { h = (uint32_t)((int64_t)h + y); y = 0; }
-    if (x + (int32_t)w > (int32_t)dst->width) w = (uint32_t)((int64_t)dst->width - x);
-    if (y + (int32_t)h > (int32_t)dst->height) h = (uint32_t)((int64_t)dst->height - y);
+    if (x < 0) {
+        int64_t new_w = (int64_t)w + x;
+        if (new_w <= 0) return; /* completely off-screen left */
+        w = (uint32_t)new_w;
+        x = 0;
+    }
+    if (y < 0) {
+        int64_t new_h = (int64_t)h + y;
+        if (new_h <= 0) return; /* completely off-screen top */
+        h = (uint32_t)new_h;
+        y = 0;
+    }
+    if (x + (int32_t)w > (int32_t)dst->width) {
+        int64_t new_w = (int64_t)dst->width - x;
+        if (new_w <= 0) return;
+        w = (uint32_t)new_w;
+    }
+    if (y + (int32_t)h > (int32_t)dst->height) {
+        int64_t new_h = (int64_t)dst->height - y;
+        if (new_h <= 0) return;
+        h = (uint32_t)new_h;
+    }
     if (w == 0 || h == 0) return;
 
     uint32_t bw = O0_FOCUS_BORDER_WIDTH;

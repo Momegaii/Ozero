@@ -54,9 +54,9 @@ static void test_basic_compose(void) {
     assert(rgb_at(&target, 0, 0) == 0x0000FF);
     assert(rgb_at(&target, 199, 199) == 0x0000FF);
 
-    /* Check window area */
-    assert(rgb_at(&target, 10, 10) == 0xFF0000);
-    assert(rgb_at(&target, 59, 59) == 0xFF0000);
+    /* Check window area (interior positions, avoiding focus border). */
+    assert(rgb_at(&target, 15, 15) == 0xFF0000);
+    assert(rgb_at(&target, 45, 45) == 0xFF0000);
 
     free(target_buf);
     free(win_buf);
@@ -94,9 +94,9 @@ static void test_overlapping_windows(void) {
     assert(rgb_at(&target, 10, 10) == 0x00FF00);
     assert(rgb_at(&target, 49, 49) == 0x00FF00);
 
-    /* Top window area */
-    assert(rgb_at(&target, 50, 50) == 0xFF0000);
-    assert(rgb_at(&target, 149, 149) == 0xFF0000);
+    /* Top window area (interior, avoiding focus border corners). */
+    assert(rgb_at(&target, 55, 55) == 0xFF0000);
+    assert(rgb_at(&target, 145, 145) == 0xFF0000);
 
     /* Background area */
     assert(rgb_at(&target, 0, 0) == 0x0000FF);
@@ -127,9 +127,10 @@ static void test_clipping(void) {
     st = o0_compositor_compose(&target, &wm, 0x000000);
     assert(st == O0_OK);
 
-    /* Only the overlapping portion should be visible */
-    assert(rgb_at(&target, 0, 0) == 0xFF00FF);
-    assert(rgb_at(&target, 99, 99) == 0xFF00FF);
+    /* Only the overlapping portion should be visible (interior positions,
+     * avoiding focus border edges at the clipped screen boundary). */
+    assert(rgb_at(&target, 5, 5) == 0xFF00FF);
+    assert(rgb_at(&target, 94, 94) == 0xFF00FF);
 
     /* Move window completely off-screen */
     st = o0_wm_move(&wm, id, 200, 200);
@@ -149,8 +150,9 @@ static void test_clipping(void) {
     st = o0_compositor_compose(&target, &wm, 0x000000);
     assert(st == O0_OK);
 
-    /* Bottom-right quadrant should have window */
-    assert(rgb_at(&target, 99, 99) == 0xFF00FF);
+    /* Bottom-right quadrant should have window (interior, avoiding focus
+     * border right/bottom edges). */
+    assert(rgb_at(&target, 94, 94) == 0xFF00FF);
     /* Top-left should be background */
     assert(rgb_at(&target, 0, 0) == 0x000000);
 
@@ -243,13 +245,68 @@ static void test_invisible_windows(void) {
     st = o0_compositor_compose(&target, &wm, 0x0000FF);
     assert(st == O0_OK);
 
-    /* Should see window again */
-    assert(rgb_at(&target, 10, 10) == 0xFF0000);
-    assert(rgb_at(&target, 59, 59) == 0xFF0000);
+    /* Should see window again (interior positions, avoiding focus border). */
+    assert(rgb_at(&target, 15, 15) == 0xFF0000);
+    assert(rgb_at(&target, 45, 45) == 0xFF0000);
 
     free(target_buf);
     free(buf);
     puts("compositor_test: invisible_windows passed");
+}
+
+static void test_focus_border(void) {
+    struct o0_window_manager wm;
+    o0_wm_init(&wm);
+
+    uint32_t *target_buf = alloc_surface_buf(200, 200);
+    struct o0_surface target = make_surface(target_buf, 200, 200);
+
+    uint32_t *win_buf = alloc_surface_buf(50, 50);
+    struct o0_surface win = make_surface(win_buf, 50, 50);
+    o0_surface_fill(&win, 0xFF0000);
+
+    o0_window_id id;
+    o0_status st = o0_wm_create(&wm, &win, 10, 10, &id);
+    assert(st == O0_OK);
+
+    /* Compose: window is focused (created -> focused). Focus border is
+     * neon green (0x00FF00) drawn on the outer edge of the window rect. */
+    st = o0_compositor_compose_windows(&target, &wm);
+    assert(st == O0_OK);
+
+    /* Top edge of focused window should have focus border pixels. */
+    assert(rgb_at(&target, 10, 10) == 0x00FF00);
+    assert(rgb_at(&target, 12, 10) == 0x00FF00);
+    /* Left edge. */
+    assert(rgb_at(&target, 10, 12) == 0x00FF00);
+    assert(rgb_at(&target, 10, 14) == 0x00FF00);
+    /* Bottom-right corner area: bottom edge at x=58, right edge at y=58. */
+    assert(rgb_at(&target, 58, 59) == 0x00FF00);
+    assert(rgb_at(&target, 59, 58) == 0x00FF00);
+    /* Interior should be window red, not focus border. */
+    assert(rgb_at(&target, 30, 30) == 0xFF0000);
+
+    /* Unfocus the window by focusing a different (non-existent) id is not
+     * possible; instead create a second window and focus it. */
+    uint32_t *win2_buf = alloc_surface_buf(30, 30);
+    struct o0_surface win2 = make_surface(win2_buf, 30, 30);
+    o0_surface_fill(&win2, 0x0000FF);
+    o0_window_id id2;
+    st = o0_wm_create(&wm, &win2, 100, 100, &id2);
+    assert(st == O0_OK);
+    /* id2 is now focused; id1 should lose its focus border. */
+    st = o0_compositor_compose_windows(&target, &wm);
+    assert(st == O0_OK);
+
+    /* id1's top edge should no longer have focus border (just window red). */
+    assert(rgb_at(&target, 10, 10) == 0xFF0000);
+    /* id2's top edge should have focus border. */
+    assert(rgb_at(&target, 100, 100) == 0x00FF00);
+
+    free(target_buf);
+    free(win_buf);
+    free(win2_buf);
+    puts("compositor_test: focus_border passed");
 }
 
 static void test_null_args(void) {
@@ -293,6 +350,7 @@ int main(void) {
     test_clipping();
     test_off_screen_windows();
     test_invisible_windows();
+    test_focus_border();
     test_null_args();
     test_empty_window_manager();
     puts("compositor_test: all checks passed");
