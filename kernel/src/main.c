@@ -1440,6 +1440,15 @@ static void desktop_main(void *arg) {
         return;
     }
 
+    /* Connect the PS/2 IRQ queue to the shell's single-consumer router. */
+    struct o0_input_queue *desktop_input = o0_input_queue_get();
+    if (desktop_input == NULL) {
+        o0_pmm_free_pages(bb_phys, bb_order);
+        o0_serial_puts("OZERO: stage6 input queue unavailable\n");
+        return;
+    }
+    o0_shell_set_input_queue(&desktop_shell, desktop_input);
+
     /* Initialise the custom O0 desktop UI (Stage 6.7). */
     if (o0_desktop_ui_init(&desktop_ui, w, h) != O0_OK) {
         o0_pmm_free_pages(bb_phys, bb_order);
@@ -1468,9 +1477,19 @@ static void desktop_main(void *arg) {
         o0_serial_puts("OZERO: stage6 demo windows unavailable\n");
     }
 
+    o0_serial_puts("OZERO: stage6 input router connected\n");
     o0_serial_puts("OZERO: stage6 desktop active\n");
+    uint8_t previous_buttons = 0;
     for (;;) {
-        o0_shell_poll_input(&desktop_shell);
+        (void)o0_shell_poll_input(&desktop_shell);
+        uint8_t buttons = desktop_shell.pointer_buttons;
+        if ((buttons & 1u) != 0 && (previous_buttons & 1u) == 0) {
+            o0_status activated = o0_desktop_ui_activate_at(
+                &desktop_ui, desktop_shell.pointer_x, desktop_shell.pointer_y);
+            if (activated == O0_OK)
+                o0_serial_puts("OZERO: stage6 desktop control activated\n");
+        }
+        previous_buttons = buttons;
 
         /* Sync shell pointer to the desktop UI for hover hit-testing. */
         o0_desktop_ui_pointer(&desktop_ui, desktop_shell.pointer_x,
@@ -1482,14 +1501,8 @@ static void desktop_main(void *arg) {
         /* Render the desktop UI onto the backbuffer (background first). */
         o0_desktop_ui_render(&desktop_ui, &backbuffer);
 
-        /* Blit windows on top of the desktop UI. */
-        for (uint32_t i = 0; i < desktop_shell.windows.count; ++i) {
-            struct o0_window *win = &desktop_shell.windows.windows[i];
-            if (win->visible && win->surface) {
-                o0_surface_blit(&backbuffer, win->x, win->y, win->surface, 0,
-                                0, (int32_t)win->width, (int32_t)win->height);
-            }
-        }
+        /* Compose visible windows over the rendered desktop, back-to-front. */
+        (void)o0_compositor_compose_windows(&backbuffer, &desktop_shell.windows);
 
         if (boot_display_mode.address != NULL) {
             uint8_t *fb = (uint8_t *)boot_display_mode.address;

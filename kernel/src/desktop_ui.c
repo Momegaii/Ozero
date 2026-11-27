@@ -613,3 +613,14 @@ o0_status o0_desktop_ui_render(struct o0_desktop_ui *ui,
 struct o0_desktop_ui *o0_desktop_ui_global(void) {
     return &g_ui;
 }
+
+/* Resolve a pointer click against the live animated hit radius. */
+o0_status o0_desktop_ui_activate_at(struct o0_desktop_ui *ui, int32_t x, int32_t y) {
+    if (ui == NULL) return O0_EINVAL;
+    for (uint32_t i = 0; i < ui->sphere_count; ++i) {
+        const struct o0_sphere *s = &ui->spheres[i];
+        if (s->active && sphere_hit(s, x, y, s->radius / 2))
+            return o0_desktop_ui_activate(ui, i);
+    }
+    return O0_ENOENT;
+}
