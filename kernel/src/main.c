@@ -1501,14 +1501,8 @@ static void desktop_main(void *arg) {
         /* Render the desktop UI onto the backbuffer (background first). */
         o0_desktop_ui_render(&desktop_ui, &backbuffer);
 
-        /* Blit windows on top of the desktop UI. */
-        for (uint32_t i = 0; i < desktop_shell.windows.count; ++i) {
-            struct o0_window *win = &desktop_shell.windows.windows[i];
-            if (win->visible && win->surface) {
-                o0_surface_blit(&backbuffer, win->x, win->y, win->surface, 0,
-                                0, (int32_t)win->width, (int32_t)win->height);
-            }
-        }
+        /* Compose visible windows over the rendered desktop, back-to-front. */
+        (void)o0_compositor_compose_windows(&backbuffer, &desktop_shell.windows);
 
         if (boot_display_mode.address != NULL) {
             uint8_t *fb = (uint8_t *)boot_display_mode.address;
