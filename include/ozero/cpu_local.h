@@ -47,7 +47,7 @@ struct o0_cpu_local {
 #define O0_CPU_LOCAL_OFFSET_USER_RSP 24u
 #define O0_CPU_LOCAL_OFFSET_USERCOPY_FIXUP 32u
 #define O0_CPU_LOCAL_OFFSET_USERCOPY_EXPECTED 40u
-#define O0_CPU_LOCAL_OFFSET_TSS_READY 128u
+#define O0_CPU_LOCAL_OFFSET_TSS_READY 160u
 
 extern struct o0_cpu_local o0_cpu_local[O0_MAX_CPUS];
 

@@ -18,14 +18,14 @@ _Static_assert(O0_CPU_LOCAL_OFFSET_CURRENT == 16u, "cpu_local.current offset");
 _Static_assert(O0_CPU_LOCAL_OFFSET_USER_RSP == 24u, "cpu_local.user_rsp offset");
 _Static_assert(O0_CPU_LOCAL_OFFSET_USERCOPY_FIXUP == 32u, "cpu_local fixup offset");
 _Static_assert(O0_CPU_LOCAL_OFFSET_USERCOPY_EXPECTED == 40u, "cpu_local expected offset");
-_Static_assert(O0_CPU_LOCAL_OFFSET_TSS_READY == 128u, "cpu_local.tss_ready offset");
+_Static_assert(O0_CPU_LOCAL_OFFSET_TSS_READY == 160u, "cpu_local.tss_ready offset");
 _Static_assert(offsetof(struct o0_cpu_local, self) == 0u, "self is first");
 _Static_assert(offsetof(struct o0_cpu_local, kernel_rsp0) == 8u, "kstack offset");
 _Static_assert(offsetof(struct o0_cpu_local, current) == 16u, "current offset");
 _Static_assert(offsetof(struct o0_cpu_local, user_rsp) == 24u, "user rsp offset");
 _Static_assert(offsetof(struct o0_cpu_local, usercopy_fixup) == 32u, "fixup offset");
 _Static_assert(offsetof(struct o0_cpu_local, usercopy_expected) == 40u, "expected offset");
-_Static_assert(offsetof(struct o0_cpu_local, tss_ready) == 128u, "tss_ready offset");
+_Static_assert(offsetof(struct o0_cpu_local, tss_ready) == 160u, "tss_ready offset");
 
 int64_t o0_uapi_error_from_status(o0_status status) {
     switch (status) {
