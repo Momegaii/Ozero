@@ -57,6 +57,7 @@ o0_status o0_lapic_send_ipi(uint32_t apic_id, uint32_t vector) {
     return O0_OK;
 }
 struct o0_cpu_local *o0_cpu_local_current(void) { return &o0_cpu_local[0]; }
+uint32_t o0_cpu_local_online_count(void) { return 1; }
 
 void o0_spin_init(o0_spinlock_t *lock) {
     lock->locked = 0;

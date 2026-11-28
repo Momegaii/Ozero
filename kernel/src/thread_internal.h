@@ -84,6 +84,10 @@ struct o0_thread {
     void *user_ptr;
     uint64_t gs_base;
     uint64_t fs_base;
+
+    /* Weighted fair queuing (CFS-style). */
+    uint64_t vruntime;    /* virtual runtime, scaled by VRUNTIME_SCALE */
+    uint32_t weight;      /* scheduling weight (inverse of nice) */
 };
 
 struct o0_process {

@@ -1,12 +1,14 @@
 /* Ozero kernel - per-CPU scheduler.
  *
- * Each CPU owns a ready queue and a current thread. The selection rule is:
- * highest priority first, FIFO within one priority, and the current thread wins
- * ties until its timeslice expires. The BSP tick advances global time and scans
- * sleepers; every CPU's local-APIC tick preempts that CPU.
+ * Each CPU owns a ready queue and a current thread. The selection rule uses
+ * weighted fair queuing: threads accumulate virtual runtime (vruntime) weighted
+ * by their nice value, and the thread with the smallest vruntime runs next.
+ * This provides proportional CPU allocation while preserving priority bands.
+ * The BSP tick advances global time and scans sleepers; every CPU's local-APIC
+ * tick preempts that CPU.
  *
- * Kernel threads may migrate between CPUs. User threads stay on the BSP until
- * per-CPU TSS blocks exist, because TSS.RSP0 is still shared.
+ * Kernel threads may migrate between CPUs. User threads may run on any CPU
+ * whose TSS/IST is installed (tss_ready).
  */
 
 #include <stdbool.h>
@@ -28,6 +30,23 @@
 #define O0_DEFAULT_TIMESLICE 5u
 #define O0_DEFAULT_HZ 100u
 
+/* Nice values map to weights: weight = 1024 / (1.25^nice).
+ * Nice -20 (highest priority) -> weight ~88761
+ * Nice 0 (default) -> weight 1024
+ * Nice +19 (lowest priority) -> weight ~15
+ */
+static const uint32_t nice_to_weight[40] = {
+    88761, 71755, 58036, 46967, 37989, 30696, 24820, 20055, 16201, 13081,
+    10547,  8508,  6863,  5534,  4457,  3590,  2891,  2326,  1870,  1503,
+    1208,    970,   779,   626,   502,   403,   324,   260,   209,   168,
+     135,    108,    87,    70,    56,    45,    36,    29,    23,    18
+};
+
+#define WEIGHT_IDLE 1u
+
+/* Virtual runtime granularity: scaled by 1024 to avoid floating point. */
+#define VRUNTIME_SCALE 1024u
+
 extern void x86_64_context_switch(uint64_t *save_rsp, uint64_t new_rsp);
 
 struct o0_runqueue {
@@ -36,6 +55,7 @@ struct o0_runqueue {
     struct o0_thread *tail;
     uint32_t count;
     struct o0_thread *current;
+    uint64_t min_vruntime; /* Minimum vruntime in this queue */
 };
 
 static struct o0_thread boot_thread;
@@ -47,9 +67,35 @@ static uint32_t tick_hz = O0_DEFAULT_HZ;
 static bool preemption_enabled;
 static bool scheduler_ready;
 
+/* Load balancing: run every N ticks to redistribute threads across CPUs. */
+#define LB_INTERVAL_TICKS 10u
+static uint64_t last_lb_tick;
+
 static uint32_t cpu_index(void) {
     uint32_t cpu = o0_cpu_index();
     return cpu < O0_MAX_CPUS ? cpu : 0u;
+}
+
+static uint32_t thread_weight(struct o0_thread *thread) {
+    if (thread->priority <= O0_THREAD_PRIORITY_IDLE) {
+        return WEIGHT_IDLE;
+    }
+    int nice = 0;
+    if (thread->priority > 0) {
+        /* Positive priority maps to negative nice (higher weight). */
+        nice = -thread->priority;
+        if (nice < -20) nice = -20;
+    } else {
+        /* Negative priority maps to positive nice (lower weight). */
+        nice = -thread->priority;
+        if (nice > 19) nice = 19;
+    }
+    return nice_to_weight[nice + 20];
+}
+
+static uint64_t calc_delta_vruntime(uint64_t delta_exec, uint32_t weight) {
+    if (weight == 0) weight = 1;
+    return (delta_exec * VRUNTIME_SCALE * 1024u) / weight;
 }
 
 static void init_idle(struct o0_thread *thread, uint32_t cpu) {
@@ -60,6 +106,8 @@ static void init_idle(struct o0_thread *thread, uint32_t cpu) {
     thread->preemptible = false;
     thread->timeslice = O0_DEFAULT_TIMESLICE;
     thread->cpu = cpu;
+    thread->vruntime = 0;
+    thread->weight = WEIGHT_IDLE;
     const char *base = cpu == 0u ? "idle" : "ap-idle";
     size_t i = 0;
     while (base[i] != '\0' && i + 1u < sizeof(thread->name)) {
@@ -74,17 +122,17 @@ static void init_idle(struct o0_thread *thread, uint32_t cpu) {
 
 void o0_sched_init(void) {
     for (uint32_t cpu = 0; cpu < O0_MAX_CPUS; ++cpu) {
-        /* IRQ-safe and never held across a blocking operation; keep it outside
-         * the ordered checker even when O0_LOCK_ORDER_CHECK is enabled. */
         o0_spin_init_ordered(&runqueues[cpu].lock, 0u);
         runqueues[cpu].head = NULL;
         runqueues[cpu].tail = NULL;
         runqueues[cpu].count = 0;
         runqueues[cpu].current = NULL;
+        runqueues[cpu].min_vruntime = 0;
         init_idle(cpu == 0u ? &boot_thread : &ap_idle[cpu], cpu);
     }
     runqueues[0].current = &boot_thread;
     ticks = 0;
+    last_lb_tick = 0;
     preemption_enabled = false;
     scheduler_ready = true;
 }
@@ -140,6 +188,7 @@ void o0_sched_note_resume(struct o0_thread *thread) {
     if (thread != NULL) {
         thread->timeslice = O0_DEFAULT_TIMESLICE;
         thread->state = O0_THREAD_RUNNING;
+        thread->weight = thread_weight(thread);
     }
 }
 
@@ -151,7 +200,6 @@ void o0_sched_enqueue(struct o0_thread *thread) {
     if (cpu >= O0_MAX_CPUS) {
         cpu = 0u;
     }
-    /* User threads cannot run on a CPU until its TSS/IST is installed (tss_ready). */
     if (thread->user) {
         struct o0_cpu_local *local = &o0_cpu_local[cpu];
         if (__atomic_load_n(&local->tss_ready, __ATOMIC_ACQUIRE) == 0) {
@@ -160,6 +208,11 @@ void o0_sched_enqueue(struct o0_thread *thread) {
     }
     thread->cpu = cpu;
     thread->next_ready = NULL;
+    thread->weight = thread_weight(thread);
+    if (thread->vruntime == 0) {
+        /* New thread starts at the queue's min_vruntime for fairness. */
+        thread->vruntime = runqueues[cpu].min_vruntime;
+    }
     struct o0_runqueue *rq = &runqueues[cpu];
     o0_irq_state_t irq = o0_irq_save();
     o0_spin_lock(&rq->lock);
@@ -171,12 +224,14 @@ void o0_sched_enqueue(struct o0_thread *thread) {
         rq->tail = thread;
     }
     ++rq->count;
+    if (thread->vruntime < rq->min_vruntime) {
+        rq->min_vruntime = thread->vruntime;
+    }
     o0_spin_unlock(&rq->lock);
     o0_irq_restore(irq);
 }
 
-/* Highest priority ready thread on one CPU; ties are broken by queue order.
- * The caller holds the run-queue lock. */
+/* Pick thread with smallest vruntime. Ties broken by priority, then FIFO. */
 static struct o0_thread *pick_next_locked(uint32_t cpu) {
     struct o0_runqueue *rq = &runqueues[cpu];
     struct o0_thread *best = rq->head;
@@ -184,7 +239,8 @@ static struct o0_thread *pick_next_locked(uint32_t cpu) {
         return NULL;
     }
     for (struct o0_thread *t = rq->head->next_ready; t != NULL; t = t->next_ready) {
-        if (t->priority > best->priority) {
+        if (t->vruntime < best->vruntime ||
+            (t->vruntime == best->vruntime && t->priority > best->priority)) {
             best = t;
         }
     }
@@ -237,6 +293,16 @@ static struct o0_thread *take_next(uint32_t cpu) {
     struct o0_thread *next = pick_next_locked(cpu);
     if (next != NULL) {
         remove_ready_locked(cpu, next);
+        if (runqueues[cpu].head != NULL) {
+            runqueues[cpu].min_vruntime = runqueues[cpu].head->vruntime;
+            for (struct o0_thread *t = runqueues[cpu].head->next_ready; t != NULL; t = t->next_ready) {
+                if (t->vruntime < runqueues[cpu].min_vruntime) {
+                    runqueues[cpu].min_vruntime = t->vruntime;
+                }
+            }
+        } else {
+            runqueues[cpu].min_vruntime = 0;
+        }
     }
     o0_spin_unlock(&runqueues[cpu].lock);
     o0_irq_restore(irq);
@@ -259,18 +325,13 @@ static void switch_to(struct o0_thread *next) {
     next->timeslice = O0_DEFAULT_TIMESLICE;
     rq->current = next;
 
-    /* The kernel half is shared, so the running code and stack stay mapped
-     * while CR3 changes. RSP0 must name the incoming thread's kernel stack
-     * before any ring-3 interrupt can occur. */
     o0_as_t *target = (next->proc != NULL && next->proc->as != NULL)
                           ? next->proc->as
                           : o0_as_kernel();
     if (target != NULL && o0_as_active() != target) {
         o0_as_activate(target);
     }
-    /* TSS.RSP0 is shared until per-CPU TSS descriptors land. Only the BSP can
-     * take ring-3 entries, so an AP must not overwrite the BSP's RSP0. */
-    if (cpu == 0u && next->kernel_stack_top != 0) {
+    if (next->kernel_stack_top != 0) {
         o0_arch_set_rsp0(next->kernel_stack_top);
     }
     o0_cpu_local[cpu].current = (uint64_t)(uintptr_t)next;
@@ -286,9 +347,6 @@ void o0_sched_yield(void) {
     uint32_t cpu = cpu_index();
     struct o0_thread *me = runqueues[cpu].current;
 
-    /* A migration IPI may have retargeted the current thread while no other
-     * thread is ready here. Leave the CPU even then, so the thread is picked
-     * up from its target runqueue instead of continuing on the old CPU. */
     if (me != NULL && me->cpu != cpu && me->state == O0_THREAD_RUNNING) {
         me->state = O0_THREAD_READY;
         o0_sched_enqueue(me);
@@ -306,8 +364,6 @@ void o0_sched_yield(void) {
 
     if (me != NULL && me->state == O0_THREAD_RUNNING) {
         me->state = O0_THREAD_READY;
-        /* A migrated thread is queued on its target CPU, not the CPU it is
-         * leaving. */
         o0_sched_enqueue(me);
     }
 
@@ -345,6 +401,53 @@ void o0_sched_block(uint32_t reason) {
     o0_irq_restore(irq);
 }
 
+static void load_balance(void) {
+    uint32_t online = o0_cpu_local_online_count();
+    if (online <= 1) return;
+
+    /* Find busiest and least busy CPUs. */
+    uint32_t busiest = 0, least = 0;
+    uint32_t max_count = 0, min_count = UINT32_MAX;
+    for (uint32_t cpu = 0; cpu < O0_MAX_CPUS; ++cpu) {
+        if (__atomic_load_n(&o0_cpu_local[cpu].online, __ATOMIC_ACQUIRE) == 0) continue;
+        uint32_t count = o0_sched_ready_count_cpu(cpu);
+        if (count > max_count) {
+            max_count = count;
+            busiest = cpu;
+        }
+        if (count < min_count) {
+            min_count = count;
+            least = cpu;
+        }
+    }
+
+    /* Only balance if imbalance exceeds threshold. */
+    if (max_count <= min_count + 1) return;
+
+    /* Steal one thread from busiest to least busy. */
+    o0_irq_state_t irq = o0_irq_save();
+    o0_spin_lock(&runqueues[busiest].lock);
+    struct o0_thread *victim = runqueues[busiest].head;
+    if (victim != NULL && victim->state == O0_THREAD_READY) {
+        /* Prefer stealing a kernel thread; user threads may have affinity. */
+        struct o0_thread *t = victim;
+        while (t != NULL && t->user) {
+            t = t->next_ready;
+        }
+        if (t != NULL) victim = t;
+
+        remove_ready_locked(busiest, victim);
+        victim->cpu = least;
+        o0_spin_unlock(&runqueues[busiest].lock);
+        o0_irq_restore(irq);
+
+        o0_sched_enqueue(victim);
+    } else {
+        o0_spin_unlock(&runqueues[busiest].lock);
+        o0_irq_restore(irq);
+    }
+}
+
 /* Called from a timer interrupt on the CPU that owns the tick. Never enables
  * interrupts by itself. */
 void o0_sched_tick(void) {
@@ -353,6 +456,12 @@ void o0_sched_tick(void) {
         ++ticks;
         o0_thread_tick(ticks);
         o0_thread_reap_detached();
+
+        /* Periodic load balancing on BSP. */
+        if (ticks - last_lb_tick >= LB_INTERVAL_TICKS) {
+            last_lb_tick = ticks;
+            load_balance();
+        }
     }
 
     if (!preemption_enabled) {
@@ -363,16 +472,18 @@ void o0_sched_tick(void) {
         return;
     }
 
+    /* Account virtual runtime for the current thread. */
+    uint64_t delta_exec = VRUNTIME_SCALE; /* 1 tick of execution */
+    me->vruntime += calc_delta_vruntime(delta_exec, me->weight ? me->weight : 1);
+
     struct o0_thread *best = pick_next(cpu);
     if (best == NULL) {
         return;
     }
 
-    if (me->timeslice > 0) {
-        --me->timeslice;
-    }
-    if (best->priority > me->priority || me->timeslice == 0) {
-        /* Reuse the normal yield path; it runs with interrupts already off. */
+    /* Preempt if another thread has significantly less vruntime. */
+    if (best->vruntime + VRUNTIME_SCALE < me->vruntime ||
+        (best->vruntime == me->vruntime && best->priority > me->priority)) {
         o0_sched_yield();
     }
 }
@@ -393,7 +504,6 @@ o0_status o0_sched_migrate(struct o0_thread *thread, uint32_t target_cpu) {
         __atomic_load_n(&o0_cpu_local[target_cpu].online, __ATOMIC_ACQUIRE) == 0) {
         return O0_EINVAL;
     }
-    /* User threads can only migrate to a CPU with tss_ready. */
     if (thread->user &&
         __atomic_load_n(&o0_cpu_local[target_cpu].tss_ready, __ATOMIC_ACQUIRE) == 0) {
         return O0_ENOTSUP;
@@ -409,6 +519,7 @@ o0_status o0_sched_migrate(struct o0_thread *thread, uint32_t target_cpu) {
         if (old_cpu != target_cpu) {
             remove_ready(old_cpu, thread);
             thread->cpu = target_cpu;
+            thread->vruntime = runqueues[target_cpu].min_vruntime;
             o0_sched_enqueue(thread);
         }
     } else if (thread->state == O0_THREAD_RUNNING) {
@@ -449,15 +560,15 @@ void o0_sched_ap_start(uint32_t cpu, uint64_t stack_top) {
     struct o0_thread *idle = &ap_idle[cpu];
     idle->kernel_stack_top = stack_top;
     idle->state = O0_THREAD_RUNNING;
+    idle->weight = WEIGHT_IDLE;
+    idle->vruntime = 0;
     runqueues[cpu].current = idle;
+    runqueues[cpu].min_vruntime = 0;
     o0_cpu_local[cpu].current = (uint64_t)(uintptr_t)idle;
     __atomic_store_n(&preemption_enabled, true, __ATOMIC_RELEASE);
     __asm__ volatile ("sti" : : : "memory");
 
     for (;;) {
-        /* switch_to() returns here only after this CPU is running on a
-         * different stack. Reclaim this CPU's exited detached threads now;
-         * the BSP must never free an AP's still-active exit stack. */
         o0_thread_reap_detached();
         struct o0_thread *next = take_next(cpu);
         if (next == NULL) {

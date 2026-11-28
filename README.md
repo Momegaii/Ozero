@@ -16,7 +16,7 @@ The approved implementation uses Limine + ELF64 for the current kernel boot imag
 
 On top of that, Stage 4 adds a device-independent block layer with validated device registration and request checking, a RAM disk as the first block driver (with fault injection for tests), and a draft native filesystem, OzeroFS: 4 KiB blocks, checksummed superblock, bitmap allocation, direct and single-indirect file blocks, directory entries, and format/mount/create/read/write/truncate/unlink/mkdir/rmdir/list operations. The filesystem format is a **proposal under review**, not an approved final format: see [docs/o0fs-format.md](docs/o0fs-format.md) and [docs/decisions/0003-stage4-storage.md](docs/decisions/0003-stage4-storage.md).
 
-The current kernel boot-image format does **not** decide or constrain Ozero's future native user-executable format. There is still no user mode, no syscall interface, no real storage protocol driver (ATA/AHCI/NVMe), no partitions and no graphics, and the project is not a general-purpose OS.
+The current kernel boot-image format does **not** decide or constrain Ozero's future native user-executable format. User mode, a syscall interface, storage protocol drivers (AHCI/NVMe/virtio-blk), and a graphical desktop are now implemented; partitions and physical validation remain outstanding, and the project is not a general-purpose OS.
 
 ## Build and run on Linux
 

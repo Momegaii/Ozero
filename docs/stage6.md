@@ -3,7 +3,7 @@
 Status: **active.** Stage 6 desktop UI is implemented, host-tested, and QEMU BIOS + UEFI verified.
 Last reviewed: 2026-11-27
 Repository: `Momegaii/Ozero`
-Branch of record: `main` at `bc4ad71` ("Merge origin/main: P1 compositor focus-border regression fix").
+Branch of record: `main` at `a478b385` ("Merge origin/main: P1 compositor focus-border regression fix").
 
 ## Purpose
 

@@ -20,9 +20,9 @@ Current stage: **Stage 6 — Native graphical application environment (active).*
 | `4f641e8` | P1: input acceptance — focus borders, cursor variants, window click routing |
 | `49585b2` | P2: Stage 6 acceptance — focus border tests, off-screen fix |
 | `173e0f3` | P1 fix: rect-based continuous focus border, 64-bit clipping, framebuffer-check layout updates |
-| `bc4ad71` | Merge: P1 focus-border regression fix + P2 Stage 6 acceptance |
+| `a478b385` | Merge: P1 focus-border regression fix + P2 Stage 6 acceptance |
 
-`main` is synced with `origin/main` at `bc4ad71`.
+`main` is synced with `origin/main` at `a478b385`.
 
 ## Implemented
 

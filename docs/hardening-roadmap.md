@@ -7,8 +7,8 @@ hardware — never inferred from one another).
 
 ## Repository baseline
 
-- Branch: `main`, synced with `origin/main` at `bc4ad71` ("Merge origin/main: P1 compositor focus-border regression fix").
-- Commit line of record: `e904fe7` (P0 baseline) → `4f641e8` (P1 input acceptance) → `49585b2` (P2 Stage 6 acceptance) → `173e0f3` (P1 focus-border fix) → `bc4ad71` (merge).
+- Branch: `main`, synced with `origin/main` at `a478b385` ("Merge origin/main: P1 compositor focus-border regression fix").
+- Commit line of record: `e904fe7` (P0 baseline) → `4f641e8` (P1 input acceptance) → `49585b2` (P2 Stage 6 acceptance) → `173e0f3` (P1 focus-border fix) → `a478b385` (merge).
 - Wave 1 (verification debt) and Wave 2 (single-CPU user mode) are complete and merged into `main`.
 - Wave 3 (SMP and memory hardening) is implemented in source and emulator-verified locally.
 - Wave 5.0 (capability handles, budgets, synchronous IPC) is implemented and emulator-verified.

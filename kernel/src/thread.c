@@ -121,6 +121,8 @@ void o0_thread_release_slot(struct o0_thread *thread) {
     thread->wake_status = 0;
     thread->detached = false;
     thread->name[0] = '\0';
+    thread->vruntime = 0;
+    thread->weight = 1024;
 }
 
 struct o0_thread *o0_thread_by_index(uint32_t index) {
@@ -399,6 +401,8 @@ O0_NODISCARD o0_status o0_thread_create(o0_process_t *proc,
     thread->user_ptr = NULL;
     thread->gs_base = 0;
     thread->fs_base = 0;
+    thread->vruntime = 0;
+    thread->weight = 1024; /* default weight for nice=0 */
     copy_name(thread->name, sizeof(thread->name),
               attr->name != NULL ? attr->name : "thread");
 

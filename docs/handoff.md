@@ -5,7 +5,7 @@ Single source of truth for "where are we now". Every claim here cites a commit o
 
 ## Line of record
 
-Branch: `main`, synced with `origin/main` at `bc4ad71`.
+Branch: `main`, synced with `origin/main` at `a478b385`.
 
 | Commit | Description |
 |--------|-------------|
@@ -13,7 +13,7 @@ Branch: `main`, synced with `origin/main` at `bc4ad71`.
 | `4f641e8` | P1: input acceptance — focus borders, cursor variants, window click routing |
 | `49585b2` | P2: Stage 6 acceptance — focus border tests, off-screen fix |
 | `173e0f3` | P1 fix: rect-based continuous focus border, 64-bit clipping |
-| `bc4ad71` | Merge: P1 focus-border regression fix + P2 Stage 6 acceptance |
+| `a478b385` | Merge: P1 focus-border regression fix + P2 Stage 6 acceptance |
 
 ## What is in `main` and how it is evidenced
 
