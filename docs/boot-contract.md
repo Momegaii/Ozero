@@ -57,8 +57,12 @@ expects it back.
 ### 3.2 Release
 
 `o0_pmm_release_bootloader_memory()` releases reclaimable regions back to the
-allocator once the checklist passes. Currently returns 0 (not implemented) —
-Stage 3 keeps reclaimable regions reserved until the checklist is verified.
+allocator once the checklist passes. It is called from the boot sequence after
+SMP bring-up and TLB shootdown, once `o0_boot_info`, ACPI tables and the SMP
+response have been copied into kernel-owned memory. Reclaimed regions are
+cleared from the PMM reservation and returned to the free pool. ACPI-reclaimable
+memory is not released. Calling it twice is a no-op for already-released
+regions. Returns the number of bytes released, or 0 if preconditions are unmet.
 
 ## 4. Higher-half direct map (HHDM)
 
