@@ -104,7 +104,9 @@ void o0_ap_entry_c(struct limine_mp_info *info) {
 
     (void)o0_paging_ap_load();
     (void)o0_cpu_enable_smep_smap();
-    o0_gdt_load_for_ap();
+
+    /* Per-CPU GDT/TSS/IST: must run ltr before enabling interrupts or scheduling. */
+    o0_gdt_init_ap(index);
 
     struct o0_cpu_local *local = o0_cpu_local_install(index);
     if (local != NULL) {
@@ -120,6 +122,12 @@ void o0_ap_entry_c(struct limine_mp_info *info) {
     x86_64_idt_install_device_gates();
     (void)o0_lapic_ap_init();
     (void)o0_apic_timer_start_ap();
+
+    /* Mark TSS ready after ltr and IDT/LAPIC are installed. */
+    local = o0_cpu_local_current();
+    if (local != NULL) {
+        local->tss_ready = 1;
+    }
 
     o0_cpu_local_mark_online(index, info->lapic_id);
     __atomic_add_fetch(&online_aps, 1u, __ATOMIC_RELEASE);

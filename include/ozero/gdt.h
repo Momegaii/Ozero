@@ -38,6 +38,12 @@ struct __attribute__((packed)) o0_tss {
  * active and before user mode is entered. */
 void o0_gdt_init(void);
 
+/* Initializes the per-CPU GDT image and TSS for an application processor.
+ * Installs the CPU's own TSS descriptor and loads it with ltr before enabling
+ * interrupts. Must run after paging is active and before user mode is entered.
+ * cpu_index is the o0_cpu_local slot assigned by o0_smp_start. */
+void o0_gdt_init_ap(uint32_t cpu_index);
+
 /* Loads the existing GDT and SYSCALL MSRs on an application processor.
  * TSS/IST ownership stays with the BSP until per-CPU TSS blocks land. */
 void o0_gdt_load_for_ap(void);

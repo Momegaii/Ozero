@@ -125,7 +125,7 @@ User threads remain BSP-pinned until per-CPU TSS/IST exists. Ring 3 and SMAP on 
 
 - Wave 4.1 — PCI, MSI/MSI-X and DMA foundations: **implemented.** capability-list parsing, BAR size from all-ones mask, MSI/MSI-X programming and LAPIC vector dispatch, DMA allocator with pinning, host tests. No device driver consumes it yet.
 - Wave 4.2/4.3 — PCI storage drivers: **implemented and build-verified.** legacy virtio-blk, AHCI (one port with command list, FIS, PRDT, Identify Device), NVMe (one admin plus one I/O queue pair, MSI-X entries). Each has an injected past-end-of-medium read proof. Completion is a bounded poll; interrupts are counted but not load-bearing. `make kernel` passes with `-Werror` and `tests/storage_encode_test.c` passes. **No QEMU storage cell has been observed green** — not evidence until a run is recorded.
-- Wave 4.4–4.7: **not started.** MBR/GPT partition discovery, crash consistency per ADR 0012, VFS with file descriptors and page cache remain open.
+- Wave 4.4–4.7: **partial.** Crash consistency per ADR 0012/0018 implemented (redo journal v2, recovery replay, `o0fs_check`); host evidence `o0fs_journal_test` 5/5 and `fs_test` 10/10. MBR/GPT partition discovery and VFS with file descriptors and page cache remain open.
 
 ### Wave 5.0 — capability handles, budgets and synchronous IPC (implemented and emulator-verified)
 

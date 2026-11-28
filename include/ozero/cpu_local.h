@@ -38,6 +38,7 @@ struct o0_cpu_local {
     volatile uint32_t resched_pending; /* offset 88 */
     uint32_t lock_depth;             /* offset 92 */
     void *held_locks[8];             /* offset 96 */
+    uint32_t tss_ready;              /* offset 160 : per-CPU TSS/IST installed and ltr done */
 };
 
 #define O0_CPU_LOCAL_OFFSET_SELF 0u
@@ -46,6 +47,7 @@ struct o0_cpu_local {
 #define O0_CPU_LOCAL_OFFSET_USER_RSP 24u
 #define O0_CPU_LOCAL_OFFSET_USERCOPY_FIXUP 32u
 #define O0_CPU_LOCAL_OFFSET_USERCOPY_EXPECTED 40u
+#define O0_CPU_LOCAL_OFFSET_TSS_READY 128u
 
 extern struct o0_cpu_local o0_cpu_local[O0_MAX_CPUS];
 

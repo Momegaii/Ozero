@@ -151,9 +151,12 @@ void o0_sched_enqueue(struct o0_thread *thread) {
     if (cpu >= O0_MAX_CPUS) {
         cpu = 0u;
     }
-    /* User threads cannot run on an AP until each CPU has its own TSS. */
-    if (thread->user && cpu != 0u) {
-        cpu = 0u;
+    /* User threads cannot run on a CPU until its TSS/IST is installed (tss_ready). */
+    if (thread->user) {
+        struct o0_cpu_local *local = &o0_cpu_local[cpu];
+        if (__atomic_load_n(&local->tss_ready, __ATOMIC_ACQUIRE) == 0) {
+            cpu = 0u;
+        }
     }
     thread->cpu = cpu;
     thread->next_ready = NULL;

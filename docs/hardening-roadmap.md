@@ -113,7 +113,7 @@ Items covered by the Wave 3 sign-off scope:
 
 - Wave 4.1 — PCI, MSI/MSI-X and DMA foundations: **implemented.** Capability-list parsing, BAR size from all-ones mask, MSI/MSI-X programming and LAPIC vector dispatch, DMA allocator with pinning, host tests. No device driver consumes it yet.
 - Waves 4.2/4.3 — PCI storage drivers: **implemented and build-verified.** Legacy virtio-blk, AHCI (one port with command list/FIS/PRDT/Identify Device), NVMe (one admin plus one I/O queue pair with MSI-X entries). Each has an injected past-end-of-medium read proof. `make kernel` passes with `-Werror` and `tests/storage_encode_test.c` passes. **No QEMU storage cell has been observed green** — not evidence until a run is recorded.
-- Waves 4.4–4.7 — **not started.** MBR/GPT partition discovery, crash consistency per ADR 0012, VFS with file descriptors and page cache remain open.
+- Waves 4.4–4.7 — **partial.** Crash consistency per ADR 0012/0018 is implemented: redo journal (version 2) with commit header, ordered data, recovery replay and `o0fs_check`; host evidence `tests/o0fs_journal_test` 5/5 and `tests/fs_test` 10/10 pass (crash at commit header not committed; crash during live application replayed; consistency checker clean). MBR/GPT partition discovery and VFS with file descriptors and page cache remain open.
 
 ## Wave 5 — Platform services and security
 
