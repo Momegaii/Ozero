@@ -9,9 +9,10 @@ Related: `docs/boot-contract.md`, `docs/decisions/0008-*.md`,
 `docs/hardening-roadmap.md`.
 
 This document is an implementation record: it describes what exists in the
-source tree. It is not a design proposal for features that do not yet exist.
-Demand paging, memory-object sharing across address spaces beyond borrowed
-mappings, and a free-list buddy allocator are not part of this record.
+source tree. Demand paging (lazy page allocation on first access) and
+memory-object sharing (mapping the same object into multiple address spaces)
+are implemented. A free-list buddy allocator and reclaim beyond bootloader
+memory are not part of this record.
 
 ---
 
@@ -166,12 +167,19 @@ Object type: `O0_OBJ_MEMORY`
 
 ### 4.1 Design
 
-A memory object owns a set of zeroed 4 KiB pages and a page array. It is the
-only user-visible way to obtain memory in the current stage. Pages are allocated
-eagerly at creation time: `o0_memory_create()` allocates every page upfront,
-charges each page to the caller's budget, and zeros each page.
+A memory object owns a set of 4 KiB pages and a page array. It is the only
+user-visible way to obtain memory in the current stage.
 
-`o0_memory_create_from()` additionally copies caller data into the pages.
+**Demand paging:** `o0_memory_create()` allocates the page array and charges
+every page to the caller's budget up front, but does **not** allocate physical
+frames eagerly. Each entry in the page array starts as 0 (unbacked). The first
+access to an unbacked page triggers a page fault; the fault handler allocates a
+zeroed frame, maps it into the faulting address space, and records the backing
+page in the object. `o0_memory_create_from()` backs every page eagerly because
+caller data must be copied immediately.
+
+**Kernel reads:** `o0_memory_read()` also demand-allocates a page when it
+encounters an unbacked entry, so kernel-side readers never see a hole.
 
 ### 4.2 Rights and mapping
 
@@ -183,7 +191,7 @@ W^X is enforced at map time: `WRITE` and `EXEC` together are refused. A memory
 object created with `WRITE` cannot be mapped `EXEC`; an executable image must be
 created or loaded without `WRITE`.
 
-### 4.3 Borrowed pages
+### 4.3 Borrowed pages and sharing
 
 Mapped pages are marked with `O0_MAP_BORROWED` (software PTE bit 9) so
 address-space teardown frees page tables but not pages owned by the memory
@@ -191,9 +199,13 @@ object. The address space holds an object reference (`o0_as_add_borrowed`) for
 each borrowed mapping; releasing it at teardown lets the memory object free its
 pages.
 
-A process may only map a memory object charged to its own budget
-(`o0_as_budget(as) == memory->obj.budget` is enforced). Mapping a foreign
-budget's pages would let the receiver consume pages it never paid for.
+**Sharing:** a memory object may be mapped into multiple address spaces. The
+budget-equality check that previously restricted a mapping to the creating
+process's budget has been removed: the creating process's budget is charged for
+the pages, and any address space may borrow them. Each address space that maps
+the object holds its own borrowed reference. There is no copy-on-write — writes
+to a shared page are visible to all address spaces that map it. A maximum of 8
+borrowed ranges per address space is supported at this stage.
 
 ### 4.4 Teardown
 
@@ -346,11 +358,11 @@ Failure at any step unwinds all previous charges and allocations.
 
 ```
 1. Validate rights, alignment, range, W^X
-2. Check o0_as_budget(as) == memory->obj.budget
-3. Check destination is unmapped
-4. For each page:
-   a. o0_as_map(as, vaddr, phys, O0_PAGE_SIZE, O0_MAP_USER|O0_MAP_BORROWED|prot)
-5. o0_as_add_borrowed(as, vaddr, len, &memory->obj)
+2. Check destination is unmapped
+3. For each page:
+   a. If backed: o0_as_map(as, vaddr, phys, O0_PAGE_SIZE, O0_MAP_USER|O0_MAP_BORROWED|prot)
+   b. If unbacked: o0_as_map(as, vaddr, 0, O0_PAGE_SIZE, O0_MAP_USER|O0_MAP_BORROWED|O0_MAP_LAZY|prot)
+4. o0_as_add_borrowed(as, vaddr, len, &memory->obj, first_page)
 ```
 
 ### 9.3 Address-space teardown
@@ -373,16 +385,13 @@ Failure at any step unwinds all previous charges and allocations.
 The following are explicitly **not** implemented and are not described here as
 if they were:
 
-- **Demand paging** — all memory-object pages are allocated eagerly at
-  `o0_memory_create()` time; there is no page-fault-driven lazy allocation.
-- **Memory-object sharing across address spaces** beyond borrowed mappings — a
-  memory object's pages may be mapped into one address space at a time through
-  `o0_memory_map`; there is no copy-on-write or shared-page protocol.
 - **Free-list buddy allocator** — the PMM is a bitmap with buddy-coalescing
   validation, not a free-list buddy allocator with split/merge metadata.
 - **Physical page reclaim beyond bootloader memory** — only
   `O0_MEM_RECLAIMABLE` regions are releasable; ACPI-reclaimable and other
   reserved types are not.
+- **Copy-on-write** — shared pages are not copied on write; writes to a shared
+  page are visible to all address spaces that map it.
 
 See `docs/decisions/0010-memory-hardening-smep-smap.md` §5 for the recorded
 deferral of KASLR, buddy and reclaim as separate items.

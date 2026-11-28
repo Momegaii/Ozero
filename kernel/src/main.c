@@ -165,8 +165,14 @@ void x86_exception_dispatch(struct x86_64_exception_frame *frame) {
         if (frame->vector == 14) {
             __asm__ volatile ("mov %%cr2, %0" : "=r"(cr2));
         }
-        o0_thread_user_fault(frame->vector, frame->rip, cr2,
-                             frame->error_code);
+        /* Demand paging: if the fault handler backed a lazy page, resume the
+         * user thread. Otherwise the handler already killed the thread and
+         * never returns. */
+        if (o0_thread_user_fault(frame->vector, frame->rip, cr2,
+                                 frame->error_code)) {
+            return;
+        }
+        __builtin_unreachable();
     }
 
     /* A fault inside a usercopy core is recovered by redirecting execution to

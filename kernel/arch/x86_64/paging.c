@@ -21,10 +21,12 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "ozero/boot.h"
 #include "ozero/budget.h"
 #include "ozero/kaslr.h"
+#include "ozero/memory.h"
 #include "ozero/mm.h"
 #include "ozero/object.h"
 #include "ozero/status.h"
@@ -70,6 +72,9 @@ struct o0_borrowed_range {
     uint64_t vaddr;
     size_t len;
     struct o0_object *owner;
+    /* Page index within the owner memory object where this mapping starts.
+     * Used by the demand-paging fault handler to locate the backing page. */
+    size_t obj_page_offset;
 };
 
 struct o0_as {
@@ -287,7 +292,10 @@ static uint64_t *table_ptr(o0_paddr_t phys) {
 }
 
 static uint64_t flag_bits(uint32_t flags) {
-    uint64_t bits = O0_ENTRY_PRESENT | O0_ENTRY_ACCESSED;
+    uint64_t bits = O0_ENTRY_ACCESSED;
+    if ((flags & O0_MAP_LAZY) == 0) {
+        bits |= O0_ENTRY_PRESENT;
+    }
     if ((flags & O0_MAP_WRITE) != 0) {
         bits |= O0_ENTRY_WRITE;
     }
@@ -623,6 +631,7 @@ o0_status o0_as_create(struct o0_budget *budget, o0_as_t **out) {
         as->borrowed[i].vaddr = 0;
         as->borrowed[i].len = 0;
         as->borrowed[i].owner = NULL;
+        as->borrowed[i].obj_page_offset = 0;
     }
     *out = as;
     return O0_OK;
@@ -633,7 +642,7 @@ struct o0_budget *o0_as_budget(o0_as_t *as) {
 }
 
 O0_NODISCARD o0_status o0_as_add_borrowed(o0_as_t *as, o0_vaddr_t vaddr, size_t len,
-                                          struct o0_object *owner) {
+                                          struct o0_object *owner, size_t obj_page_offset) {
     if (as == NULL || owner == NULL || len == 0) {
         return O0_EINVAL;
     }
@@ -642,11 +651,72 @@ O0_NODISCARD o0_status o0_as_add_borrowed(o0_as_t *as, o0_vaddr_t vaddr, size_t 
             as->borrowed[i].vaddr = vaddr;
             as->borrowed[i].len = len;
             as->borrowed[i].owner = owner;
+            as->borrowed[i].obj_page_offset = obj_page_offset;
             o0_object_ref(owner);
             return O0_OK;
         }
     }
     return O0_ENOMEM;
+}
+
+/* Back a lazy (not-present, borrowed) page at `vaddr` if one exists.
+ *
+ * Walks the address space's borrowed ranges to find the memory object and page
+ * index that owns `vaddr`. If the page is unbacked (pages[idx] == 0), allocates
+ * a zeroed physical frame, maps it present, and records the backing page in the
+ * memory object. Returns O0_OK on success, O0_ENOENT when `vaddr` is not a lazy
+ * borrowed mapping, O0_ENOMEM on allocation failure. */
+O0_NODISCARD o0_status o0_as_fault_in(o0_as_t *as, o0_vaddr_t vaddr) {
+    if (as == NULL) {
+        return O0_EINVAL;
+    }
+    for (size_t i = 0; i < O0_AS_MAX_BORROWED; ++i) {
+        struct o0_borrowed_range *r = &as->borrowed[i];
+        if (r->owner == NULL) {
+            continue;
+        }
+        if (vaddr < r->vaddr || vaddr >= r->vaddr + r->len) {
+            continue;
+        }
+        struct o0_memory *memory = (struct o0_memory *)r->owner;
+        size_t page_index = r->obj_page_offset +
+                            ((vaddr - r->vaddr) >> O0_PAGE_SHIFT);
+        if (page_index >= memory->page_count) {
+            return O0_EFAULT;
+        }
+        if (memory->pages[page_index] != 0) {
+            /* Already backed: not a lazy fault. */
+            return O0_EFAULT;
+        }
+        o0_paddr_t phys = o0_pmm_alloc_pages(0);
+        if (phys == 0) {
+            return O0_ENOMEM;
+        }
+        void *page = o0_phys_to_virt(phys);
+        if (page == NULL) {
+            o0_pmm_free_pages(phys, 0);
+            return O0_ERANGE;
+        }
+        memset(page, 0, O0_PAGE_SIZE);
+        memory->pages[page_index] = phys;
+
+        uint32_t prot = O0_MAP_READ;
+        if ((memory->rights & O0_RIGHT_WRITE) != 0) {
+            prot |= O0_MAP_WRITE;
+        }
+        if ((memory->rights & O0_RIGHT_EXEC) != 0) {
+            prot |= O0_MAP_EXEC;
+        }
+        o0_status st = o0_as_map(as, vaddr & O0_PAGE_MASK, phys, O0_PAGE_SIZE,
+                                 O0_MAP_USER | O0_MAP_BORROWED | prot);
+        if (st != O0_OK) {
+            memory->pages[page_index] = 0;
+            o0_pmm_free_pages(phys, 0);
+            return st;
+        }
+        return O0_OK;
+    }
+    return O0_ENOENT;
 }
 
 void o0_as_destroy(o0_as_t *as) {
@@ -853,7 +923,8 @@ o0_status o0_as_unmap(o0_as_t *as, o0_vaddr_t vaddr, size_t len) {
         uint64_t *pt = table_ptr(e & O0_ADDR_MASK);
         if (pt == NULL) return O0_EFAULT;
         uint64_t *entry = &pt[O0_PT_INDEX(page_vaddr)];
-        if ((*entry & O0_ENTRY_PRESENT) == 0) return O0_ENOENT;
+        if ((*entry & O0_ENTRY_PRESENT) == 0 &&
+            (*entry & O0_ENTRY_SW_BORROWED) == 0) return O0_ENOENT;
         bool borrowed = (*entry & O0_ENTRY_SW_BORROWED) != 0;
         *entry = 0;
         flush_if_active(as, page_vaddr);

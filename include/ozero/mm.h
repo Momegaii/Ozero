@@ -62,7 +62,11 @@ enum o0_map_flags {
     /* Internal: pages are owned by another object (a memory object) and must
      * not be freed or uncharged by address-space teardown. Encoded in a
      * software PTE bit. */
-    O0_MAP_BORROWED = 1u << 8
+    O0_MAP_BORROWED = 1u << 8,
+    /* Internal: the page is not yet backed by a physical frame. The PTE is
+     * not-present; the first access faults and the page is allocated lazily.
+     * Always used together with O0_MAP_BORROWED. */
+    O0_MAP_LAZY = 1u << 9
 };
 
 struct o0_budget;
@@ -98,9 +102,17 @@ O0_NODISCARD o0_status o0_kstack_alloc(size_t pages, struct o0_budget *budget,
 void o0_kstack_free(o0_vaddr_t base, size_t pages, struct o0_budget *budget);
 
 /* Records that [vaddr, vaddr+len) is backed by `owner`'s pages. The address
- * space holds a reference until teardown. */
+ * space holds a reference until teardown. `obj_page_offset` is the page index
+ * within the owner memory object where this mapping starts, used by the
+ * demand-paging fault handler to locate the backing page. */
 O0_NODISCARD o0_status o0_as_add_borrowed(o0_as_t *as, o0_vaddr_t vaddr, size_t len,
-                                          struct o0_object *owner);
+                                          struct o0_object *owner, size_t obj_page_offset);
+
+/* Attempts to back a lazy (not-present, borrowed) page at `vaddr` in `as`.
+ * Returns O0_OK if the page was backed, O0_ENOENT when `vaddr` is not a lazy
+ * borrowed mapping, O0_ENOMEM on allocation failure. Used by the page-fault
+ * handler for demand paging. */
+O0_NODISCARD o0_status o0_as_fault_in(o0_as_t *as, o0_vaddr_t vaddr);
 
 /* len is rounded outward to pages. vaddr and paddr must be page-aligned unless the
  * implementation documents otherwise. */

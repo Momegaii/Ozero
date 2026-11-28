@@ -455,8 +455,37 @@ void o0_thread_reap_detached(void) {
     }
 }
 
-O0_NORETURN void o0_thread_user_fault(uint64_t vector, uint64_t rip,
-                                      uint64_t cr2, uint64_t error) {
+bool o0_thread_user_fault(uint64_t vector, uint64_t rip,
+                          uint64_t cr2, uint64_t error) {
+    /* Only page faults can be demand-paged. Protection violations and other
+     * exceptions are fatal to the faulting thread. */
+    if (vector != 14 || (error & 1u) != 0u) {
+        o0_serial_puts("OZERO: user fault contained vector=");
+        o0_serial_dec(vector);
+        o0_serial_puts(" rip=");
+        o0_serial_hex(rip);
+        o0_serial_puts(" cr2=");
+        o0_serial_hex(cr2);
+        o0_serial_puts(" error=");
+        o0_serial_hex(error);
+        o0_serial_putc('\n');
+        o0_thread_exit(-1);
+        __builtin_unreachable();
+    }
+
+    struct o0_thread *me = o0_sched_current();
+    if (me == NULL || me->proc == NULL || me->proc->as == NULL) {
+        o0_thread_exit(-1);
+        __builtin_unreachable();
+    }
+
+    /* Demand paging: try to back a lazy page at the faulting address. */
+    o0_status st = o0_as_fault_in(me->proc->as, cr2 & O0_PAGE_MASK);
+    if (st == O0_OK) {
+        return true; /* page backed; re-execute the faulting instruction */
+    }
+
+    /* Not a lazy page: the fault is genuine. Kill the thread. */
     o0_serial_puts("OZERO: user fault contained vector=");
     o0_serial_dec(vector);
     o0_serial_puts(" rip=");
@@ -467,6 +496,7 @@ O0_NORETURN void o0_thread_user_fault(uint64_t vector, uint64_t rip,
     o0_serial_hex(error);
     o0_serial_putc('\n');
     o0_thread_exit(-1);
+    __builtin_unreachable();
 }
 
 O0_NORETURN void o0_thread_exit(int status) {

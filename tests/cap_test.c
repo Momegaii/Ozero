@@ -100,11 +100,12 @@ o0_status o0_as_unmap(o0_as_t *as, o0_vaddr_t vaddr, size_t len) {
     return O0_OK;
 }
 o0_status o0_as_add_borrowed(o0_as_t *as, o0_vaddr_t vaddr, size_t len,
-                             struct o0_object *owner) {
+                             struct o0_object *owner, size_t obj_page_offset) {
     (void)as;
     (void)vaddr;
     (void)len;
     (void)owner;
+    (void)obj_page_offset;
     return O0_OK;
 }
 struct o0_thread;

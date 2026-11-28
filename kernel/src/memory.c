@@ -21,8 +21,10 @@ static void memory_destroy(struct o0_object *object) {
         if (memory->pages[i] != 0) {
             o0_pmm_free_pages(memory->pages[i], 0);
             memory->pages[i] = 0;
-            o0_budget_uncharge(object->budget, O0_PAGE_SIZE);
         }
+        /* The budget was charged for every page at create time (backed or
+         * not), so uncharge every page now. */
+        o0_budget_uncharge(object->budget, O0_PAGE_SIZE);
     }
     if (memory->pages != NULL) {
         size_t bytes = memory->page_count * sizeof(o0_paddr_t);
@@ -69,27 +71,15 @@ O0_NODISCARD o0_status o0_memory_create(struct o0_budget *budget, size_t size,
     memory->rights = rights;
     memory->reserved = 0;
 
+    /* Pages are allocated lazily on first access. Charge the budget for every
+     * page up front so the reservation is held, but do not allocate physical
+     * frames until a fault touches them. pages[i] == 0 means unbacked. */
     for (size_t i = 0; i < page_count; ++i) {
         st = o0_budget_charge(budget, O0_PAGE_SIZE);
         if (st != O0_OK) {
             o0_object_unref(object);
             return st;
         }
-        o0_paddr_t phys = o0_pmm_alloc_pages(0);
-        if (phys == 0) {
-            o0_budget_uncharge(budget, O0_PAGE_SIZE);
-            o0_object_unref(object);
-            return O0_ENOMEM;
-        }
-        void *page = o0_phys_to_virt(phys);
-        if (page == NULL) {
-            o0_pmm_free_pages(phys, 0);
-            o0_budget_uncharge(budget, O0_PAGE_SIZE);
-            o0_object_unref(object);
-            return O0_ERANGE;
-        }
-        memset(page, 0, O0_PAGE_SIZE);
-        memory->pages[i] = phys;
     }
     *out = memory;
     return O0_OK;
@@ -107,6 +97,41 @@ O0_NODISCARD o0_status o0_memory_create_from(struct o0_budget *budget,
     if (st != O0_OK) {
         return st;
     }
+
+    /* create_from must have data present: back every page eagerly. The budget
+     * was already charged for all pages by o0_memory_create; here we only
+     * allocate the physical frames. */
+    size_t page_count = O0_ALIGN_UP(size, O0_PAGE_SIZE) >> O0_PAGE_SHIFT;
+    for (size_t i = 0; i < page_count; ++i) {
+        if (memory->pages[i] != 0) {
+            continue;
+        }
+        o0_paddr_t phys = o0_pmm_alloc_pages(0);
+        if (phys == 0) {
+            for (size_t j = 0; j < i; ++j) {
+                if (memory->pages[j] != 0) {
+                    o0_pmm_free_pages(memory->pages[j], 0);
+                    memory->pages[j] = 0;
+                }
+            }
+            o0_object_unref(&memory->obj);
+            return O0_ENOMEM;
+        }
+        void *page = o0_phys_to_virt(phys);
+        if (page == NULL) {
+            o0_pmm_free_pages(phys, 0);
+            for (size_t j = 0; j < i; ++j) {
+                if (memory->pages[j] != 0) {
+                    o0_pmm_free_pages(memory->pages[j], 0);
+                    memory->pages[j] = 0;
+                }
+            }
+            o0_object_unref(&memory->obj);
+            return O0_ERANGE;
+        }
+        memory->pages[i] = phys;
+    }
+
     const uint8_t *src = (const uint8_t *)data;
     size_t remaining = size;
     size_t offset = 0;
@@ -150,7 +175,18 @@ O0_NODISCARD o0_status o0_memory_read(struct o0_memory *memory, size_t offset,
         size_t chunk = O0_MIN(len - done, O0_PAGE_SIZE - in_page);
         void *page = o0_phys_to_virt(memory->pages[page_index]);
         if (page == NULL) {
-            return O0_ERANGE;
+            /* Demand-allocate the page on first kernel read. */
+            o0_paddr_t phys = o0_pmm_alloc_pages(0);
+            if (phys == 0) {
+                return O0_ENOMEM;
+            }
+            page = o0_phys_to_virt(phys);
+            if (page == NULL) {
+                o0_pmm_free_pages(phys, 0);
+                return O0_ERANGE;
+            }
+            memset(page, 0, O0_PAGE_SIZE);
+            memory->pages[page_index] = phys;
         }
         memcpy(out + done, (const uint8_t *)page + in_page, chunk);
         done += chunk;
@@ -194,9 +230,9 @@ O0_NODISCARD o0_status o0_memory_map(struct o0_memory *memory, o0_as_t *as,
     if (prot_status != O0_OK) {
         return prot_status;
     }
-    if (o0_as_budget(as) != memory->obj.budget) {
-        return O0_EPERM;
-    }
+    /* A memory object may be mapped into any address space (sharing). The
+     * creating process's budget is charged for the pages; other address
+     * spaces can borrow them without paying. */
     if (vaddr < O0_USER_NULL_GUARD_END ||
         vaddr > O0_USER_LIMIT || len > O0_USER_LIMIT - vaddr) {
         return O0_EPERM;
@@ -216,8 +252,16 @@ O0_NODISCARD o0_status o0_memory_map(struct o0_memory *memory, o0_as_t *as,
 
     size_t first_page = offset >> O0_PAGE_SHIFT;
     for (size_t i = 0; i < pages; ++i) {
+        o0_paddr_t phys = memory->pages[first_page + i];
+        uint32_t page_flags = flags;
+        if (phys == 0) {
+            /* Unbacked page: map not-present (lazy). The demand-paging fault
+             * handler allocates and backs it on first access. */
+            page_flags |= O0_MAP_LAZY;
+            phys = 0;
+        }
         o0_status st = o0_as_map(as, vaddr + (i << O0_PAGE_SHIFT),
-                                 memory->pages[first_page + i], O0_PAGE_SIZE, flags);
+                                 phys, O0_PAGE_SIZE, page_flags);
         if (st != O0_OK) {
             for (size_t j = 0; j < i; ++j) {
                 o0_as_unmap(as, vaddr + (j << O0_PAGE_SHIFT), O0_PAGE_SIZE);
@@ -225,7 +269,7 @@ O0_NODISCARD o0_status o0_memory_map(struct o0_memory *memory, o0_as_t *as,
             return st;
         }
     }
-    o0_status st = o0_as_add_borrowed(as, vaddr, len, &memory->obj);
+    o0_status st = o0_as_add_borrowed(as, vaddr, len, &memory->obj, first_page);
     if (st != O0_OK) {
         for (size_t i = 0; i < pages; ++i) {
             o0_as_unmap(as, vaddr + (i << O0_PAGE_SHIFT), O0_PAGE_SIZE);
