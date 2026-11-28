@@ -37,10 +37,14 @@ extern void x86_64_idt_install_irq_gates(void);
 extern void x86_64_idt_install_ipi_gate(void);
 extern void x86_64_idt_install_apic_timer_gate(void);
 extern void x86_64_idt_install_device_gates(void);
+extern void x86_64_idt_install_double_fault_ist(void);
+extern void x86_64_idt_install_nmi_ist(void);
+extern void x86_64_idt_install_mce_ist(void);
 extern void o0_sched_ap_start(uint32_t cpu, uint64_t stack_top);
 extern void o0_sched_resched_ipi(void);
 extern void o0_serial_puts(const char *text);
 extern void o0_serial_dec(uint64_t value);
+extern void o0_serial_hex(uint64_t value);
 
 #define O0_TLB_ACK_SPIN 10000000ull
 
@@ -116,6 +120,9 @@ void o0_ap_entry_c(struct limine_mp_info *info) {
     }
 
     x86_64_idt_init();
+    x86_64_idt_install_double_fault_ist();
+    x86_64_idt_install_nmi_ist();
+    x86_64_idt_install_mce_ist();
     x86_64_idt_install_irq_gates();
     x86_64_idt_install_ipi_gate();
     x86_64_idt_install_apic_timer_gate();
@@ -127,6 +134,13 @@ void o0_ap_entry_c(struct limine_mp_info *info) {
     local = o0_cpu_local_current();
     if (local != NULL) {
         local->tss_ready = 1;
+        o0_serial_puts("OZERO: per-cpu tss OK cpu=");
+        o0_serial_dec(index);
+        o0_serial_puts(" tr=");
+        uint16_t tr;
+        __asm__ volatile ("str %0" : "=r"(tr));
+        o0_serial_hex(tr);
+        o0_serial_puts("\n");
     }
 
     o0_cpu_local_mark_online(index, info->lapic_id);

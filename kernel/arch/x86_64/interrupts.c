@@ -161,3 +161,13 @@ void x86_64_idt_audit(void) {
 void x86_64_idt_install_double_fault_ist(void) {
     idt[8].ist = 1;
 }
+
+/* NMI uses IST2 to avoid stack corruption in the interrupted context. */
+void x86_64_idt_install_nmi_ist(void) {
+    idt[2].ist = 2;
+}
+
+/* Machine check uses IST3. Handler may only record and halt. */
+void x86_64_idt_install_mce_ist(void) {
+    idt[18].ist = 3;
+}

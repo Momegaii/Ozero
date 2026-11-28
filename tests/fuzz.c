@@ -23,11 +23,11 @@ static uint64_t rng_state(uint64_t *s) {
 }
 
 uint64_t o0_fuzz_rng_next(struct o0_fuzz *f) {
-    return rng_state(&f->coverage[0]); /* reuse coverage[0] as the RNG state */
+    return rng_state(&f->rng_state);
 }
 
 void o0_fuzz_rng_seed(struct o0_fuzz *f, uint64_t seed) {
-    f->coverage[0] = seed;
+    f->rng_state = seed;
 }
 
 /* ---------------------------------------------------------------- */
@@ -36,7 +36,7 @@ void o0_fuzz_rng_seed(struct o0_fuzz *f, uint64_t seed) {
 
 void o0_fuzz_init(struct o0_fuzz *f) {
     memset(f, 0, sizeof(*f));
-    f->coverage[0] = 0x9e3779b97f4a7c15ull; /* RNG seed */
+    f->rng_state = 0x9e3779b97f4a7c15ull; /* RNG seed */
 }
 
 void o0_fuzz_cover(struct o0_fuzz *f, uint64_t edge_id) {
@@ -247,6 +247,7 @@ uint64_t o0_fuzz_run(struct o0_fuzz *f, o0_fuzz_target_fn target,
         f->total_runs++;
 
         if (crashed) {
+            f->crash_count++;
             /* Keep crashing inputs as corpus entries so they are re-tested. */
             if (f->corpus_count < O0_FUZZ_MAX_CORPUS) {
                 struct o0_fuzz_entry *e = &f->corpus[f->corpus_count++];

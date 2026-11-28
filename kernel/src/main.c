@@ -155,6 +155,8 @@ extern void x86_64_idt_install_ipi_gate(void);
 extern void x86_64_idt_install_apic_timer_gate(void);
 extern void x86_64_idt_install_device_gates(void);
 extern void x86_64_idt_install_double_fault_ist(void);
+extern void x86_64_idt_install_nmi_ist(void);
+extern void x86_64_idt_install_mce_ist(void);
 extern bool o0_usercopy_fixup(uint64_t fault_rip, uint64_t *fixup_rip);
 
 void x86_exception_dispatch(struct x86_64_exception_frame *frame) {
@@ -1834,6 +1836,8 @@ void kmain(void) {
     /* The early IDT used Limine's CS selector; reinstall it against our GDT. */
     x86_64_idt_init();
     x86_64_idt_install_double_fault_ist();
+    x86_64_idt_install_nmi_ist();
+    x86_64_idt_install_mce_ist();
     o0_serial_puts("OZERO: gdt+tss installed\n");
  
     if (boot_framebuffer_valid) {

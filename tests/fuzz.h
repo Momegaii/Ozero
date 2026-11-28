@@ -47,6 +47,7 @@ struct o0_fuzz_entry {
 /* The fuzzer state: coverage bitmap, corpus, counters. */
 struct o0_fuzz {
     uint64_t coverage[O0_FUZZ_COVERAGE_BITS / 64u];
+    uint64_t rng_state;
     struct o0_fuzz_entry corpus[O0_FUZZ_MAX_CORPUS];
     uint64_t corpus_count;
     uint64_t total_runs;

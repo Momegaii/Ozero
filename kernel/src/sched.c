@@ -393,7 +393,9 @@ o0_status o0_sched_migrate(struct o0_thread *thread, uint32_t target_cpu) {
         __atomic_load_n(&o0_cpu_local[target_cpu].online, __ATOMIC_ACQUIRE) == 0) {
         return O0_EINVAL;
     }
-    if (thread->user && target_cpu != 0u) {
+    /* User threads can only migrate to a CPU with tss_ready. */
+    if (thread->user &&
+        __atomic_load_n(&o0_cpu_local[target_cpu].tss_ready, __ATOMIC_ACQUIRE) == 0) {
         return O0_ENOTSUP;
     }
 
